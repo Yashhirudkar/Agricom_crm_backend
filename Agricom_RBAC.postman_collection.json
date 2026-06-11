@@ -1,0 +1,407 @@
+{
+  "info": {
+    "name": "Agricom CRM – RBAC API",
+    "_postman_id": "agricom-rbac-collection",
+    "description": "Complete Dynamic RBAC endpoints for Agricom CRM NestJS backend.\n\nBase URL: http://localhost:5000/api\n\nWorkflow:\n1. Login as Super Admin → copy accessToken\n2. Set `token` variable in the collection\n3. Use RBAC endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:5000/api" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Login (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.accessToken) {",
+                  "  pm.collectionVariables.set('token', res.accessToken);",
+                  "  console.log('✅ Token saved:', res.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@agricom.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏷️ Roles",
+      "item": [
+        {
+          "name": "GetRoles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/GetRoles", "host": ["{{base_url}}"], "path": ["GetRoles"] }
+          }
+        },
+        {
+          "name": "GetRoleById",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/GetRoleById?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["GetRoleById"],
+              "query": [{ "key": "id", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "CreateRole",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Manager\",\n  \"description\": \"Manages day-to-day operations\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/CreateRole", "host": ["{{base_url}}"], "path": ["CreateRole"] }
+          }
+        },
+        {
+          "name": "UpdateRole",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 2,\n  \"name\": \"Senior Manager\",\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/UpdateRole", "host": ["{{base_url}}"], "path": ["UpdateRole"] }
+          }
+        },
+        {
+          "name": "DeleteRole",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 2\n}"
+            },
+            "url": { "raw": "{{base_url}}/DeleteRole", "host": ["{{base_url}}"], "path": ["DeleteRole"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔑 Permissions",
+      "item": [
+        {
+          "name": "GetPermissions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/GetPermissions", "host": ["{{base_url}}"], "path": ["GetPermissions"] }
+          }
+        },
+        {
+          "name": "GetPermissionById",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/GetPermissionById?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["GetPermissionById"],
+              "query": [{ "key": "id", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "CreatePermission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"products:create\",\n  \"resource\": \"products\",\n  \"action\": \"create\",\n  \"description\": \"Allows creating products\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/CreatePermission", "host": ["{{base_url}}"], "path": ["CreatePermission"] }
+          }
+        },
+        {
+          "name": "UpdatePermission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 12,\n  \"description\": \"Updated description for this permission\",\n  \"isActive\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/UpdatePermission", "host": ["{{base_url}}"], "path": ["UpdatePermission"] }
+          }
+        },
+        {
+          "name": "DeletePermission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 12\n}"
+            },
+            "url": { "raw": "{{base_url}}/DeletePermission", "host": ["{{base_url}}"], "path": ["DeletePermission"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Role ↔ Permission",
+      "item": [
+        {
+          "name": "GetRolePermissions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/GetRolePermissions?roleId=1",
+              "host": ["{{base_url}}"],
+              "path": ["GetRolePermissions"],
+              "query": [{ "key": "roleId", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "AssignPermissionToRole",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleId\": 2,\n  \"permissionId\": 12\n}"
+            },
+            "url": { "raw": "{{base_url}}/AssignPermissionToRole", "host": ["{{base_url}}"], "path": ["AssignPermissionToRole"] }
+          }
+        },
+        {
+          "name": "RemovePermissionFromRole",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleId\": 2,\n  \"permissionId\": 12\n}"
+            },
+            "url": { "raw": "{{base_url}}/RemovePermissionFromRole", "host": ["{{base_url}}"], "path": ["RemovePermissionFromRole"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User ↔ Role",
+      "item": [
+        {
+          "name": "GetUserRoles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/GetUserRoles?userId=1",
+              "host": ["{{base_url}}"],
+              "path": ["GetUserRoles"],
+              "query": [{ "key": "userId", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "AssignRoleToUser",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 2,\n  \"roleId\": 2\n}"
+            },
+            "url": { "raw": "{{base_url}}/AssignRoleToUser", "host": ["{{base_url}}"], "path": ["AssignRoleToUser"] }
+          }
+        },
+        {
+          "name": "RemoveRoleFromUser",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 2,\n  \"roleId\": 2\n}"
+            },
+            "url": { "raw": "{{base_url}}/RemoveRoleFromUser", "host": ["{{base_url}}"], "path": ["RemoveRoleFromUser"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "✉️ User Invitations",
+      "item": [
+        {
+          "name": "CreateInvitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"invitee@clienta.com\",\n  \"roleId\": 2,\n  \"companyIds\": [1, 2]\n}"
+            },
+            "url": { "raw": "{{base_url}}/invitations/CreateInvitation", "host": ["{{base_url}}"], "path": ["invitations", "CreateInvitation"] }
+          }
+        },
+        {
+          "name": "GetInvitations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/invitations", "host": ["{{base_url}}"], "path": ["invitations"] }
+          }
+        },
+        {
+          "name": "VerifyInvitation",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/invitations/verify?token=XYZ",
+              "host": ["{{base_url}}"],
+              "path": ["invitations", "verify"],
+              "query": [{ "key": "token", "value": "XYZ" }]
+            }
+          }
+        },
+        {
+          "name": "AcceptInvitation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"XYZ\",\n  \"name\": \"Invited User\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/invitations/accept", "host": ["{{base_url}}"], "path": ["invitations", "accept"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Audit Logs",
+      "item": [
+        {
+          "name": "Get Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/audit/logs?clientId=1", "host": ["{{base_url}}"], "path": ["audit", "logs"], "query": [{ "key": "clientId", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔔 Notifications",
+      "item": [
+        {
+          "name": "Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 2,\n  \"title\": \"Alert\",\n  \"message\": \"Task assigned to you\",\n  \"type\": \"INFO\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/notifications", "host": ["{{base_url}}"], "path": ["notifications"] }
+          }
+        },
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/notifications", "host": ["{{base_url}}"], "path": ["notifications"] }
+          }
+        },
+        {
+          "name": "Mark As Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 1\n}"
+            },
+            "url": { "raw": "{{base_url}}/notifications/read", "host": ["{{base_url}}"], "path": ["notifications", "read"] }
+          }
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{base_url}}/notifications/read-all", "host": ["{{base_url}}"], "path": ["notifications", "read-all"] }
+          }
+        }
+      ]
+    }
+  ]
+}
