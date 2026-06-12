@@ -19,17 +19,35 @@ import { UserCompany } from './users/models/user-company.model';
 import { UserInvitation } from './users/models/user-invitation.model';
 import { AuditLog } from './audit/models/audit-log.model';
 import { Notification } from './notifications/models/notification.model';
-import { Note } from './notes/models/note.model';
-import { Tag } from './tags/models/tag.model';
+
 import { Department } from './companies/models/department.model';
+import { Designation } from './hrms/models/designation.model';
+import { Employee } from './hrms/models/employee.model';
+import { EmployeeDocument } from './hrms/models/employee-document.model';
 import { NotificationsModule } from './notifications/modules/notifications.module';
 import { AuditModule } from './audit/modules/audit.module';
+import { HrmsModule } from './hrms/modules/hrms.module';
+import { HolidaysModule } from './holidays/holidays.module';
+import { Holiday } from './holidays/models/holiday.model';
+import { HolidayCompany } from './holidays/models/holiday-company.model';
+
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
+import { AttachmentsModule } from './attachments/modules/attachments.module';
+import { SysModule } from './system/models/SysModule';
+import { SubModule } from './system/models/SubModule';
+import { SystemModule } from './system/modules/system.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/public',
     }),
     ScheduleModule.forRoot(),
     SequelizeModule.forRootAsync({
@@ -41,7 +59,7 @@ import { AuditModule } from './audit/modules/audit.module';
         port: configService.get<number>('DB_PORT'),
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
-        models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Note, Tag, Department],
+        models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, SysModule, SubModule, Holiday, HolidayCompany],
         autoLoadModels: true,
         synchronize: true,
         sync: { alter: true },
@@ -55,6 +73,10 @@ import { AuditModule } from './audit/modules/audit.module';
     CompaniesModule,
     NotificationsModule,
     AuditModule,
+    HrmsModule,
+    AttachmentsModule,
+    SystemModule,
+    HolidaysModule,
   ],
 })
 export class AppModule {}

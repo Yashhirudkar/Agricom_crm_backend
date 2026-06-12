@@ -36,6 +36,29 @@ const DEFAULT_PERMISSIONS = [
   { name: 'clients:create', resource: 'clients', action: 'create', description: 'Create clients' },
   { name: 'clients:update', resource: 'clients', action: 'update', description: 'Update clients' },
   { name: 'clients:delete', resource: 'clients', action: 'delete', description: 'Delete clients' },
+  // Departments
+  { name: 'departments:read', resource: 'departments', action: 'read', description: 'Read departments' },
+  { name: 'departments:create', resource: 'departments', action: 'create', description: 'Create departments' },
+  { name: 'departments:update', resource: 'departments', action: 'update', description: 'Update departments' },
+  { name: 'departments:delete', resource: 'departments', action: 'delete', description: 'Delete departments' },
+  // Designations
+  { name: 'designations:read', resource: 'designations', action: 'read', description: 'Read designations' },
+  { name: 'designations:create', resource: 'designations', action: 'create', description: 'Create designations' },
+  { name: 'designations:update', resource: 'designations', action: 'update', description: 'Update designations' },
+  { name: 'designations:delete', resource: 'designations', action: 'delete', description: 'Delete designations' },
+  // Employees
+  { name: 'employees:read', resource: 'employees', action: 'read', description: 'Read employees' },
+  { name: 'employees:create', resource: 'employees', action: 'create', description: 'Create employees' },
+  { name: 'employees:update', resource: 'employees', action: 'update', description: 'Update employees' },
+  { name: 'employees:delete', resource: 'employees', action: 'delete', description: 'Delete employees' },
+  // Documents
+  { name: 'documents:read', resource: 'documents', action: 'read', description: 'Read documents' },
+  { name: 'documents:create', resource: 'documents', action: 'create', description: 'Create documents' },
+  { name: 'documents:update', resource: 'documents', action: 'update', description: 'Update documents' },
+  { name: 'documents:delete', resource: 'documents', action: 'delete', description: 'Delete documents' },
+  // Holidays
+  { name: 'Holidays:read', resource: 'Holidays', action: 'read', description: 'Read holidays' },
+  { name: 'Holidays:write', resource: 'Holidays', action: 'write', description: 'Create, update, delete holidays' },
 ];
 
 const ADMIN_ROLE_NAME = 'Admin';

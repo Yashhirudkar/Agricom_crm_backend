@@ -61,13 +61,29 @@ export class AuthController {
       // Fallback for legacy client admin sessions
       const client = await this.clientsService.findById(req.user.sub);
       if (!client) throw new UnauthorizedException('Client not found');
+
+      const allCompanies = await this.userCompanyModel.sequelize!.query(
+        `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        {
+          replacements: { clientId: client.id },
+          type: 'SELECT'
+        }
+      ) as any[];
+
+      const workspaces = allCompanies.map(c => ({
+        id: c.id,
+        name: c.name,
+        role: { id: 0, name: 'Client Admin' },
+        status: c.status || 'Active',
+      }));
+
       return {
         id: client.id,
         name: client.name,
         email: client.email,
         type: 'client_admin',
         isActive: client.isActive,
-        workspaces: [],
+        workspaces,
       };
     }
 
@@ -86,12 +102,31 @@ export class AuthController {
       }
     }
 
-    const workspaces = user.userCompanies?.map((uc) => ({
-      id: uc.company?.id,
-      name: uc.company?.name,
-      role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
-      status: uc.status,
-    })) || [];
+    let workspaces = [];
+
+    if (type === 'client_admin') {
+      const allCompanies = await this.userCompanyModel.sequelize!.query(
+        `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        {
+          replacements: { clientId: user.clientId },
+          type: 'SELECT'
+        }
+      ) as any[];
+
+      workspaces = allCompanies.map(c => ({
+        id: c.id,
+        name: c.name,
+        role: { id: 0, name: 'Client Admin' },
+        status: c.status || 'Active',
+      }));
+    } else {
+      workspaces = user.userCompanies?.map((uc) => ({
+        id: uc.company?.id,
+        name: uc.company?.name,
+        role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
+        status: uc.status,
+      })) || [];
+    }
 
     return {
       id: user.id,
@@ -129,11 +164,16 @@ export class AuthController {
     if (!membership && req.user.type !== 'super_admin') {
       // Client Admins have access to all companies of their client. Let's verify that.
       if (req.user.type === 'client_admin') {
-        const fullUser = await this.usersService.findById(userId);
+        const actualClientId = req.user.clientId;
+        
+        if (!actualClientId) {
+          throw new ForbiddenException('Invalid client session');
+        }
+
         const targetCompany = await this.userCompanyModel.sequelize!.query(
           `SELECT id FROM "companies" WHERE id = :companyId AND "clientId" = :clientId LIMIT 1;`,
           {
-            replacements: { companyId, clientId: fullUser?.clientId },
+            replacements: { companyId, clientId: actualClientId },
             type: 'SELECT'
           }
         ) as any[];
@@ -145,8 +185,10 @@ export class AuthController {
       }
     }
 
-    // Update user's lastCompanyId
-    await this.usersService.updateUser(userId, { lastCompanyId: companyId });
+    // Update user's lastCompanyId if they are a real user
+    if (req.user.userId) {
+      await this.usersService.updateUser(req.user.userId, { lastCompanyId: companyId });
+    }
 
     return {
       success: true,

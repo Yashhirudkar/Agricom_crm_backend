@@ -103,12 +103,31 @@ export class AuthService {
 
       // Load user workspaces
       const fullUser = await this.usersService.findByIdWithRoles(user.id);
-      const workspaces = fullUser?.userCompanies?.map((uc) => ({
-        id: uc.company?.id,
-        name: uc.company?.name,
-        role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
-        status: uc.status,
-      })) || [];
+      let workspaces = [];
+
+      if (type === 'client_admin') {
+        const allCompanies = await this.userSessionModel.sequelize!.query(
+          `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+          {
+            replacements: { clientId: user.clientId },
+            type: 'SELECT'
+          }
+        ) as any[];
+
+        workspaces = allCompanies.map(c => ({
+          id: c.id,
+          name: c.name,
+          role: { id: 0, name: 'Client Admin' },
+          status: c.status || 'Active',
+        }));
+      } else {
+        workspaces = fullUser?.userCompanies?.map((uc) => ({
+          id: uc.company?.id,
+          name: uc.company?.name,
+          role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
+          status: uc.status,
+        })) || [];
+      }
 
       // Update last login
       await this.usersService.updateUser(user.id, { lastLogin: new Date() });
@@ -138,6 +157,21 @@ export class AuthService {
 
       const tokens = await this.generateSessionTokens(null, client.id, client.email, 'client_admin', ipAddress, userAgent);
 
+      const allCompanies = await this.userSessionModel.sequelize!.query(
+        `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        {
+          replacements: { clientId: client.id },
+          type: 'SELECT'
+        }
+      ) as any[];
+
+      const workspaces = allCompanies.map(c => ({
+        id: c.id,
+        name: c.name,
+        role: { id: 0, name: 'Client Admin' },
+        status: c.status || 'Active',
+      }));
+
       return {
         ...tokens,
         user: {
@@ -147,7 +181,7 @@ export class AuthService {
           type: 'client_admin',
           isActive: client.isActive,
         },
-        workspaces: [],
+        workspaces,
       };
     }
 
