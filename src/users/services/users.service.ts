@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../models/user.model';
 import { Role } from '../../rbac/models/role.model';
@@ -134,52 +134,79 @@ export class UsersService {
     status?: string;
     isActive?: boolean;
     companies?: { companyId: number; roleId?: number }[];
-  }, actor?: any): Promise<User> {
+  }, actor?: any, transaction?: any): Promise<User> {
     const normalizedEmail = data.email.toLowerCase().trim();
     const existing = await this.userModel.findOne({ where: { email: normalizedEmail } });
     if (existing) throw new ConflictException('Email is already registered');
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(data.password, salt);
-
-    const user = await this.userModel.create({
-      name: data.name,
-      email: normalizedEmail,
-      password: hashedPassword,
-      clientId: data.clientId,
-      status: data.status || 'Active',
-      isActive: data.isActive !== undefined ? data.isActive : true,
-    } as any);
-
-    // If companies are specified, add user to those companies
+    // Verify companies and roles belong to clientId
     if (data.companies && data.companies.length > 0) {
       for (const item of data.companies) {
-        await this.userCompanyModel.create({
-          userId: user.id,
-          companyId: item.companyId,
-          roleId: item.roleId || null,
-          status: 'Active',
-        } as any);
+        const company = await this.companyModel.findByPk(item.companyId);
+        if (!company) throw new NotFoundException('Company not found');
+        if (data.clientId !== null && company.clientId !== data.clientId) {
+          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+        }
+
+        if (item.roleId) {
+          const role = await this.roleModel.findByPk(item.roleId);
+          if (!role) throw new NotFoundException('Role not found');
+          if (role.clientId !== null && data.clientId !== null && role.clientId !== data.clientId) {
+            throw new BadRequestException('Cross-tenant role assignment is not allowed');
+          }
+        }
       }
     }
 
-    const createdUser = await this.findByIdWithRoles(user.id);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(data.password, salt);
 
-    if (actor) {
-      await this.auditService.writeDiffLog({
-        clientId: user.clientId,
-        companyId: user.lastCompanyId || null,
-        userId: actor.userId,
-        entityType: 'User',
-        entityId: user.id,
-        action: 'CREATE',
-        newRecord: createdUser,
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      });
+    const t = transaction || await this.userModel.sequelize.transaction();
+    try {
+      const user = await this.userModel.create({
+        name: data.name,
+        email: normalizedEmail,
+        password: hashedPassword,
+        clientId: data.clientId,
+        status: data.status || 'Active',
+        isActive: data.isActive !== undefined ? data.isActive : true,
+      } as any, { transaction: t });
+
+      // If companies are specified, add user to those companies
+      if (data.companies && data.companies.length > 0) {
+        for (const item of data.companies) {
+          await this.userCompanyModel.create({
+            userId: user.id,
+            companyId: item.companyId,
+            roleId: item.roleId || null,
+            status: 'Active',
+          } as any, { transaction: t });
+        }
+      }
+      
+      if (!transaction) await t.commit();
+      
+      const createdUser = await this.findByIdWithRoles(user.id);
+
+      if (actor) {
+        await this.auditService.writeDiffLog({
+          clientId: user.clientId,
+          companyId: user.lastCompanyId || null,
+          userId: actor.userId,
+          entityType: 'User',
+          entityId: user.id,
+          action: 'CREATE',
+          newRecord: createdUser,
+          ipAddress: actor.ipAddress,
+          userAgent: actor.userAgent,
+        });
+      }
+
+      return createdUser as User;
+    } catch (err) {
+      if (!transaction) await t.rollback();
+      throw err;
     }
-
-    return createdUser as User;
   }
 
   async updateUser(
@@ -194,6 +221,7 @@ export class UsersService {
       lastLogin?: Date;
     },
     actor?: any,
+    transaction?: any,
   ): Promise<User> {
     const user = await this.userModel.findByPk(id);
     if (!user) throw new NotFoundException(`User #${id} not found`);
@@ -215,10 +243,19 @@ export class UsersService {
     if (data.name !== undefined) user.name = data.name;
     if (data.isActive !== undefined) user.isActive = data.isActive;
     if (data.status !== undefined) user.status = data.status;
-    if (data.lastCompanyId !== undefined) user.lastCompanyId = data.lastCompanyId;
+    if (data.lastCompanyId !== undefined) {
+      if (data.lastCompanyId !== null) {
+        const company = await this.companyModel.findByPk(data.lastCompanyId);
+        if (!company) throw new NotFoundException('Company not found');
+        if (user.clientId !== null && company.clientId !== user.clientId) {
+          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+        }
+      }
+      user.lastCompanyId = data.lastCompanyId;
+    }
     if (data.lastLogin !== undefined) user.lastLogin = data.lastLogin;
 
-    await user.save();
+    await user.save({ transaction });
     const updatedUser = await this.findByIdWithRoles(id);
 
     if (actor) {
@@ -270,6 +307,23 @@ export class UsersService {
 
   // Junction-specific helpers
   async addUserToCompany(userId: number, companyId: number, roleId?: number): Promise<UserCompany> {
+    const user = await this.userModel.findByPk(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const company = await this.companyModel.findByPk(companyId);
+    if (!company) throw new NotFoundException('Company not found');
+    if (user.clientId !== null && company.clientId !== user.clientId) {
+      throw new BadRequestException('Cross-tenant company assignment is not allowed');
+    }
+
+    if (roleId) {
+      const role = await this.roleModel.findByPk(roleId);
+      if (!role) throw new NotFoundException('Role not found');
+      if (role.clientId !== null && user.clientId !== null && role.clientId !== user.clientId) {
+        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      }
+    }
+
     const existing = await this.userCompanyModel.findOne({ where: { userId, companyId } });
     if (existing) {
       if (roleId !== undefined) {
@@ -294,11 +348,21 @@ export class UsersService {
     }
   }
 
-  async updateUserCompanyRole(userId: number, companyId: number, roleId: number | null): Promise<UserCompany> {
+  async updateUserCompanyRole(userId: number, companyId: number, roleId: number | null, transaction?: any): Promise<UserCompany> {
     const mapping = await this.userCompanyModel.findOne({ where: { userId, companyId } });
     if (!mapping) throw new NotFoundException('User is not a member of this company');
+
+    if (roleId) {
+      const user = await this.userModel.findByPk(userId);
+      const role = await this.roleModel.findByPk(roleId);
+      if (!role) throw new NotFoundException('Role not found');
+      if (user && user.clientId !== null && role.clientId !== null && role.clientId !== user.clientId) {
+        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      }
+    }
+
     mapping.roleId = roleId;
-    await mapping.save();
+    await mapping.save({ transaction });
     return mapping;
   }
 }

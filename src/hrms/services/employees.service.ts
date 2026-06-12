@@ -56,44 +56,52 @@ export class EmployeesService {
 
     const employeeCode = await this.generateEmployeeCode(companyId);
 
-    let createdUser = null;
-    if (data.createLogin && data.password) {
-      const name = `${data.firstName} ${data.lastName}`.trim();
-      createdUser = await this.usersService.createUser({
-        name,
-        email: data.email,
-        password: data.password,
-        clientId: actor?.clientId || null,
-        status: data.status || 'Active',
-        isActive: data.status === 'Active',
-        companies: [{ companyId }]
-      }, actor);
-    }
+    const t = await this.employeeModel.sequelize.transaction();
+    try {
+      let createdUser = null;
+      if (data.createLogin && data.password) {
+        const name = `${data.firstName} ${data.lastName}`.trim();
+        createdUser = await this.usersService.createUser({
+          name,
+          email: data.email,
+          password: data.password,
+          clientId: actor?.clientId || null,
+          status: data.status || 'Active',
+          isActive: data.status === 'Active',
+          companies: [{ companyId }]
+        }, actor, t);
+      }
 
-    const employee = await this.employeeModel.create({
-      ...data,
-      companyId,
-      userId: createdUser ? createdUser.id : null,
-      employeeCode,
-      status: data.status || 'Active',
-      createdBy: actor?.userId || null,
-    });
-
-    if (actor) {
-      await this.auditService.writeDiffLog({
-        clientId: actor.clientId,
+      const employee = await this.employeeModel.create({
+        ...data,
         companyId,
-        userId: actor.userId,
-        entityType: 'Employee',
-        entityId: employee.id,
-        action: 'CREATE',
-        newRecord: employee,
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      });
-    }
+        userId: createdUser ? createdUser.id : null,
+        employeeCode,
+        status: data.status || 'Active',
+        createdBy: actor?.userId || null,
+      }, { transaction: t });
 
-    return employee;
+      await t.commit();
+
+      if (actor) {
+        await this.auditService.writeDiffLog({
+          clientId: actor.clientId,
+          companyId,
+          userId: actor.userId,
+          entityType: 'Employee',
+          entityId: employee.id,
+          action: 'CREATE',
+          newRecord: employee,
+          ipAddress: actor.ipAddress,
+          userAgent: actor.userAgent,
+        });
+      }
+
+      return employee;
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   }
 
   async updateEmployee(id: number, companyId: number, data: any, actor?: any): Promise<Employee> {
@@ -112,63 +120,70 @@ export class EmployeesService {
 
     const oldRecord = employee.toJSON();
 
-    let updatedUserId = employee.userId;
+    const t = await this.employeeModel.sequelize.transaction();
+    try {
+      let updatedUserId = employee.userId;
 
-    if (data.createLogin && data.password && !employee.userId) {
-      const name = `${data.firstName || employee.firstName} ${data.lastName || employee.lastName}`.trim();
-      const email = data.email || employee.email;
-      
-      const createdUser = await this.usersService.createUser({
-        name,
-        email: email,
-        password: data.password,
-        clientId: actor?.clientId || null,
-        status: data.status || employee.status || 'Active',
-        isActive: (data.status || employee.status) === 'Active',
-        companies: [{ companyId, roleId: data.roleId }]
-      }, actor);
+      if (data.createLogin && data.password && !employee.userId) {
+        const name = `${data.firstName || employee.firstName} ${data.lastName || employee.lastName}`.trim();
+        const email = data.email || employee.email;
+        
+        const createdUser = await this.usersService.createUser({
+          name,
+          email: email,
+          password: data.password,
+          clientId: actor?.clientId || null,
+          status: data.status || employee.status || 'Active',
+          isActive: (data.status || employee.status) === 'Active',
+          companies: [{ companyId, roleId: data.roleId }]
+        }, actor, t);
 
-      updatedUserId = createdUser.id;
-    } else if (employee.userId) {
-      const userUpdate: any = {};
-      if (data.newPassword) userUpdate.password = data.newPassword;
-      if (data.status) {
-        userUpdate.status = data.status;
-        userUpdate.isActive = data.status === 'Active';
+        updatedUserId = createdUser.id;
+      } else if (employee.userId) {
+        const userUpdate: any = {};
+        if (data.newPassword) userUpdate.password = data.newPassword;
+        if (data.status) {
+          userUpdate.status = data.status;
+          userUpdate.isActive = data.status === 'Active';
+        }
+        
+        if (Object.keys(userUpdate).length > 0) {
+          await this.usersService.updateUser(employee.userId, userUpdate, actor, t);
+        }
+        if (data.roleId !== undefined) {
+          await this.usersService.updateUserCompanyRole(employee.userId, companyId, data.roleId, t);
+        }
       }
-      
-      if (Object.keys(userUpdate).length > 0) {
-        await this.usersService.updateUser(employee.userId, userUpdate, actor);
+
+      await employee.update({
+        ...data,
+        userId: updatedUserId,
+        updatedBy: actor?.userId || employee.updatedBy,
+      }, { transaction: t });
+
+      await t.commit();
+      const updated = await employee.reload();
+
+      if (actor) {
+        await this.auditService.writeDiffLog({
+          clientId: actor.clientId,
+          companyId,
+          userId: actor.userId,
+          entityType: 'Employee',
+          entityId: employee.id,
+          action: 'UPDATE',
+          oldRecord,
+          newRecord: updated,
+          ipAddress: actor.ipAddress,
+          userAgent: actor.userAgent,
+        });
       }
-      if (data.roleId !== undefined) {
-        await this.usersService.updateUserCompanyRole(employee.userId, companyId, data.roleId);
-      }
+
+      return updated;
+    } catch (err) {
+      await t.rollback();
+      throw err;
     }
-
-    await employee.update({
-      ...data,
-      userId: updatedUserId,
-      updatedBy: actor?.userId || employee.updatedBy,
-    });
-
-    const updated = await employee.reload();
-
-    if (actor) {
-      await this.auditService.writeDiffLog({
-        clientId: actor.clientId,
-        companyId,
-        userId: actor.userId,
-        entityType: 'Employee',
-        entityId: employee.id,
-        action: 'UPDATE',
-        oldRecord,
-        newRecord: updated,
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      });
-    }
-
-    return updated;
   }
 
   async deleteEmployee(id: number, companyId: number, actor?: any): Promise<{ message: string }> {

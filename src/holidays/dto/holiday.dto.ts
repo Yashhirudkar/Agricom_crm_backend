@@ -39,6 +39,22 @@ export class CreateHolidayDto {
   @IsOptional()
   isOptional?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isWeeklyOff?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isHalfDay?: boolean;
+
+  @IsString()
+  @IsOptional()
+  halfDayStart?: string;
+
+  @IsString()
+  @IsOptional()
+  halfDayEnd?: string;
+
   @IsArray()
   @IsNumber({}, { each: true })
   @IsOptional()
@@ -70,10 +86,83 @@ export class UpdateHolidayDto {
   @IsOptional()
   isActive?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isWeeklyOff?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isHalfDay?: boolean;
+
+  @IsString()
+  @IsOptional()
+  halfDayStart?: string;
+
+  @IsString()
+  @IsOptional()
+  halfDayEnd?: string;
+
   @IsArray()
   @IsNumber({}, { each: true })
   @IsOptional()
   companyIds?: number[];
+}
+
+export class CreateRecurringHolidayDto {
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @IsEnum(HolidayType)
+  @IsNotEmpty()
+  holidayType: HolidayType;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isOptional?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isWeeklyOff?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isHalfDay?: boolean;
+
+  @IsString()
+  @IsOptional()
+  halfDayStart?: string;
+
+  @IsString()
+  @IsOptional()
+  halfDayEnd?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  companyIds?: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsNotEmpty()
+  weekdays: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsNotEmpty()
+  occurrences: number[];
+
+  @IsDateString()
+  @IsNotEmpty()
+  startDate: string;
+
+  @IsDateString()
+  @IsNotEmpty()
+  endDate: string;
 }
 
 export class GetHolidaysFilterDto {

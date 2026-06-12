@@ -39,6 +39,28 @@ export class UserInvitationService {
     const existingUser = await this.userModel.findOne({ where: { email: emailLower } });
     if (existingUser) throw new ConflictException('User is already registered in the system');
 
+    // Verify role belongs to clientId
+    if (params.roleId) {
+      const role = await this.roleModel.findByPk(params.roleId);
+      if (!role) throw new NotFoundException('Role not found');
+      if (role.clientId !== null && role.clientId !== params.clientId) {
+        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      }
+    }
+
+    // Verify companies belong to clientId
+    if (params.companyIds && params.companyIds.length > 0) {
+      const companies = await this.companyModel.findAll({ where: { id: params.companyIds } });
+      if (companies.length !== params.companyIds.length) {
+        throw new NotFoundException('One or more companies not found');
+      }
+      for (const company of companies) {
+        if (company.clientId !== params.clientId) {
+          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+        }
+      }
+    }
+
     // 2. Clean up any existing invitations for this email to avoid duplicates
     await this.invitationModel.destroy({ where: { email: emailLower } });
 
@@ -99,6 +121,28 @@ export class UserInvitationService {
     password: string;
   }): Promise<User> {
     const invitation = await this.verifyInvitation(params.token);
+
+    // Verify role belongs to clientId
+    if (invitation.roleId) {
+      const role = await this.roleModel.findByPk(invitation.roleId);
+      if (!role) throw new NotFoundException('Role not found');
+      if (role.clientId !== null && role.clientId !== invitation.clientId) {
+        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      }
+    }
+
+    // Verify companies belong to clientId
+    if (invitation.companyIds && invitation.companyIds.length > 0) {
+      const companies = await this.companyModel.findAll({ where: { id: invitation.companyIds } });
+      if (companies.length !== invitation.companyIds.length) {
+        throw new NotFoundException('One or more companies not found');
+      }
+      for (const company of companies) {
+        if (company.clientId !== invitation.clientId) {
+          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+        }
+      }
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(params.password, salt);

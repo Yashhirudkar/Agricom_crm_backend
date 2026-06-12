@@ -18,7 +18,7 @@ import { HolidaysService } from '../services/holidays.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateHolidayDto, UpdateHolidayDto, GetHolidaysFilterDto } from '../dto/holiday.dto';
+import { CreateHolidayDto, UpdateHolidayDto, GetHolidaysFilterDto, CreateRecurringHolidayDto } from '../dto/holiday.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('holidays')
@@ -48,6 +48,14 @@ export class HolidaysController {
   createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
     return this.holidaysService.createHoliday(actor.clientId, dto, actor);
+  }
+
+  @Post('recurring')
+  @RequirePermission('Holidays:write')
+  @HttpCode(HttpStatus.CREATED)
+  createRecurringHolidays(@Body() dto: CreateRecurringHolidayDto, @Request() req) {
+    const actor = this.getActor(req);
+    return this.holidaysService.createRecurringHolidays(actor.clientId, dto, actor);
   }
 
   @Get('upcoming')

@@ -18,6 +18,7 @@ import { DesignationsService } from '../services/designations.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { CreateDesignationDto, UpdateDesignationDto, GetDesignationsFilterDto } from '../dto/designations.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('designations')
@@ -44,7 +45,7 @@ export class DesignationsController {
   @Post()
   @RequirePermission('designations:create')
   @HttpCode(HttpStatus.CREATED)
-  createDesignation(@Body() dto: { departmentId: number; name: string; description?: string; status?: string }, @Request() req) {
+  createDesignation(@Body() dto: CreateDesignationDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.designationsService.createDesignation(companyId, dto, actor);
@@ -53,17 +54,11 @@ export class DesignationsController {
   @Get()
   @RequirePermission('designations:read')
   getDesignations(
-    @Query('search') search: string,
-    @Query('status') status: string,
-    @Query('departmentId') departmentId: number,
-    @Query('page') page: number,
-    @Query('limit') limit: number,
-    @Query('sortBy') sortBy: string,
-    @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+    @Query() filterDto: GetDesignationsFilterDto,
     @Request() req
   ) {
     const companyId = this.getCompanyId(req);
-    return this.designationsService.getDesignations(companyId, { search, status, departmentId, page, limit, sortBy, sortOrder });
+    return this.designationsService.getDesignations(companyId, filterDto);
   }
 
   @Get(':id')
@@ -77,7 +72,7 @@ export class DesignationsController {
   @RequirePermission('designations:update')
   updateDesignation(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: { name?: string; description?: string; status?: string; departmentId?: number },
+    @Body() dto: UpdateDesignationDto,
     @Request() req
   ) {
     const companyId = this.getCompanyId(req);

@@ -13,11 +13,39 @@ import { AssignPermissionToRoleDto } from '../dto/assign-permission-to-role.dto'
 import { RemovePermissionFromRoleDto } from '../dto/remove-permission-from-role.dto';
 import { AssignRoleToUserDto } from '../dto/assign-role-to-user.dto';
 import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
+import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
 export class RbacController {
   constructor(private readonly rbacService: RbacService) {}
+
+  private async validateRoleAccess(roleId: number, reqUser: any, isModification = false) {
+    const isSuper = reqUser.type === 'super_admin';
+    if (isSuper) return;
+    const role = await this.rbacService.getRoleById(roleId);
+    if (isModification) {
+      if (role.clientId !== reqUser.clientId) {
+        throw new ForbiddenException('Access denied to modify this role');
+      }
+      if (role.isSystemRole) {
+        throw new ForbiddenException('Cannot modify system roles');
+      }
+    } else {
+      if (role.clientId !== null && role.clientId !== reqUser.clientId) {
+        throw new ForbiddenException('Access denied to this role');
+      }
+    }
+  }
+
+  private async validateUserAccess(userId: number, reqUser: any) {
+    const isSuper = reqUser.type === 'super_admin';
+    if (isSuper) return;
+    const user = await this.rbacService.getUserById(userId);
+    if (user.clientId !== reqUser.clientId) {
+      throw new ForbiddenException('Access denied to this user');
+    }
+  }
 
   // ──────────────────────────────────────────────
   //  ROLES
@@ -132,27 +160,31 @@ export class RbacController {
   @Post('AssignPermissionToRole')
   @RequirePermission('roles:assign-permission')
   @HttpCode(HttpStatus.OK)
-  assignPermissionToRole(@Body() dto: AssignPermissionToRoleDto) {
+  async assignPermissionToRole(@Body() dto: AssignPermissionToRoleDto, @Request() req) {
+    await this.validateRoleAccess(dto.roleId, req.user, true);
     return this.rbacService.assignPermissionToRole(dto);
   }
 
   @Post('RemovePermissionFromRole')
   @RequirePermission('roles:assign-permission')
   @HttpCode(HttpStatus.OK)
-  removePermissionFromRole(@Body() dto: RemovePermissionFromRoleDto) {
+  async removePermissionFromRole(@Body() dto: RemovePermissionFromRoleDto, @Request() req) {
+    await this.validateRoleAccess(dto.roleId, req.user, true);
     return this.rbacService.removePermissionFromRole(dto);
   }
 
   @Get('GetRolePermissions')
   @RequirePermission('roles:read')
-  getRolePermissions(@Query('roleId', ParseIntPipe) roleId: number) {
+  async getRolePermissions(@Query('roleId', ParseIntPipe) roleId: number, @Request() req) {
+    await this.validateRoleAccess(roleId, req.user, false);
     return this.rbacService.getRolePermissions(roleId);
   }
 
   @Post('UpdateRolePermissions')
   @RequirePermission('roles:assign-permission')
   @HttpCode(HttpStatus.OK)
-  updateRolePermissions(@Body() dto: { roleId: number; permissionIds: number[] }) {
+  async updateRolePermissions(@Body() dto: UpdateRolePermissionsDto, @Request() req) {
+    await this.validateRoleAccess(dto.roleId, req.user, true);
     return this.rbacService.updateRolePermissions(dto.roleId, dto.permissionIds);
   }
 
@@ -163,20 +195,25 @@ export class RbacController {
   @Post('AssignRoleToUser')
   @RequirePermission('users:assign-role')
   @HttpCode(HttpStatus.OK)
-  assignRoleToUser(@Body() dto: AssignRoleToUserDto) {
+  async assignRoleToUser(@Body() dto: AssignRoleToUserDto, @Request() req) {
+    await this.validateUserAccess(dto.userId, req.user);
+    await this.validateRoleAccess(dto.roleId, req.user, false);
     return this.rbacService.assignRoleToUser(dto);
   }
 
   @Post('RemoveRoleFromUser')
   @RequirePermission('users:assign-role')
   @HttpCode(HttpStatus.OK)
-  removeRoleFromUser(@Body() dto: RemoveRoleFromUserDto) {
+  async removeRoleFromUser(@Body() dto: RemoveRoleFromUserDto, @Request() req) {
+    await this.validateUserAccess(dto.userId, req.user);
+    await this.validateRoleAccess(dto.roleId, req.user, false);
     return this.rbacService.removeRoleFromUser(dto);
   }
 
   @Get('GetUserRoles')
   @RequirePermission('users:read')
-  getUserRoles(@Query('userId', ParseIntPipe) userId: number) {
+  async getUserRoles(@Query('userId', ParseIntPipe) userId: number, @Request() req) {
+    await this.validateUserAccess(userId, req.user);
     return this.rbacService.getUserRoles(userId);
   }
 }

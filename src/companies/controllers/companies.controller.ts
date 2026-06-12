@@ -15,6 +15,7 @@ import { CompaniesService } from '../services/companies.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { CreateCompanyDto, UpdateCompanyDto, DeleteCompanyDto } from '../dto/companies.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
@@ -24,7 +25,7 @@ export class CompaniesController {
   @Post('CreateCompany')
   @RequirePermission('companies:create')
   @HttpCode(HttpStatus.CREATED)
-  createCompany(@Body() dto: { name: string; isActive?: boolean; clientId?: number }, @Request() req) {
+  createCompany(@Body() dto: CreateCompanyDto, @Request() req) {
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
@@ -47,7 +48,7 @@ export class CompaniesController {
   @Post('UpdateCompany')
   @RequirePermission('companies:update')
   @HttpCode(HttpStatus.OK)
-  updateCompany(@Body() dto: { id: number; name?: string; isActive?: boolean }, @Request() req) {
+  updateCompany(@Body() dto: UpdateCompanyDto, @Request() req) {
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
@@ -61,7 +62,7 @@ export class CompaniesController {
   @Post('DeleteCompany')
   @RequirePermission('companies:delete')
   @HttpCode(HttpStatus.OK)
-  deleteCompany(@Body() dto: { id: number }, @Request() req) {
+  deleteCompany(@Body() dto: DeleteCompanyDto, @Request() req) {
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,

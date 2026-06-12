@@ -11,6 +11,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserInvitationService } from '../services/user-invitation.service';
+import { VerifyInvitationDto, AcceptInvitationDto } from '../dto/users.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
@@ -75,15 +76,15 @@ export class UserInvitationController {
 
   // Public endpoint: verify token and get details (email, client name, role name, company names)
   @Get('verify')
-  async verifyInvitation(@Query('token') token: string) {
-    return this.invitationService.getInvitationDetails(token);
+  async verifyInvitation(@Query() query: VerifyInvitationDto) {
+    return this.invitationService.getInvitationDetails(query.token);
   }
 
   // Public endpoint: accept invitation
   @Post('accept')
   @HttpCode(HttpStatus.OK)
   async acceptInvitation(
-    @Body() dto: { token: string; name: string; password: string },
+    @Body() dto: AcceptInvitationDto,
   ) {
     const user = await this.invitationService.acceptInvitation({
       token: dto.token,

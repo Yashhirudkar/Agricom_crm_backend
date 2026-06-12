@@ -18,6 +18,7 @@ import { EmployeesService } from '../services/employees.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { CreateEmployeeDto, UpdateEmployeeDto, GetEmployeesFilterDto, AddDocumentDto } from '../dto/employees.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('employees')
@@ -44,7 +45,7 @@ export class EmployeesController {
   @Post()
   @RequirePermission('employees:create')
   @HttpCode(HttpStatus.CREATED)
-  createEmployee(@Body() dto: any, @Request() req) {
+  createEmployee(@Body() dto: CreateEmployeeDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.employeesService.createEmployee(companyId, dto, actor);
@@ -52,7 +53,7 @@ export class EmployeesController {
 
   @Get()
   @RequirePermission('employees:read')
-  getEmployees(@Query() query: any, @Request() req) {
+  getEmployees(@Query() query: GetEmployeesFilterDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.employeesService.getEmployees(companyId, query);
   }
@@ -66,7 +67,7 @@ export class EmployeesController {
 
   @Put(':id')
   @RequirePermission('employees:update')
-  updateEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Request() req) {
+  updateEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEmployeeDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.employeesService.updateEmployee(id, companyId, dto, actor);
@@ -85,7 +86,7 @@ export class EmployeesController {
   @Post(':employeeId/documents')
   @RequirePermission('documents:create')
   @HttpCode(HttpStatus.CREATED)
-  addDocument(@Param('employeeId', ParseIntPipe) employeeId: number, @Body() dto: any, @Request() req) {
+  addDocument(@Param('employeeId', ParseIntPipe) employeeId: number, @Body() dto: AddDocumentDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.employeesService.addDocument(employeeId, companyId, dto, actor);

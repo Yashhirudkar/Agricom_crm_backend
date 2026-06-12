@@ -12,6 +12,15 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  DeleteUserDto,
+  AssignUserToCompanyDto,
+  RemoveUserFromCompanyDto,
+  UpdateUserCompanyRoleDto,
+  GetUsersFilterDto,
+} from '../dto/users.dto';
 import { UsersService } from '../services/users.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -35,26 +44,22 @@ export class UsersController {
   @RequirePermission('users:read')
   async getUsers(
     @Request() req,
-    @Query('companyId') companyId?: string,
-    @Query('roleId') roleId?: string,
-    @Query('status') status?: string,
-    @Query('search') search?: string,
-    @Query('clientId') filterClientId?: string,
+    @Query() filterDto: GetUsersFilterDto,
   ) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
-      ? (filterClientId ? parseInt(filterClientId, 10) : null)
+      ? (filterDto.clientId ? parseInt(filterDto.clientId, 10) : null)
       : req.user.clientId;
 
     const filters: any = {
       clientId,
-      status,
-      search,
+      status: filterDto.status,
+      search: filterDto.search,
     };
-    if (companyId) filters.companyId = parseInt(companyId, 10);
-    if (roleId) filters.roleId = parseInt(roleId, 10);
+    if (filterDto.companyId) filters.companyId = parseInt(filterDto.companyId, 10);
+    if (filterDto.roleId) filters.roleId = parseInt(filterDto.roleId, 10);
 
     const users = await this.usersService.getUsers(filters);
 
@@ -79,7 +84,7 @@ export class UsersController {
   @Post('CreateUser')
   @RequirePermission('users:create')
   @HttpCode(HttpStatus.CREATED)
-  async createUser(@Body() dto: any, @Request() req) {
+  async createUser(@Body() dto: CreateUserDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
@@ -116,7 +121,7 @@ export class UsersController {
   @Post('UpdateUser')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async updateUser(@Body() dto: any, @Request() req) {
+  async updateUser(@Body() dto: UpdateUserDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
@@ -157,7 +162,7 @@ export class UsersController {
   @Post('DeleteUser')
   @RequirePermission('users:delete')
   @HttpCode(HttpStatus.OK)
-  async deleteUser(@Body() dto: { id: number }, @Request() req) {
+  async deleteUser(@Body() dto: DeleteUserDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
@@ -207,7 +212,7 @@ export class UsersController {
   @Post('AssignUserToCompany')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async assignUserToCompany(@Body() dto: { userId: number; companyId: number; roleId?: number }, @Request() req) {
+  async assignUserToCompany(@Body() dto: AssignUserToCompanyDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
@@ -232,7 +237,7 @@ export class UsersController {
   @Post('RemoveUserFromCompany')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async removeUserFromCompany(@Body() dto: { userId: number; companyId: number }, @Request() req) {
+  async removeUserFromCompany(@Body() dto: RemoveUserFromCompanyDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';
@@ -252,7 +257,7 @@ export class UsersController {
   @Post('UpdateUserCompanyRole')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async updateUserCompanyRole(@Body() dto: { userId: number; companyId: number; roleId: number | null }, @Request() req) {
+  async updateUserCompanyRole(@Body() dto: UpdateUserCompanyRoleDto, @Request() req) {
     if (req.user.type === 'user') throw new ForbiddenException('Access denied');
 
     const isSuper = req.user.type === 'super_admin';

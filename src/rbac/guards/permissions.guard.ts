@@ -12,6 +12,7 @@ import { RolePermission } from '../models/role-permission.model';
 import { Permission } from '../models/permission.model';
 import { Role } from '../models/role.model';
 import { UserCompany } from '../../users/models/user-company.model';
+import { Company } from '../../companies/models/company.model';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -23,7 +24,24 @@ export class PermissionsGuard implements CanActivate {
     private readonly rolePermissionModel: typeof RolePermission,
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
+    @InjectModel(Company)
+    private readonly companyModel: typeof Company,
   ) {}
+
+  private parseCompanyId(value: unknown): number | null {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+
+    const rawValue = Array.isArray(value) ? value[0] : value;
+    const companyId = Number(rawValue);
+
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new ForbiddenException('Invalid company workspace.');
+    }
+
+    return companyId;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Gather required permissions from route metadata
@@ -45,9 +63,13 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const userId = user.userId || user.id;
+    const requestedCompanyId = this.parseCompanyId(request.headers['x-company-id']);
 
     // 1. Super Admins bypass all permissions/company checks
     if (user.type === 'super_admin') {
+      if (requestedCompanyId) {
+        request.activeCompanyId = requestedCompanyId;
+      }
       return true;
     }
 
@@ -56,6 +78,22 @@ export class PermissionsGuard implements CanActivate {
 
     // 2. Client Admins have global tenant access
     if (user.type === 'client_admin') {
+      if (requestedCompanyId) {
+        const company = await this.companyModel.findOne({
+          where: {
+            id: requestedCompanyId,
+            clientId: user.clientId,
+            isActive: true,
+          },
+        });
+
+        if (!company) {
+          throw new ForbiddenException('Company does not belong to your client organization.');
+        }
+
+        request.activeCompanyId = requestedCompanyId;
+      }
+
       const globalRoles = await this.userRoleModel.findAll({
         where: { userId },
         include: [
@@ -69,8 +107,7 @@ export class PermissionsGuard implements CanActivate {
       roleIds = globalRoles.map((gr) => gr.roleId);
     } else {
       // 3. Standard Users: Fetch role scoped to the active company workspace
-      const activeCompanyHeader = request.headers['x-company-id'];
-      let companyId: number | null = activeCompanyHeader ? parseInt(activeCompanyHeader, 10) : null;
+      let companyId: number | null = requestedCompanyId;
 
       if (!companyId) {
         // Fallback to user's lastCompanyId from DB
@@ -117,6 +154,8 @@ export class PermissionsGuard implements CanActivate {
       if (membership.roleId) {
         roleIds = [membership.roleId];
       }
+
+      request.activeCompanyId = companyId;
     }
 
     if (!roleIds.length) {
@@ -147,16 +186,6 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException(
         `Insufficient permissions. Required: ${requiredPermissions.join(', ')}`,
       );
-    }
-
-    // Inject companyId to request object for downstream controllers to use
-    if (!user.clientId) {
-      // Resolve companyId to inject
-      const activeCompanyHeader = request.headers['x-company-id'];
-      const resolvedCompanyId = activeCompanyHeader ? parseInt(activeCompanyHeader, 10) : null;
-      if (resolvedCompanyId) {
-        request.activeCompanyId = resolvedCompanyId;
-      }
     }
 
     return true;

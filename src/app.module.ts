@@ -31,7 +31,6 @@ import { HolidaysModule } from './holidays/holidays.module';
 import { Holiday } from './holidays/models/holiday.model';
 import { HolidayCompany } from './holidays/models/holiday-company.model';
 
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
 import { AttachmentsModule } from './attachments/modules/attachments.module';
@@ -45,26 +44,27 @@ import { SystemModule } from './system/modules/system.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
-      serveRoot: '/public',
-    }),
     ScheduleModule.forRoot(),
     SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        dialect: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, SysModule, SubModule, Holiday, HolidayCompany],
-        autoLoadModels: true,
-        synchronize: true,
-        sync: { alter: true },
-        logging: false,
-      }),
+      useFactory: (configService: ConfigService) => {
+        const env = configService.get<string>('NODE_ENV') || 'development';
+        const isDevelopment = env === 'development' || env === 'test';
+        
+        return {
+          dialect: 'postgres',
+          host: configService.get<string>('DB_HOST'),
+          port: configService.get<number>('DB_PORT'),
+          username: configService.get<string>('DB_USERNAME'),
+          password: configService.get<string>('DB_PASSWORD'),
+          models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, SysModule, SubModule, Holiday, HolidayCompany],
+          autoLoadModels: true,
+          synchronize: isDevelopment,
+          sync: isDevelopment ? { alter: true } : undefined,
+          logging: false,
+        };
+      },
     }),
     ClientsModule,
     UsersModule,

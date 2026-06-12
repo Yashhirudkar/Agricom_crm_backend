@@ -34,13 +34,14 @@ export class ClientsService {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(data.password, salt);
 
-    // 1. Create client row
-    const client = await this.clientModel.create({
-      ...data,
-      password: hashedPassword,
-    } as any);
-
+    const t = await this.clientModel.sequelize.transaction();
     try {
+      // 1. Create client row
+      const client = await this.clientModel.create({
+        ...data,
+        password: hashedPassword,
+      } as any, { transaction: t });
+
       // 2. Create matching User in users table
       const user = await this.userModel.create({
         name: `${client.name} Admin`,
@@ -49,45 +50,51 @@ export class ClientsService {
         isActive: true,
         clientId: client.id,
         status: 'Active',
-      } as any);
+      } as any, { transaction: t });
 
       // 3. Resolve and Assign "Client Admin" role
-      let role = await this.roleModel.findOne({ where: { name: 'Client Admin' } });
+      let role = await this.roleModel.findOne({ where: { name: 'Client Admin' }, transaction: t });
       if (!role) {
         role = await this.roleModel.create({
           name: 'Client Admin',
           description: 'Client level administrator with full access',
           isActive: true,
           companyId: null,
-        } as any);
+        } as any, { transaction: t });
       }
 
       await this.userRoleModel.create({
         userId: user.id,
         roleId: role.id,
-      } as any);
+      } as any, { transaction: t });
+      
+      await t.commit();
+      
+      // Wait to fetch or assign to variable if needed, but client is already defined
+      // We will re-fetch it or just return it.
+      Object.assign(client, { id: client.id }); // just to ensure we have the id
+      
+      if (actor) {
+        await this.auditService.writeDiffLog({
+          clientId: client.id,
+          companyId: null,
+          userId: actor.userId,
+          entityType: 'Client',
+          entityId: client.id,
+          action: 'CREATE',
+          newRecord: client,
+          ipAddress: actor.ipAddress,
+          userAgent: actor.userAgent,
+        });
+      }
 
+      return client;
     } catch (err) {
-      // Rollback client creation if user setup fails
-      await client.destroy();
+      await t.rollback();
       throw err;
     }
 
-    if (actor) {
-      await this.auditService.writeDiffLog({
-        clientId: client.id,
-        companyId: null,
-        userId: actor.userId,
-        entityType: 'Client',
-        entityId: client.id,
-        action: 'CREATE',
-        newRecord: client,
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      });
-    }
 
-    return client;
   }
 
   async findAll(): Promise<Client[]> {
@@ -138,16 +145,24 @@ export class ClientsService {
     if (data.allowedUsers !== undefined) client.allowedUsers = data.allowedUsers;
     if (data.isActive !== undefined) client.isActive = data.isActive;
 
-    await client.save();
+    const t = await this.clientModel.sequelize.transaction();
+    try {
+      await client.save({ transaction: t });
 
-    // Sync changes to the User table for the initial client admin user
-    const userAdmin = await this.userModel.findOne({ where: { clientId: id, email: oldEmail } });
-    if (userAdmin) {
-      if (emailLower) userAdmin.email = emailLower;
-      if (data.password) userAdmin.password = hashedPassword;
-      if (data.name !== undefined) userAdmin.name = `${data.name} Admin`;
-      if (data.isActive !== undefined) userAdmin.isActive = data.isActive;
-      await userAdmin.save();
+      // Sync changes to the User table for the initial client admin user
+      const userAdmin = await this.userModel.findOne({ where: { clientId: id, email: oldEmail }, transaction: t });
+      if (userAdmin) {
+        if (emailLower) userAdmin.email = emailLower;
+        if (data.password) userAdmin.password = hashedPassword;
+        if (data.name !== undefined) userAdmin.name = `${data.name} Admin`;
+        if (data.isActive !== undefined) userAdmin.isActive = data.isActive;
+        await userAdmin.save({ transaction: t });
+      }
+      
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
     }
 
     if (actor) {
@@ -176,20 +191,31 @@ export class ClientsService {
 
     const sequelize = this.clientModel.sequelize;
     if (sequelize) {
-      // 1. Delete user_companies memberships for users of this client
-      await sequelize.query('DELETE FROM "user_companies" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id } });
-      // 2. Delete user_roles for users of this client
-      await sequelize.query('DELETE FROM "user_roles" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id } });
-      // 3. Delete user_sessions for users of this client
-      await sequelize.query('DELETE FROM "user_sessions" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id } });
-      // 4. Delete role_permissions for roles of this client
-      await sequelize.query('DELETE FROM "role_permissions" WHERE "roleId" IN (SELECT id FROM "roles" WHERE "clientId" = :clientId)', { replacements: { clientId: id } });
-      // 5. Delete roles of this client
-      await sequelize.query('DELETE FROM "roles" WHERE "clientId" = :clientId', { replacements: { clientId: id } });
-      // 6. Delete companies belonging to this client
-      await sequelize.query('DELETE FROM "companies" WHERE "clientId" = :clientId', { replacements: { clientId: id } });
-      // 7. Delete users belonging to this client
-      await sequelize.query('DELETE FROM "users" WHERE "clientId" = :clientId', { replacements: { clientId: id } });
+      const t = await sequelize.transaction();
+      try {
+        // 1. Delete user_companies memberships for users of this client
+        await sequelize.query('DELETE FROM "user_companies" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // 2. Delete user_roles for users of this client
+        await sequelize.query('DELETE FROM "user_roles" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // 3. Delete user_sessions for users of this client
+        await sequelize.query('DELETE FROM "user_sessions" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // 4. Delete role_permissions for roles of this client
+        await sequelize.query('DELETE FROM "role_permissions" WHERE "roleId" IN (SELECT id FROM "roles" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // 5. Delete roles of this client
+        await sequelize.query('DELETE FROM "roles" WHERE "clientId" = :clientId', { replacements: { clientId: id }, transaction: t });
+        // 6. Delete companies belonging to this client
+        await sequelize.query('DELETE FROM "companies" WHERE "clientId" = :clientId', { replacements: { clientId: id }, transaction: t });
+        // 7. Delete users belonging to this client
+        await sequelize.query('DELETE FROM "users" WHERE "clientId" = :clientId', { replacements: { clientId: id }, transaction: t });
+        
+        await client.destroy({ transaction: t });
+        await t.commit();
+      } catch (err) {
+        await t.rollback();
+        throw err;
+      }
+    } else {
+      await client.destroy();
     }
 
     if (actor) {
@@ -205,7 +231,5 @@ export class ClientsService {
         userAgent: actor.userAgent,
       });
     }
-
-    await client.destroy();
   }
 }

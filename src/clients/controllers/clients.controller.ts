@@ -15,6 +15,7 @@ import { ClientsService } from '../services/clients.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { CreateClientDto, UpdateClientDto, DeleteClientDto } from '../dto/clients.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('clients')
@@ -31,7 +32,7 @@ export class ClientsController {
   @Post('/CreateClient')
   @RequirePermission('clients:create')
   @HttpCode(HttpStatus.CREATED)
-  async createClient(@Body() data: any, @Request() req) {
+  async createClient(@Body() data: CreateClientDto, @Request() req) {
     if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
@@ -47,7 +48,7 @@ export class ClientsController {
   @Post('/UpdateClient')
   @RequirePermission('clients:update')
   @HttpCode(HttpStatus.OK)
-  async updateClient(@Body() data: any, @Request() req) {
+  async updateClient(@Body() data: UpdateClientDto, @Request() req) {
     if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
@@ -63,7 +64,7 @@ export class ClientsController {
   @Post('/DeleteClient')
   @RequirePermission('clients:delete')
   @HttpCode(HttpStatus.OK)
-  async deleteClient(@Body() data: { id: number }, @Request() req) {
+  async deleteClient(@Body() data: DeleteClientDto, @Request() req) {
     if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,

@@ -6,9 +6,8 @@ export class AttachmentsService {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    // File is saved by multer in /public/uploads
-    // Return the public URL
-    const fileUrl = `/public/uploads/${file.filename}`;
+    // Return the private URL
+    const fileUrl = `/attachments/download/${file.filename}`;
     return fileUrl;
   }
 }

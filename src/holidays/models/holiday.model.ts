@@ -61,6 +61,24 @@ export class Holiday extends Model<Holiday> {
   @Column({ type: DataType.BOOLEAN })
   declare isActive: boolean;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isWeeklyOff: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isHalfDay: boolean;
+
+  @AllowNull(true)
+  @Column({ type: DataType.TIME })
+  declare halfDayStart: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.TIME })
+  declare halfDayEnd: string;
+
   @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })

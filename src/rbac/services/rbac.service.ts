@@ -299,20 +299,34 @@ export class RbacService {
     };
   }
 
+  async getUserById(id: number): Promise<User> {
+    const user = await this.userModel.findByPk(id);
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
+    return user;
+  }
+
   async updateRolePermissions(roleId: number, permissionIds: number[]): Promise<{ message: string }> {
     const role = await this.roleModel.findByPk(roleId);
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
 
-    // Remove existing associations
-    await this.rolePermissionModel.destroy({ where: { roleId } });
+    const t = await this.rolePermissionModel.sequelize.transaction();
+    try {
+      // Remove existing associations
+      await this.rolePermissionModel.destroy({ where: { roleId }, transaction: t });
 
-    // Bulk insert new associations
-    if (permissionIds.length > 0) {
-      const records = permissionIds.map((permId) => ({
-        roleId,
-        permissionId: permId,
-      }));
-      await this.rolePermissionModel.bulkCreate(records as any[]);
+      // Bulk insert new associations
+      if (permissionIds.length > 0) {
+        const records = permissionIds.map((permId) => ({
+          roleId,
+          permissionId: permId,
+        }));
+        await this.rolePermissionModel.bulkCreate(records as any[], { transaction: t });
+      }
+      
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
     }
 
     return { message: 'Permissions updated successfully' };

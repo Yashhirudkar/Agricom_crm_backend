@@ -18,6 +18,7 @@ import { DepartmentsService } from '../services/departments.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { CreateDepartmentDto, UpdateDepartmentDto, GetDepartmentsFilterDto } from '../dto/departments.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('departments')
@@ -44,7 +45,7 @@ export class DepartmentsController {
   @Post()
   @RequirePermission('departments:create')
   @HttpCode(HttpStatus.CREATED)
-  createDepartment(@Body() dto: { name: string; description?: string; status?: string }, @Request() req) {
+  createDepartment(@Body() dto: CreateDepartmentDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.departmentsService.createDepartment(companyId, dto, actor);
@@ -53,16 +54,11 @@ export class DepartmentsController {
   @Get()
   @RequirePermission('departments:read')
   getDepartments(
-    @Query('search') search: string,
-    @Query('status') status: string,
-    @Query('page') page: number,
-    @Query('limit') limit: number,
-    @Query('sortBy') sortBy: string,
-    @Query('sortOrder') sortOrder: 'ASC' | 'DESC',
+    @Query() filterDto: GetDepartmentsFilterDto,
     @Request() req
   ) {
     const companyId = this.getCompanyId(req);
-    return this.departmentsService.getDepartments(companyId, { search, status, page, limit, sortBy, sortOrder });
+    return this.departmentsService.getDepartments(companyId, filterDto);
   }
 
   @Get(':id')
@@ -76,7 +72,7 @@ export class DepartmentsController {
   @RequirePermission('departments:update')
   updateDepartment(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: { name?: string; description?: string; status?: string },
+    @Body() dto: UpdateDepartmentDto,
     @Request() req
   ) {
     const companyId = this.getCompanyId(req);

@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, UseGuards, Request, HttpCode, HttpStatus, 
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshDto } from '../dto/refresh.dto';
+import { SwitchWorkspaceDto } from '../dto/switch-workspace.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { UsersService } from '../../users/services/users.service';
 import { ClientsService } from '../../clients/services/clients.service';
@@ -148,7 +149,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('switch-workspace')
   @HttpCode(HttpStatus.OK)
-  async switchWorkspace(@Request() req, @Body() body: { companyId: number }) {
+  async switchWorkspace(@Request() req, @Body() body: SwitchWorkspaceDto) {
     const userId = req.user.userId || req.user.sub;
     const { companyId } = body;
 
