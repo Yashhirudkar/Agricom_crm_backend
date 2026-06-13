@@ -2,6 +2,10 @@ import { IsString, IsEmail, IsOptional, IsNumber, IsBoolean, IsDateString } from
 import { Type } from 'class-transformer';
 
 export class CreateEmployeeDto {
+  @IsOptional()
+  @IsString()
+  employeeCode?: string;
+
   @IsString()
   firstName: string;
 
@@ -92,6 +96,18 @@ export class CreateEmployeeDto {
 }
 
 export class UpdateEmployeeDto {
+  @IsOptional()
+  @IsNumber()
+  id?: number;
+
+  @IsOptional()
+  @IsString()
+  employeeCode?: string;
+
+  @IsOptional()
+  @IsNumber()
+  companyId?: number;
+
   @IsOptional()
   @IsString()
   firstName?: string;

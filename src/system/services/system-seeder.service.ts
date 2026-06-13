@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { SysModule } from '../models/SysModule';
 import { SubModule } from '../models/SubModule';
 
@@ -45,39 +46,50 @@ const DEFAULT_MODULES = [
     ],
   },
   {
-    key: 'hr_employee_management',
-    name: 'EMPLOYEE MANAGEMENT',
-    icon: 'Users',
+    key: 'my_workspace',
+    name: 'MY WORKSPACE',
+    icon: 'Calendar',
     sortOrder: 4,
     isSuperAdminOnly: false,
     isClientAdminOnly: false,
     subModules: [
-      { key: 'departments', name: 'Departments', route: '/departments', icon: 'Building2', permissionKey: 'departments.view', sortOrder: 1 },
-      { key: 'designations', name: 'Designations', route: '/designations', icon: 'Shield', permissionKey: 'designations.view', sortOrder: 2 },
-      { key: 'employees', name: 'Employees', route: '/employees', icon: 'Users', permissionKey: 'employees.view', sortOrder: 3 },
+      { key: 'holidays', name: 'Holiday Calendar', route: '/holidays', icon: 'Calendar', permissionKey: 'holidays:read', sortOrder: 1 },
+    ],
+  },
+  {
+    key: 'hr_employee_management',
+    name: 'EMPLOYEE MANAGEMENT',
+    icon: 'Users',
+    sortOrder: 5,
+    isSuperAdminOnly: false,
+    isClientAdminOnly: false,
+    subModules: [
+      { key: 'departments', name: 'Departments', route: '/departments', icon: 'Building2', permissionKey: 'departments:read', sortOrder: 1 },
+      { key: 'designations', name: 'Designations', route: '/designations', icon: 'Shield', permissionKey: 'designations:read', sortOrder: 2 },
+      { key: 'employees', name: 'Employees', route: '/employees', icon: 'Users', permissionKey: 'employees:read', sortOrder: 3 },
     ],
   },
   {
     key: 'hr_attendance',
     name: 'ATTENDANCE MANAGEMENT',
     icon: 'Clock',
-    sortOrder: 5,
+    sortOrder: 6,
     isSuperAdminOnly: false,
     isClientAdminOnly: false,
     subModules: [
-      { key: 'daily_log', name: 'Daily Log', route: '#', icon: 'Clock', permissionKey: 'attendance.view', sortOrder: 1 },
-      { key: 'leave_requests', name: 'Leave Requests', route: '#', icon: 'Calendar', permissionKey: 'leaves.view', sortOrder: 2 },
+      { key: 'daily_log', name: 'Daily Log', route: '#', icon: 'Clock', permissionKey: 'attendance:read', sortOrder: 1 },
+      { key: 'leave_requests', name: 'Leave Requests', route: '#', icon: 'Calendar', permissionKey: 'leaves:read', sortOrder: 2 },
     ],
   },
   {
     key: 'hr_payroll',
     name: 'PAYROLL MANAGEMENT',
     icon: 'DollarSign',
-    sortOrder: 6,
+    sortOrder: 7,
     isSuperAdminOnly: false,
     isClientAdminOnly: false,
     subModules: [
-      { key: 'salary_details', name: 'Salary Details', route: '#', icon: 'DollarSign', permissionKey: 'payroll.view', sortOrder: 1 },
+      { key: 'salary_details', name: 'Salary Details', route: '#', icon: 'DollarSign', permissionKey: 'payroll:read', sortOrder: 1 },
     ],
   },
 ];
@@ -96,6 +108,26 @@ export class SystemSeederService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     this.logger.log('Running Sidebar Modules seeder...');
 
+    const defaultSubKeys = DEFAULT_MODULES.flatMap(m => m.subModules.map(sm => sm.key));
+    const defaultModKeys = DEFAULT_MODULES.map(m => m.key);
+
+    // Clean up old sub-modules and modules first
+    await this.subModuleModel.destroy({
+      where: {
+        key: {
+          [Op.notIn]: defaultSubKeys,
+        },
+      },
+    });
+
+    await this.moduleModel.destroy({
+      where: {
+        key: {
+          [Op.notIn]: defaultModKeys,
+        },
+      },
+    });
+
     for (const modConfig of DEFAULT_MODULES) {
       let moduleObj = await this.moduleModel.findOne({ where: { key: modConfig.key } });
 
@@ -109,10 +141,18 @@ export class SystemSeederService implements OnApplicationBootstrap {
           isClientAdminOnly: modConfig.isClientAdminOnly,
           isActive: true,
         });
+      } else {
+        await moduleObj.update({
+          name: modConfig.name,
+          icon: modConfig.icon,
+          sortOrder: modConfig.sortOrder,
+          isSuperAdminOnly: modConfig.isSuperAdminOnly,
+          isClientAdminOnly: modConfig.isClientAdminOnly,
+        });
       }
 
       for (const subConfig of modConfig.subModules) {
-        let subModuleObj = await this.subModuleModel.findOne({ where: { key: subConfig.key, moduleId: moduleObj.id } });
+        let subModuleObj = await this.subModuleModel.findOne({ where: { key: subConfig.key } });
 
         if (!subModuleObj) {
           await this.subModuleModel.create({
@@ -124,6 +164,15 @@ export class SystemSeederService implements OnApplicationBootstrap {
             permissionKey: subConfig.permissionKey,
             sortOrder: subConfig.sortOrder,
             isActive: true,
+          });
+        } else {
+          await subModuleObj.update({
+            moduleId: moduleObj.id,
+            name: subConfig.name,
+            route: subConfig.route,
+            icon: subConfig.icon,
+            permissionKey: subConfig.permissionKey,
+            sortOrder: subConfig.sortOrder,
           });
         }
       }

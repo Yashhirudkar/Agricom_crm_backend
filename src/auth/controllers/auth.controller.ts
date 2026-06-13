@@ -104,6 +104,9 @@ export class AuthController {
     }
 
     let workspaces = [];
+    let permissions: string[] = [];
+
+    const activeCompanyId = req.headers['x-company-id'] || user.lastCompanyId;
 
     if (type === 'client_admin') {
       const allCompanies = await this.userCompanyModel.sequelize!.query(
@@ -121,12 +124,23 @@ export class AuthController {
         status: c.status || 'Active',
       }));
     } else {
-      workspaces = user.userCompanies?.map((uc) => ({
-        id: uc.company?.id,
-        name: uc.company?.name,
-        role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
-        status: uc.status,
-      })) || [];
+      workspaces = user.userCompanies?.map((uc) => {
+        // Extract permissions for the active workspace
+        if (uc.company?.id?.toString() === activeCompanyId?.toString()) {
+          if (uc.role && uc.role.rolePermissions) {
+            permissions = uc.role.rolePermissions.map(
+              (rp: any) => `${rp.permission.resource.toLowerCase()}:${rp.permission.action.toLowerCase()}`
+            );
+          }
+        }
+        
+        return {
+          id: uc.company?.id,
+          name: uc.company?.name,
+          role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
+          status: uc.status,
+        };
+      }) || [];
     }
 
     return {
@@ -143,6 +157,7 @@ export class AuthController {
         name: r.name,
       })) ?? [],
       workspaces,
+      permissions,
     };
   }
 

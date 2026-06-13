@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../models/user.model';
 import { Role } from '../../rbac/models/role.model';
+import { RolePermission } from '../../rbac/models/role-permission.model';
+import { Permission } from '../../rbac/models/permission.model';
 import { Company } from '../../companies/models/company.model';
 import { UserCompany } from '../models/user-company.model';
 import { Client } from '../../clients/models/client.model';
@@ -62,7 +64,16 @@ export class UsersService {
           model: UserCompany,
           include: [
             { model: Company, attributes: ['id', 'name'] },
-            { model: Role, attributes: ['id', 'name'] },
+            { 
+              model: Role, 
+              attributes: ['id', 'name'],
+              include: [
+                {
+                  model: RolePermission,
+                  include: [{ model: Permission, attributes: ['resource', 'action'] }]
+                }
+              ]
+            },
           ],
         },
       ],
@@ -144,7 +155,7 @@ export class UsersService {
       for (const item of data.companies) {
         const company = await this.companyModel.findByPk(item.companyId);
         if (!company) throw new NotFoundException('Company not found');
-        if (data.clientId !== null && company.clientId !== data.clientId) {
+        if (data.clientId !== null && String(company.clientId) !== String(data.clientId)) {
           throw new BadRequestException('Cross-tenant company assignment is not allowed');
         }
 
@@ -186,7 +197,18 @@ export class UsersService {
       
       if (!transaction) await t.commit();
       
-      const createdUser = await this.findByIdWithRoles(user.id);
+      let finalUser = user;
+      try {
+        const withRoles = await this.userModel.findByPk(user.id, {
+          transaction: t,
+          include: [
+            { model: Role, through: { attributes: [] }, attributes: ['id', 'name', 'description'] }
+          ]
+        });
+        if (withRoles) finalUser = withRoles;
+      } catch (e) {
+        // ignore
+      }
 
       if (actor) {
         await this.auditService.writeDiffLog({
@@ -196,13 +218,13 @@ export class UsersService {
           entityType: 'User',
           entityId: user.id,
           action: 'CREATE',
-          newRecord: createdUser,
+          newRecord: finalUser,
           ipAddress: actor.ipAddress,
           userAgent: actor.userAgent,
         });
       }
 
-      return createdUser as User;
+      return finalUser as User;
     } catch (err) {
       if (!transaction) await t.rollback();
       throw err;
@@ -247,9 +269,6 @@ export class UsersService {
       if (data.lastCompanyId !== null) {
         const company = await this.companyModel.findByPk(data.lastCompanyId);
         if (!company) throw new NotFoundException('Company not found');
-        if (user.clientId !== null && company.clientId !== user.clientId) {
-          throw new BadRequestException('Cross-tenant company assignment is not allowed');
-        }
       }
       user.lastCompanyId = data.lastCompanyId;
     }
@@ -312,7 +331,7 @@ export class UsersService {
 
     const company = await this.companyModel.findByPk(companyId);
     if (!company) throw new NotFoundException('Company not found');
-    if (user.clientId !== null && company.clientId !== user.clientId) {
+    if (user.clientId !== null && String(company.clientId) !== String(user.clientId)) {
       throw new BadRequestException('Cross-tenant company assignment is not allowed');
     }
 

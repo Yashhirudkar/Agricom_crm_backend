@@ -311,12 +311,20 @@ export class RbacService {
 
     const t = await this.rolePermissionModel.sequelize.transaction();
     try {
+      // Lock the parent role to serialize concurrent requests for the same role
+      await this.roleModel.findOne({
+        where: { id: roleId },
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+
       // Remove existing associations
       await this.rolePermissionModel.destroy({ where: { roleId }, transaction: t });
 
       // Bulk insert new associations
       if (permissionIds.length > 0) {
-        const records = permissionIds.map((permId) => ({
+        const uniquePermissionIds = [...new Set(permissionIds)];
+        const records = uniquePermissionIds.map((permId) => ({
           roleId,
           permissionId: permId,
         }));

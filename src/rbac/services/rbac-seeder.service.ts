@@ -57,8 +57,10 @@ const DEFAULT_PERMISSIONS = [
   { name: 'documents:update', resource: 'documents', action: 'update', description: 'Update documents' },
   { name: 'documents:delete', resource: 'documents', action: 'delete', description: 'Delete documents' },
   // Holidays
-  { name: 'Holidays:read', resource: 'Holidays', action: 'read', description: 'Read holidays' },
-  { name: 'Holidays:write', resource: 'Holidays', action: 'write', description: 'Create, update, delete holidays' },
+  { name: 'holidays:read', resource: 'holidays', action: 'read', description: 'Read holidays' },
+  { name: 'holidays:create', resource: 'holidays', action: 'create', description: 'Create holidays' },
+  { name: 'holidays:update', resource: 'holidays', action: 'update', description: 'Update holidays' },
+  { name: 'holidays:delete', resource: 'holidays', action: 'delete', description: 'Delete holidays' },
 ];
 
 const ADMIN_ROLE_NAME = 'Admin';
@@ -126,10 +128,17 @@ export class RbacSeederService implements OnApplicationBootstrap {
     // 2. Ensure all default permissions exist
     const permissionInstances: Permission[] = [];
     for (const perm of DEFAULT_PERMISSIONS) {
-      const [instance] = await this.permissionModel.findOrCreate({
-        where: { name: perm.name },
-        defaults: { ...perm, isActive: true } as any,
+      let instance = await this.permissionModel.findOne({
+        where: { resource: perm.resource, action: perm.action }
       });
+
+      if (instance) {
+        if (instance.name !== perm.name) {
+          await instance.update({ name: perm.name });
+        }
+      } else {
+        instance = await this.permissionModel.create({ ...perm, isActive: true } as any);
+      }
       permissionInstances.push(instance);
     }
 

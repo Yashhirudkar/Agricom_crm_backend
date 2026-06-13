@@ -43,7 +43,7 @@ export class HolidaysController {
   }
 
   @Post()
-  @RequirePermission('Holidays:write')
+  @RequirePermission('holidays:create')
   @HttpCode(HttpStatus.CREATED)
   createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
@@ -51,7 +51,7 @@ export class HolidaysController {
   }
 
   @Post('recurring')
-  @RequirePermission('Holidays:write')
+  @RequirePermission('holidays:create')
   @HttpCode(HttpStatus.CREATED)
   createRecurringHolidays(@Body() dto: CreateRecurringHolidayDto, @Request() req) {
     const actor = this.getActor(req);
@@ -59,7 +59,7 @@ export class HolidaysController {
   }
 
   @Get('upcoming')
-  @RequirePermission('Holidays:read')
+  @RequirePermission('holidays:read')
   getUpcomingHolidays(@Request() req) {
     const actor = this.getActor(req);
     const companyId = this.getCompanyId(req);
@@ -67,7 +67,7 @@ export class HolidaysController {
   }
 
   @Get()
-  @RequirePermission('Holidays:read')
+  @RequirePermission('holidays:read')
   getHolidays(@Query() query: GetHolidaysFilterDto, @Request() req) {
     const actor = this.getActor(req);
     // If not super admin/client admin, force company filter
@@ -79,21 +79,21 @@ export class HolidaysController {
   }
 
   @Get(':id')
-  @RequirePermission('Holidays:read')
+  @RequirePermission('holidays:read')
   getHolidayById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const actor = this.getActor(req);
     return this.holidaysService.getHolidayById(id, actor.clientId);
   }
 
   @Put(':id')
-  @RequirePermission('Holidays:write')
+  @RequirePermission('holidays:update')
   updateHoliday(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
     return this.holidaysService.updateHoliday(id, actor.clientId, dto, actor);
   }
 
   @Delete(':id')
-  @RequirePermission('Holidays:write')
+  @RequirePermission('holidays:delete')
   deleteHoliday(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const actor = this.getActor(req);
     return this.holidaysService.deleteHoliday(id, actor.clientId, actor);

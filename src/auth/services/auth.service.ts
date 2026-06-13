@@ -77,14 +77,20 @@ export class AuthService {
   async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string) {
     const { email, password } = loginDto;
     const emailLower = email.toLowerCase().trim();
+    console.log(`[Backend Login] Attempting login for email: ${emailLower}`);
 
     // 1. Check users table first (Super Admin, Client Admin, standard Users all reside here now)
     const user = await this.usersService.findByEmail(emailLower);
     if (user) {
+      console.log(`[Backend Login] User found in DB. ID: ${user.id}, Status: ${user.status}, IsActive: ${user.isActive}`);
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) throw new UnauthorizedException('Invalid email or password');
+      if (!isPasswordValid) {
+        console.error(`[Backend Login] Invalid password for user ID: ${user.id}`);
+        throw new UnauthorizedException('Invalid email or password');
+      }
       
       if (user.status === 'Suspended' || user.status === 'Inactive' || !user.isActive) {
+        console.error(`[Backend Login] User account suspended or inactive for user ID: ${user.id}`);
         throw new UnauthorizedException('User account is suspended or inactive');
       }
 

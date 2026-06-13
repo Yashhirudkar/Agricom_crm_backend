@@ -59,7 +59,12 @@ export class EmployeesService {
     const t = await this.employeeModel.sequelize.transaction();
     try {
       let createdUser = null;
-      if (data.createLogin && data.password) {
+      console.log(`[Employee Service] Creating employee: ${data.email}. createLogin=${data.createLogin}, hasPassword=${!!data.password}, data:`, JSON.stringify(data));
+      if (data.createLogin) {
+        if (!data.password) {
+          throw new BadRequestException("Password is required when creating a login account.");
+        }
+        console.log(`[Employee Service] Attempting to create user account for: ${data.email}`);
         const name = `${data.firstName} ${data.lastName}`.trim();
         createdUser = await this.usersService.createUser({
           name,
@@ -68,8 +73,9 @@ export class EmployeesService {
           clientId: actor?.clientId || null,
           status: data.status || 'Active',
           isActive: data.status === 'Active',
-          companies: [{ companyId }]
+          companies: [{ companyId, roleId: data.roleId || null }]
         }, actor, t);
+        console.log(`[Employee Service] Successfully created user account: ID ${createdUser.id}`);
       }
 
       const employee = await this.employeeModel.create({

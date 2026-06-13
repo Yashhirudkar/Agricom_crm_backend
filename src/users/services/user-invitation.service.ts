@@ -43,7 +43,7 @@ export class UserInvitationService {
     if (params.roleId) {
       const role = await this.roleModel.findByPk(params.roleId);
       if (!role) throw new NotFoundException('Role not found');
-      if (role.clientId !== null && role.clientId !== params.clientId) {
+      if (role.clientId !== null && String(role.clientId) !== String(params.clientId)) {
         throw new BadRequestException('Cross-tenant role assignment is not allowed');
       }
     }
