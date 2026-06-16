@@ -330,12 +330,12 @@ export class HolidaysService {
         const isExHalfDay = ex.isHalfDay || false;
         const isExWeeklyOff = ex.isWeeklyOff || false;
 
-        if ((isNewHalfDay && !isExHalfDay) || (!isNewHalfDay && isExHalfDay)) {
-          throw new BadRequestException(`Conflict: Cannot mix half day and full holiday on the same date (${dto.holidayDate}).`);
-        }
-
         if (isNewWeeklyOff !== isExWeeklyOff) {
           continue;
+        }
+
+        if ((isNewHalfDay && !isExHalfDay) || (!isNewHalfDay && isExHalfDay)) {
+          throw new BadRequestException(`Conflict: Cannot mix half day and full holiday on the same date (${dto.holidayDate}).`);
         }
 
         if (isNewWeeklyOff && isExWeeklyOff) {

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDepartmentDto {
@@ -12,6 +12,24 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentCode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  parentDepartmentId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  departmentHeadId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateDepartmentDto {
@@ -26,6 +44,24 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  departmentCode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  parentDepartmentId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  departmentHeadId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class GetDepartmentsFilterDto {

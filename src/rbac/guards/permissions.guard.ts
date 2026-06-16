@@ -14,6 +14,47 @@ import { Role } from '../models/role.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { Company } from '../../companies/models/company.model';
 
+export function standardizePermission(permKey: string): { name: string; resource: string; action: string } {
+  let [resource, action] = permKey.split(':');
+  
+  if (action === 'view') {
+    action = 'read';
+  }
+
+  if (resource === 'manager' && action === 'approve_leave') {
+    resource = 'leave';
+    action = 'approve';
+  }
+
+  if (resource === 'employees') {
+    if (['upload_document', 'upload'].includes(action)) {
+      resource = 'employee_documents';
+      action = 'upload';
+    } else if (['view_document', 'read_document'].includes(action)) {
+      resource = 'employee_documents';
+      action = 'read';
+    } else if (['verify_document', 'verify'].includes(action)) {
+      resource = 'employee_documents';
+      action = 'verify';
+    } else if (['download_document', 'download'].includes(action)) {
+      resource = 'employee_documents';
+      action = 'download';
+    } else if (['delete_document'].includes(action)) {
+      resource = 'employee_documents';
+      action = 'delete';
+    }
+    else if (['assign_manager', 'change_manager', 'view_team', 'view_hierarchy'].includes(action)) {
+      resource = 'employee_hierarchy';
+    }
+    else if (['manage_lifecycle', 'manage'].includes(action)) {
+      resource = 'employee_lifecycle';
+      action = 'manage';
+    }
+  }
+
+  return { name: `${resource}:${action}`, resource, action };
+}
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
@@ -180,7 +221,10 @@ export class PermissionsGuard implements CanActivate {
     );
 
     // Check every required permission
-    const hasAll = requiredPermissions.every((perm) => grantedSet.has(perm));
+    const hasAll = requiredPermissions.every((perm) => {
+      const standardized = standardizePermission(perm);
+      return grantedSet.has(standardized.name);
+    });
 
     if (!hasAll) {
       throw new ForbiddenException(

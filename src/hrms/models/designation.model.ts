@@ -49,6 +49,33 @@ export class Designation extends Model<Designation> {
   declare name: string;
 
   @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare designationCode: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER })
+  declare level: number;
+
+  @ForeignKey(() => Designation)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  declare parentDesignationId: number;
+
+  @BelongsTo(() => Designation, 'parentDesignationId')
+  declare parentDesignation: Designation;
+
+  @HasMany(() => Designation, 'parentDesignationId')
+  declare subDesignations: Designation[];
+
+  @AllowNull(true)
+  @Column({ type: DataType.DECIMAL(10, 2) })
+  declare salaryBandMin: number;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DECIMAL(10, 2) })
+  declare salaryBandMax: number;
+
+  @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare description: string;
 
@@ -56,6 +83,11 @@ export class Designation extends Model<Designation> {
   @AllowNull(false)
   @Column({ type: DataType.STRING(50) })
   declare status: string; // 'Active' or 'Inactive'
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isActive: boolean;
 
   @ForeignKey(() => User)
   @AllowNull(true)

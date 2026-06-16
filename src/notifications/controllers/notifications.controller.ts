@@ -2,8 +2,10 @@ import { Controller, Post, Get, Body, UseGuards, Request, HttpCode, HttpStatus }
 import { NotificationsService } from '../services/notifications.service';
 import { CreateNotificationDto, MarkAsReadDto } from '../dto/notifications.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
+import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}

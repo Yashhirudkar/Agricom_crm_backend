@@ -61,6 +61,13 @@ export class DesignationsController {
     return this.designationsService.getDesignations(companyId, filterDto);
   }
 
+  @Get('hierarchy')
+  @RequirePermission('designations:read')
+  getDesignationHierarchy(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.designationsService.getDesignationHierarchy(companyId);
+  }
+
   @Get(':id')
   @RequirePermission('designations:read')
   getDesignationById(@Param('id', ParseIntPipe) id: number, @Request() req) {

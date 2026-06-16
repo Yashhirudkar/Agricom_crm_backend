@@ -61,11 +61,25 @@ export class DepartmentsController {
     return this.departmentsService.getDepartments(companyId, filterDto);
   }
 
+  @Get('tree')
+  @RequirePermission('departments:read')
+  getDepartmentTree(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.departmentsService.getDepartmentTree(companyId);
+  }
+
   @Get(':id')
   @RequirePermission('departments:read')
   getDepartmentById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.departmentsService.getDepartmentById(id, companyId);
+  }
+
+  @Get(':id/subdepartments')
+  @RequirePermission('departments:read')
+  getSubDepartments(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.departmentsService.getSubDepartments(id, companyId);
   }
 
   @Put(':id')

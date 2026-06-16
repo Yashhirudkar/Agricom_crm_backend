@@ -18,6 +18,8 @@ import { extname, join } from 'path';
 import * as crypto from 'crypto';
 import { AttachmentsService } from '../services/attachments.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
+import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import * as fs from 'fs';
 import { Response } from 'express';
 
@@ -36,7 +38,7 @@ const ALLOWED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
 ];
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('attachments')
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
@@ -70,6 +72,7 @@ export class AttachmentsController {
       },
     }),
   )
+  @RequirePermission('attachments:upload')
   uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
     const companyId = req.headers['x-company-id']
       ? parseInt(req.headers['x-company-id'] as string, 10)
@@ -92,6 +95,7 @@ export class AttachmentsController {
   }
 
   @Get('download/:filename')
+  @RequirePermission('attachments:download')
   downloadFile(@Param('filename') filename: string, @Request() req, @Res() res: Response) {
     // Basic path traversal protection
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {

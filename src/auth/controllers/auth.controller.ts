@@ -8,6 +8,10 @@ import { UsersService } from '../../users/services/users.service';
 import { ClientsService } from '../../clients/services/clients.service';
 import { InjectModel } from '@nestjs/sequelize';
 import { UserCompany } from '../../users/models/user-company.model';
+import { ProfileService } from '../../profile/services/profile.service';
+import { RateLimit } from '../../profile/guards/rate-limit.guard';
+import { ChangePasswordDto } from '../../profile/dto/change-password.dto';
+import { Put } from '@nestjs/common';
 
 @Controller('auth')
 export class AuthController {
@@ -17,6 +21,7 @@ export class AuthController {
     private readonly clientsService: ClientsService,
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
+    private readonly profileService: ProfileService,
   ) {}
 
   @Post('login')
@@ -158,6 +163,7 @@ export class AuthController {
       })) ?? [],
       workspaces,
       permissions,
+      employeeId: req.user.employeeId || null,
     };
   }
 
@@ -210,5 +216,12 @@ export class AuthController {
       success: true,
       lastCompanyId: companyId,
     };
+  }
+
+  @UseGuards(JwtAuthGuard, RateLimit(5, 15))
+  @Put('change-password')
+  async changePassword(@Request() req, @Body() body: ChangePasswordDto) {
+    const userId = req.user.userId || req.user.sub;
+    return this.profileService.changePassword(userId, body);
   }
 }

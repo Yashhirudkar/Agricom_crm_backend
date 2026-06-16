@@ -42,10 +42,23 @@ export class Permission extends Model<Permission> {
   @Column({ type: DataType.STRING(50) })
   declare action: string;
 
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare module: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare label: string;
+
   @Default(true)
   @AllowNull(false)
   @Column({ type: DataType.BOOLEAN })
   declare isActive: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isSystemLevel: boolean;
 
   @CreatedAt
   declare createdAt: Date;

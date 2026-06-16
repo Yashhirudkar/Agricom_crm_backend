@@ -26,6 +26,7 @@ export class SubModule extends Model<SubModule> {
   })
   name: string;
 
+
   @Column({
     type: DataType.STRING,
     allowNull: false,

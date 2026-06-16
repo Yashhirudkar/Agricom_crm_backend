@@ -12,13 +12,39 @@ import {
   CreatedAt,
   UpdatedAt,
   Default,
-  Unique,
 } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Department } from '../../companies/models/department.model';
 import { User } from '../../users/models/user.model';
 import { Designation } from './designation.model';
 import { EmployeeDocument } from './employee-document.model';
+import { Branch } from './branch.model';
+import { EmployeeLifecycleLog } from './employee-lifecycle-log.model';
+
+export enum EmployeeStatus {
+  DRAFT = 'DRAFT',
+  ONBOARDING = 'ONBOARDING',
+  PROBATION = 'PROBATION',
+  ACTIVE = 'ACTIVE',
+  CONFIRMED = 'CONFIRMED',
+  NOTICE_PERIOD = 'NOTICE_PERIOD',
+  RESIGNED = 'RESIGNED',
+  TERMINATED = 'TERMINATED',
+}
+
+export enum EmploymentType {
+  FULL_TIME = 'FULL_TIME',
+  PART_TIME = 'PART_TIME',
+  INTERN = 'INTERN',
+  CONTRACT = 'CONTRACT',
+  CONSULTANT = 'CONSULTANT',
+}
+
+export enum WorkMode {
+  REMOTE = 'REMOTE',
+  HYBRID = 'HYBRID',
+  OFFICE = 'OFFICE',
+}
 
 @Table({
   tableName: 'employees',
@@ -52,21 +78,47 @@ export class Employee extends Model<Employee> {
   @BelongsTo(() => User, 'userId')
   declare user: User;
 
-  @AllowNull(false)
-  @Column({ type: DataType.STRING(100) })
-  declare employeeCode: string;
-
+  // ─── Personal Information ─────────────────────────────────────────
   @AllowNull(false)
   @Column({ type: DataType.STRING(100) })
   declare firstName: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare middleName: string;
 
   @AllowNull(false)
   @Column({ type: DataType.STRING(100) })
   declare lastName: string;
 
+  @AllowNull(true)
+  @Column({ type: DataType.DATEONLY })
+  declare dob: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(20) })
+  declare gender: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(10) })
+  declare bloodGroup: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(50) })
+  declare maritalStatus: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare nationality: string;
+
+  // ─── Contact Information ──────────────────────────────────────────
   @AllowNull(false)
   @Column({ type: DataType.STRING(255) })
-  declare email: string;
+  declare email: string; // Work email
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare personalEmail: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(20) })
@@ -74,45 +126,8 @@ export class Employee extends Model<Employee> {
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(20) })
-  declare gender: string;
+  declare alternatePhone: string;
 
-  @AllowNull(true)
-  @Column({ type: DataType.DATEONLY })
-  declare dob: Date;
-
-  // Employment Info
-  @ForeignKey(() => Department)
-  @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
-  declare departmentId: number;
-
-  @BelongsTo(() => Department)
-  declare department: Department;
-
-  @ForeignKey(() => Designation)
-  @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
-  declare designationId: number;
-
-  @BelongsTo(() => Designation)
-  declare designation: Designation;
-
-
-
-  @AllowNull(true)
-  @Column({ type: DataType.DATEONLY })
-  declare joiningDate: Date;
-
-  @AllowNull(true)
-  @Column({ type: DataType.STRING(50) })
-  declare employmentType: string; // Full-time, Part-time, Contract, Intern
-
-  @Default('Active')
-  @AllowNull(false)
-  @Column({ type: DataType.STRING(50) })
-  declare status: string; // Active, Inactive, On Leave, Terminated
-
-  // Emergency Contact
   @AllowNull(true)
   @Column({ type: DataType.STRING(100) })
   declare emergencyContactName: string;
@@ -125,10 +140,18 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.STRING(50) })
   declare emergencyContactRelation: string;
 
-  // Address
+  // ─── Address Information ──────────────────────────────────────────
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
-  declare address: string;
+  declare address: string; // Legacy field
+
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare currentAddress: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare permanentAddress: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(100) })
@@ -146,7 +169,97 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.STRING(20) })
   declare pincode: string;
 
-  // System
+  // ─── Employment Information ───────────────────────────────────────
+  @AllowNull(false)
+  @Column({ type: DataType.STRING(100) })
+  declare employeeCode: string;
+
+  @ForeignKey(() => Department)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  declare departmentId: number;
+
+  @BelongsTo(() => Department)
+  declare department: Department;
+
+  @ForeignKey(() => Designation)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  declare designationId: number;
+
+  @BelongsTo(() => Designation)
+  declare designation: Designation;
+
+  @ForeignKey(() => Branch)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  declare branchId: number;
+
+  @BelongsTo(() => Branch, 'branchId')
+  declare branch: Branch;
+
+  @ForeignKey(() => Employee)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare managerId: number;
+
+  @BelongsTo(() => Employee, 'managerId')
+  declare manager: Employee;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATEONLY })
+  declare joiningDate: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATEONLY })
+  declare probationEndDate: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATEONLY })
+  declare confirmationDate: Date;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare workLocation: string;
+
+  @AllowNull(true)
+  @Column({
+    type: DataType.ENUM(
+      'REMOTE',
+      'HYBRID',
+      'OFFICE'
+    ),
+  })
+  declare workMode: WorkMode;
+
+  @AllowNull(false)
+  @Column({
+    type: DataType.ENUM(
+      'FULL_TIME',
+      'PART_TIME',
+      'INTERN',
+      'CONTRACT',
+      'CONSULTANT'
+    ),
+  })
+  declare employmentType: EmploymentType;
+
+  @AllowNull(false)
+  @Column({
+    type: DataType.ENUM(
+      'DRAFT',
+      'ONBOARDING',
+      'PROBATION',
+      'ACTIVE',
+      'CONFIRMED',
+      'NOTICE_PERIOD',
+      'RESIGNED',
+      'TERMINATED'
+    ),
+  })
+  declare status: EmployeeStatus;
+
+  // ─── System ───────────────────────────────────────────────────────
   @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
@@ -171,4 +284,7 @@ export class Employee extends Model<Employee> {
 
   @HasMany(() => EmployeeDocument)
   declare documents: EmployeeDocument[];
+
+  @HasMany(() => EmployeeLifecycleLog)
+  declare lifecycleLogs: EmployeeLifecycleLog[];
 }

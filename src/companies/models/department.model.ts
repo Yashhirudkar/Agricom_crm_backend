@@ -41,6 +41,29 @@ export class Department extends Model<Department> {
   declare name: string;
 
   @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare departmentCode: string;
+
+  @ForeignKey(() => Department)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  declare parentDepartmentId: number;
+
+  @BelongsTo(() => Department, 'parentDepartmentId')
+  declare parentDepartment: Department;
+
+  @HasMany(() => Department, 'parentDepartmentId')
+  declare subDepartments: Department[];
+
+  @ForeignKey(() => Employee)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare departmentHeadId: number;
+
+  @BelongsTo(() => Employee, { foreignKey: 'departmentHeadId', constraints: false })
+  declare departmentHead: Employee;
+
+  @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare description: string;
 
@@ -48,6 +71,11 @@ export class Department extends Model<Department> {
   @AllowNull(false)
   @Column({ type: DataType.STRING(50) })
   declare status: string; // 'Active' or 'Inactive'
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isActive: boolean;
 
   @ForeignKey(() => User)
   @AllowNull(true)

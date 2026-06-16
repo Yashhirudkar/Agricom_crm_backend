@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDesignationDto {
@@ -15,6 +15,34 @@ export class CreateDesignationDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  designationCode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  level?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  parentDesignationId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  salaryBandMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  salaryBandMax?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateDesignationDto {
@@ -33,6 +61,34 @@ export class UpdateDesignationDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  designationCode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  level?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  parentDesignationId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  salaryBandMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  salaryBandMax?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class GetDesignationsFilterDto {

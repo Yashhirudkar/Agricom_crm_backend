@@ -33,19 +33,6 @@ const DEFAULT_MODULES = [
     ],
   },
   {
-    key: 'crm_workspace',
-    name: 'CRM WORKSPACE',
-    icon: 'Handshake',
-    sortOrder: 3,
-    isSuperAdminOnly: false,
-    isClientAdminOnly: false,
-    subModules: [
-      { key: 'leads', name: 'Leads', route: '/leads', icon: 'Handshake', permissionKey: null, sortOrder: 1 },
-      { key: 'customers', name: 'Customers', route: '/customers', icon: 'Users', permissionKey: null, sortOrder: 2 },
-      { key: 'orders', name: 'Orders', route: '/orders', icon: 'ShoppingCart', permissionKey: null, sortOrder: 3 },
-    ],
-  },
-  {
     key: 'my_workspace',
     name: 'MY WORKSPACE',
     icon: 'Calendar',
@@ -78,7 +65,7 @@ const DEFAULT_MODULES = [
     isClientAdminOnly: false,
     subModules: [
       { key: 'daily_log', name: 'Daily Log', route: '#', icon: 'Clock', permissionKey: 'attendance:read', sortOrder: 1 },
-      { key: 'leave_requests', name: 'Leave Requests', route: '#', icon: 'Calendar', permissionKey: 'leaves:read', sortOrder: 2 },
+      { key: 'leave_requests', name: 'Leave Requests', route: '#', icon: 'Calendar', permissionKey: 'leave:read', sortOrder: 2 },
     ],
   },
   {
@@ -103,9 +90,13 @@ export class SystemSeederService implements OnApplicationBootstrap {
     private moduleModel: typeof SysModule,
     @InjectModel(SubModule)
     private subModuleModel: typeof SubModule,
-  ) {}
+  ) { }
 
   async onApplicationBootstrap() {
+    if (process.env.SEED_DB !== 'true') {
+      return;
+    }
+
     this.logger.log('Running Sidebar Modules seeder...');
 
     const defaultSubKeys = DEFAULT_MODULES.flatMap(m => m.subModules.map(sm => sm.key));

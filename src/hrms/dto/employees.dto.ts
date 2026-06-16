@@ -1,5 +1,7 @@
-import { IsString, IsEmail, IsOptional, IsNumber, IsBoolean, IsDateString } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsNumber, IsBoolean, IsDateString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { EmployeeStatus, EmploymentType, WorkMode } from '../models/employee.model';
+import { DocumentCategory, VerificationStatus } from '../models/employee-document.model';
 
 export class CreateEmployeeDto {
   @IsOptional()
@@ -9,6 +11,10 @@ export class CreateEmployeeDto {
   @IsString()
   firstName: string;
 
+  @IsOptional()
+  @IsString()
+  middleName?: string;
+
   @IsString()
   lastName: string;
 
@@ -16,12 +22,32 @@ export class CreateEmployeeDto {
   email: string;
 
   @IsOptional()
+  @IsEmail()
+  personalEmail?: string;
+
+  @IsOptional()
   @IsString()
   mobile?: string;
 
   @IsOptional()
   @IsString()
+  alternatePhone?: string;
+
+  @IsOptional()
+  @IsString()
   gender?: string;
+
+  @IsOptional()
+  @IsString()
+  bloodGroup?: string;
+
+  @IsOptional()
+  @IsString()
+  maritalStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  nationality?: string;
 
   @IsOptional()
   @IsDateString()
@@ -35,19 +61,45 @@ export class CreateEmployeeDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  branchId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   designationId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  managerId?: number;
 
   @IsOptional()
   @IsDateString()
   joiningDate?: Date;
 
   @IsOptional()
-  @IsString()
-  employmentType?: string;
+  @IsDateString()
+  probationEndDate?: Date;
+
+  @IsOptional()
+  @IsDateString()
+  confirmationDate?: Date;
+
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
+
+  @IsOptional()
+  @IsEnum(WorkMode)
+  workMode?: WorkMode;
 
   @IsOptional()
   @IsString()
-  status?: string;
+  workLocation?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeStatus)
+  status?: EmployeeStatus;
 
   @IsOptional()
   @IsString()
@@ -64,6 +116,14 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  currentAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  permanentAddress?: string;
 
   @IsOptional()
   @IsString()
@@ -93,6 +153,11 @@ export class CreateEmployeeDto {
   @Type(() => Number)
   @IsNumber()
   roleId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  userId?: number | null;
 }
 
 export class UpdateEmployeeDto {
@@ -114,6 +179,10 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsString()
+  middleName?: string;
+
+  @IsOptional()
+  @IsString()
   lastName?: string;
 
   @IsOptional()
@@ -121,12 +190,32 @@ export class UpdateEmployeeDto {
   email?: string;
 
   @IsOptional()
+  @IsEmail()
+  personalEmail?: string;
+
+  @IsOptional()
   @IsString()
   mobile?: string;
 
   @IsOptional()
   @IsString()
+  alternatePhone?: string;
+
+  @IsOptional()
+  @IsString()
   gender?: string;
+
+  @IsOptional()
+  @IsString()
+  bloodGroup?: string;
+
+  @IsOptional()
+  @IsString()
+  maritalStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  nationality?: string;
 
   @IsOptional()
   @IsDateString()
@@ -140,19 +229,45 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  branchId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   designationId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  managerId?: number;
 
   @IsOptional()
   @IsDateString()
   joiningDate?: Date;
 
   @IsOptional()
-  @IsString()
-  employmentType?: string;
+  @IsDateString()
+  probationEndDate?: Date;
+
+  @IsOptional()
+  @IsDateString()
+  confirmationDate?: Date;
+
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
+
+  @IsOptional()
+  @IsEnum(WorkMode)
+  workMode?: WorkMode;
 
   @IsOptional()
   @IsString()
-  status?: string;
+  workLocation?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeStatus)
+  status?: EmployeeStatus;
 
   @IsOptional()
   @IsString()
@@ -169,6 +284,14 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  currentAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  permanentAddress?: string;
 
   @IsOptional()
   @IsString()
@@ -202,6 +325,11 @@ export class UpdateEmployeeDto {
   @Type(() => Number)
   @IsNumber()
   roleId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  userId?: number | null;
 }
 
 export class GetEmployeesFilterDto {
@@ -210,8 +338,8 @@ export class GetEmployeesFilterDto {
   search?: string;
 
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsEnum(EmployeeStatus)
+  status?: EmployeeStatus;
 
   @IsOptional()
   @Type(() => Number)
@@ -243,12 +371,60 @@ export class GetEmployeesFilterDto {
 }
 
 export class AddDocumentDto {
+  @IsEnum(DocumentCategory)
+  documentCategory: DocumentCategory;
+
   @IsString()
   documentType: string;
 
+  @IsOptional()
   @IsString()
-  fileName: string;
+  documentName?: string;
 
+  @IsOptional()
   @IsString()
-  fileUrl: string;
+  documentNumber?: string;
+
+  @IsOptional()
+  @IsDateString()
+  issueDate?: Date;
+
+  @IsOptional()
+  @IsDateString()
+  expiryDate?: Date;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  notifyBeforeExpiryDays?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isMandatory?: boolean;
+}
+
+export class VerifyDocumentDto {
+  @IsEnum(VerificationStatus)
+  verificationStatus: VerificationStatus;
+
+  @IsOptional()
+  @IsString()
+  verificationRemarks?: string;
+}
+
+export class ChangeManagerDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  newManagerId?: number | null;
+}
+
+export class TransitionLifecycleDto {
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveDate?: string;
 }

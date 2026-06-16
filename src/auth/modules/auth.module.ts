@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { UsersModule } from '../../users/modules/users.module';
 import { ClientsModule } from '../../clients/modules/clients.module';
+import { ProfileModule } from '../../profile/profile.module';
 import { AuthService } from '../services/auth.service';
 import { AuthController } from '../controllers/auth.controller';
 import { JwtStrategy } from '../strategies/jwt.strategy';
@@ -16,6 +17,7 @@ import { SessionCleanupService } from '../services/session-cleanup.service';
   imports: [
     UsersModule,
     ClientsModule,
+    ProfileModule,
     SequelizeModule.forFeature([UserSession, UserCompany]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

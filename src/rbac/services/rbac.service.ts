@@ -3,6 +3,8 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Role } from '../models/role.model';
@@ -18,6 +20,8 @@ import { RemovePermissionFromRoleDto } from '../dto/remove-permission-from-role.
 import { AssignRoleToUserDto } from '../dto/assign-role-to-user.dto';
 import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
 import { User } from '../../users/models/user.model';
+import { AuditService } from '../../audit/services/audit.service';
+import { AuditContext } from '../../audit/audit.context';
 import { Op } from 'sequelize';
 
 @Injectable()
@@ -33,6 +37,8 @@ export class RbacService {
     private readonly userRoleModel: typeof UserRole,
     @InjectModel(User)
     private readonly userModel: typeof User,
+    @Inject(forwardRef(() => AuditService))
+    private readonly auditService: AuditService,
   ) {}
 
   // ─── Roles ─────────────────────────────────────────────────────────────────
@@ -45,13 +51,30 @@ export class RbacService {
     if (existing) {
       throw new ConflictException(`Role "${dto.name}" already exists for this client scope.`);
     }
-    return this.roleModel.create({
+    const role = await this.roleModel.create({
       name: dto.name,
       description: dto.description,
       clientId,
       isSystemRole: dto.isSystemRole !== undefined ? dto.isSystemRole : false,
       isActive: true,
     } as any);
+
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeDiffLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'Role',
+        entityId: role.id,
+        action: 'CREATE',
+        newRecord: role,
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
+    return role;
   }
 
   async updateRole(dto: UpdateRoleDto): Promise<Role> {
@@ -67,12 +90,33 @@ export class RbacService {
         throw new ConflictException(`Role name "${dto.name}" is already taken for this client scope.`);
       }
     }
+    const oldRecord = role.toJSON();
+
     await role.update({
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
-    return role.reload();
+    
+    const updatedRole = await role.reload();
+
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeDiffLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'Role',
+        entityId: updatedRole.id,
+        action: 'UPDATE',
+        oldRecord,
+        newRecord: updatedRole,
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
+    return updatedRole;
   }
 
   async deleteRole(id: number): Promise<{ message: string }> {
@@ -83,7 +127,24 @@ export class RbacService {
     if (role.isSystemRole) {
       throw new BadRequestException(`Cannot delete system-wide role "${role.name}"`);
     }
+    const oldRecord = role.toJSON();
     await role.destroy();
+
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeDiffLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'Role',
+        entityId: id,
+        action: 'DELETE',
+        oldRecord,
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
     return { message: `Role "${role.name}" deleted successfully` };
   }
 
@@ -337,6 +398,52 @@ export class RbacService {
       throw err;
     }
 
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'RolePermission',
+        entityId: roleId,
+        action: 'UPDATE',
+        newValue: { permissionIds },
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
     return { message: 'Permissions updated successfully' };
+  }
+
+  async getPermissionRegistry(): Promise<any[]> {
+    const permissions = await this.permissionModel.findAll({
+      where: { isActive: true },
+      order: [['resource', 'ASC'], ['action', 'ASC']],
+    });
+
+    const registryMap = new Map<string, { module: string; label: string; actions: string[] }>();
+    for (const perm of permissions) {
+      if (!registryMap.has(perm.resource)) {
+        registryMap.set(perm.resource, {
+          module: perm.module || 'Other',
+          label: perm.label || perm.resource,
+          actions: [],
+        });
+      }
+      registryMap.get(perm.resource)!.actions.push(perm.action);
+    }
+
+    const registry: any[] = [];
+    registryMap.forEach((val, resource) => {
+      registry.push({
+        resource,
+        module: val.module,
+        label: val.label,
+        actions: [...new Set(val.actions)],
+      });
+    });
+
+    return registry;
   }
 }

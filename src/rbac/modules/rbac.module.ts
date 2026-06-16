@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { Role } from '../models/role.model';
 import { Permission } from '../models/permission.model';
@@ -12,10 +12,12 @@ import { RbacService } from '../services/rbac.service';
 import { RbacController } from '../controllers/rbac.controller';
 import { RbacSeederService } from '../services/rbac-seeder.service';
 import { PermissionsGuard } from '../guards/permissions.guard';
+import { AuditModule } from '../../audit/modules/audit.module';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Role, Permission, RolePermission, UserRole, User, Company, Client, UserCompany]),
+    forwardRef(() => AuditModule),
   ],
   controllers: [RbacController],
   providers: [RbacService, RbacSeederService, PermissionsGuard],

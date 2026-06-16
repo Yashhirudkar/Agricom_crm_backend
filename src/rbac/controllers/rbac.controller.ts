@@ -147,6 +147,12 @@ export class RbacController {
     return this.rbacService.getPermissions();
   }
 
+  @Get('GetPermissionRegistry')
+  @RequirePermission('roles:read')
+  getPermissionRegistry() {
+    return this.rbacService.getPermissionRegistry();
+  }
+
   @Get('GetPermissionById')
   @RequirePermission('permissions:read')
   getPermissionById(@Query('id', ParseIntPipe) id: number) {

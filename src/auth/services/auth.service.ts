@@ -77,20 +77,16 @@ export class AuthService {
   async login(loginDto: LoginDto, ipAddress?: string, userAgent?: string) {
     const { email, password } = loginDto;
     const emailLower = email.toLowerCase().trim();
-    console.log(`[Backend Login] Attempting login for email: ${emailLower}`);
 
     // 1. Check users table first (Super Admin, Client Admin, standard Users all reside here now)
     const user = await this.usersService.findByEmail(emailLower);
     if (user) {
-      console.log(`[Backend Login] User found in DB. ID: ${user.id}, Status: ${user.status}, IsActive: ${user.isActive}`);
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        console.error(`[Backend Login] Invalid password for user ID: ${user.id}`);
         throw new UnauthorizedException('Invalid email or password');
       }
       
       if (user.status === 'Suspended' || user.status === 'Inactive' || !user.isActive) {
-        console.error(`[Backend Login] User account suspended or inactive for user ID: ${user.id}`);
         throw new UnauthorizedException('User account is suspended or inactive');
       }
 
@@ -138,6 +134,55 @@ export class AuthService {
       // Update last login
       await this.usersService.updateUser(user.id, { lastLogin: new Date() });
 
+      let employeeId: number | null = null;
+      const companyIdToQuery = user.lastCompanyId;
+      let queryStr = `SELECT id FROM "employees" WHERE "userId" = :userId`;
+      const replacements: any = { userId: user.id };
+      if (companyIdToQuery) {
+        queryStr += ` AND "companyId" = :companyId`;
+        replacements.companyId = companyIdToQuery;
+      }
+      queryStr += ` LIMIT 1;`;
+
+      const employee = await this.userSessionModel.sequelize!.query(
+        queryStr,
+        {
+          replacements,
+          type: 'SELECT'
+        }
+      ) as any[];
+      if (employee && employee.length > 0) {
+        employeeId = employee[0].id;
+      } else {
+        // Fallback: If employees.userId is NULL, fix employee-user linking by email
+        let fallbackQueryStr = `SELECT id FROM "employees" WHERE "email" = :email AND "userId" IS NULL`;
+        const fallbackReplacements: any = { email: user.email };
+        if (companyIdToQuery) {
+          fallbackQueryStr += ` AND "companyId" = :companyId`;
+          fallbackReplacements.companyId = companyIdToQuery;
+        }
+        fallbackQueryStr += ` LIMIT 1;`;
+
+        const fallbackEmployee = await this.userSessionModel.sequelize!.query(
+          fallbackQueryStr,
+          {
+            replacements: fallbackReplacements,
+            type: 'SELECT'
+          }
+        ) as any[];
+
+        if (fallbackEmployee && fallbackEmployee.length > 0) {
+          employeeId = fallbackEmployee[0].id;
+          // Update the DB to permanently link the user and employee
+          await this.userSessionModel.sequelize!.query(
+            `UPDATE "employees" SET "userId" = :userId WHERE "id" = :empId;`,
+            {
+              replacements: { userId: user.id, empId: employeeId }
+            }
+          );
+        }
+      }
+
       return {
         ...tokens,
         user: {
@@ -149,6 +194,7 @@ export class AuthService {
           clientId: user.clientId,
           lastCompanyId: user.lastCompanyId,
           isActive: user.isActive,
+          employeeId,
         },
         workspaces,
       };
@@ -161,7 +207,32 @@ export class AuthService {
       if (!isPasswordValid) throw new UnauthorizedException('Invalid email or password');
       if (!client.isActive) throw new UnauthorizedException('Client is inactive');
 
-      const tokens = await this.generateSessionTokens(null, client.id, client.email, 'client_admin', ipAddress, userAgent);
+      // Auto-create/sync User in users table if not exists
+      const UserModel = this.sequelize.models.User;
+      const RoleModel = this.sequelize.models.Role;
+      const UserRoleModel = this.sequelize.models.UserRole;
+
+      let user = await UserModel.findOne({ where: { email: emailLower } }) as any;
+      if (!user) {
+        user = await UserModel.create({
+          name: client.name,
+          email: client.email,
+          password: client.password, // already hashed
+          clientId: client.id,
+          status: 'Active',
+          isActive: true,
+        } as any);
+
+        const clientAdminRole = await RoleModel.findOne({ where: { name: 'Client Admin' } }) as any;
+        if (clientAdminRole) {
+          await UserRoleModel.create({
+            userId: user.id,
+            roleId: clientAdminRole.id
+          } as any);
+        }
+      }
+
+      const tokens = await this.generateSessionTokens(user.id, user.clientId, user.email, 'client_admin', ipAddress, userAgent);
 
       const allCompanies = await this.userSessionModel.sequelize!.query(
         `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
@@ -178,14 +249,42 @@ export class AuthService {
         status: c.status || 'Active',
       }));
 
+      // Update last login
+      await this.usersService.updateUser(user.id, { lastLogin: new Date() });
+
+      let employeeId: number | null = null;
+      const companyIdToQuery = user.lastCompanyId;
+      let queryStr = `SELECT id FROM "employees" WHERE "userId" = :userId`;
+      const replacements: any = { userId: user.id };
+      if (companyIdToQuery) {
+        queryStr += ` AND "companyId" = :companyId`;
+        replacements.companyId = companyIdToQuery;
+      }
+      queryStr += ` LIMIT 1;`;
+
+      const employee = await this.userSessionModel.sequelize!.query(
+        queryStr,
+        {
+          replacements,
+          type: 'SELECT'
+        }
+      ) as any[];
+      if (employee && employee.length > 0) {
+        employeeId = employee[0].id;
+      }
+
       return {
         ...tokens,
         user: {
-          id: client.id,
-          email: client.email,
-          name: client.name,
+          id: user.id,
+          email: user.email,
+          name: user.name,
           type: 'client_admin',
-          isActive: client.isActive,
+          status: user.status,
+          clientId: user.clientId,
+          lastCompanyId: user.lastCompanyId,
+          isActive: user.isActive,
+          employeeId,
         },
         workspaces,
       };

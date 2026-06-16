@@ -39,6 +39,10 @@ export class User extends Model<User> {
   @Column({ type: DataType.BOOLEAN })
   declare isActive: boolean;
 
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(1000) })
+  declare avatarUrl: string;
+
   @ForeignKey(() => Client)
   @AllowNull(true)
   @Column({ type: DataType.INTEGER })
