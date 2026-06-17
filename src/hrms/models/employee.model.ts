@@ -20,6 +20,7 @@ import { Designation } from './designation.model';
 import { EmployeeDocument } from './employee-document.model';
 import { Branch } from './branch.model';
 import { EmployeeLifecycleLog } from './employee-lifecycle-log.model';
+import { Shift } from '../../attendance/models/shift.model';
 
 export enum EmployeeStatus {
   DRAFT = 'DRAFT',
@@ -281,6 +282,14 @@ export class Employee extends Model<Employee> {
 
   @UpdatedAt
   declare updatedAt: Date;
+
+  @ForeignKey(() => Shift)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare shiftId: number;
+
+  @BelongsTo(() => Shift)
+  declare shift: Shift;
 
   @HasMany(() => EmployeeDocument)
   declare documents: EmployeeDocument[];

@@ -95,6 +95,7 @@ export const DEFAULT_PERMISSIONS = [
   { name: 'leave:read', resource: 'leave', action: 'read', description: 'Read leave requests' },
 
   // Attendance (Granular)
+  { name: 'attendance:create', resource: 'attendance', action: 'create', description: 'Create attendance records' },
   { name: 'attendance:read', resource: 'attendance', action: 'read', description: 'Read attendance records' },
   { name: 'attendance:update', resource: 'attendance', action: 'update', description: 'Update attendance records' },
   { name: 'attendance:override', resource: 'attendance', action: 'override', description: 'Override attendance records' },
@@ -150,6 +151,10 @@ export const DEFAULT_PERMISSIONS = [
   { name: 'leads:create', resource: 'leads', action: 'create', description: 'Create leads' },
   { name: 'leads:update', resource: 'leads', action: 'update', description: 'Update leads' },
   { name: 'leads:delete', resource: 'leads', action: 'delete', description: 'Delete leads' },
+
+  // Attachments
+  { name: 'attachments:upload', resource: 'attachments', action: 'upload', description: 'Upload attachments' },
+  { name: 'attachments:download', resource: 'attachments', action: 'download', description: 'Download attachments' },
 ];
 
 const ADMIN_ROLE_NAME = 'Admin';

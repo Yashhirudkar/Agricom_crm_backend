@@ -445,6 +445,123 @@ async function run() {
 
       console.log('[Migration] Leave Management Tables created successfully.');
       // ----------------------------------------------------------------------
+
+      // ----------------------------------------------------------------------
+      // [ATTENDANCE MODULE MIGRATIONS]
+      console.log('[Migration] Safely setting up Attendance Management Tables...');
+
+      // 1. Shifts table
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "shifts" (
+          "id" SERIAL PRIMARY KEY,
+          "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+          "name" VARCHAR(255) NOT NULL,
+          "startTime" VARCHAR(50) NOT NULL,
+          "endTime" VARCHAR(50) NOT NULL,
+          "breakMinutes" INTEGER NOT NULL DEFAULT 0,
+          "gracePeriodMinutes" INTEGER NOT NULL DEFAULT 0,
+          "isNightShift" BOOLEAN NOT NULL DEFAULT false,
+          "weeklyOffDays" JSON NOT NULL DEFAULT '[]',
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `, { transaction });
+
+      // 2. Add shiftId reference in employees table
+      await sequelize.query(`
+        ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "shiftId" INTEGER;
+        
+        ALTER TABLE "employees" DROP CONSTRAINT IF EXISTS "employees_shiftId_fkey";
+        ALTER TABLE "employees" ADD CONSTRAINT "employees_shiftId_fkey" FOREIGN KEY ("shiftId") REFERENCES "shifts"("id") ON DELETE SET NULL;
+      `, { transaction });
+
+      // 3. Create Custom Enum for Attendance Status
+      await sequelize.query(`
+        DO $$ BEGIN
+            CREATE TYPE "enum_attendance_records_attendanceStatus" AS ENUM ('PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'WEEK_OFF', 'ON_LEAVE', 'HOLIDAY', 'UPCOMING');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+      `, { transaction });
+
+      // 4. Attendance Records table
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "attendance_records" (
+          "id" SERIAL PRIMARY KEY,
+          "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
+          "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
+          "date" DATE NOT NULL,
+          "checkInTime" TIMESTAMP WITH TIME ZONE,
+          "checkOutTime" TIMESTAMP WITH TIME ZONE,
+          "totalHours" DECIMAL(5, 2) DEFAULT 0,
+          "overtimeHours" DECIMAL(5, 2) DEFAULT 0,
+          "lateMinutes" INTEGER DEFAULT 0,
+          "attendanceStatus" "enum_attendance_records_attendanceStatus" NOT NULL,
+          "locationLat" DECIMAL(10, 8),
+          "locationLng" DECIMAL(11, 8),
+          "shiftId" INTEGER REFERENCES "shifts"("id") ON DELETE SET NULL,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          UNIQUE ("employeeId", "date")
+        );
+      `, { transaction });
+
+      // 5. Create Custom Enum for Attendance Action Types
+      await sequelize.query(`
+        DO $$ BEGIN
+            CREATE TYPE "enum_attendance_logs_actionType" AS ENUM ('CHECK_IN', 'CHECK_OUT', 'BREAK_START', 'BREAK_END', 'AUTO_CORRECTION');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+      `, { transaction });
+
+      // 6. Attendance Logs table
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "attendance_logs" (
+          "id" SERIAL PRIMARY KEY,
+          "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
+          "attendanceRecordId" INTEGER REFERENCES "attendance_records"("id") ON DELETE SET NULL,
+          "actionType" "enum_attendance_logs_actionType" NOT NULL,
+          "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL,
+          "metadata" JSON,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `, { transaction });
+
+      // 7. Create Custom Enums for Exceptions
+      await sequelize.query(`
+        DO $$ BEGIN
+            CREATE TYPE "enum_attendance_exceptions_requestType" AS ENUM ('CORRECTION', 'MISSED_CHECKIN', 'MISSED_CHECKOUT');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+
+        DO $$ BEGIN
+            CREATE TYPE "enum_attendance_exceptions_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+      `, { transaction });
+
+      // 8. Attendance Exceptions table
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS "attendance_exceptions" (
+          "id" SERIAL PRIMARY KEY,
+          "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
+          "attendanceRecordId" INTEGER REFERENCES "attendance_records"("id") ON DELETE SET NULL,
+          "requestType" "enum_attendance_exceptions_requestType" NOT NULL,
+          "reason" TEXT NOT NULL,
+          "status" "enum_attendance_exceptions_status" NOT NULL DEFAULT 'PENDING',
+          "approvedBy" INTEGER REFERENCES "employees"("id") ON DELETE SET NULL,
+          "remarks" TEXT,
+          "metadata" JSON,
+          "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        );
+      `, { transaction });
+
+      console.log('[Migration] Attendance Management Tables created successfully.');
+      // ----------------------------------------------------------------------
     });
 
     console.log('[Migration] All migration tasks executed successfully.');

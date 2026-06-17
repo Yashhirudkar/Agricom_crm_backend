@@ -33,6 +33,11 @@ export enum HalfDayType {
 @Table({
   tableName: 'leave_requests',
   timestamps: true,
+  indexes: [
+    { fields: ['employeeId', 'status'] },
+    { fields: ['employeeId', 'fromDate', 'toDate'] },
+    { fields: ['companyId', 'status', 'fromDate', 'toDate'] },
+  ],
 })
 export class LeaveRequest extends Model<LeaveRequest> {
   @PrimaryKey

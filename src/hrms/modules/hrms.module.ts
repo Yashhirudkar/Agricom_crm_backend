@@ -43,12 +43,15 @@ import { LeaveBalancesController } from '../controllers/leave-balances.controlle
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { LeaveRequestsController } from '../controllers/leave-requests.controller';
 
+import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
       Department, Designation, Employee, EmployeeDocument, Branch, 
       EmployeeLifecycleLog, Holiday, HolidayCompany, LeaveType, EmployeeLeaveBalance, 
-      LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, CompanyHrPolicy
+      LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, CompanyHrPolicy,
+      AttendanceRecord
     ]),
     AuditModule,
     RbacModule,

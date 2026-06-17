@@ -44,6 +44,11 @@ import { ProfileActivityLog } from './profile/models/profile-activity-log.model'
 import { HolidaysModule } from './holidays/holidays.module';
 import { Holiday } from './holidays/models/holiday.model';
 import { HolidayCompany } from './holidays/models/holiday-company.model';
+import { AttendanceModule } from './attendance/attendance.module';
+import { Shift } from './attendance/models/shift.model';
+import { AttendanceRecord } from './attendance/models/attendance-record.model';
+import { AttendanceLog } from './attendance/models/attendance-log.model';
+import { AttendanceException } from './attendance/models/attendance-exception.model';
 
 import { join } from 'path';
 
@@ -76,7 +81,7 @@ import { AuditMiddleware } from './audit/middlewares/audit.middleware';
           username: configService.get<string>('DB_USERNAME'),
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
-          models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, SysModule, SubModule, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog],
+          models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, SysModule, SubModule, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException],
           autoLoadModels: true,
           synchronize: shouldSync,
           sync: shouldSync ? { alter: true } : undefined,
@@ -97,6 +102,7 @@ import { AuditMiddleware } from './audit/middlewares/audit.middleware';
     SystemModule,
     HolidaysModule,
     ProfileModule,
+    AttendanceModule,
   ],
 })
 export class AppModule implements NestModule {

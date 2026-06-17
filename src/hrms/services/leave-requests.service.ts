@@ -13,8 +13,21 @@ import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { StorageService } from './storage.service';
 import { ApplyLeaveDto, ApproveLeaveDto, RejectLeaveDto, CancelLeaveDto, GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
+import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../../attendance/models/attendance-record.model';
 import * as crypto from 'crypto';
 import * as path from 'path';
+
+/** Safely convert a Sequelize DATEONLY value (string "YYYY-MM-DD" or Date) to "YYYY-MM-DD" string. */
+function toDateOnlyStr(value: Date | string | any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value.split('T')[0];
+  return new Date(value).toISOString().split('T')[0];
+}
+
+/** Extract year from a Sequelize DATEONLY column safely without UTC offset distortion. */
+function getYearFromDateOnly(value: Date | string | any): number {
+  return parseInt(toDateOnlyStr(value).substring(0, 4), 10);
+}
 
 @Injectable()
 export class LeaveRequestsService {
@@ -35,6 +48,8 @@ export class LeaveRequestsService {
     private readonly hrPolicyModel: typeof CompanyHrPolicy,
     @InjectModel(Holiday)
     private readonly holidayModel: typeof Holiday,
+    @InjectModel(AttendanceRecord)
+    private readonly attendanceRecordModel: typeof AttendanceRecord,
     private readonly auditService: AuditService,
     private readonly storageService: StorageService,
   ) {}
@@ -128,6 +143,19 @@ export class LeaveRequestsService {
     today.setHours(0, 0, 0, 0);
     const reqFromDate = new Date(dto.fromDate);
     reqFromDate.setHours(0, 0, 0, 0);
+    const reqToDate = new Date(dto.toDate);
+    reqToDate.setHours(0, 0, 0, 0);
+
+    const reqFromDateStr = dto.fromDate.split('T')[0];
+    const reqToDateStr = dto.toDate.split('T')[0];
+
+    if (reqFromDate.getFullYear() !== reqToDate.getFullYear()) {
+      throw new BadRequestException('Leave request cannot span across different years. Please apply separately.');
+    }
+
+    if (dto.isHalfDay && reqFromDateStr !== reqToDateStr) {
+      throw new BadRequestException('Half day leave must be for a single day');
+    }
 
     if (reqFromDate < today) {
       if (!policy.allowBackdatedLeave) {
@@ -138,27 +166,6 @@ export class LeaveRequestsService {
       if (policy.maxBackdatedDays > 0 && backdatedDays > policy.maxBackdatedDays) {
         throw new BadRequestException(`Cannot apply for leave older than ${policy.maxBackdatedDays} days`);
       }
-    }
-
-    const overlappingRequests = await this.leaveRequestModel.findAll({
-      where: {
-        employeeId,
-        companyId,
-        status: { [Op.in]: [LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED] },
-        fromDate: { [Op.lte]: dto.toDate },
-        toDate: { [Op.gte]: dto.fromDate }
-      }
-    });
-
-    const actualOverlaps = overlappingRequests.filter(existing => {
-      if (existing.isHalfDay && dto.isHalfDay && new Date(existing.fromDate).getTime() === reqFromDate.getTime()) {
-        if (existing.halfDayType !== dto.halfDayType) return false;
-      }
-      return true;
-    });
-
-    if (actualOverlaps.length > 0) {
-      throw new BadRequestException('Leave request overlaps with an existing pending or approved leave');
     }
 
     const totalDays = await this.calculateActualLeaveDays(dto.fromDate, dto.toDate, companyId, dto.isHalfDay || false, policy);
@@ -175,6 +182,41 @@ export class LeaveRequestsService {
 
     const t = await this.leaveRequestModel.sequelize!.transaction();
     try {
+      // Lock employee record to serialize concurrent applications for the same employee
+      await this.employeeModel.findOne({
+        where: { id: employeeId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+        attributes: ['id']
+      });
+
+      const overlappingRequests = await this.leaveRequestModel.findAll({
+        where: {
+          employeeId,
+          companyId,
+          status: { [Op.in]: [LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED] },
+          fromDate: { [Op.lte]: reqToDateStr },
+          toDate: { [Op.gte]: reqFromDateStr }
+        },
+        transaction: t
+      });
+
+      const actualOverlaps = overlappingRequests.filter(existing => {
+        // existing.fromDate is typically returned as YYYY-MM-DD string by Sequelize for DATEONLY
+        const existingFromDateStr = typeof existing.fromDate === 'string' 
+          ? existing.fromDate 
+          : new Date(existing.fromDate).toISOString().split('T')[0];
+
+        if (existing.isHalfDay && dto.isHalfDay && existingFromDateStr === reqFromDateStr) {
+          if (existing.halfDayType !== dto.halfDayType) return false;
+        }
+        return true;
+      });
+
+      if (actualOverlaps.length > 0) {
+        throw new BadRequestException('Leave request overlaps with an existing pending or approved leave');
+      }
+
       const year = new Date(dto.fromDate).getFullYear();
       let balance = await this.employeeLeaveBalanceModel.findOne({
         where: { employeeId, leaveTypeId: leaveType.id, year },
@@ -280,6 +322,10 @@ export class LeaveRequestsService {
       });
       if (!leaveRequest) throw new NotFoundException('Leave request not found');
 
+      if (leaveRequest.employeeId === approverId && actor?.type !== 'super_admin') {
+        throw new ForbiddenException('You cannot approve your own leave request');
+      }
+
       if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
         throw new BadRequestException(`Cannot approve a leave request that is ${leaveRequest.status}`);
       }
@@ -300,7 +346,7 @@ export class LeaveRequestsService {
         throw new ForbiddenException('You are not the designated approver for this step');
       }
 
-      const year = new Date(leaveRequest.fromDate).getFullYear();
+      const year = getYearFromDateOnly(leaveRequest.fromDate);
       const balance = await this.employeeLeaveBalanceModel.findOne({
         where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
         transaction: t,
@@ -315,6 +361,30 @@ export class LeaveRequestsService {
       if (leaveRequest.currentApprovalLevel >= leaveRequest.finalApprovalLevel) {
         await leaveRequest.update({ status: LeaveRequestStatus.APPROVED }, { transaction: t });
         
+        // Sync attendance records to ON_LEAVE or HALF_DAY immediately
+        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
+        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
+        const affectedRecords = await this.attendanceRecordModel.findAll({
+          where: {
+            employeeId: leaveRequest.employeeId,
+            companyId,
+            date: { [Op.between]: [fromDateStr, toDateStr] }
+          },
+          transaction: t,
+          lock: t.LOCK.UPDATE
+        });
+
+        for (const record of affectedRecords) {
+          if (record.isPayrollLocked) {
+             throw new ForbiddenException(`Cannot approve leave because attendance for ${record.date} is already finalized/payroll locked.`);
+          }
+          if (!leaveRequest.isHalfDay) {
+            await record.update({ attendanceStatus: AttendanceStatus.ON_LEAVE }, { transaction: t });
+          } else if (record.attendanceStatus === AttendanceStatus.ABSENT) {
+            await record.update({ attendanceStatus: AttendanceStatus.HALF_DAY }, { transaction: t });
+          }
+        }
+
         // Convert pending to used
         if (balance) {
           await balance.update({
@@ -351,6 +421,10 @@ export class LeaveRequestsService {
       });
       if (!leaveRequest) throw new NotFoundException('Leave request not found');
 
+      if (leaveRequest.employeeId === approverId && actor?.type !== 'super_admin') {
+        throw new ForbiddenException('You cannot reject your own leave request');
+      }
+
       if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
         throw new BadRequestException(`Cannot reject a leave request that is ${leaveRequest.status}`);
       }
@@ -371,7 +445,7 @@ export class LeaveRequestsService {
         throw new ForbiddenException('You are not the designated approver for this step');
       }
 
-      const year = new Date(leaveRequest.fromDate).getFullYear();
+      const year = getYearFromDateOnly(leaveRequest.fromDate);
       const balance = await this.employeeLeaveBalanceModel.findOne({
         where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
         transaction: t,
@@ -425,7 +499,7 @@ export class LeaveRequestsService {
         throw new BadRequestException(`Leave request is already ${leaveRequest.status}`);
       }
 
-      const year = new Date(leaveRequest.fromDate).getFullYear();
+      const year = getYearFromDateOnly(leaveRequest.fromDate);
       const balance = await this.employeeLeaveBalanceModel.findOne({
         where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
         transaction: t,
@@ -435,6 +509,42 @@ export class LeaveRequestsService {
       await leaveRequest.update({ 
         status: LeaveRequestStatus.CANCELLED,
       }, { transaction: t });
+
+      // Rollback attendance records that were set to ON_LEAVE during approval
+      if (oldStatus === LeaveRequestStatus.APPROVED) {
+        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
+        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
+        const affectedRecords = await this.attendanceRecordModel.findAll({
+          where: {
+            employeeId: leaveRequest.employeeId,
+            companyId,
+            date: { [Op.between]: [fromDateStr, toDateStr] }
+          },
+          transaction: t,
+          lock: t.LOCK.UPDATE
+        });
+
+        for (const record of affectedRecords) {
+          // Hard payroll lock: cannot mutate finalized records
+          if (record.isPayrollLocked) {
+            throw new ForbiddenException(
+              `Cannot cancel leave: attendance for ${record.date} is already payroll-locked.`
+            );
+          }
+
+          if (!record.checkInTime) {
+            // Case 1: Employee never checked in — DELETE placeholder entirely.
+            // The dynamic engine (cron / monthly report) will re-evaluate as
+            // HOLIDAY, WEEK_OFF, or ABSENT when the day ends.
+            await record.destroy({ transaction: t } as any);
+          } else {
+            // Case 2: Employee already checked in (or is actively WORKING).
+            // Reset status to null so checkout calculates the real final status.
+            // Do NOT force ABSENT — they may still check out later today.
+            await record.update({ attendanceStatus: null }, { transaction: t });
+          }
+        }
+      }
 
       if (balance) {
         if (oldStatus === LeaveRequestStatus.PENDING) {
