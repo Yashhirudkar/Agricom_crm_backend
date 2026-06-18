@@ -14,6 +14,7 @@ import { AuditService } from '../../audit/services/audit.service';
 import { StorageService } from './storage.service';
 import { ApplyLeaveDto, ApproveLeaveDto, RejectLeaveDto, CancelLeaveDto, GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
 import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../../attendance/models/attendance-record.model';
+import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
 import * as crypto from 'crypto';
 import * as path from 'path';
 
@@ -52,6 +53,7 @@ export class LeaveRequestsService {
     private readonly attendanceRecordModel: typeof AttendanceRecord,
     private readonly auditService: AuditService,
     private readonly storageService: StorageService,
+    private readonly attendanceGateway: AttendanceGateway,
   ) {}
 
   async getFallbackEmployeeIdForAdmin(companyId: number): Promise<number | null> {
@@ -314,6 +316,7 @@ export class LeaveRequestsService {
 
   async approveLeave(requestId: number, companyId: number, approverId: number, dto: ApproveLeaveDto, actor?: any): Promise<{ message: string }> {
     const t = await this.leaveRequestModel.sequelize!.transaction();
+    let affectedRecords: AttendanceRecord[] = [];
     try {
       const leaveRequest = await this.leaveRequestModel.findOne({ 
         where: { id: requestId, companyId },
@@ -364,7 +367,7 @@ export class LeaveRequestsService {
         // Sync attendance records to ON_LEAVE or HALF_DAY immediately
         const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
         const toDateStr = toDateOnlyStr(leaveRequest.toDate);
-        const affectedRecords = await this.attendanceRecordModel.findAll({
+        affectedRecords = await this.attendanceRecordModel.findAll({
           where: {
             employeeId: leaveRequest.employeeId,
             companyId,
@@ -404,6 +407,18 @@ export class LeaveRequestsService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      // Emit updates
+      if (affectedRecords && affectedRecords.length > 0) {
+        for (const record of affectedRecords) {
+          try {
+            this.attendanceGateway.emitAttendanceUpdate('leave_approved', record);
+          } catch (err) {
+            console.error('Socket emit error in approveLeave:', err);
+          }
+        }
+      }
+
       return { message: 'Leave request approved successfully' };
     } catch (err) {
       await t.rollback();
@@ -487,6 +502,7 @@ export class LeaveRequestsService {
 
   async cancelLeave(requestId: number, companyId: number, employeeId: number, dto: CancelLeaveDto, actor?: any): Promise<{ message: string }> {
     const t = await this.leaveRequestModel.sequelize!.transaction();
+    let affectedRecords: AttendanceRecord[] = [];
     try {
       const leaveRequest = await this.leaveRequestModel.findOne({ 
         where: { id: requestId, companyId, employeeId },
@@ -514,7 +530,7 @@ export class LeaveRequestsService {
       if (oldStatus === LeaveRequestStatus.APPROVED) {
         const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
         const toDateStr = toDateOnlyStr(leaveRequest.toDate);
-        const affectedRecords = await this.attendanceRecordModel.findAll({
+        affectedRecords = await this.attendanceRecordModel.findAll({
           where: {
             employeeId: leaveRequest.employeeId,
             companyId,
@@ -568,6 +584,18 @@ export class LeaveRequestsService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      // Emit updates
+      if (affectedRecords && affectedRecords.length > 0) {
+        for (const record of affectedRecords) {
+          try {
+            this.attendanceGateway.emitAttendanceUpdate('leave_cancelled', record);
+          } catch (err) {
+            console.error('Socket emit error in cancelLeave:', err);
+          }
+        }
+      }
+
       return { message: 'Leave request cancelled successfully' };
     } catch (err) {
       await t.rollback();

@@ -100,6 +100,7 @@ export class ClientsService {
   async findAll(): Promise<Client[]> {
     return this.clientModel.findAll({
       attributes: { exclude: ['password'] },
+      include: ['folderAccess', 'itemAccess', 'moduleAccess', 'actionAccess'],
       order: [['createdAt', 'DESC']],
     });
   }
@@ -199,8 +200,13 @@ export class ClientsService {
         await sequelize.query('DELETE FROM "user_roles" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
         // 3. Delete user_sessions for users of this client
         await sequelize.query('DELETE FROM "user_sessions" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
-        // 4. Delete role_permissions for roles of this client
-        await sequelize.query('DELETE FROM "role_permissions" WHERE "roleId" IN (SELECT id FROM "roles" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // 4. Delete role_action_permissions for roles of this client (updated from legacy role_permissions)
+        await sequelize.query('DELETE FROM "role_action_permissions" WHERE "role_id" IN (SELECT id FROM "roles" WHERE "clientId" = :clientId)', { replacements: { clientId: id }, transaction: t });
+        // Clean up client access boundaries
+        await sequelize.query('DELETE FROM "client_folder_access" WHERE "client_id" = :clientId', { replacements: { clientId: id }, transaction: t });
+        await sequelize.query('DELETE FROM "client_item_access" WHERE "client_id" = :clientId', { replacements: { clientId: id }, transaction: t });
+        await sequelize.query('DELETE FROM "client_module_access" WHERE "client_id" = :clientId', { replacements: { clientId: id }, transaction: t });
+        await sequelize.query('DELETE FROM "client_action_access" WHERE "client_id" = :clientId', { replacements: { clientId: id }, transaction: t });
         // 5. Delete roles of this client
         await sequelize.query('DELETE FROM "roles" WHERE "clientId" = :clientId', { replacements: { clientId: id }, transaction: t });
         // 6. Delete companies belonging to this client

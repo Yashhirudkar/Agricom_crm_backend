@@ -8,8 +8,9 @@ import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/sequelize';
 import { PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
 import { UserRole } from '../models/user-role.model';
-import { RolePermission } from '../models/role-permission.model';
-import { Permission } from '../models/permission.model';
+import { RoleActionPermission } from '../models/role-action-permission.model';
+import { ResourceAction } from '../../system/models/resource-action.model';
+import { ModuleResource } from '../../system/models/module-resource.model';
 import { Role } from '../models/role.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { Company } from '../../companies/models/company.model';
@@ -61,8 +62,8 @@ export class PermissionsGuard implements CanActivate {
     private readonly reflector: Reflector,
     @InjectModel(UserRole)
     private readonly userRoleModel: typeof UserRole,
-    @InjectModel(RolePermission)
-    private readonly rolePermissionModel: typeof RolePermission,
+    @InjectModel(RoleActionPermission)
+    private readonly roleActionPermissionModel: typeof RoleActionPermission,
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
     @InjectModel(Company)
@@ -110,6 +111,8 @@ export class PermissionsGuard implements CanActivate {
     if (user.type === 'super_admin') {
       if (requestedCompanyId) {
         request.activeCompanyId = requestedCompanyId;
+      } else {
+        request.activeCompanyId = 1; // Fallback default for Super Admin
       }
       return true;
     }
@@ -204,20 +207,27 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Load all permissions attached to those roles
-    const rolePermissions = await this.rolePermissionModel.findAll({
-      where: { roleId: roleIds },
+    const rolePermissions = await this.roleActionPermissionModel.findAll({
+      where: { role_id: roleIds },
       include: [
         {
-          model: Permission,
-          where: { isActive: true },
+          model: ResourceAction,
           required: true,
+          include: [
+            {
+              model: ModuleResource,
+              required: true,
+            }
+          ]
         },
       ],
     });
 
     // Build a Set of "resource:action" strings the user holds
+    // Normalize to lowercase — DB stores action names in UPPERCASE (READ, CREATE, etc.)
+    // but @RequirePermission decorators pass lowercase (users:read, roles:create, etc.)
     const grantedSet = new Set<string>(
-      rolePermissions.map((rp) => `${rp.permission.resource}:${rp.permission.action}`),
+      rolePermissions.map((rp) => `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`),
     );
 
     // Check every required permission

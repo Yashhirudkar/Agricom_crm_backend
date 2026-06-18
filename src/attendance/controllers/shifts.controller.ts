@@ -33,7 +33,7 @@ export class ShiftsController {
   }
 
   @Post()
-  @RequirePermission('attendance:update')
+  @RequirePermission('attendance_shifts:create')
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateShiftDto, @Request() req) {
     const companyId = this.getCompanyId(req);
@@ -41,21 +41,21 @@ export class ShiftsController {
   }
 
   @Get()
-  @RequirePermission('attendance:read')
+  @RequirePermission('attendance_shifts:read')
   findAll(@Request() req) {
     const companyId = this.getCompanyId(req);
     return this.shiftsService.getShifts(companyId);
   }
 
   @Get(':id')
-  @RequirePermission('attendance:read')
+  @RequirePermission('attendance_shifts:read')
   findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.shiftsService.getShiftById(id, companyId);
   }
 
   @Put(':id')
-  @RequirePermission('attendance:update')
+  @RequirePermission('attendance_shifts:update')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShiftDto,
@@ -66,7 +66,7 @@ export class ShiftsController {
   }
 
   @Delete(':id')
-  @RequirePermission('attendance:update')
+  @RequirePermission('attendance_shifts:delete')
   remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.shiftsService.deleteShift(id, companyId);

@@ -13,6 +13,7 @@ import {
   HttpStatus,
   Request,
   BadRequestException,
+  ForbiddenException,
   Res,
   UseInterceptors,
   UploadedFile,
@@ -32,7 +33,7 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) { }
 
   private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'];
+    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
     if (!companyId) {
       throw new BadRequestException('x-company-id header is required');
     }
@@ -47,6 +48,29 @@ export class EmployeesController {
       userAgent: req.headers['user-agent'],
       type: req.user.type || null,
     };
+  }
+
+  private async checkUserHasPermission(userId: number, companyId: number, resource: string, action: string): Promise<boolean> {
+    const query = `
+      SELECT COUNT(rap.id) as count
+      FROM user_companies uc
+      JOIN role_action_permissions rap ON uc."roleId" = rap.role_id
+      JOIN resource_actions ra ON rap.resource_action_id = ra.id
+      JOIN module_resources mr ON ra.resource_id = mr.id
+      WHERE uc."userId" = :userId 
+        AND uc."companyId" = :companyId 
+        AND uc.status = 'Active'
+        AND mr.name = :resource
+        AND ra.name = :action
+    `;
+    const sequelize = (this.employeesService as any).employeeModel?.sequelize;
+    if (!sequelize) return false;
+    
+    const dbResult = await sequelize.query(query, {
+      replacements: { userId, companyId, resource, action: action.toUpperCase() },
+      type: 'SELECT'
+    }) as any[];
+    return dbResult.length > 0 && parseInt(dbResult[0].count || dbResult[0].COUNT || '0', 10) > 0;
   }
 
   @Post()
@@ -74,8 +98,17 @@ export class EmployeesController {
 
   @Get(':id')
   @RequirePermission('employees:read')
-  getEmployeeById(@Param('id', ParseIntPipe) id: number, @Request() req) {
+  async getEmployeeById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
+    const isSelf = req.user.employeeId && req.user.employeeId === id;
+    const isSystemAdmin = req.user.type === 'super_admin' || req.user.type === 'client_admin';
+
+    if (!isSelf && !isSystemAdmin) {
+      const hasPermission = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'employees', 'update');
+      if (!hasPermission) {
+        throw new ForbiddenException('Insufficient permissions to view other employee profiles.');
+      }
+    }
     return this.employeesService.getEmployeeById(id, companyId);
   }
 
@@ -224,9 +257,24 @@ export class EmployeesController {
 
   @Get(':employeeId/documents')
   @RequirePermission('employee_documents:read')
-  getDocuments(@Param('employeeId', ParseIntPipe) employeeId: number, @Request() req) {
+  async getDocuments(@Param('employeeId', ParseIntPipe) employeeId: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
+
+    const isSelf = req.user.employeeId && req.user.employeeId === employeeId;
+    const isSystemAdmin = req.user.type === 'super_admin' || req.user.type === 'client_admin';
+
+    if (!isSelf && !isSystemAdmin) {
+      const hasPermission = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'employee_documents', 'read_all');
+      // If we don't have read_all, fallback to update to allow managers
+      if (!hasPermission) {
+        const hasUpdate = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'employees', 'update');
+        if (!hasUpdate) {
+           throw new ForbiddenException('Insufficient permissions to view other employee documents.');
+        }
+      }
+    }
+
     return this.employeesService.getDocuments(employeeId, companyId, actor);
   }
 
@@ -240,6 +288,20 @@ export class EmployeesController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
+
+    const isSelf = req.user.employeeId && req.user.employeeId === employeeId;
+    const isSystemAdmin = req.user.type === 'super_admin' || req.user.type === 'client_admin';
+
+    if (!isSelf && !isSystemAdmin) {
+      const hasPermission = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'employee_documents', 'read_all');
+      if (!hasPermission) {
+        const hasUpdate = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'employees', 'update');
+        if (!hasUpdate) {
+           throw new ForbiddenException('Insufficient permissions to download other employee documents.');
+        }
+      }
+    }
+
     const absolutePath = await this.employeesService.downloadDocument(employeeId, documentId, companyId, actor);
     return res.sendFile(absolutePath);
   }

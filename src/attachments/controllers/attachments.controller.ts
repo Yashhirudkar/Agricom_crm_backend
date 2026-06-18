@@ -74,9 +74,8 @@ export class AttachmentsController {
   )
   @RequirePermission('attachments:upload')
   uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
-    const companyId = req.headers['x-company-id']
-      ? parseInt(req.headers['x-company-id'] as string, 10)
-      : null;
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : null;
 
     if (!companyId) {
       // Cleanup the uploaded file if companyId is missing since multer saves it before the interceptor throws

@@ -12,8 +12,7 @@ import { Client } from './clients/models/client.model';
 import { User } from './users/models/user.model';
 import { UserSession } from './users/models/user-session.model';
 import { Role } from './rbac/models/role.model';
-import { Permission } from './rbac/models/permission.model';
-import { RolePermission } from './rbac/models/role-permission.model';
+
 import { UserRole } from './rbac/models/user-role.model';
 import { Company } from './companies/models/company.model';
 import { UserCompany } from './users/models/user-company.model';
@@ -53,10 +52,22 @@ import { AttendanceException } from './attendance/models/attendance-exception.mo
 import { join } from 'path';
 
 import { AttachmentsModule } from './attachments/modules/attachments.module';
-import { SysModule } from './system/models/SysModule';
-import { SubModule } from './system/models/SubModule';
 import { SystemModule } from './system/modules/system.module';
+
 import { AuditMiddleware } from './audit/middlewares/audit.middleware';
+
+// New dynamic RBAC and Sidebar models
+import { AppModule as AppModuleModel } from './system/models/app-module.model';
+import { ModuleResource } from './system/models/module-resource.model';
+import { ResourceAction } from './system/models/resource-action.model';
+import { SidebarFolder } from './system/models/sidebar-folder.model';
+import { SidebarItem } from './system/models/sidebar-item.model';
+import { SystemAuditLog } from './system/models/system-audit-log.model';
+import { RoleActionPermission } from './rbac/models/role-action-permission.model';
+import { ClientFolderAccess } from './clients/models/client-folder-access.model';
+import { ClientItemAccess } from './clients/models/client-item-access.model';
+import { ClientModuleAccess } from './clients/models/client-module-access.model';
+import { ClientActionAccess } from './clients/models/client-action-access.model';
 
 @Module({
   imports: [
@@ -81,7 +92,7 @@ import { AuditMiddleware } from './audit/middlewares/audit.middleware';
           username: configService.get<string>('DB_USERNAME'),
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
-          models: [Client, Company, User, UserSession, Role, Permission, RolePermission, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, SysModule, SubModule, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException],
+          models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess],
           autoLoadModels: true,
           synchronize: shouldSync,
           sync: shouldSync ? { alter: true } : undefined,

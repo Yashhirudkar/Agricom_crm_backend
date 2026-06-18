@@ -6,6 +6,7 @@ import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.mo
 import { CompanyBreakPolicy } from '../models/company-break-policy.model';
 import { Employee, EmployeeStatus } from '../../hrms/models/employee.model';
 import { Op } from 'sequelize';
+import { AttendanceGateway } from '../gateways/attendance.gateway';
 
 @Injectable()
 export class AttendanceBreakCronService {
@@ -20,6 +21,7 @@ export class AttendanceBreakCronService {
     private readonly policyModel: typeof CompanyBreakPolicy,
     @InjectModel(Employee)
     private readonly employeeModel: typeof Employee,
+    private readonly attendanceGateway: AttendanceGateway,
   ) {}
 
   @Cron('*/5 * * * *')
@@ -43,6 +45,8 @@ export class AttendanceBreakCronService {
         },
       });
 
+      const allMutated: AttendanceRecord[] = [];
+
       for (const policy of policies) {
         // Calculate break end time
         const [startH, startM] = policy.startTime.split(':').map(Number);
@@ -61,9 +65,38 @@ export class AttendanceBreakCronService {
         const shouldEndBreak = currentMins >= policyEndMins && currentMins < policyEndMins + 5;
 
         if (shouldBeOnBreak) {
-          await this.startBreaks(policy, todayDateStr, now);
+          const mutated = await this.startBreaks(policy, todayDateStr, now);
+          allMutated.push(...mutated);
         } else if (shouldEndBreak) {
-          await this.endBreaks(policy, todayDateStr, now);
+          const mutated = await this.endBreaks(policy, todayDateStr, now);
+          allMutated.push(...mutated);
+        }
+      }
+
+      // Emit socket updates, batching if more than 5 records per company
+      const companyRecordsMap = new Map<number, AttendanceRecord[]>();
+      for (const rec of allMutated) {
+        if (!companyRecordsMap.has(rec.companyId)) {
+          companyRecordsMap.set(rec.companyId, []);
+        }
+        companyRecordsMap.get(rec.companyId)!.push(rec);
+      }
+
+      for (const [companyId, records] of companyRecordsMap.entries()) {
+        if (records.length > 5) {
+          try {
+            this.attendanceGateway.emitBatchUpdate(records, companyId);
+          } catch (err) {
+            this.logger.error(`Failed to emit batch socket update for Company ${companyId}`, err);
+          }
+        } else {
+          for (const record of records) {
+            try {
+              this.attendanceGateway.emitAttendanceUpdate('break_update', record);
+            } catch (err) {
+              this.logger.error(`Failed to emit socket update for Employee ${record.employeeId}`, err);
+            }
+          }
         }
       }
 
@@ -73,7 +106,7 @@ export class AttendanceBreakCronService {
     }
   }
 
-  private async startBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date) {
+  private async startBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date): Promise<AttendanceRecord[]> {
     // Find all records that are WORKING for this company today
     const records = await this.recordModel.findAll({
       where: {
@@ -82,6 +115,8 @@ export class AttendanceBreakCronService {
         attendanceState: AttendanceState.WORKING,
       },
     });
+
+    const mutated: AttendanceRecord[] = [];
 
     for (const record of records) {
       const t = await this.recordModel.sequelize!.transaction();
@@ -103,15 +138,18 @@ export class AttendanceBreakCronService {
         } as any, { transaction: t });
 
         await t.commit();
+        mutated.push(record);
         this.logger.log(`Auto started break for Employee ${record.employeeId} under policy ${policy.name}`);
       } catch (err) {
         await t.rollback();
         this.logger.error(`Failed to auto-start break for Employee ${record.employeeId}`, err);
       }
     }
+
+    return mutated;
   }
 
-  private async endBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date) {
+  private async endBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date): Promise<AttendanceRecord[]> {
     // Find all records that are ON_BREAK for this company today
     const records = await this.recordModel.findAll({
       where: {
@@ -120,6 +158,8 @@ export class AttendanceBreakCronService {
         attendanceState: AttendanceState.ON_BREAK,
       },
     });
+
+    const mutated: AttendanceRecord[] = [];
 
     for (const record of records) {
       // Before blindly ending, verify they are actually on THIS break using logs, 
@@ -143,11 +183,14 @@ export class AttendanceBreakCronService {
         } as any, { transaction: t });
 
         await t.commit();
+        mutated.push(record);
         this.logger.log(`Auto ended break for Employee ${record.employeeId} under policy ${policy.name}`);
       } catch (err) {
         await t.rollback();
         this.logger.error(`Failed to auto-end break for Employee ${record.employeeId}`, err);
       }
     }
+
+    return mutated;
   }
 }

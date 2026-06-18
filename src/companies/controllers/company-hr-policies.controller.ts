@@ -19,7 +19,7 @@ export class CompanyHrPoliciesController {
   constructor(private readonly policiesService: CompanyHrPoliciesService) {}
 
   private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'];
+    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
     if (!companyId) {
       throw new BadRequestException('x-company-id header is required');
     }

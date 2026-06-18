@@ -14,11 +14,11 @@ import {
   ForeignKey,
   BelongsTo,
 } from 'sequelize-typescript';
-import { Permission } from './permission.model';
-import { RolePermission } from './role-permission.model';
+
 import { UserRole } from './user-role.model';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
+import { RoleActionPermission } from './role-action-permission.model';
 
 @Table({
   tableName: 'roles',
@@ -72,12 +72,11 @@ export class Role extends Model<Role> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @BelongsToMany(() => Permission, () => RolePermission)
-  declare permissions: Permission[];
 
-  @HasMany(() => RolePermission)
-  declare rolePermissions: RolePermission[];
 
   @BelongsToMany(() => User, () => UserRole)
   declare users: User[];
+
+  @HasMany(() => RoleActionPermission)
+  declare roleActionPermissions: RoleActionPermission[];
 }

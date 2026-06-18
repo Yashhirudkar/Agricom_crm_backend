@@ -20,6 +20,7 @@ import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto } from '../dto/attendance.dto';
 import { Op, Transaction } from 'sequelize';
+import { AttendanceGateway } from '../gateways/attendance.gateway';
 
 @Injectable()
 export class AttendanceService {
@@ -44,6 +45,7 @@ export class AttendanceService {
     private readonly employeeLeaveBalanceModel: typeof EmployeeLeaveBalance,
     @InjectModel(LeaveType)
     private readonly leaveTypeModel: typeof LeaveType,
+    private readonly attendanceGateway: AttendanceGateway,
   ) {}
 
   // Helper: Get local date & time details based on timezone
@@ -235,6 +237,7 @@ export class AttendanceService {
       } else {
         await record.update({
           attendanceState: AttendanceState.WORKING,
+          checkOutTime: null,
           attendanceSource: AttendanceSource.SELF_PUNCH,
           lateMinutes: record.checkInTime ? record.lateMinutes : lateMinutes,
           locationLat: dto.locationLat || null,
@@ -259,6 +262,13 @@ export class AttendanceService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      try {
+        this.attendanceGateway.emitCheckedIn(record);
+      } catch (err) {
+        console.error('Socket emit error in checkIn:', err);
+      }
+
       return record;
     } catch (error: any) {
       await t.rollback();
@@ -456,6 +466,13 @@ export class AttendanceService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      try {
+        this.attendanceGateway.emitCheckedOut(record);
+      } catch (err) {
+        console.error('Socket emit error in checkOut:', err);
+      }
+
       return record;
     } catch (error) {
       await t.rollback();
@@ -677,6 +694,8 @@ export class AttendanceService {
         finalStatus = AttendanceStatus.ABSENT;
       }
 
+      const stateToSet = finalCheckOut ? AttendanceState.CHECKED_OUT : (finalCheckIn ? AttendanceState.WORKING : AttendanceState.NOT_CHECKED_IN);
+
       if (!record) {
         record = await this.recordModel.create({
           employeeId: employee.id,
@@ -688,6 +707,7 @@ export class AttendanceService {
           overtimeHours,
           lateMinutes,
           attendanceStatus: finalStatus,
+          attendanceState: stateToSet,
           shiftId: shift.id,
         } as any, { transaction: t });
       } else {
@@ -698,6 +718,7 @@ export class AttendanceService {
           overtimeHours,
           lateMinutes,
           attendanceStatus: finalStatus,
+          attendanceState: stateToSet,
           attendanceSource: AttendanceSource.REGULARIZATION_APPROVED,
           shiftId: shift.id,
         }, { transaction: t });
@@ -729,6 +750,15 @@ export class AttendanceService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      if (record) {
+        try {
+          this.attendanceGateway.emitAttendanceUpdate('regularization_approved', record);
+        } catch (err) {
+          console.error('Socket emit error in approveCorrection:', err);
+        }
+      }
+
       return exception;
     } catch (error) {
       await t.rollback();
@@ -774,6 +804,17 @@ export class AttendanceService {
       approvedBy: approverEmployeeId,
       remarks: dto.remarks || 'Rejected by Manager/Admin',
     });
+
+    if (exception.attendanceRecordId) {
+      const record = await this.recordModel.findByPk(exception.attendanceRecordId);
+      if (record) {
+        try {
+          this.attendanceGateway.emitAttendanceUpdate('regularization_rejected', record);
+        } catch (err) {
+          console.error('Socket emit error in rejectCorrection:', err);
+        }
+      }
+    }
 
     return exception;
   }
@@ -1106,6 +1147,7 @@ export class AttendanceService {
         let lateMinutes = 0;
         let checkIn = null;
         let checkOut = null;
+        let attendanceState = record ? record.attendanceState : AttendanceState.NOT_CHECKED_IN;
 
         if (record) {
           status = record.attendanceStatus;
@@ -1132,6 +1174,9 @@ export class AttendanceService {
           // Today:
           if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
             // Keep actual punch status (e.g. PRESENT, LATE, HALF_DAY)
+          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
+            // Active check-in. Do not overwrite with ABSENT.
+            status = null as any;
           } else if (isOnLeave) {
             status = AttendanceStatus.ON_LEAVE;
           } else if (isHoliday) {
@@ -1154,6 +1199,9 @@ export class AttendanceService {
           // Past dates:
           if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
             // Keep actual punch status
+          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
+            // They forgot to check out! Leave as null or let policy decide later
+            status = null as any;
           } else if (isOnLeave) {
             status = AttendanceStatus.ON_LEAVE;
           } else if (isHoliday) {
@@ -1186,6 +1234,7 @@ export class AttendanceService {
           workHours,
           overtime,
           lateMinutes,
+          attendanceState,
         });
       }
 
@@ -1221,6 +1270,21 @@ export class AttendanceService {
         },
         days: daysDetails,
       });
+    }
+
+    // Temporary logs for Phase 1 backend trace
+    for (const res of result) {
+      const todayRecord = res.days.find(d => d.date === '2026-06-17');
+      if (todayRecord) {
+        console.log("BACKEND TEMP LOG getMonthlyReport today's record:", {
+          employeeId: res.employeeId,
+          date: todayRecord.date,
+          checkIn: todayRecord.checkIn,
+          checkOut: todayRecord.checkOut,
+          attendanceState: todayRecord.attendanceState,
+          attendanceStatus: todayRecord.status
+        });
+      }
     }
 
     return result;
@@ -1288,6 +1352,14 @@ export class AttendanceService {
       const finalCheckIn = dto.checkInTime !== undefined ? (dto.checkInTime ? new Date(dto.checkInTime) : null) : (record.checkInTime ? new Date(record.checkInTime) : null);
       const finalCheckOut = dto.checkOutTime !== undefined ? (dto.checkOutTime ? new Date(dto.checkOutTime) : null) : (record.checkOutTime ? new Date(record.checkOutTime) : null);
 
+      if (finalCheckOut) {
+        updateData.attendanceState = AttendanceState.CHECKED_OUT;
+      } else if (finalCheckIn) {
+        updateData.attendanceState = AttendanceState.WORKING;
+      } else {
+        updateData.attendanceState = AttendanceState.NOT_CHECKED_IN;
+      }
+
       if (finalCheckIn && finalCheckOut) {
         let breakMinutes = 60;
         if (record.shiftId) {
@@ -1318,6 +1390,13 @@ export class AttendanceService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      try {
+        this.attendanceGateway.emitAttendanceUpdate('manual_override', record);
+      } catch (err) {
+        console.error('Socket emit error in manualOverride:', err);
+      }
+
       return record;
     } catch (err) {
       await t.rollback();
@@ -1496,6 +1575,13 @@ export class AttendanceService {
       } as any, { transaction: t });
 
       await t.commit();
+
+      try {
+        this.attendanceGateway.emitAttendanceUpdate('manual_attendance', record);
+      } catch (err) {
+        console.error('Socket emit error in manualAttendance:', err);
+      }
+
       return record;
     } catch (err) {
       await t.rollback();

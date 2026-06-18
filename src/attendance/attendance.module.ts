@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
 import { Shift } from './models/shift.model';
 import { AttendanceRecord } from './models/attendance-record.model';
 import { AttendanceLog } from './models/attendance-log.model';
@@ -11,7 +14,7 @@ import { Holiday } from '../holidays/models/holiday.model';
 import { HolidayCompany } from '../holidays/models/holiday-company.model';
 import { UserCompany } from '../users/models/user-company.model';
 import { UserRole } from '../rbac/models/user-role.model';
-import { RolePermission } from '../rbac/models/role-permission.model';
+
 import { Company } from '../companies/models/company.model';
 import { LeaveRequest } from '../hrms/models/leave-request.model';
 import { EmployeeLeaveBalance } from '../hrms/models/employee-leave-balance.model';
@@ -23,6 +26,7 @@ import { AttendanceService } from './services/attendance.service';
 import { ShiftsService } from './services/shifts.service';
 import { AttendanceCronService } from './services/attendance-cron.service';
 import { AttendanceBreakCronService } from './services/attendance-break-cron.service';
+import { AttendanceGateway } from './gateways/attendance.gateway';
 
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
@@ -41,7 +45,6 @@ import { AuditModule } from '../audit/modules/audit.module';
       HolidayCompany,
       UserCompany,
       UserRole,
-      RolePermission,
       Company,
       LeaveRequest,
       EmployeeLeaveBalance,
@@ -49,9 +52,19 @@ import { AuditModule } from '../audit/modules/audit.module';
     ]),
     RbacModule,
     AuditModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET')!,
+        signOptions: {
+          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') || '15m') as any,
+        },
+      }),
+    }),
   ],
   controllers: [AttendanceController, ShiftsController],
-  providers: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService],
-  exports: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService],
+  providers: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  exports: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
 })
 export class AttendanceModule {}

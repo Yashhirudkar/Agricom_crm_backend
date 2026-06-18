@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
-import { AttendanceRecord, AttendanceStatus } from '../models/attendance-record.model';
+import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../models/attendance-record.model';
 import { Employee, EmployeeStatus } from '../../hrms/models/employee.model';
+import { AttendanceGateway } from '../gateways/attendance.gateway';
 import { Shift } from '../models/shift.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Holiday } from '../../holidays/models/holiday.model';
@@ -28,6 +29,7 @@ export class AttendanceCronService {
     private readonly holidayModel: typeof Holiday,
     @InjectModel(LeaveRequest)
     private readonly leaveRequestModel: typeof LeaveRequest,
+    private readonly attendanceGateway: AttendanceGateway,
   ) {}
 
   /**
@@ -54,6 +56,7 @@ export class AttendanceCronService {
   @Cron('0 2 * * *')
   async markDailyAbsentees() {
     this.logger.log('Starting daily absent marking process...');
+    const mutatedRecords: AttendanceRecord[] = [];
 
     try {
       // Run for the last 3 days to catch night crossover shifts resiliently
@@ -202,7 +205,9 @@ export class AttendanceCronService {
                 checkOutTime: checkOutTimeVal,
                 totalHours,
                 attendanceStatus: status,
+                attendanceState: AttendanceState.CHECKED_OUT,
               });
+              mutatedRecords.push(record);
               this.logger.log(`Employee ID ${employee.id}: Checked in but missed checkout. Auto checked-out at ${checkOutTimeVal.toISOString()} with status ${status}.`);
             }
             continue;
@@ -236,7 +241,7 @@ export class AttendanceCronService {
           try {
             if (leave) {
               // Create an ON_LEAVE record
-              await this.recordModel.create({
+              const rec = await this.recordModel.create({
                 employeeId: employee.id,
                 companyId: employee.companyId,
                 date: targetDateStr,
@@ -246,6 +251,7 @@ export class AttendanceCronService {
                 lateMinutes: 0,
                 shiftId: employee.shiftId || null,
               } as any);
+              mutatedRecords.push(rec);
               this.logger.log(`Employee ID ${employee.id} is on approved leave. Marked as ON_LEAVE.`);
               continue;
             }
@@ -268,7 +274,7 @@ export class AttendanceCronService {
 
             if (isWeeklyOff) {
               // Create a WEEK_OFF record
-              await this.recordModel.create({
+              const rec = await this.recordModel.create({
                 employeeId: employee.id,
                 companyId: employee.companyId,
                 date: targetDateStr,
@@ -278,9 +284,10 @@ export class AttendanceCronService {
                 lateMinutes: 0,
                 shiftId: employee.shiftId || null,
               } as any);
+              mutatedRecords.push(rec);
             } else {
               // Create an ABSENT record
-              await this.recordModel.create({
+              const rec = await this.recordModel.create({
                 employeeId: employee.id,
                 companyId: employee.companyId,
                 date: targetDateStr,
@@ -290,10 +297,38 @@ export class AttendanceCronService {
                 lateMinutes: 0,
                 shiftId: employee.shiftId || null,
               } as any);
+              mutatedRecords.push(rec);
             }
           } catch (error: any) {
             if (error.name !== 'SequelizeUniqueConstraintError') {
               this.logger.error(`Error creating attendance record for employee ${employee.id} on date ${targetDateStr}`, error);
+            }
+          }
+        }
+      }
+
+      // Emit socket updates, batching if more than 5 records per company
+      const companyRecordsMap = new Map<number, AttendanceRecord[]>();
+      for (const rec of mutatedRecords) {
+        if (!companyRecordsMap.has(rec.companyId)) {
+          companyRecordsMap.set(rec.companyId, []);
+        }
+        companyRecordsMap.get(rec.companyId)!.push(rec);
+      }
+
+      for (const [companyId, records] of companyRecordsMap.entries()) {
+        if (records.length > 5) {
+          try {
+            this.attendanceGateway.emitBatchUpdate(records, companyId);
+          } catch (err) {
+            this.logger.error(`Failed to emit batch socket update for Company ${companyId}`, err);
+          }
+        } else {
+          for (const record of records) {
+            try {
+              this.attendanceGateway.emitAttendanceUpdate('cron_update', record);
+            } catch (err) {
+              this.logger.error(`Failed to emit individual socket update for Employee ${record.employeeId}`, err);
             }
           }
         }

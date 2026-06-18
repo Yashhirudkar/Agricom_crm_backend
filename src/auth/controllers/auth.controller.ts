@@ -12,6 +12,7 @@ import { ProfileService } from '../../profile/services/profile.service';
 import { RateLimit } from '../../profile/guards/rate-limit.guard';
 import { ChangePasswordDto } from '../../profile/dto/change-password.dto';
 import { Put } from '@nestjs/common';
+import { SystemService } from '../../system/services/system.service';
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +23,7 @@ export class AuthController {
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
     private readonly profileService: ProfileService,
+    private readonly systemService: SystemService,
   ) {}
 
   @Post('login')
@@ -132,10 +134,14 @@ export class AuthController {
       workspaces = user.userCompanies?.map((uc) => {
         // Extract permissions for the active workspace
         if (uc.company?.id?.toString() === activeCompanyId?.toString()) {
-          if (uc.role && uc.role.rolePermissions) {
-            permissions = uc.role.rolePermissions.map(
-              (rp: any) => `${rp.permission.resource.toLowerCase()}:${rp.permission.action.toLowerCase()}`
-            );
+          if (uc.role && uc.role.roleActionPermissions) {
+            permissions = uc.role.roleActionPermissions
+              .map((rp: any) => 
+                rp.resourceAction?.resource 
+                  ? `${rp.resourceAction.resource.name.toLowerCase()}:${rp.resourceAction.name.toLowerCase()}` 
+                  : null
+              )
+              .filter(Boolean) as string[];
           }
         }
         
@@ -166,6 +172,68 @@ export class AuthController {
       employeeId: req.user.employeeId || null,
     };
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my-menu')
+  async getMyMenu(@Request() req) {
+    const profile = await this.getProfile(req);
+    const userPermissions = profile.permissions || [];
+    const isSuperAdmin = profile.type === 'super_admin';
+    const isClientAdmin = profile.type === 'client_admin';
+    console.log("=== GET MY MENU DEBUG ===");
+    console.log("req.user:", req.user);
+    console.log("profile.type:", profile.type);
+    console.log("isSuperAdmin:", isSuperAdmin);
+
+    const menuData = await this.systemService.getSidebar({
+      type: profile.type,
+      clientId: profile.clientId,
+      roles: profile.roles || []
+    });
+
+    const filterItem = (item: any) => {
+      if (!item.permission_link) return true;
+      if (isSuperAdmin || isClientAdmin) return true;
+      return userPermissions.includes(item.permission_link);
+    };
+
+    const folders = menuData.folders.map(f => {
+      const items = (f.items || []).filter(filterItem);
+      return {
+        id: `folder-${f.id}`,
+        title: f.name,
+        name: f.name,
+        route: null,
+        href: '#',
+        icon: f.icon_name || f.icon,
+        type: 'parent',
+        items: items.map((i: any) => ({
+          id: i.id,
+          title: i.name,
+          name: i.name,
+          route: i.route,
+          href: i.route || '#',
+          icon: i.icon_name || i.icon,
+          permission: i.permission_link,
+          type: 'item'
+        }))
+      };
+    }).filter(f => f.items.length > 0 || isSuperAdmin);
+
+    const standaloneItems = menuData.standaloneItems.filter(filterItem).map((i: any) => ({
+      id: i.id,
+      title: i.name,
+      name: i.name,
+      route: i.route,
+      href: i.route || '#',
+      icon: i.icon_name || i.icon,
+      permission: i.permission_link,
+      type: 'item'
+    }));
+
+    return [...folders, ...standaloneItems];
+  }
+
 
   @UseGuards(JwtAuthGuard)
   @Post('switch-workspace')

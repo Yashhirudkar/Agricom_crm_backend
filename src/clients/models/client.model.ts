@@ -10,6 +10,10 @@ import {
 } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Role } from '../../rbac/models/role.model';
+import { ClientFolderAccess } from './client-folder-access.model';
+import { ClientItemAccess } from './client-item-access.model';
+import { ClientModuleAccess } from './client-module-access.model';
+import { ClientActionAccess } from './client-action-access.model';
 
 @Table({
   tableName: 'clients',
@@ -75,4 +79,16 @@ export class Client extends Model<Client> {
 
   @HasMany(() => Role)
   declare roles: Role[];
+
+  @HasMany(() => ClientFolderAccess)
+  declare folderAccess: ClientFolderAccess[];
+
+  @HasMany(() => ClientItemAccess)
+  declare itemAccess: ClientItemAccess[];
+
+  @HasMany(() => ClientModuleAccess)
+  declare moduleAccess: ClientModuleAccess[];
+
+  @HasMany(() => ClientActionAccess)
+  declare actionAccess: ClientActionAccess[];
 }

@@ -26,7 +26,7 @@ export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
   private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'];
+    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
     if (!companyId) {
       throw new BadRequestException('x-company-id header is required');
     }

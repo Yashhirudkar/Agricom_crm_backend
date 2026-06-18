@@ -2,8 +2,9 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../models/user.model';
 import { Role } from '../../rbac/models/role.model';
-import { RolePermission } from '../../rbac/models/role-permission.model';
-import { Permission } from '../../rbac/models/permission.model';
+import { RoleActionPermission } from '../../rbac/models/role-action-permission.model';
+import { ResourceAction } from '../../system/models/resource-action.model';
+import { ModuleResource } from '../../system/models/module-resource.model';
 import { Company } from '../../companies/models/company.model';
 import { UserCompany } from '../models/user-company.model';
 import { Client } from '../../clients/models/client.model';
@@ -69,8 +70,13 @@ export class UsersService {
               attributes: ['id', 'name'],
               include: [
                 {
-                  model: RolePermission,
-                  include: [{ model: Permission, attributes: ['resource', 'action'] }]
+                  model: RoleActionPermission,
+                  include: [
+                    {
+                      model: ResourceAction,
+                      include: [{ model: ModuleResource }]
+                    }
+                  ]
                 }
               ]
             },

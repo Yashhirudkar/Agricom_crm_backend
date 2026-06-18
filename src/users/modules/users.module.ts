@@ -6,8 +6,6 @@ import { UsersService } from '../services/users.service';
 import { UsersController } from '../controllers/users.controller';
 import { Role } from '../../rbac/models/role.model';
 import { UserRole } from '../../rbac/models/user-role.model';
-import { RolePermission } from '../../rbac/models/role-permission.model';
-import { Permission } from '../../rbac/models/permission.model';
 import { Company } from '../../companies/models/company.model';
 import { Client } from '../../clients/models/client.model';
 import { RbacModule } from '../../rbac/modules/rbac.module';
@@ -24,8 +22,6 @@ import { AuditModule } from '../../audit/modules/audit.module';
       UserSession,
       Role,
       UserRole,
-      RolePermission,
-      Permission,
       Company,
       Client,
       UserCompany,

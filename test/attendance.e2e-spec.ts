@@ -10,7 +10,7 @@ import { Branch } from '../src/hrms/models/branch.model';
 import { Shift } from '../src/attendance/models/shift.model';
 import { AttendanceRecord, AttendanceStatus } from '../src/attendance/models/attendance-record.model';
 import { AttendanceLog, AttendanceActionType } from '../src/attendance/models/attendance-log.model';
-import { AttendanceException, AttendanceExceptionRequestType, AttendanceExceptionStatus } from '../src/attendance/models/attendance-exception.model';
+import { AttendanceException, AttendanceExceptionType, AttendanceExceptionStatus } from '../src/attendance/models/attendance-exception.model';
 import { User } from '../src/users/models/user.model';
 import { UserSession } from '../src/users/models/user-session.model';
 import { CompanyHrPolicy } from '../src/companies/models/company-hr-policy.model';
@@ -19,8 +19,7 @@ import { AttendanceCronService } from '../src/attendance/services/attendance-cro
 import { AttendanceService } from '../src/attendance/services/attendance.service';
 import { UserCompany } from '../src/users/models/user-company.model';
 import { Role } from '../src/rbac/models/role.model';
-import { Permission } from '../src/rbac/models/permission.model';
-import { RolePermission } from '../src/rbac/models/role-permission.model';
+
 import { UserRole } from '../src/rbac/models/user-role.model';
 
 describe('Attendance Module (E2E Integration Tests)', () => {
@@ -178,19 +177,7 @@ describe('Attendance Module (E2E Integration Tests)', () => {
       lastCompanyId: testCompany.id,
     } as any);
 
-    // Ensure permissions exist in database
-    const [permCreate] = await Permission.findOrCreate({
-      where: { name: 'attendance:create' },
-      defaults: { name: 'attendance:create', resource: 'attendance', action: 'create', isActive: true } as any
-    });
-    const [permRead] = await Permission.findOrCreate({
-      where: { name: 'attendance:read' },
-      defaults: { name: 'attendance:read', resource: 'attendance', action: 'read', isActive: true } as any
-    });
-    const [permOverride] = await Permission.findOrCreate({
-      where: { name: 'attendance:override' },
-      defaults: { name: 'attendance:override', resource: 'attendance', action: 'override', isActive: true } as any
-    });
+
 
     // Create custom test roles
     testEmpRole = await Role.create({
@@ -214,16 +201,7 @@ describe('Attendance Module (E2E Integration Tests)', () => {
       companyId: testCompany.id,
     } as any);
 
-    // Link role-permissions
-    await RolePermission.bulkCreate([
-      { roleId: testEmpRole.id, permissionId: permCreate.id },
-      { roleId: testEmpRole.id, permissionId: permRead.id },
-      { roleId: testMgrRole.id, permissionId: permRead.id },
-      { roleId: testMgrRole.id, permissionId: permOverride.id },
-      { roleId: testAdmRole.id, permissionId: permCreate.id },
-      { roleId: testAdmRole.id, permissionId: permRead.id },
-      { roleId: testAdmRole.id, permissionId: permOverride.id },
-    ] as any[]);
+
 
     // Create UserCompany workspace associations
     await UserCompany.bulkCreate([
@@ -290,7 +268,6 @@ describe('Attendance Module (E2E Integration Tests)', () => {
       await Branch.destroy({ where: { companyId: testCompany.id } });
       await UserCompany.destroy({ where: { companyId: testCompany.id } });
       if (testEmpRole && testMgrRole && testAdmRole) {
-        await RolePermission.destroy({ where: { roleId: [testEmpRole.id, testMgrRole.id, testAdmRole.id] } });
         await Role.destroy({ where: { id: [testEmpRole.id, testMgrRole.id, testAdmRole.id] } });
       }
       await UserRole.destroy({ where: { userId: [testEmployeeUser.id, testManagerUser.id, testAdminUser.id] } });
@@ -501,7 +478,7 @@ describe('Attendance Module (E2E Integration Tests)', () => {
       .set('Authorization', `Bearer ${employeeToken}`)
       .set('x-company-id', String(testCompany.id))
       .send({
-        requestType: AttendanceExceptionRequestType.MISSED_CHECKIN,
+        type: AttendanceExceptionType.MISSED_PUNCH,
         reason: 'Missed punch due to emergency',
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
         checkInTime: new Date().toISOString(),
@@ -516,7 +493,7 @@ describe('Attendance Module (E2E Integration Tests)', () => {
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const exception = await AttendanceException.create({
       employeeId: testManager.id,
-      requestType: AttendanceExceptionRequestType.MISSED_CHECKIN,
+      type: AttendanceExceptionType.MISSED_PUNCH,
       reason: 'Self approval attempt test',
       status: AttendanceExceptionStatus.PENDING,
       metadata: { date: todayStr },
@@ -618,7 +595,7 @@ describe('Attendance Module (E2E Integration Tests)', () => {
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const exception = await AttendanceException.create({
       employeeId: testEmployee.id,
-      requestType: AttendanceExceptionRequestType.MISSED_CHECKIN,
+      type: AttendanceExceptionType.MISSED_PUNCH,
       reason: 'Double resolution test',
       status: AttendanceExceptionStatus.APPROVED, // Already approved
       metadata: { date: todayStr },

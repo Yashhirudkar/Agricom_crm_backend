@@ -29,7 +29,7 @@ export class LeaveRequestsController {
   constructor(private readonly leaveRequestsService: LeaveRequestsService) {}
 
   private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'];
+    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
     if (!companyId) {
       throw new BadRequestException('x-company-id header is required');
     }
@@ -67,21 +67,17 @@ export class LeaveRequestsController {
 
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    let employeeId = req.user.employeeId;
-
-    if (!employeeId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
-      employeeId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
-    }
+    const employeeId = req.user.employeeId;
 
     if (!employeeId) {
-      throw new BadRequestException('Employee profile not linked to your user account (and no dummy employee found for testing).');
+      throw new BadRequestException('Employee profile not linked to your user account. Admins must link a profile to apply for leave.');
     }
 
     return this.leaveRequestsService.applyLeave(employeeId, companyId, dto, file, actor);
   }
 
   @Get()
-  @RequirePermission('leave:read')
+  @RequirePermission('leave:approve')
   getLeaveRequests(@Query() query: GetLeaveRequestsFilterDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.leaveRequestsService.getLeaveRequests(companyId, query);
@@ -91,15 +87,10 @@ export class LeaveRequestsController {
   @RequirePermission('leave:create')
   async getMyLeaves(@Query() query: GetLeaveRequestsFilterDto, @Request() req) {
     const companyId = this.getCompanyId(req);
-    const actor = this.getActor(req);
-    let employeeId = req.user.employeeId;
-
-    if (!employeeId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
-      employeeId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
-    }
+    const employeeId = req.user.employeeId;
 
     if (!employeeId) {
-      throw new BadRequestException('Employee profile not linked to your user account');
+      return [];
     }
     return this.leaveRequestsService.getLeaveRequests(companyId, { ...query, employeeId });
   }
@@ -108,16 +99,17 @@ export class LeaveRequestsController {
   @RequirePermission('leave:read')
   async getDashboardSummary(@Request() req) {
     const companyId = this.getCompanyId(req);
-    const actor = this.getActor(req);
-    let employeeId = req.user.employeeId;
-
-    if (!employeeId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
-      employeeId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
-    }
+    const employeeId = req.user.employeeId;
 
     if (!employeeId) {
-      throw new BadRequestException('Employee profile not linked to your user account');
+      return {
+        pendingApprovals: 0,
+        balances: [],
+        approvedThisMonth: 0,
+        rejectedCount: 0
+      };
     }
+
     return this.leaveRequestsService.getDashboardSummary(companyId, employeeId);
   }
 

@@ -44,6 +44,7 @@ import { LeaveRequestsService } from '../services/leave-requests.service';
 import { LeaveRequestsController } from '../controllers/leave-requests.controller';
 
 import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
+import { AttendanceModule } from '../../attendance/attendance.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AttendanceRecord } from '../../attendance/models/attendance-record.mode
     AuditModule,
     RbacModule,
     UsersModule,
+    AttendanceModule,
   ],
   providers: [
     DepartmentsService, DesignationsService, EmployeesService, StorageService, 

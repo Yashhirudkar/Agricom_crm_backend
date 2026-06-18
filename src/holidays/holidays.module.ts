@@ -9,11 +9,11 @@ import { NotificationsModule } from '../notifications/modules/notifications.modu
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { UserCompany } from '../users/models/user-company.model';
 import { UserRole } from '../rbac/models/user-role.model';
-import { RolePermission } from '../rbac/models/role-permission.model';
+
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Holiday, HolidayCompany, UserCompany, UserRole, RolePermission]),
+    SequelizeModule.forFeature([Holiday, HolidayCompany, UserCompany, UserRole]),
     AuditModule,
     NotificationsModule,
     RbacModule,

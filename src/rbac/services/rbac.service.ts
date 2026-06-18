@@ -3,20 +3,18 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Role } from '../models/role.model';
-import { Permission } from '../models/permission.model';
-import { RolePermission } from '../models/role-permission.model';
+import { RoleActionPermission } from '../models/role-action-permission.model';
+import { ClientActionAccess } from '../../clients/models/client-action-access.model';
 import { UserRole } from '../models/user-role.model';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRoleDto } from '../dto/update-role.dto';
-import { CreatePermissionDto } from '../dto/create-permission.dto';
-import { UpdatePermissionDto } from '../dto/update-permission.dto';
-import { AssignPermissionToRoleDto } from '../dto/assign-permission-to-role.dto';
-import { RemovePermissionFromRoleDto } from '../dto/remove-permission-from-role.dto';
+
 import { AssignRoleToUserDto } from '../dto/assign-role-to-user.dto';
 import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
 import { User } from '../../users/models/user.model';
@@ -29,10 +27,11 @@ export class RbacService {
   constructor(
     @InjectModel(Role)
     private readonly roleModel: typeof Role,
-    @InjectModel(Permission)
-    private readonly permissionModel: typeof Permission,
-    @InjectModel(RolePermission)
-    private readonly rolePermissionModel: typeof RolePermission,
+
+    @InjectModel(RoleActionPermission)
+    private readonly roleActionPermissionModel: typeof RoleActionPermission,
+    @InjectModel(ClientActionAccess)
+    private readonly clientActionAccessModel: typeof ClientActionAccess,
     @InjectModel(UserRole)
     private readonly userRoleModel: typeof UserRole,
     @InjectModel(User)
@@ -158,133 +157,28 @@ export class RbacService {
     }
     return this.roleModel.findAll({
       where,
-      include: [{ model: Permission, through: { attributes: [] } }],
       order: [['createdAt', 'DESC']],
     });
   }
 
   async getRoleById(id: number): Promise<Role> {
-    const role = await this.roleModel.findByPk(id, {
-      include: [{ model: Permission, through: { attributes: [] } }],
-    });
+    const role = await this.roleModel.findByPk(id);
     if (!role) {
       throw new NotFoundException(`Role with id ${id} not found`);
     }
     return role;
   }
 
-  // ─── Permissions ───────────────────────────────────────────────────────────
 
-  async createPermission(dto: CreatePermissionDto): Promise<Permission> {
-    const existing = await this.permissionModel.findOne({
-      where: { name: dto.name },
-    });
-    if (existing) {
-      throw new ConflictException(`Permission "${dto.name}" already exists`);
-    }
-    return this.permissionModel.create({
-      name: dto.name,
-      description: dto.description,
-      resource: dto.resource,
-      action: dto.action,
-    } as any);
-  }
-
-  async updatePermission(dto: UpdatePermissionDto): Promise<Permission> {
-    const permission = await this.permissionModel.findByPk(dto.id);
-    if (!permission) {
-      throw new NotFoundException(`Permission with id ${dto.id} not found`);
-    }
-    if (dto.name && dto.name !== permission.name) {
-      const conflict = await this.permissionModel.findOne({ where: { name: dto.name } });
-      if (conflict) {
-        throw new ConflictException(`Permission name "${dto.name}" is already taken`);
-      }
-    }
-    await permission.update({
-      ...(dto.name !== undefined && { name: dto.name }),
-      ...(dto.description !== undefined && { description: dto.description }),
-      ...(dto.resource !== undefined && { resource: dto.resource }),
-      ...(dto.action !== undefined && { action: dto.action }),
-      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-    });
-    return permission.reload();
-  }
-
-  async deletePermission(id: number): Promise<{ message: string }> {
-    const permission = await this.permissionModel.findByPk(id);
-    if (!permission) {
-      throw new NotFoundException(`Permission with id ${id} not found`);
-    }
-    await permission.destroy();
-    return { message: `Permission "${permission.name}" deleted successfully` };
-  }
-
-  async getPermissions(): Promise<Permission[]> {
-    return this.permissionModel.findAll({
-      order: [['resource', 'ASC'], ['action', 'ASC']],
-    });
-  }
-
-  async getPermissionById(id: number): Promise<Permission> {
-    const permission = await this.permissionModel.findByPk(id);
-    if (!permission) {
-      throw new NotFoundException(`Permission with id ${id} not found`);
-    }
-    return permission;
-  }
-
-  // ─── Role ↔ Permission ─────────────────────────────────────────────────────
-
-  async assignPermissionToRole(dto: AssignPermissionToRoleDto): Promise<{ message: string }> {
-    const role = await this.roleModel.findByPk(dto.roleId);
-    if (!role) throw new NotFoundException(`Role with id ${dto.roleId} not found`);
-
-    const permission = await this.permissionModel.findByPk(dto.permissionId);
-    if (!permission) throw new NotFoundException(`Permission with id ${dto.permissionId} not found`);
-
-    const existing = await this.rolePermissionModel.findOne({
-      where: { roleId: dto.roleId, permissionId: dto.permissionId },
-    });
-    if (existing) {
-      throw new ConflictException(`Permission "${permission.name}" is already assigned to role "${role.name}"`);
-    }
-
-    await this.rolePermissionModel.create({
-      roleId: dto.roleId,
-      permissionId: dto.permissionId,
-    } as any);
-
-    return {
-      message: `Permission "${permission.name}" assigned to role "${role.name}" successfully`,
-    };
-  }
-
-  async removePermissionFromRole(dto: RemovePermissionFromRoleDto): Promise<{ message: string }> {
-    const role = await this.roleModel.findByPk(dto.roleId);
-    if (!role) throw new NotFoundException(`Role with id ${dto.roleId} not found`);
-
-    const permission = await this.permissionModel.findByPk(dto.permissionId);
-    if (!permission) throw new NotFoundException(`Permission with id ${dto.permissionId} not found`);
-
-    const record = await this.rolePermissionModel.findOne({
-      where: { roleId: dto.roleId, permissionId: dto.permissionId },
-    });
-    if (!record) {
-      throw new NotFoundException(
-        `Permission "${permission.name}" is not assigned to role "${role.name}"`,
-      );
-    }
-
-    await record.destroy();
-    return {
-      message: `Permission "${permission.name}" removed from role "${role.name}" successfully`,
-    };
-  }
 
   async getRolePermissions(roleId: number): Promise<Role> {
     const role = await this.roleModel.findByPk(roleId, {
-      include: [{ model: Permission, through: { attributes: [] } }],
+      include: [
+        {
+          model: RoleActionPermission,
+          include: ['resourceAction']
+        }
+      ],
     });
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
     return role;
@@ -349,7 +243,12 @@ export class RbacService {
       include: [
         {
           model: Role,
-          include: [{ model: Permission, through: { attributes: [] } }],
+          include: [
+            {
+              model: RoleActionPermission,
+              include: ['resourceAction']
+            }
+          ],
         },
       ],
     });
@@ -370,7 +269,7 @@ export class RbacService {
     const role = await this.roleModel.findByPk(roleId);
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
 
-    const t = await this.rolePermissionModel.sequelize.transaction();
+    const t = await this.roleActionPermissionModel.sequelize.transaction();
     try {
       // Lock the parent role to serialize concurrent requests for the same role
       await this.roleModel.findOne({
@@ -379,17 +278,32 @@ export class RbacService {
         transaction: t,
       });
 
+      // Strict inheritance check for Client roles
+      if (role.clientId) {
+        const allowedActions = await this.clientActionAccessModel.findAll({
+          where: { client_id: role.clientId },
+          transaction: t
+        });
+        const allowedIds = allowedActions.map(a => a.resource_action_id);
+        
+        for (const reqId of permissionIds) {
+          if (!allowedIds.includes(reqId)) {
+            throw new ForbiddenException(`Client does not have access to resource action ID ${reqId}`);
+          }
+        }
+      }
+
       // Remove existing associations
-      await this.rolePermissionModel.destroy({ where: { roleId }, transaction: t });
+      await this.roleActionPermissionModel.destroy({ where: { role_id: roleId }, transaction: t });
 
       // Bulk insert new associations
       if (permissionIds.length > 0) {
         const uniquePermissionIds = [...new Set(permissionIds)];
         const records = uniquePermissionIds.map((permId) => ({
-          roleId,
-          permissionId: permId,
+          role_id: roleId,
+          resource_action_id: permId,
         }));
-        await this.rolePermissionModel.bulkCreate(records as any[], { transaction: t });
+        await this.roleActionPermissionModel.bulkCreate(records as any[], { transaction: t });
       }
       
       await t.commit();
@@ -404,7 +318,7 @@ export class RbacService {
         clientId: store.clientId || null,
         companyId: store.companyId || null,
         userId: store.userId,
-        entityType: 'RolePermission',
+        entityType: 'RoleActionPermission',
         entityId: roleId,
         action: 'UPDATE',
         newValue: { permissionIds },
@@ -414,36 +328,5 @@ export class RbacService {
     }
 
     return { message: 'Permissions updated successfully' };
-  }
-
-  async getPermissionRegistry(): Promise<any[]> {
-    const permissions = await this.permissionModel.findAll({
-      where: { isActive: true },
-      order: [['resource', 'ASC'], ['action', 'ASC']],
-    });
-
-    const registryMap = new Map<string, { module: string; label: string; actions: string[] }>();
-    for (const perm of permissions) {
-      if (!registryMap.has(perm.resource)) {
-        registryMap.set(perm.resource, {
-          module: perm.module || 'Other',
-          label: perm.label || perm.resource,
-          actions: [],
-        });
-      }
-      registryMap.get(perm.resource)!.actions.push(perm.action);
-    }
-
-    const registry: any[] = [];
-    registryMap.forEach((val, resource) => {
-      registry.push({
-        resource,
-        module: val.module,
-        label: val.label,
-        actions: [...new Set(val.actions)],
-      });
-    });
-
-    return registry;
   }
 }
