@@ -43,6 +43,8 @@ import { LeaveBalancesService } from '../services/leave-balances.service';
 import { LeaveBalancesController } from '../controllers/leave-balances.controller';
 
 import { LeaveRequestsService } from '../services/leave-requests.service';
+import { LeaveRequestsWorkflowService } from '../services/leave-requests-workflow.service';
+import { LeaveRequestsQueryService } from '../services/leave-requests-query.service';
 import { LeaveRequestsController } from '../controllers/leave-requests.controller';
 
 import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
@@ -63,7 +65,7 @@ import { AttendanceModule } from '../../attendance/attendance.module';
   ],
   providers: [
     DepartmentsService, DesignationsService, EmployeesService, EmployeesOrgService, EmployeesDocumentService, StorageService, 
-    BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService
+    BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService, LeaveRequestsWorkflowService, LeaveRequestsQueryService
   ],
   controllers: [
     DepartmentsController, DesignationsController, EmployeesController, 
@@ -71,7 +73,7 @@ import { AttendanceModule } from '../../attendance/attendance.module';
   ],
   exports: [
     DepartmentsService, DesignationsService, EmployeesService, EmployeesOrgService, EmployeesDocumentService, StorageService, 
-    BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService
+    BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService, LeaveRequestsWorkflowService, LeaveRequestsQueryService
   ],
 })
 export class HrmsModule {}

@@ -12,6 +12,8 @@ import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { StorageService } from './storage.service';
+import { LeaveRequestsWorkflowService } from './leave-requests-workflow.service';
+import { LeaveRequestsQueryService } from './leave-requests-query.service';
 import { ApplyLeaveDto, ApproveLeaveDto, RejectLeaveDto, CancelLeaveDto, GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
 import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
@@ -54,6 +56,8 @@ export class LeaveRequestsService {
     private readonly auditService: AuditService,
     private readonly storageService: StorageService,
     private readonly attendanceGateway: AttendanceGateway,
+    private readonly workflowService: LeaveRequestsWorkflowService,
+    private readonly queryService: LeaveRequestsQueryService,
   ) {}
 
   async getFallbackEmployeeIdForAdmin(companyId: number): Promise<number | null> {
@@ -315,369 +319,26 @@ export class LeaveRequestsService {
   }
 
   async approveLeave(requestId: number, companyId: number, approverId: number, dto: ApproveLeaveDto, actor?: any): Promise<{ message: string }> {
-    const t = await this.leaveRequestModel.sequelize!.transaction();
-    let affectedRecords: AttendanceRecord[] = [];
-    try {
-      const leaveRequest = await this.leaveRequestModel.findOne({ 
-        where: { id: requestId, companyId },
-        transaction: t,
-        lock: t.LOCK.UPDATE 
-      });
-      if (!leaveRequest) throw new NotFoundException('Leave request not found');
-
-      if (leaveRequest.employeeId === approverId && actor?.type !== 'super_admin') {
-        throw new ForbiddenException('You cannot approve your own leave request');
-      }
-
-      if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
-        throw new BadRequestException(`Cannot approve a leave request that is ${leaveRequest.status}`);
-      }
-
-      const step = await this.leaveApprovalStepModel.findOne({
-        where: {
-          leaveRequestId: requestId,
-          level: leaveRequest.currentApprovalLevel,
-          status: ApprovalStepStatus.PENDING,
-        },
-        transaction: t,
-        lock: t.LOCK.UPDATE 
-      });
-
-      if (!step) throw new BadRequestException('No pending approval step found');
-
-      if (step.approverId !== approverId && actor?.type !== 'super_admin' && actor?.type !== 'client_admin') {
-        throw new ForbiddenException('You are not the designated approver for this step');
-      }
-
-      const year = getYearFromDateOnly(leaveRequest.fromDate);
-      const balance = await this.employeeLeaveBalanceModel.findOne({
-        where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-      await step.update({
-        status: ApprovalStepStatus.APPROVED,
-        remarks: dto.remarks || null,
-        approvedAt: new Date(),
-      }, { transaction: t });
-
-      if (leaveRequest.currentApprovalLevel >= leaveRequest.finalApprovalLevel) {
-        await leaveRequest.update({ status: LeaveRequestStatus.APPROVED }, { transaction: t });
-        
-        // Sync attendance records to ON_LEAVE or HALF_DAY immediately
-        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
-        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
-        affectedRecords = await this.attendanceRecordModel.findAll({
-          where: {
-            employeeId: leaveRequest.employeeId,
-            companyId,
-            date: { [Op.between]: [fromDateStr, toDateStr] }
-          },
-          transaction: t,
-          lock: t.LOCK.UPDATE
-        });
-
-        for (const record of affectedRecords) {
-          if (record.isPayrollLocked) {
-             throw new ForbiddenException(`Cannot approve leave because attendance for ${record.date} is already finalized/payroll locked.`);
-          }
-          if (!leaveRequest.isHalfDay) {
-            await record.update({ attendanceStatus: AttendanceStatus.ON_LEAVE }, { transaction: t });
-          } else if (record.attendanceStatus === AttendanceStatus.ABSENT) {
-            await record.update({ attendanceStatus: AttendanceStatus.HALF_DAY }, { transaction: t });
-          }
-        }
-
-        // Convert pending to used
-        if (balance) {
-          await balance.update({
-            pendingDays: Number(balance.pendingDays) - Number(leaveRequest.totalDays),
-            usedDays: Number(balance.usedDays) + Number(leaveRequest.totalDays),
-          }, { transaction: t });
-        }
-      } else {
-        await leaveRequest.update({ currentApprovalLevel: leaveRequest.currentApprovalLevel + 1 }, { transaction: t });
-      }
-
-      await this.leaveApprovalLogModel.create({
-        leaveRequestId: leaveRequest.id,
-        action: LeaveAction.APPROVED,
-        performedBy: actor?.userId || null,
-        remarks: dto.remarks || `Approved at level ${step.level}`,
-      } as any, { transaction: t });
-
-      await t.commit();
-
-      // Emit updates
-      if (affectedRecords && affectedRecords.length > 0) {
-        for (const record of affectedRecords) {
-          try {
-            this.attendanceGateway.emitAttendanceUpdate('leave_approved', record);
-          } catch (err) {
-            console.error('Socket emit error in approveLeave:', err);
-          }
-        }
-      }
-
-      return { message: 'Leave request approved successfully' };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.workflowService.approveLeave(requestId, companyId, approverId, dto, actor);
   }
 
   async rejectLeave(requestId: number, companyId: number, approverId: number, dto: RejectLeaveDto, actor?: any): Promise<{ message: string }> {
-    const t = await this.leaveRequestModel.sequelize!.transaction();
-    try {
-      const leaveRequest = await this.leaveRequestModel.findOne({ 
-        where: { id: requestId, companyId },
-        transaction: t,
-        lock: t.LOCK.UPDATE 
-      });
-      if (!leaveRequest) throw new NotFoundException('Leave request not found');
-
-      if (leaveRequest.employeeId === approverId && actor?.type !== 'super_admin') {
-        throw new ForbiddenException('You cannot reject your own leave request');
-      }
-
-      if (leaveRequest.status !== LeaveRequestStatus.PENDING) {
-        throw new BadRequestException(`Cannot reject a leave request that is ${leaveRequest.status}`);
-      }
-
-      const step = await this.leaveApprovalStepModel.findOne({
-        where: {
-          leaveRequestId: requestId,
-          level: leaveRequest.currentApprovalLevel,
-          status: ApprovalStepStatus.PENDING,
-        },
-        transaction: t,
-        lock: t.LOCK.UPDATE 
-      });
-
-      if (!step) throw new BadRequestException('No pending approval step found');
-
-      if (step.approverId !== approverId && actor?.type !== 'super_admin' && actor?.type !== 'client_admin') {
-        throw new ForbiddenException('You are not the designated approver for this step');
-      }
-
-      const year = getYearFromDateOnly(leaveRequest.fromDate);
-      const balance = await this.employeeLeaveBalanceModel.findOne({
-        where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-      await step.update({
-        status: ApprovalStepStatus.REJECTED,
-        remarks: dto.reason,
-        approvedAt: new Date(),
-      }, { transaction: t });
-
-      await leaveRequest.update({ 
-        status: LeaveRequestStatus.REJECTED,
-        rejectedReason: dto.reason,
-      }, { transaction: t });
-
-      // Revert pending days
-      if (balance) {
-        await balance.update({
-          pendingDays: Number(balance.pendingDays) - Number(leaveRequest.totalDays),
-          remainingDays: Number(balance.remainingDays) + Number(leaveRequest.totalDays),
-        }, { transaction: t });
-      }
-
-      await this.leaveApprovalLogModel.create({
-        leaveRequestId: leaveRequest.id,
-        action: LeaveAction.REJECTED,
-        performedBy: actor?.userId || null,
-        remarks: dto.reason,
-      } as any, { transaction: t });
-
-      await t.commit();
-      return { message: 'Leave request rejected successfully' };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.workflowService.rejectLeave(requestId, companyId, approverId, dto, actor);
   }
 
   async cancelLeave(requestId: number, companyId: number, employeeId: number, dto: CancelLeaveDto, actor?: any): Promise<{ message: string }> {
-    const t = await this.leaveRequestModel.sequelize!.transaction();
-    let affectedRecords: AttendanceRecord[] = [];
-    try {
-      const leaveRequest = await this.leaveRequestModel.findOne({ 
-        where: { id: requestId, companyId, employeeId },
-        transaction: t,
-        lock: t.LOCK.UPDATE 
-      });
-      if (!leaveRequest) throw new NotFoundException('Leave request not found');
-
-      if (leaveRequest.status === LeaveRequestStatus.REJECTED || leaveRequest.status === LeaveRequestStatus.CANCELLED) {
-        throw new BadRequestException(`Leave request is already ${leaveRequest.status}`);
-      }
-
-      const year = getYearFromDateOnly(leaveRequest.fromDate);
-      const balance = await this.employeeLeaveBalanceModel.findOne({
-        where: { employeeId: leaveRequest.employeeId, leaveTypeId: leaveRequest.leaveTypeId, year },
-        transaction: t,
-        lock: t.LOCK.UPDATE
-      });
-      const oldStatus = leaveRequest.status;
-      await leaveRequest.update({ 
-        status: LeaveRequestStatus.CANCELLED,
-      }, { transaction: t });
-
-      // Rollback attendance records that were set to ON_LEAVE during approval
-      if (oldStatus === LeaveRequestStatus.APPROVED) {
-        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
-        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
-        affectedRecords = await this.attendanceRecordModel.findAll({
-          where: {
-            employeeId: leaveRequest.employeeId,
-            companyId,
-            date: { [Op.between]: [fromDateStr, toDateStr] }
-          },
-          transaction: t,
-          lock: t.LOCK.UPDATE
-        });
-
-        for (const record of affectedRecords) {
-          // Hard payroll lock: cannot mutate finalized records
-          if (record.isPayrollLocked) {
-            throw new ForbiddenException(
-              `Cannot cancel leave: attendance for ${record.date} is already payroll-locked.`
-            );
-          }
-
-          if (!record.checkInTime) {
-            // Case 1: Employee never checked in — DELETE placeholder entirely.
-            // The dynamic engine (cron / monthly report) will re-evaluate as
-            // HOLIDAY, WEEK_OFF, or ABSENT when the day ends.
-            await record.destroy({ transaction: t } as any);
-          } else {
-            // Case 2: Employee already checked in (or is actively WORKING).
-            // Reset status to null so checkout calculates the real final status.
-            // Do NOT force ABSENT — they may still check out later today.
-            await record.update({ attendanceStatus: null }, { transaction: t });
-          }
-        }
-      }
-
-      if (balance) {
-        if (oldStatus === LeaveRequestStatus.PENDING) {
-          await balance.update({
-            pendingDays: Number(balance.pendingDays) - Number(leaveRequest.totalDays),
-            remainingDays: Number(balance.remainingDays) + Number(leaveRequest.totalDays),
-          }, { transaction: t });
-        } else if (oldStatus === LeaveRequestStatus.APPROVED) {
-          await balance.update({
-            usedDays: Number(balance.usedDays) - Number(leaveRequest.totalDays),
-            remainingDays: Number(balance.remainingDays) + Number(leaveRequest.totalDays),
-          }, { transaction: t });
-        }
-      }
-
-      await this.leaveApprovalLogModel.create({
-        leaveRequestId: leaveRequest.id,
-        action: LeaveAction.CANCELLED,
-        performedBy: actor?.userId || null,
-        remarks: dto.reason || 'Cancelled by employee',
-      } as any, { transaction: t });
-
-      await t.commit();
-
-      // Emit updates
-      if (affectedRecords && affectedRecords.length > 0) {
-        for (const record of affectedRecords) {
-          try {
-            this.attendanceGateway.emitAttendanceUpdate('leave_cancelled', record);
-          } catch (err) {
-            console.error('Socket emit error in cancelLeave:', err);
-          }
-        }
-      }
-
-      return { message: 'Leave request cancelled successfully' };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.workflowService.cancelLeave(requestId, companyId, employeeId, dto, actor);
   }
 
   async getLeaveRequests(companyId: number, query: GetLeaveRequestsFilterDto): Promise<LeaveRequest[]> {
-    const where: any = { companyId };
-    if (query.employeeId) where.employeeId = query.employeeId;
-    if (query.status) where.status = query.status;
-    if (query.startDate && query.endDate) {
-      where.fromDate = { [Op.between]: [query.startDate, query.endDate] };
-    }
-
-    return this.leaveRequestModel.findAll({
-      where,
-      include: [
-        { model: Employee, attributes: ['id', 'firstName', 'lastName', 'email', 'employeeCode'] },
-        { model: LeaveType, attributes: ['id', 'name', 'code', 'isPaid'] },
-        { model: LeaveApprovalStep, include: [{ model: Employee, as: 'approver', attributes: ['id', 'firstName', 'lastName'] }] }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
+    return this.queryService.getLeaveRequests(companyId, query);
   }
 
   async getLeaveRequestById(id: number, companyId: number): Promise<LeaveRequest> {
-    const request = await this.leaveRequestModel.findOne({
-      where: { id, companyId },
-      include: [
-        { model: Employee, attributes: ['id', 'firstName', 'lastName', 'email', 'employeeCode'] },
-        { model: LeaveType, attributes: ['id', 'name', 'code', 'isPaid'] },
-        { model: LeaveApprovalStep, include: [{ model: Employee, as: 'approver', attributes: ['id', 'firstName', 'lastName'] }] },
-        { model: LeaveApprovalLog }
-      ],
-      order: [[{ model: LeaveApprovalLog, as: 'logs' } as any, 'createdAt', 'DESC']]
-    });
-
-    if (!request) throw new NotFoundException('Leave request not found');
-    return request;
+    return this.queryService.getLeaveRequestById(id, companyId);
   }
 
   async getDashboardSummary(companyId: number, employeeId: number): Promise<any> {
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const pendingApprovals = await this.leaveApprovalStepModel.count({
-      where: {
-        approverId: employeeId,
-        status: ApprovalStepStatus.PENDING
-      }
-    });
-
-    const balances = await this.employeeLeaveBalanceModel.findAll({
-      where: { employeeId, year: today.getFullYear() },
-      include: [{ model: LeaveType, attributes: ['name', 'code'] }]
-    });
-
-    const approvedThisMonth = await this.leaveRequestModel.count({
-      where: {
-        employeeId,
-        companyId,
-        status: LeaveRequestStatus.APPROVED,
-        fromDate: { [Op.between]: [firstDayOfMonth, lastDayOfMonth] }
-      }
-    });
-
-    const rejectedCount = await this.leaveRequestModel.count({
-      where: {
-        employeeId,
-        companyId,
-        status: LeaveRequestStatus.REJECTED,
-        createdAt: { [Op.gte]: new Date(today.getFullYear(), 0, 1) }
-      }
-    });
-
-    return {
-      pendingApprovals,
-      balances,
-      approvedThisMonth,
-      rejectedCount
-    };
+    return this.queryService.getDashboardSummary(companyId, employeeId);
   }
 }
