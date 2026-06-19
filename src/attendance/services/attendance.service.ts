@@ -22,6 +22,9 @@ import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto } from '../dto/attendance.dto';
 import { Op, Transaction } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
+import { AttendanceHelperService } from './attendance-helper.service';
+import { AttendanceReportService } from './attendance-report.service';
+import { AttendanceAdminService } from './attendance-admin.service';
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 
@@ -49,104 +52,17 @@ export class AttendanceService {
     @InjectModel(LeaveType)
     private readonly leaveTypeModel: typeof LeaveType,
     private readonly attendanceGateway: AttendanceGateway,
+    private readonly helperService: AttendanceHelperService,
+    private readonly reportService: AttendanceReportService,
+    private readonly adminService: AttendanceAdminService,
   ) {}
-
-  // Helper: Get local date & time details based on timezone
-  private getLocalTimeDetails(timezone = 'Asia/Kolkata', inputDate = new Date()): { todayDateStr: string, minutesOfDay: number, jsDay: number } {
-    const tz = timezone || 'Asia/Kolkata';
-    const todayDateStr = inputDate.toLocaleDateString('en-CA', { timeZone: tz });
-    
-    // Format to HH:MM:SS (24-hour)
-    const localTimeStr = inputDate.toLocaleTimeString('en-US', { hour12: false, timeZone: tz });
-    const [hour, minute] = localTimeStr.split(':').map(Number);
-    const minutesOfDay = hour * 60 + minute;
-
-    // Get JS day of week (0 = Sunday, 1 = Monday, etc.) in target timezone
-    const dayOfWeekStr = inputDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: tz });
-    const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const jsDay = weekdayNames.indexOf(dayOfWeekStr);
-
-    return { todayDateStr, minutesOfDay, jsDay };
-  }
-
-  // Helper: Calculate distance between coordinates (Haversine formula)
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371e3; // Earth's radius in meters
-    const phi1 = (lat1 * Math.PI) / 180;
-    const phi2 = (lat2 * Math.PI) / 180;
-    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-      Math.cos(phi1) * Math.cos(phi2) *
-      Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // in meters
-  }
-
-  // Helper: Verify and enforce geo-fencing configuration
-  private validateGeoLocation(employee: Employee, lat?: number, lng?: number) {
-    if (lat !== undefined && lng !== undefined) {
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        throw new BadRequestException('Invalid geolocation coordinates.');
-      }
-    }
-
-    const branch = employee.branch;
-    if (branch && branch.latitude !== null && branch.longitude !== null && branch.geoFenceRadius !== null) {
-      if (employee.workMode === 'OFFICE') {
-        if (lat === undefined || lng === undefined) {
-          throw new BadRequestException('Location coordinates are required for office work mode check-in');
-        }
-
-        const distance = this.calculateDistance(lat, lng, branch.latitude, branch.longitude);
-        if (distance > branch.geoFenceRadius) {
-          throw new BadRequestException(
-            `Geo-fence verification failed: You are outside the branch boundary by ${Math.round(distance - branch.geoFenceRadius)} meters.`,
-          );
-        }
-      }
-    }
-  }
-
-  // Helper: Calculate late minutes
-  private calculateLateMinutes(minutesOfDay: number, shiftStartTime: string, gracePeriod: number): number {
-    const [shiftHour, shiftMin] = shiftStartTime.split(':').map(Number);
-    const shiftMinutes = shiftHour * 60 + shiftMin;
-
-    if (minutesOfDay > (shiftMinutes + gracePeriod)) {
-      return minutesOfDay - shiftMinutes;
-    }
-    return 0;
-  }
-
-  // Helper: Verify if employee is linked and active
-  private async getActiveEmployee(employeeId: number, companyId: number): Promise<Employee> {
-    const employee = await this.employeeModel.findOne({
-      where: { id: employeeId, companyId },
-      include: [Branch],
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee profile not found in this company workspace');
-    }
-
-    const inactiveStatuses = [EmployeeStatus.DRAFT, EmployeeStatus.RESIGNED, EmployeeStatus.TERMINATED];
-    if (inactiveStatuses.includes(employee.status)) {
-      throw new ForbiddenException(`Employee account is inactive (Status: ${employee.status})`);
-    }
-
-    return employee;
-  }
 
   // 1. Employee Check In
   async checkIn(employeeId: number, companyId: number, dto: CheckInDto): Promise<AttendanceRecord> {
-    const employee = await this.getActiveEmployee(employeeId, companyId);
-    this.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
+    const employee = await this.helperService.getActiveEmployee(employeeId, companyId);
+    this.helperService.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-    const { todayDateStr, minutesOfDay, jsDay } = this.getLocalTimeDetails(timezone);
+    const { todayDateStr, minutesOfDay, jsDay } = this.helperService.getLocalTimeDetails(timezone);
 
     // Holiday Check
     const holiday = await this.holidayModel.findOne({
@@ -199,7 +115,7 @@ export class AttendanceService {
 
     // Determine status & late minutes
     const isWeeklyOff = shift.weeklyOffDays.includes(jsDay);
-    const lateMinutes = this.calculateLateMinutes(minutesOfDay, shift.startTime, shift.gracePeriodMinutes);
+    const lateMinutes = this.helperService.calculateLateMinutes(minutesOfDay, shift.startTime, shift.gracePeriodMinutes);
     let initialStatus = null; // Do not set PRESENT on check-in
 
     const t = await this.recordModel.sequelize!.transaction();
@@ -292,10 +208,10 @@ export class AttendanceService {
 
   // 2. Employee Check Out
   async checkOut(employeeId: number, companyId: number, dto: CheckOutDto): Promise<AttendanceRecord> {
-    const employee = await this.getActiveEmployee(employeeId, companyId);
-    this.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
+    const employee = await this.helperService.getActiveEmployee(employeeId, companyId);
+    this.helperService.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-    const { todayDateStr } = this.getLocalTimeDetails(timezone);
+    const { todayDateStr } = this.helperService.getLocalTimeDetails(timezone);
 
     const t = await this.recordModel.sequelize!.transaction();
 
@@ -310,7 +226,7 @@ export class AttendanceService {
       if (!record || record.checkOutTime) {
         const yesterdayDate = new Date();
         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const { todayDateStr: yesterdayDateStr } = this.getLocalTimeDetails(timezone, yesterdayDate);
+        const { todayDateStr: yesterdayDateStr } = this.helperService.getLocalTimeDetails(timezone, yesterdayDate);
 
         const yesterdayRecord = await this.recordModel.findOne({
           where: { employeeId, date: yesterdayDateStr, checkOutTime: null },
@@ -495,7 +411,7 @@ export class AttendanceService {
 
   // 5. Attendance Correction Request
   async requestCorrection(employeeId: number, companyId: number, dto: RequestCorrectionDto): Promise<AttendanceException> {
-    const employee = await this.getActiveEmployee(employeeId, companyId);
+    const employee = await this.helperService.getActiveEmployee(employeeId, companyId);
     const policy = await this.policyModel.findOne({ where: { companyId } });
 
     if (!policy || !policy.allowAttendanceCorrection) {
@@ -518,7 +434,7 @@ export class AttendanceService {
 
     // Check age of request
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-    const { todayDateStr } = this.getLocalTimeDetails(timezone);
+    const { todayDateStr } = this.helperService.getLocalTimeDetails(timezone);
     const todayDate = new Date(todayDateStr);
     const requestDate = new Date(dto.date);
 
@@ -657,7 +573,7 @@ export class AttendanceService {
       if (finalCheckIn) {
         const checkInTimeStr = finalCheckIn.toLocaleTimeString('en-US', { hour12: false, timeZone: timezone });
         const [inH, inM] = checkInTimeStr.split(':').map(Number);
-        lateMinutes = this.calculateLateMinutes(inH * 60 + inM, shift.startTime, shift.gracePeriodMinutes);
+        lateMinutes = this.helperService.calculateLateMinutes(inH * 60 + inM, shift.startTime, shift.gracePeriodMinutes);
       }
 
       if (finalCheckIn && finalCheckOut) {
@@ -970,483 +886,22 @@ export class AttendanceService {
 
   // 8. Get Own Attendance (Self)
   async getMyAttendance(employeeId: number, companyId: number, filters: { startDate?: string, endDate?: string }): Promise<any> {
-    const whereClause: any = { employeeId, companyId };
-
-    if (filters.startDate || filters.endDate) {
-      whereClause.date = {};
-      if (filters.startDate) {
-        whereClause.date[Op.gte] = filters.startDate;
-      }
-      if (filters.endDate) {
-        whereClause.date[Op.lte] = filters.endDate;
-      }
-    }
-
-    if (filters.startDate || filters.endDate) {
-      const activeLeaves = await this.leaveRequestModel.findAll({
-        where: {
-          employeeId,
-          companyId,
-          status: LeaveRequestStatus.APPROVED,
-          [Op.or]: [
-            {
-              fromDate: {
-                [Op.between]: [filters.startDate || '1970-01-01', filters.endDate || '9999-12-31']
-              }
-            },
-            {
-              toDate: {
-                [Op.between]: [filters.startDate || '1970-01-01', filters.endDate || '9999-12-31']
-              }
-            },
-            {
-              fromDate: { [Op.lte]: filters.startDate || '1970-01-01' },
-              toDate: { [Op.gte]: filters.endDate || '9999-12-31' }
-            }
-          ]
-        }
-      });
-
-      if (activeLeaves.length > 0) {
-        const t = await this.recordModel.sequelize!.transaction();
-        try {
-          for (const leave of activeLeaves) {
-            const leaveFromTime = new Date(leave.fromDate).getTime();
-            const filterStartTime = new Date(filters.startDate || '1970-01-01').getTime();
-            const start = new Date(leaveFromTime > filterStartTime ? leave.fromDate : (filters.startDate || '1970-01-01'));
-
-            const leaveToTime = new Date(leave.toDate).getTime();
-            const filterEndTime = new Date(filters.endDate || '9999-12-31').getTime();
-            const end = new Date(leaveToTime < filterEndTime ? leave.toDate : (filters.endDate || '9999-12-31'));
-            const curr = new Date(start);
-            while (curr <= end) {
-              const dStr = curr.toLocaleDateString('en-CA', { timeZone: 'UTC' });
-              const record = await this.recordModel.findOne({
-                where: { employeeId, date: dStr },
-                lock: t.LOCK.UPDATE,
-                transaction: t,
-              });
-              if (!record) {
-                await this.recordModel.create({
-                  employeeId,
-                  companyId,
-                  date: dStr,
-                  attendanceStatus: AttendanceStatus.ON_LEAVE,
-                  totalHours: 0,
-                  overtimeHours: 0,
-                  lateMinutes: 0,
-                  shiftId: null,
-                } as any, { transaction: t });
-              }
-              curr.setDate(curr.getDate() + 1);
-            }
-          }
-          await t.commit();
-        } catch (err) {
-          await t.rollback();
-        }
-      }
-    }
-
-    const records = await this.recordModel.findAll({
-      where: whereClause,
-      include: [
-        Shift,
-        {
-          model: AttendanceLog,
-          as: 'logs',
-          required: false,
-        }
-      ],
-      order: [['date', 'DESC']],
-    });
-
-    return records;
+    return this.reportService.getMyAttendance(employeeId, companyId, filters);
   }
 
   // 9. Get Company Attendance
   async getCompanyAttendance(companyId: number, filters: { date?: string, employeeId?: number }): Promise<AttendanceRecord[]> {
-    const whereClause: any = { companyId };
-
-    if (filters.date) {
-      whereClause.date = filters.date;
-    }
-    if (filters.employeeId) {
-      whereClause.employeeId = filters.employeeId;
-    }
-
-    if (filters.date) {
-      const activeLeaves = await this.leaveRequestModel.findAll({
-        where: {
-          companyId,
-          status: LeaveRequestStatus.APPROVED,
-          fromDate: { [Op.lte]: filters.date },
-          toDate: { [Op.gte]: filters.date },
-          ...(filters.employeeId ? { employeeId: filters.employeeId } : {})
-        }
-      });
-
-      if (activeLeaves.length > 0) {
-        const t = await this.recordModel.sequelize!.transaction();
-        try {
-          for (const leave of activeLeaves) {
-            const record = await this.recordModel.findOne({
-              where: { employeeId: leave.employeeId, date: filters.date },
-              lock: t.LOCK.UPDATE,
-              transaction: t,
-            });
-
-            if (!record) {
-              await this.recordModel.create({
-                employeeId: leave.employeeId,
-                companyId,
-                date: filters.date,
-                attendanceStatus: AttendanceStatus.ON_LEAVE,
-                totalHours: 0,
-                overtimeHours: 0,
-                lateMinutes: 0,
-                shiftId: null,
-              } as any, { transaction: t });
-            }
-          }
-          await t.commit();
-        } catch (err) {
-          await t.rollback();
-        }
-      }
-    }
-
-    return this.recordModel.findAll({
-      where: whereClause,
-      include: [Employee, Shift],
-      order: [['date', 'DESC'], ['employeeId', 'ASC']],
-    });
+    return this.reportService.getCompanyAttendance(companyId, filters);
   }
 
   // 10. Monthly Attendance Report
   async getMonthlyReport(companyId: number, query: { month: number; year: number; employeeId?: number }): Promise<any> {
-    const startStr = `${query.year}-${String(query.month).padStart(2, '0')}-01`;
-    const lastDay = new Date(query.year, query.month, 0).getDate();
-    const endStr = `${query.year}-${String(query.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-    // Get all employees first
-    const employeeWhere: any = { companyId };
-    if (query.employeeId) {
-      employeeWhere.id = query.employeeId;
-    }
-    const employees = await this.employeeModel.findAll({
-      where: employeeWhere,
-      include: [Branch],
-    });
-
-    // Get all holidays for the month
-    const holidays = await this.holidayModel.findAll({
-      where: {
-        holidayDate: {
-          [Op.between]: [startStr, endStr],
-        },
-        isActive: true,
-      },
-      include: [{
-        model: HolidayCompany,
-        where: { companyId },
-        required: true,
-      }],
-    });
-    const holidayDates = new Set(holidays.map(h => h.holidayDate.toString()));
-
-    // Fetch all approved leave requests for this month
-    const leaves = await this.leaveRequestModel.findAll({
-      where: {
-        employeeId: employees.map(e => e.id),
-        status: LeaveRequestStatus.APPROVED,
-        [Op.or]: [
-          {
-            fromDate: { [Op.between]: [startStr, endStr] }
-          },
-          {
-            toDate: { [Op.between]: [startStr, endStr] }
-          },
-          {
-            fromDate: { [Op.lte]: startStr },
-            toDate: { [Op.gte]: endStr }
-          }
-        ]
-      }
-    });
-
-    const employeeLeavesMap = new Map<number, Set<string>>();
-    for (const leave of leaves) {
-      if (!employeeLeavesMap.has(leave.employeeId)) {
-        employeeLeavesMap.set(leave.employeeId, new Set<string>());
-      }
-      const leaveSet = employeeLeavesMap.get(leave.employeeId)!;
-      const leaveFromTime = new Date(leave.fromDate).getTime();
-      const monthStartTime = new Date(startStr).getTime();
-      const start = new Date(leaveFromTime > monthStartTime ? leave.fromDate : startStr);
-
-      const leaveToTime = new Date(leave.toDate).getTime();
-      const monthEndTime = new Date(endStr).getTime();
-      const end = new Date(leaveToTime < monthEndTime ? leave.toDate : endStr);
-      const curr = new Date(start);
-      while (curr <= end) {
-        leaveSet.add(curr.toLocaleDateString('en-CA', { timeZone: 'UTC' }));
-        curr.setDate(curr.getDate() + 1);
-      }
-    }
-
-    // Fetch policy once to avoid N+1 queries
-    const policy = await this.policyModel.findOne({ where: { companyId } });
-    const defaultWeeklyOffDays = policy?.weeklyOffDays || [0, 6];
-
-    // Fetch all shifts once to avoid N+1 queries
-    const shifts = await this.shiftModel.findAll({ where: { companyId } });
-    const shiftMap = new Map<number, Shift>();
-    for (const sh of shifts) {
-      shiftMap.set(sh.id, sh);
-    }
-
-    // Fetch all attendance records for the month once to avoid N+1 queries
-    const allRecords = await this.recordModel.findAll({
-      where: {
-        companyId,
-        date: {
-          [Op.between]: [startStr, endStr],
-        },
-        ...(query.employeeId ? { employeeId: query.employeeId } : {})
-      },
-    });
-
-    const employeeRecordsMap = new Map<number, AttendanceRecord[]>();
-    for (const rec of allRecords) {
-      if (!employeeRecordsMap.has(rec.employeeId)) {
-        employeeRecordsMap.set(rec.employeeId, []);
-      }
-      employeeRecordsMap.get(rec.employeeId)!.push(rec);
-    }
-
-    const result = [];
-
-    for (const employee of employees) {
-      const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-      const { todayDateStr, minutesOfDay } = this.getLocalTimeDetails(timezone);
-
-      const records = employeeRecordsMap.get(employee.id) || [];
-      const recordMap = new Map<string, AttendanceRecord>();
-      for (const rec of records) {
-        console.log("MONTHLY REPORT DB RECORD DATE:", rec.date, typeof rec.date, rec.id);
-        recordMap.set(rec.date, rec);
-      }
-
-      // Resolve Shift/Policy using maps/caches
-      let shift: any = null;
-      if (employee.shiftId) {
-        shift = shiftMap.get(employee.shiftId) || null;
-      }
-      if (!shift) {
-        shift = {
-          weeklyOffDays: defaultWeeklyOffDays,
-        };
-      }
-
-      let presentCount = 0;
-      let absentCount = 0;
-      let lateCount = 0;
-      let halfDayCount = 0;
-      let weeklyOffCount = 0;
-      let holidayCount = 0;
-      let leaveCount = 0;
-      let totalWorkHours = 0;
-      let totalOvertimeHours = 0;
-      let totalLateMinutes = 0;
-      const daysDetails = [];
-
-      // Loop through every single day of the month
-      for (let day = 1; day <= lastDay; day++) {
-        const dateStr = `${query.year}-${String(query.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
-        // Find JS day of week (0-6)
-        const dateObj = new Date(`${dateStr}T12:00:00`); // Use midday to avoid TZ shifts
-        const dayOfWeekStr = dateObj.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
-        const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const jsDay = weekdayNames.indexOf(dayOfWeekStr);
-
-        const isWeeklyOff = shift.weeklyOffDays.includes(jsDay);
-        const isHoliday = holidayDates.has(dateStr);
-
-        const record = recordMap.get(dateStr);
-        const leaveSet = employeeLeavesMap.get(employee.id);
-        const isOnLeave = (leaveSet && leaveSet.has(dateStr)) || (record && record.attendanceStatus === AttendanceStatus.ON_LEAVE);
-
-        let status: AttendanceStatus = null;
-        let workHours = 0;
-        let overtime = 0;
-        let lateMinutes = 0;
-        let checkIn = null;
-        let checkOut = null;
-        let attendanceState = record ? record.attendanceState : AttendanceState.NOT_CHECKED_IN;
-
-        if (record) {
-          status = record.attendanceStatus;
-          workHours = record.attendanceState === AttendanceState.WORKING ? 0 : Number(record.totalHours || 0);
-          overtime = Number(record.overtimeHours || 0);
-          lateMinutes = Number(record.lateMinutes || 0);
-          checkIn = record.checkInTime;
-          checkOut = record.checkOutTime;
-        }
-
-        // Apply enterprise status resolution rules:
-        if (dateStr > todayDateStr) {
-          // Future dates:
-          if (isOnLeave) {
-            status = AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            status = AttendanceStatus.UPCOMING; // Never ABSENT for future dates
-          }
-        } else if (dateStr === todayDateStr) {
-          // Today:
-          if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
-            // Keep actual punch status (e.g. PRESENT, LATE, HALF_DAY)
-          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
-            // Active check-in. Do not overwrite with ABSENT.
-            status = null as any;
-          } else if (isOnLeave) {
-            status = AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            // Today working day: check if shift start time crossed
-            const [shStartHour, shStartMin] = (shift.startTime || '09:00').split(':').map(Number);
-            const shiftStartMinutes = shStartHour * 60 + shStartMin;
-            
-            if (minutesOfDay < shiftStartMinutes) {
-              status = AttendanceStatus.UPCOMING;
-            } else {
-              // Shift started, employee missed check-in
-              status = AttendanceStatus.ABSENT; // Or check policy: since no punch, they are absent for now
-            }
-          }
-        } else {
-          // Past dates:
-          if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
-            // Keep actual punch status
-          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
-            // They forgot to check out! Leave as null or let policy decide later
-            status = null as any;
-          } else if (isOnLeave) {
-            status = AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            status = AttendanceStatus.ABSENT;
-          }
-        }
-
-        // Increment counts based on resolved status:
-        if (status === AttendanceStatus.PRESENT) presentCount++;
-        else if (status === AttendanceStatus.ABSENT) absentCount++;
-        else if (status === AttendanceStatus.LATE) lateCount++;
-        else if (status === AttendanceStatus.HALF_DAY) halfDayCount++;
-        else if (status === AttendanceStatus.WEEK_OFF) weeklyOffCount++;
-        else if (status === AttendanceStatus.ON_LEAVE) leaveCount++;
-        else if (status === AttendanceStatus.HOLIDAY) holidayCount++;
-
-        totalWorkHours += workHours;
-        totalOvertimeHours += overtime;
-        totalLateMinutes += lateMinutes;
-
-        daysDetails.push({
-          date: dateStr,
-          checkIn,
-          checkOut,
-          status,
-          workHours,
-          overtime,
-          lateMinutes,
-          attendanceState,
-        });
-      }
-
-      const totalWorkingDays = lastDay - weeklyOffCount - holidayCount;
-      const actualPresent = presentCount + lateCount + halfDayCount * 0.5;
-      const attendancePercentage = totalWorkingDays > 0 
-        ? parseFloat(((actualPresent / totalWorkingDays) * 100).toFixed(2))
-        : 0;
-
-      result.push({
-        employeeId: employee.id,
-        employeeCode: employee.employeeCode,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        summary: {
-          present: presentCount,
-          absent: absentCount,
-          late: lateCount,
-          halfDay: halfDayCount,
-          weeklyOff: weeklyOffCount,
-          holiday: holidayCount,
-          leave: leaveCount,
-          totalWorkHours: parseFloat(totalWorkHours.toFixed(2)),
-          totalOvertimeHours: parseFloat(totalOvertimeHours.toFixed(2)),
-          totalLateMinutes,
-          attendancePercentage,
-          presentPercentage: parseFloat(((presentCount / lastDay) * 100).toFixed(2)),
-          absentPercentage: parseFloat(((absentCount / lastDay) * 100).toFixed(2)),
-          latePercentage: parseFloat(((lateCount / lastDay) * 100).toFixed(2)),
-          halfDayPercentage: parseFloat(((halfDayCount / lastDay) * 100).toFixed(2)),
-          weeklyOffPercentage: parseFloat(((weeklyOffCount / lastDay) * 100).toFixed(2)),
-          holidayPercentage: parseFloat(((holidayCount / lastDay) * 100).toFixed(2)),
-          leavePercentage: parseFloat(((leaveCount / lastDay) * 100).toFixed(2)),
-        },
-        days: daysDetails,
-      });
-    }
-
-    // Temporary logs for Phase 1 backend trace
-    for (const res of result) {
-      const todayRecord = res.days.find(d => d.date === '2026-06-17');
-      if (todayRecord) {
-        console.log("BACKEND TEMP LOG getMonthlyReport today's record:", {
-          employeeId: res.employeeId,
-          date: todayRecord.date,
-          checkIn: todayRecord.checkIn,
-          checkOut: todayRecord.checkOut,
-          attendanceState: todayRecord.attendanceState,
-          attendanceStatus: todayRecord.status
-        });
-      }
-    }
-
-    return result;
+    return this.reportService.getMonthlyReport(companyId, query);
   }
 
   // 11. Assign Shift to Employee
   async assignShift(employeeId: number, companyId: number, shiftId: number): Promise<Employee> {
-    const employee = await this.employeeModel.findOne({
-      where: { id: employeeId, companyId },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee not found in this company workspace');
-    }
-
-    const shift = await this.shiftModel.findOne({
-      where: { id: shiftId, companyId },
-    });
-
-    if (!shift) {
-      throw new NotFoundException('Shift not found in this company workspace');
-    }
-
-    await employee.update({ shiftId });
-    return employee.reload({ include: [Shift] });
+    return this.adminService.assignShift(employeeId, companyId, shiftId);
   }
 
   // 12. Manual Override (Admin direct action)
@@ -1456,98 +911,12 @@ export class AttendanceService {
     adminEmployeeId: number,
     dto: { checkInTime?: string; checkOutTime?: string; attendanceStatus?: AttendanceStatus; lateMinutes?: number; remarks?: string }
   ): Promise<AttendanceRecord> {
-    const t = await this.recordModel.sequelize!.transaction();
-    try {
-      const record = await this.recordModel.findOne({
-        where: { id: recordId, companyId },
-        lock: t.LOCK.UPDATE,
-        transaction: t,
-      });
-
-      if (!record) {
-        throw new NotFoundException(`Attendance record with ID ${recordId} not found`);
-      }
-
-      if (record.isPayrollLocked) {
-        throw new ForbiddenException('Attendance locked after payroll processing');
-      }
-
-      if (dto.attendanceStatus === AttendanceStatus.ON_LEAVE || record.attendanceStatus === AttendanceStatus.ON_LEAVE) {
-        if (dto.attendanceStatus !== undefined && dto.attendanceStatus !== record.attendanceStatus) {
-          throw new BadRequestException('Cannot override ON_LEAVE status directly. Use the manual attendance API to ensure leave balances are updated correctly.');
-        }
-      }
-
-      const previousRecord = record.toJSON();
-
-      const updateData: any = {};
-      if (dto.checkInTime !== undefined) updateData.checkInTime = dto.checkInTime ? new Date(dto.checkInTime) : null;
-      if (dto.checkOutTime !== undefined) updateData.checkOutTime = dto.checkOutTime ? new Date(dto.checkOutTime) : null;
-      if (dto.attendanceStatus !== undefined) updateData.attendanceStatus = dto.attendanceStatus;
-      if (dto.lateMinutes !== undefined) updateData.lateMinutes = dto.lateMinutes;
-
-      const finalCheckIn = dto.checkInTime !== undefined ? (dto.checkInTime ? new Date(dto.checkInTime) : null) : (record.checkInTime ? new Date(record.checkInTime) : null);
-      const finalCheckOut = dto.checkOutTime !== undefined ? (dto.checkOutTime ? new Date(dto.checkOutTime) : null) : (record.checkOutTime ? new Date(record.checkOutTime) : null);
-
-      if (finalCheckOut) {
-        updateData.attendanceState = AttendanceState.CHECKED_OUT;
-      } else if (finalCheckIn) {
-        updateData.attendanceState = AttendanceState.WORKING;
-      } else {
-        updateData.attendanceState = AttendanceState.NOT_CHECKED_IN;
-      }
-
-      if (finalCheckIn && finalCheckOut) {
-        let breakMinutes = 60;
-        if (record.shiftId) {
-          const shift = await this.shiftModel.findByPk(record.shiftId, { transaction: t });
-          if (shift) breakMinutes = shift.breakMinutes;
-        }
-        const totalDurationMs = finalCheckOut.getTime() - finalCheckIn.getTime();
-        updateData.totalHours = Math.max(0, parseFloat(((totalDurationMs - (breakMinutes * 60 * 1000)) / (1000 * 60 * 60)).toFixed(2)));
-      } else {
-        updateData.totalHours = 0;
-        updateData.overtimeHours = 0;
-      }
-
-      await record.update(updateData, { transaction: t });
-
-      // Create manual override log
-      await this.logModel.create({
-        employeeId: record.employeeId,
-        attendanceRecordId: record.id,
-        actionType: AttendanceActionType.AUTO_CORRECTION,
-        timestamp: new Date(),
-        metadata: {
-          overriddenBy: adminEmployeeId,
-          remarks: dto.remarks || 'Manual admin override',
-          previousRecord,
-          newRecord: record.toJSON(),
-        },
-      } as any, { transaction: t });
-
-      await t.commit();
-
-      try {
-        this.attendanceGateway.emitAttendanceUpdate('manual_override', record);
-      } catch (err) {
-        console.error('Socket emit error in manualOverride:', err);
-      }
-
-      return record;
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.adminService.manualOverride(recordId, companyId, adminEmployeeId, dto);
   }
 
   // Admin fallback helper
   async getFallbackEmployeeIdForAdmin(companyId: number): Promise<number | null> {
-    const employee = await this.employeeModel.findOne({
-      where: { companyId },
-      order: [['id', 'ASC']],
-    });
-    return employee ? employee.id : null;
+    return this.adminService.getFallbackEmployeeIdForAdmin(companyId);
   }
 
   // 13. Admin Manual Attendance Entry
@@ -1556,173 +925,7 @@ export class AttendanceService {
     adminEmployeeId: number,
     dto: { employeeId: number; date: string; checkInTime?: string; checkOutTime?: string; status: AttendanceStatus; leaveTypeId?: number; reason?: string }
   ): Promise<AttendanceRecord> {
-    const employee = await this.employeeModel.findOne({
-      where: { id: dto.employeeId, companyId },
-    });
-
-    if (!employee) {
-      throw new NotFoundException(`Employee not found`);
-    }
-
-    if (dto.status === AttendanceStatus.ON_LEAVE && !dto.leaveTypeId) {
-      throw new BadRequestException('leaveTypeId is mandatory when marking attendance as LEAVE');
-    }
-
-    const t = await this.recordModel.sequelize!.transaction();
-    try {
-      let record = await this.recordModel.findOne({
-        where: { employeeId: dto.employeeId, date: dto.date, companyId },
-        lock: t.LOCK.UPDATE,
-        transaction: t,
-      });
-
-      if (record && record.isPayrollLocked) {
-        throw new ForbiddenException('Attendance locked after payroll processing');
-      }
-
-      const previousRecord = record ? record.toJSON() : null;
-      const year = new Date(dto.date).getFullYear();
-
-      // Case A: Refund previous ON_LEAVE balance if old status was ON_LEAVE and new status is different (or new status is ON_LEAVE but leave type changed)
-      if (previousRecord && previousRecord.attendanceStatus === AttendanceStatus.ON_LEAVE) {
-        if (dto.status !== AttendanceStatus.ON_LEAVE || dto.leaveTypeId !== undefined) {
-          const logs = await this.logModel.findAll({
-            where: {
-              attendanceRecordId: record!.id,
-              actionType: { [Op.in]: [AttendanceActionType.ADMIN_MARKED, AttendanceActionType.AUTO_CORRECTION] },
-            },
-            order: [['id', 'DESC']],
-            transaction: t,
-          });
-
-          let oldLeaveTypeId = null;
-          for (const l of logs) {
-            if (l.metadata && l.metadata.leaveTypeId !== undefined) {
-              oldLeaveTypeId = l.metadata.leaveTypeId;
-              break;
-            }
-          }
-
-          if (oldLeaveTypeId) {
-            const oldBalance = await this.employeeLeaveBalanceModel.findOne({
-              where: { employeeId: dto.employeeId, leaveTypeId: oldLeaveTypeId, year },
-              transaction: t,
-              lock: t.LOCK.UPDATE,
-            });
-            if (oldBalance) {
-              await oldBalance.update({
-                remainingDays: Number(oldBalance.remainingDays) + 1,
-                usedDays: Math.max(0, Number(oldBalance.usedDays) - 1),
-              }, { transaction: t });
-            }
-          }
-        }
-      }
-
-      // Case B: Deduct leave balance if new status is ON_LEAVE
-      if (dto.status === AttendanceStatus.ON_LEAVE) {
-        const leaveType = await this.leaveTypeModel.findOne({
-          where: { id: dto.leaveTypeId, companyId, isActive: true },
-          transaction: t,
-        });
-        if (!leaveType) {
-          throw new NotFoundException('Leave type not found or inactive');
-        }
-
-        let balance = await this.employeeLeaveBalanceModel.findOne({
-          where: { employeeId: dto.employeeId, leaveTypeId: dto.leaveTypeId, year },
-          transaction: t,
-          lock: t.LOCK.UPDATE,
-        });
-
-        if (!balance) {
-          const joinDate = new Date(employee.joiningDate || new Date());
-          const joinedMonth = joinDate.getFullYear() === year ? joinDate.getMonth() : 0;
-          const remainingMonths = 12 - joinedMonth;
-          const proratedDays = parseFloat(((leaveType.daysPerYear / 12) * remainingMonths).toFixed(2));
-          
-          balance = await this.employeeLeaveBalanceModel.create({
-            companyId,
-            employeeId: dto.employeeId,
-            leaveTypeId: dto.leaveTypeId,
-            year,
-            totalAllocated: proratedDays,
-            remainingDays: proratedDays,
-            usedDays: 0,
-            pendingDays: 0,
-            carryForwardDays: 0,
-          } as any, { transaction: t });
-        }
-
-        if (balance.remainingDays < 1) {
-          throw new BadRequestException(`Insufficient leave balance. Required: 1, Remaining: ${balance.remainingDays}`);
-        }
-
-        await balance.update({
-          remainingDays: Number(balance.remainingDays) - 1,
-          usedDays: Number(balance.usedDays) + 1,
-        }, { transaction: t });
-      }
-
-      let finalCheckIn = dto.checkInTime ? new Date(dto.checkInTime) : null;
-      let finalCheckOut = dto.checkOutTime ? new Date(dto.checkOutTime) : null;
-      
-      let totalHours = 0;
-      if (finalCheckIn && finalCheckOut) {
-        const totalDurationMs = finalCheckOut.getTime() - finalCheckIn.getTime();
-        totalHours = Math.max(0, parseFloat((totalDurationMs / (1000 * 60 * 60)).toFixed(2)));
-      }
-
-      if (!record) {
-        record = await this.recordModel.create({
-          employeeId: dto.employeeId,
-          companyId,
-          date: dto.date,
-          checkInTime: finalCheckIn,
-          checkOutTime: finalCheckOut,
-          totalHours,
-          attendanceStatus: dto.status,
-          attendanceState: AttendanceState.CHECKED_OUT,
-          attendanceSource: AttendanceSource.ADMIN_MARKED,
-          shiftId: employee.shiftId,
-        } as any, { transaction: t });
-      } else {
-        await record.update({
-          checkInTime: finalCheckIn,
-          checkOutTime: finalCheckOut,
-          totalHours,
-          attendanceStatus: dto.status,
-          attendanceState: AttendanceState.CHECKED_OUT,
-          attendanceSource: AttendanceSource.ADMIN_MARKED,
-        }, { transaction: t });
-      }
-
-      await this.logModel.create({
-        employeeId: dto.employeeId,
-        attendanceRecordId: record.id,
-        actionType: AttendanceActionType.ADMIN_MARKED,
-        timestamp: new Date(),
-        metadata: {
-          changedBy: adminEmployeeId,
-          oldValue: previousRecord,
-          newValue: record.toJSON(),
-          reason: dto.reason || 'Manual Admin Entry',
-          leaveTypeId: dto.status === AttendanceStatus.ON_LEAVE ? dto.leaveTypeId : null,
-        },
-      } as any, { transaction: t });
-
-      await t.commit();
-
-      try {
-        this.attendanceGateway.emitAttendanceUpdate('manual_attendance', record);
-      } catch (err) {
-        console.error('Socket emit error in manualAttendance:', err);
-      }
-
-      return record;
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.adminService.manualAttendance(companyId, adminEmployeeId, dto);
   }
+
 }

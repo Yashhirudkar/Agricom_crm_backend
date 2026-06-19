@@ -23,6 +23,9 @@ import { LeaveType } from '../hrms/models/leave-type.model';
 import { AttendanceController } from './controllers/attendance.controller';
 import { ShiftsController } from './controllers/shifts.controller';
 import { AttendanceService } from './services/attendance.service';
+import { AttendanceHelperService } from './services/attendance-helper.service';
+import { AttendanceReportService } from './services/attendance-report.service';
+import { AttendanceAdminService } from './services/attendance-admin.service';
 import { ShiftsService } from './services/shifts.service';
 import { AttendanceCronService } from './services/attendance-cron.service';
 import { AttendanceBreakCronService } from './services/attendance-break-cron.service';
@@ -64,7 +67,7 @@ import { AuditModule } from '../audit/modules/audit.module';
     }),
   ],
   controllers: [AttendanceController, ShiftsController],
-  providers: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
-  exports: [AttendanceService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  providers: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  exports: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
 })
 export class AttendanceModule {}
