@@ -38,10 +38,7 @@ export class CompaniesController {
       }
       return this.companiesService.createCompany(dto.clientId, dto, actor);
     }
-    // Only Client Admin can create a company for themselves
-    if (req.user.type !== 'client_admin') {
-      throw new ForbiddenException('Only Client Admin can create companies');
-    }
+
     return this.companiesService.createCompany(req.user.clientId, dto, actor);
   }
 

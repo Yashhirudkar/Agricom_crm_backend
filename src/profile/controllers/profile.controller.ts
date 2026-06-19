@@ -18,8 +18,8 @@ export class ProfileController {
 
   @Get('me')
   async getProfile(@Req() req: any) {
-    const roles = req.user.roles || [];
-    return this.profileService.getProfile(req.user.id, roles);
+    const userType = req.user.type;
+    return this.profileService.getProfile(req.user.id, userType);
   }
 
   @Get('preferences')
@@ -34,20 +34,20 @@ export class ProfileController {
 
   @Get('leave-summary')
   async getLeaveSummary(@Req() req: any) {
-    const roles = req.user.roles || [];
-    return this.profileService.getLeaveSummary(req.user.id, roles);
+    const userType = req.user.type;
+    return this.profileService.getLeaveSummary(req.user.id, userType);
   }
 
   @Get('document-status')
   async getDocumentStatus(@Req() req: any) {
-    const roles = req.user.roles || [];
-    return this.profileService.getDocumentStatus(req.user.id, roles);
+    const userType = req.user.type;
+    return this.profileService.getDocumentStatus(req.user.id, userType);
   }
 
   @Get('attendance-summary')
   async getAttendanceSummary(@Req() req: any) {
-    const roles = req.user.roles || [];
-    return this.profileService.getAttendanceSummary(req.user.id, roles);
+    const userType = req.user.type;
+    return this.profileService.getAttendanceSummary(req.user.id, userType);
   }
 
   @Get('session-info')
@@ -57,8 +57,8 @@ export class ProfileController {
 
   @Get('completion')
   async getCompletion(@Req() req: any) {
-    const roles = req.user.roles || [];
-    return this.profileService.getCompletion(req.user.id, roles);
+    const userType = req.user.type;
+    return this.profileService.getCompletion(req.user.id, userType);
   }
 
   @Put('update-personal')
@@ -103,7 +103,7 @@ export class ProfileController {
   @Get('admin/audit/:userId')
   async getAdminAudit(@Req() req: any, @Param('userId', ParseIntPipe) userId: number) {
     const userType = req.user.type?.toUpperCase();
-    if (userType !== 'SUPER_ADMIN' && userType !== 'CLIENT_ADMIN') {
+    if (userType !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Admin access required');
     }
     return this.profileService.getAdminAudit(req.user.id, userId);

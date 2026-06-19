@@ -25,7 +25,7 @@ export class EmployeesDocumentService {
     const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    if (actor.type === 'super_admin' || actor.type === 'client_admin') {
+    if (actor.type === 'super_admin') {
       return;
     }
 
@@ -33,6 +33,8 @@ export class EmployeesDocumentService {
     if (isSelf) {
       return;
     }
+
+
 
     const actorEmployee = await this.employeeModel.findOne({ where: { userId: actor.userId, companyId } });
     if (actorEmployee) {
@@ -142,7 +144,9 @@ export class EmployeesDocumentService {
 
     if (actor) {
       const isSelf = employee.userId !== null && employee.userId !== undefined && employee.userId === actor.userId;
-      const isAdmin = actor.type === 'super_admin' || actor.type === 'client_admin';
+      let isAdmin = actor.type === 'super_admin';
+
+
 
       if (!isSelf && !isAdmin) {
         throw new ForbiddenException('Access denied to delete this document');

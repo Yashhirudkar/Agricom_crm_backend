@@ -47,28 +47,7 @@ export class AttendanceController {
     return employeeId;
   }
 
-  private async checkUserHasPermission(userId: number, companyId: number, resource: string, action: string): Promise<boolean> {
-    const query = `
-      SELECT COUNT(rap.id) as count
-      FROM user_companies uc
-      JOIN role_action_permissions rap ON uc."roleId" = rap.role_id
-      JOIN resource_actions ra ON rap.resource_action_id = ra.id
-      JOIN module_resources mr ON ra.resource_id = mr.id
-      WHERE uc."userId" = :userId 
-        AND uc."companyId" = :companyId 
-        AND uc.status = 'Active'
-        AND mr.name = :resource
-        AND ra.name = :action
-    `;
-    const sequelize = (this.attendanceService as any).attendanceRecordModel?.sequelize || (this.attendanceService as any).employeeModel?.sequelize;
-    if (!sequelize) return false;
-    
-    const dbResult = await sequelize.query(query, {
-      replacements: { userId, companyId, resource, action: action.toUpperCase() },
-      type: 'SELECT'
-    }) as any[];
-    return dbResult.length > 0 && parseInt(dbResult[0].count || dbResult[0].COUNT || '0', 10) > 0;
-  }
+
 
   @Post('check-in')
   @RequirePermission('attendance_activity:create')
@@ -219,14 +198,6 @@ export class AttendanceController {
     }
 
     const isSelf = req.user.employeeId && req.user.employeeId === targetEmployeeId;
-    const isSystemAdmin = req.user.type === 'super_admin' || req.user.type === 'client_admin';
-
-    if (!isSelf && !isSystemAdmin) {
-      const hasPermission = await this.checkUserHasPermission(req.user.userId || req.user.sub, companyId, 'attendance_reports', 'read');
-      if (!hasPermission) {
-        throw new ForbiddenException('Insufficient permissions. Required: attendance_reports:read to view others attendance');
-      }
-    }
 
     return this.attendanceService.getMonthlyReport(companyId, { month, year, employeeId: targetEmployeeId });
   }

@@ -46,8 +46,6 @@ export class UsersController {
     @Request() req,
     @Query() filterDto: GetUsersFilterDto,
   ) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
       ? (filterDto.clientId ? parseInt(filterDto.clientId, 10) : null)
@@ -85,8 +83,6 @@ export class UsersController {
   @RequirePermission('users:create')
   @HttpCode(HttpStatus.CREATED)
   async createUser(@Body() dto: CreateUserDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     let targetClientId = req.user.clientId;
 
@@ -122,8 +118,6 @@ export class UsersController {
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
   async updateUser(@Body() dto: UpdateUserDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
 
     if (!isSuper) {
@@ -163,8 +157,6 @@ export class UsersController {
   @RequirePermission('users:delete')
   @HttpCode(HttpStatus.OK)
   async deleteUser(@Body() dto: DeleteUserDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
 
     if (!isSuper) {
@@ -193,8 +185,6 @@ export class UsersController {
   @Get('GetUserById')
   @RequirePermission('users:read')
   async getUserById(@Query('id', ParseIntPipe) id: number, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const user = await this.usersService.findByIdWithRoles(id);
     if (!user) throw new ForbiddenException('User not found');
@@ -213,8 +203,6 @@ export class UsersController {
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
   async assignUserToCompany(@Body() dto: AssignUserToCompanyDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');
@@ -238,8 +226,6 @@ export class UsersController {
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
   async removeUserFromCompany(@Body() dto: RemoveUserFromCompanyDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');
@@ -258,8 +244,6 @@ export class UsersController {
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
   async updateUserCompanyRole(@Body() dto: UpdateUserCompanyRoleDto, @Request() req) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');

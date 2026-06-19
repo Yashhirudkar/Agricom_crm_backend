@@ -25,8 +25,6 @@ export class AuditController {
     @Query('userId') userId?: string,
     @Query('clientId') filterClientId?: string,
   ) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
       ? (filterClientId ? parseInt(filterClientId, 10) : null)

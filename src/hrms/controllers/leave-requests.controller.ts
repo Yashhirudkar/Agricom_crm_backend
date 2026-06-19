@@ -127,7 +127,7 @@ export class LeaveRequestsController {
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
-    if (!approverId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
+    if (!approverId && actor.type === 'super_admin') {
       approverId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
     }
 
@@ -142,7 +142,7 @@ export class LeaveRequestsController {
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
-    if (!approverId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
+    if (!approverId && actor.type === 'super_admin') {
       approverId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
     }
 
@@ -157,7 +157,7 @@ export class LeaveRequestsController {
     const actor = this.getActor(req);
     let employeeId = req.user.employeeId;
 
-    if (!employeeId && (actor.type === 'client_admin' || actor.type === 'super_admin')) {
+    if (!employeeId && actor.type === 'super_admin') {
       employeeId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
     }
 

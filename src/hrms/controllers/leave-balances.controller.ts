@@ -27,26 +27,7 @@ export class LeaveBalancesController {
     return parseInt(companyId, 10);
   }
 
-  private async checkUserHasPermission(userId: number, companyId: number, resource: string, action: string): Promise<boolean> {
-    const query = `
-      SELECT COUNT(rap.id) as count
-      FROM user_companies uc
-      JOIN role_action_permissions rap ON uc."roleId" = rap.role_id
-      JOIN resource_actions ra ON rap.resource_action_id = ra.id
-      JOIN module_resources mr ON ra.resource_id = mr.id
-      WHERE uc."userId" = :userId 
-        AND uc."companyId" = :companyId 
-        AND uc.status = 'Active'
-        AND mr.name = :resource
-        AND ra.name = :action
-    `;
-    const sequelize = (this.leaveBalancesService as any).employeeLeaveBalanceModel.sequelize;
-    const dbResult = await sequelize.query(query, {
-      replacements: { userId, companyId, resource, action: action.toUpperCase() },
-      type: 'SELECT'
-    }) as any[];
-    return dbResult.length > 0 && parseInt(dbResult[0].count || dbResult[0].COUNT || '0', 10) > 0;
-  }
+
 
   @Get('employee/:employeeId')
   @RequirePermission('leave:read')
@@ -77,15 +58,8 @@ export class LeaveBalancesController {
     }
 
     // Dynamic Auth Check: Allow if user is checking their own balance or has leave:read permission
-    const isSelf = req.user.employeeId && req.user.employeeId === employeeId;
-    const isSystemAdmin = actor.type === 'super_admin' || actor.type === 'client_admin';
 
-    if (!isSelf && !isSystemAdmin) {
-      const hasPermission = await this.checkUserHasPermission(actor.userId, companyId, 'leave', 'approve');
-      if (!hasPermission) {
-        throw new ForbiddenException('Insufficient permissions. Required: leave:approve');
-      }
-    }
+
 
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
     return this.leaveBalancesService.getBalancesForEmployee(employeeId, companyId, year);

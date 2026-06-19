@@ -62,8 +62,6 @@ export class UserInvitationController {
     @Request() req,
     @Query('clientId') filterClientId?: string,
   ) {
-    if (req.user.type === 'user') throw new ForbiddenException('Access denied');
-
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
       ? filterClientId

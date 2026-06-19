@@ -39,8 +39,8 @@ export class ProfileService {
     }
   }
 
-  async getProfile(userId: number, roles: string[]) {
-    const isSuperAdmin = roles.includes('SUPER_ADMIN');
+  async getProfile(userId: number, userType: string) {
+    const isSuperAdmin = userType === 'super_admin';
 
     const user = await this.userModel.findByPk(userId, {
       attributes: ['id', 'name', 'email', 'avatarUrl', 'isActive', 'status', 'lastLogin'],
@@ -50,7 +50,7 @@ export class ProfileService {
 
     const prefs = await this.userPrefModel.findOne({ where: { userId } });
 
-    if (isSuperAdmin && !roles.includes('EMPLOYEE')) {
+    if (userType === 'super_admin' || userType === 'client_admin') {
       return { user, preferences: prefs, type: 'ACCOUNT_LEVEL' };
     }
 
@@ -85,9 +85,9 @@ export class ProfileService {
     });
   }
 
-  async getLeaveSummary(userId: number, roles: string[]) {
-    if (roles.includes('SUPER_ADMIN') && !roles.includes('EMPLOYEE')) {
-      throw new ForbiddenException('Super Admins cannot access leave data');
+  async getLeaveSummary(userId: number, userType: string) {
+    if (userType === 'super_admin' || userType === 'client_admin') {
+      return [];
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -97,9 +97,9 @@ export class ProfileService {
     });
   }
 
-  async getDocumentStatus(userId: number, roles: string[]) {
-    if (roles.includes('SUPER_ADMIN') && !roles.includes('EMPLOYEE')) {
-      throw new ForbiddenException('Super Admins cannot access document data');
+  async getDocumentStatus(userId: number, userType: string) {
+    if (userType === 'super_admin' || userType === 'client_admin') {
+      return [];
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -110,9 +110,14 @@ export class ProfileService {
     });
   }
 
-  async getAttendanceSummary(userId: number, roles: string[]) {
-    if (roles.includes('SUPER_ADMIN') && !roles.includes('EMPLOYEE')) {
-      throw new ForbiddenException('Super Admins cannot access attendance data');
+  async getAttendanceSummary(userId: number, userType: string) {
+    if (userType === 'super_admin' || userType === 'client_admin') {
+      return {
+        attendancePercentage: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateEntries: 0,
+      };
     }
     // Mocking attendance summary since actual attendance module might not be fully there
     return {
@@ -130,8 +135,8 @@ export class ProfileService {
     });
   }
 
-  async getCompletion(userId: number, roles: string[]) {
-    if (roles.includes('SUPER_ADMIN') && !roles.includes('EMPLOYEE')) {
+  async getCompletion(userId: number, userType: string) {
+    if (userType === 'super_admin' || userType === 'client_admin') {
       return { completionPercentage: 100 }; // simple for super admin
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });

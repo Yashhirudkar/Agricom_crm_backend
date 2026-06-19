@@ -65,12 +65,6 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     const adminRole = await this.roleModel.findOne({ where: { name: 'Admin', clientId: null } });
     const clientAdminRole = await this.roleModel.findOne({ where: { name: 'Client Admin', clientId: null } });
 
-    // Ensure default Uncategorized AppModule exists
-    const [defaultModule] = await this.appModuleModel.findOrCreate({
-      where: { name: 'Uncategorized' },
-      defaults: { name: 'Uncategorized', sort_order: 999 } as any,
-    });
-
     for (const permKey of permissions) {
       // Split into resource and action (e.g. 'inventory:create')
       let [resourceName, actionName] = permKey.split(':');
@@ -78,18 +72,43 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       
       actionName = actionName.toUpperCase(); // e.g. create -> CREATE
 
-      const [resource] = await this.moduleResourceModel.findOrCreate({
-        where: { name: resourceName },
-        defaults: { name: resourceName, display_name: resourceName, module_id: defaultModule.id, sort_order: 0 } as any,
+      let moduleName = resourceName
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      
+      // Map to desired frontend matrix modules
+      if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
+      else if (resourceName === 'leave_requests' || resourceName === 'leave') moduleName = 'Leaves';
+      else if (resourceName === 'leave_types') moduleName = 'Leave Types';
+      else if (resourceName.startsWith('employee_')) moduleName = 'Employees';
+      else if (resourceName.startsWith('attendance_')) moduleName = 'Attendance';
+
+      const isSystemLevel = ['clients', 'subscriptions', 'system'].includes(resourceName) || resourceName.startsWith('system');
+      
+      const [sysModule] = await this.appModuleModel.findOrCreate({
+        where: { name: moduleName },
+        defaults: { name: moduleName, sort_order: isSystemLevel ? 99 : 10 } as any,
       });
+      const targetModuleId = sysModule.id;
+
+      const [resource, created] = await this.moduleResourceModel.findOrCreate({
+        where: { name: resourceName },
+        defaults: { name: resourceName, display_name: resourceName, module_id: targetModuleId, sort_order: 0 } as any,
+      });
+
+      // Update module_id if resource was stuck in Uncategorized or moved
+      if (!created && resource.module_id !== targetModuleId) {
+        resource.module_id = targetModuleId;
+        await resource.save();
+      }
 
       const [action] = await this.resourceActionModel.findOrCreate({
         where: { name: actionName, resource_id: resource.id },
         defaults: { name: actionName, display_name: actionName, resource_id: resource.id, sort_order: 0 } as any,
       });
 
-      // System level permissions logic
-      const isSystemLevel = ['clients', 'subscriptions', 'system'].includes(resourceName) || resourceName.startsWith('system');
+      // System level permissions logic already evaluated as isSystemLevel
 
       // Assign to Admin role
       if (adminRole) {
