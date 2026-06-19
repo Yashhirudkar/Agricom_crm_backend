@@ -11,6 +11,8 @@ import { UserCompany } from '../../users/models/user-company.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { UsersService } from '../../users/services/users.service';
 import { StorageService } from './storage.service';
+import { EmployeesOrgService } from './employees-org.service';
+import { EmployeesDocumentService } from './employees-document.service';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -32,13 +34,9 @@ export class EmployeesService {
     private readonly usersService: UsersService,
     private readonly storageService: StorageService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly orgService: EmployeesOrgService,
+    private readonly documentService: EmployeesDocumentService,
   ) {}
-
-  private async isCircularManager(employeeId: number, managerId: number, companyId: number): Promise<boolean> {
-    if (employeeId === managerId) return true;
-    const subordinates = await this.getAllSubordinates(employeeId, companyId);
-    return subordinates.some(sub => sub.id === managerId);
-  }
 
   private async generateEmployeeCode(companyId: number): Promise<string> {
     const lastEmployee = await this.employeeModel.findOne({
@@ -262,7 +260,7 @@ export class EmployeesService {
         if (manager.status === EmployeeStatus.TERMINATED) {
           throw new BadRequestException('A terminated employee cannot be assigned as a manager');
         }
-        const isCircular = await this.isCircularManager(employee.id, data.managerId, companyId);
+        const isCircular = await this.orgService.isCircularManager(employee.id, data.managerId, companyId);
         if (isCircular) {
           throw new BadRequestException('Circular reporting hierarchy detected (e.g. manager reports back to this employee)');
         }
@@ -444,400 +442,45 @@ export class EmployeesService {
 
   // --- Organization Hierarchy ---
 
-  private async executeRecursiveCTE(
-    companyId: number,
-    startCondition: string,
-    joinCondition: string,
-    replacements: any
-  ): Promise<any[]> {
-    const query = `
-      WITH RECURSIVE org_tree AS (
-        SELECT e.*, 0 AS depth
-        FROM employees e
-        WHERE e."companyId" = :companyId AND ${startCondition}
-
-        UNION ALL
-
-        SELECT e.*, ot.depth + 1 AS depth
-        FROM employees e
-        INNER JOIN org_tree ot ON ${joinCondition}
-        WHERE e."companyId" = :companyId
-      )
-      SELECT * FROM org_tree;
-    `;
-
-    return this.employeeModel.sequelize!.query(query, {
-      replacements: { companyId, ...replacements },
-      type: QueryTypes.SELECT,
-    });
-  }
-
   async getOrgChart(companyId: number): Promise<any[]> {
-    const rawData = await this.executeRecursiveCTE(
-      companyId,
-      '"managerId" IS NULL',
-      'e."managerId" = ot.id',
-      {}
-    );
-
-    // Build nested tree
-    const map = new Map<number, any>();
-    const roots: any[] = [];
-
-    rawData.forEach(item => {
-      map.set(item.id, { ...item, children: [] });
-    });
-
-    rawData.forEach(item => {
-      if (item.managerId) {
-        const parent = map.get(item.managerId);
-        if (parent) {
-          parent.children.push(map.get(item.id));
-        } else {
-          roots.push(map.get(item.id));
-        }
-      } else {
-        roots.push(map.get(item.id));
-      }
-    });
-
-    return roots;
+    return this.orgService.getOrgChart(companyId);
   }
 
   async getTeam(managerId: number, companyId: number): Promise<Employee[]> {
-    return this.employeeModel.findAll({
-      where: { managerId, companyId },
-      include: [
-        { model: Department, attributes: ['id', 'name'] },
-        { model: Designation, attributes: ['id', 'name'] },
-      ]
-    });
+    return this.orgService.getTeam(managerId, companyId);
   }
 
   async getAllSubordinates(managerId: number, companyId: number): Promise<any[]> {
-    return this.executeRecursiveCTE(
-      companyId,
-      'id = :managerId',
-      'e."managerId" = ot.id',
-      { managerId }
-    );
+    return this.orgService.getAllSubordinates(managerId, companyId);
   }
 
   async getReportingChain(employeeId: number, companyId: number): Promise<any[]> {
-    return this.executeRecursiveCTE(
-      companyId,
-      'id = :employeeId',
-      'e.id = ot."managerId"',
-      { employeeId }
-    );
-  }
-
-  private async checkMaxHierarchyDepth(employeeId: number, newManagerId: number, companyId: number): Promise<void> {
-    if (!newManagerId) return;
-
-    // 1. Get deepest subordinate level of the employee
-    const subordinates = await this.getAllSubordinates(employeeId, companyId);
-    let maxSubordinateDepth = 0;
-    subordinates.forEach(sub => {
-      if (sub.depth > maxSubordinateDepth) maxSubordinateDepth = sub.depth;
-    });
-
-    // 2. Get manager depth from CEO
-    const managerChain = await this.getReportingChain(newManagerId, companyId);
-    const managerDepth = managerChain.length; // includes the manager themselves up to CEO
-
-    if (managerDepth + maxSubordinateDepth > 15) {
-      throw new BadRequestException(`Hierarchy depth limit exceeded. Maximum allowed depth is 15. Proposed depth would be ${managerDepth + maxSubordinateDepth}.`);
-    }
+    return this.orgService.getReportingChain(employeeId, companyId);
   }
 
   async changeManager(employeeId: number, companyId: number, dto: any, actor: any): Promise<{ message: string }> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
-    if (!employee) throw new NotFoundException('Employee not found');
-
-    const newManagerId = dto.newManagerId;
-
-    if (newManagerId === employee.managerId) {
-      throw new BadRequestException('New manager is the same as the current manager');
-    }
-
-    if (newManagerId) {
-      if (newManagerId === employee.id) {
-        throw new BadRequestException('Employee cannot be their own manager');
-      }
-
-      const manager = await this.employeeModel.findOne({ where: { id: newManagerId, companyId } });
-      if (!manager) throw new NotFoundException('Manager not found');
-
-      if (!['ACTIVE', 'CONFIRMED'].includes(manager.status)) {
-        throw new BadRequestException('Manager must be ACTIVE or CONFIRMED');
-      }
-
-      // Loop Prevention
-      const subordinates = await this.getAllSubordinates(employee.id, companyId);
-      if (subordinates.some(sub => sub.id === newManagerId)) {
-        throw new BadRequestException('Circular reporting hierarchy detected (new manager is currently a subordinate)');
-      }
-
-      // Max Depth Check
-      await this.checkMaxHierarchyDepth(employee.id, newManagerId, companyId);
-    }
-
-    const oldRecord = employee.toJSON();
-    const oldManagerId = employee.managerId;
-
-    const t = await this.employeeModel.sequelize!.transaction();
-    try {
-      await employee.update({ managerId: newManagerId || null, updatedBy: actor?.userId }, { transaction: t });
-
-      await t.commit();
-      const updated = await employee.reload();
-
-      if (actor) {
-        await this.auditService.writeDiffLog({
-          clientId: actor.clientId,
-          companyId,
-          userId: actor.userId,
-          entityType: 'Employee',
-          entityId: employee.id,
-          action: 'UPDATE',
-          oldRecord,
-          newRecord: updated,
-          ipAddress: actor.ipAddress,
-          userAgent: actor.userAgent,
-        });
-      }
-
-      this.eventEmitter.emit('employee.manager.changed', {
-        employeeId: employee.id,
-        companyId,
-        oldManagerId,
-        newManagerId,
-        effectiveDate: dto.effectiveDate || new Date().toISOString(),
-        actor,
-      });
-
-      return { message: 'Manager updated successfully' };
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.orgService.changeManager(employeeId, companyId, dto, actor);
   }
 
   // --- Documents ---
 
-  private async checkDocumentAccess(employeeId: number, companyId: number, actor: any): Promise<void> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
-    if (!employee) throw new NotFoundException('Employee not found');
-
-    if (actor.type === 'super_admin' || actor.type === 'client_admin') {
-      return;
-    }
-
-    const isSelf = employee.userId && employee.userId === actor.userId;
-    if (isSelf) {
-      return;
-    }
-
-    const actorEmployee = await this.employeeModel.findOne({ where: { userId: actor.userId, companyId } });
-    if (actorEmployee) {
-      const isManager = await this.isCircularManager(actorEmployee.id, employee.id, companyId);
-      if (isManager) {
-        return;
-      }
-    }
-
-    throw new ForbiddenException('Access denied to this employee documents');
-  }
-
   async addDocument(employeeId: number, companyId: number, data: any, file: Express.Multer.File, actor?: any): Promise<EmployeeDocument> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
-    if (!employee) throw new NotFoundException('Employee not found');
-
-    const relativeDir = `tenants/${companyId}/employees/${employeeId}/documents`;
-    const uniqueFilename = `${crypto.randomUUID()}${path.extname(file.originalname)}`;
-    const filePath = await this.storageService.uploadFile(file, relativeDir, uniqueFilename);
-
-    const t = await this.employeeModel.sequelize!.transaction();
-    try {
-      const existingDoc = await this.employeeDocumentModel.findOne({
-        where: { employeeId, documentType: data.documentType, isActive: true },
-        order: [['version', 'DESC']],
-        transaction: t,
-      });
-
-      let version = 1;
-      if (existingDoc) {
-        version = existingDoc.version + 1;
-        await existingDoc.update({ isActive: false }, { transaction: t });
-      }
-
-      const document = await this.employeeDocumentModel.create({
-        employeeId,
-        companyId,
-        documentCategory: data.documentCategory,
-        documentType: data.documentType,
-        documentName: data.documentName || data.documentType,
-        fileName: file.originalname,
-        fileUrl: '', // Populated next
-        filePath,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-        documentNumber: data.documentNumber || null,
-        issueDate: data.issueDate || null,
-        expiryDate: data.expiryDate || null,
-        notifyBeforeExpiryDays: data.notifyBeforeExpiryDays || null,
-        verificationStatus: VerificationStatus.PENDING,
-        isMandatory: data.isMandatory === 'true' || data.isMandatory === true,
-        version,
-        isActive: true,
-        uploadedBy: actor?.userId || null,
-      } as any, { transaction: t });
-
-      const fileUrl = `/employees/${employeeId}/documents/${document.id}/download`;
-      await document.update({ fileUrl }, { transaction: t });
-
-      await t.commit();
-
-      if (actor) {
-        await this.auditService.writeDiffLog({
-          clientId: actor.clientId,
-          companyId,
-          userId: actor.userId,
-          entityType: 'EmployeeDocument',
-          entityId: document.id,
-          action: 'CREATE',
-          newRecord: document,
-          ipAddress: actor.ipAddress,
-          userAgent: actor.userAgent,
-        });
-      }
-
-      return document;
-    } catch (err) {
-      await t.rollback();
-      await this.storageService.deleteFile(filePath).catch(() => {});
-      throw err;
-    }
+    return this.documentService.addDocument(employeeId, companyId, data, file, actor);
   }
 
   async getDocuments(employeeId: number, companyId: number, actor?: any): Promise<EmployeeDocument[]> {
-    if (actor) {
-      await this.checkDocumentAccess(employeeId, companyId, actor);
-    }
-
-    return this.employeeDocumentModel.findAll({
-      where: { employeeId, isActive: true },
-      include: [
-        { model: User, as: 'uploader', attributes: ['id', 'name'] },
-        { model: User, as: 'verifier', attributes: ['id', 'name'] },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    return this.documentService.getDocuments(employeeId, companyId, actor);
   }
 
   async deleteDocument(employeeId: number, documentId: number, companyId: number, actor?: any): Promise<{ message: string }> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
-    if (!employee) throw new NotFoundException('Employee not found');
-
-    const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
-    });
-    if (!document) throw new NotFoundException('Document not found');
-
-    if (actor) {
-      const isSelf = employee.userId !== null && employee.userId !== undefined && employee.userId === actor.userId;
-      const isAdmin = actor.type === 'super_admin' || actor.type === 'client_admin';
-
-      if (!isSelf && !isAdmin) {
-        throw new ForbiddenException('Access denied to delete this document');
-      }
-
-      if (isSelf && !isAdmin) {
-        if (document.verificationStatus === VerificationStatus.VERIFIED) {
-          throw new BadRequestException('Verified documents cannot be deleted by the employee');
-        }
-      }
-    }
-
-    const oldRecord = document.toJSON();
-
-    if (actor) {
-      await this.auditService.writeDiffLog({
-        clientId: actor.clientId,
-        companyId,
-        userId: actor.userId,
-        entityType: 'EmployeeDocument',
-        entityId: document.id,
-        action: 'DELETE',
-        oldRecord,
-        ipAddress: actor.ipAddress,
-        userAgent: actor.userAgent,
-      });
-    }
-
-    if (document.filePath) {
-      await this.storageService.deleteFile(document.filePath);
-    }
-
-    await document.destroy();
-    return { message: 'Document deleted successfully' };
+    return this.documentService.deleteDocument(employeeId, documentId, companyId, actor);
   }
 
   async verifyDocument(employeeId: number, documentId: number, companyId: number, data: any, actor?: any): Promise<EmployeeDocument> {
-    const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
-    });
-    if (!document) throw new NotFoundException('Document not found');
-
-    if (document.expiryDate && new Date(document.expiryDate) < new Date()) {
-      throw new BadRequestException('Cannot verify an expired document');
-    }
-
-    const oldRecord = document.toJSON();
-
-    const t = await this.employeeDocumentModel.sequelize!.transaction();
-    try {
-      await document.update({
-        verificationStatus: data.verificationStatus,
-        verificationRemarks: data.verificationRemarks || null,
-        verifiedBy: actor?.userId || null,
-        verifiedAt: new Date(),
-      }, { transaction: t });
-
-      await t.commit();
-      const updated = await document.reload();
-
-      if (actor) {
-        await this.auditService.writeDiffLog({
-          clientId: actor.clientId,
-          companyId,
-          userId: actor.userId,
-          entityType: 'EmployeeDocument',
-          entityId: document.id,
-          action: 'UPDATE',
-          oldRecord,
-          newRecord: updated,
-          ipAddress: actor.ipAddress,
-          userAgent: actor.userAgent,
-        });
-      }
-
-      return updated;
-    } catch (err) {
-      await t.rollback();
-      throw err;
-    }
+    return this.documentService.verifyDocument(employeeId, documentId, companyId, data, actor);
   }
 
   async downloadDocument(employeeId: number, documentId: number, companyId: number, actor: any): Promise<string> {
-    await this.checkDocumentAccess(employeeId, companyId, actor);
-
-    const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
-    });
-    if (!document) throw new NotFoundException('Document not found');
-
-    return this.storageService.getAbsoluteFilePath(document.filePath);
+    return this.documentService.downloadDocument(employeeId, documentId, companyId, actor);
   }
 }

@@ -26,6 +26,8 @@ import { DesignationsService } from '../services/designations.service';
 import { DesignationsController } from '../controllers/designations.controller';
 
 import { EmployeesService } from '../services/employees.service';
+import { EmployeesOrgService } from '../services/employees-org.service';
+import { EmployeesDocumentService } from '../services/employees-document.service';
 import { EmployeesController } from '../controllers/employees.controller';
 import { StorageService } from '../services/storage.service';
 
@@ -60,7 +62,7 @@ import { AttendanceModule } from '../../attendance/attendance.module';
     AttendanceModule,
   ],
   providers: [
-    DepartmentsService, DesignationsService, EmployeesService, StorageService, 
+    DepartmentsService, DesignationsService, EmployeesService, EmployeesOrgService, EmployeesDocumentService, StorageService, 
     BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService
   ],
   controllers: [
@@ -68,7 +70,7 @@ import { AttendanceModule } from '../../attendance/attendance.module';
     BranchesController, LeaveTypesController, LeaveBalancesController, LeaveRequestsController
   ],
   exports: [
-    DepartmentsService, DesignationsService, EmployeesService, StorageService, 
+    DepartmentsService, DesignationsService, EmployeesService, EmployeesOrgService, EmployeesDocumentService, StorageService, 
     BranchesService, LeaveTypesService, LeaveBalancesService, LeaveRequestsService
   ],
 })
