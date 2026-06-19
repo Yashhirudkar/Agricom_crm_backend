@@ -67,6 +67,17 @@ export class SystemService {
 
     const filteredStandaloneItems = standaloneItems.filter(i => allowedItemIds.includes(i.id));
 
+    console.log("=== system.service.ts ===");
+    console.log("allFolders count:", folders.length);
+    console.log("allowedFolderIds count:", allowedFolderIds.length);
+    console.log("filteredFolders count:", filteredFolders.length);
+    console.log("allItems count (standalone):", standaloneItems.length);
+
+    console.log({
+     foldersCount: filteredFolders.length,
+     standaloneItemsCount: filteredStandaloneItems.length
+    });
+
     return { folders: filteredFolders, standaloneItems: filteredStandaloneItems };
   }
 }

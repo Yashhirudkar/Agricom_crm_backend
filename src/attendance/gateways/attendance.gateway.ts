@@ -36,6 +36,7 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
    */
   private serializePayload(record: any, action: string) {
     return {
+      id: record.id,
       employeeId: record.employeeId,
       companyId: record.companyId,
       action,
@@ -44,7 +45,10 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
       checkInTime: record.checkInTime,
       checkOutTime: record.checkOutTime,
       date: record.date,
+      totalHours: record.totalHours,
+      overtimeHours: record.overtimeHours,
       timestamp: new Date(),
+      employee: record.employee ? (record.employee.toJSON ? record.employee.toJSON() : record.employee) : undefined,
     };
   }
 
@@ -158,10 +162,16 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
   }
 
   emitAttendanceUpdate(action: string, record: any) {
-    // No-op for simplification
+    console.log("socket emit event name", 'attendance-update');
+    console.log("payload data", record);
+    const payload = this.serializePayload(record, action);
+    console.log("serialized payload", payload);
+    this.server.to(`company-${record.companyId}`).emit('attendance-update', payload);
+    this.server.to(`employee-${record.employeeId}`).emit('attendance-update', payload);
   }
 
   emitBatchUpdate(records: any[], companyId: number) {
-    // No-op for simplification
+    const serializedRecords = records.map(record => this.serializePayload(record, 'batch_update'));
+    this.server.to(`company-${companyId}`).emit('attendance-batch-update', serializedRecords);
   }
 }

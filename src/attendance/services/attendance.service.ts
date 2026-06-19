@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AttendanceRecord, AttendanceStatus, AttendanceState, AttendanceSource } from '../models/attendance-record.model';
@@ -21,6 +22,8 @@ import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto } from '../dto/attendance.dto';
 import { Op, Transaction } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
+import { User } from '../../users/models/user.model';
+import { Designation } from '../../hrms/models/designation.model';
 
 @Injectable()
 export class AttendanceService {
@@ -237,13 +240,17 @@ export class AttendanceService {
       } else {
         await record.update({
           attendanceState: AttendanceState.WORKING,
+          checkInTime: currentPunchTime,
           checkOutTime: null,
+          totalHours: 0,
+          overtimeHours: 0,
           attendanceSource: AttendanceSource.SELF_PUNCH,
           lateMinutes: record.checkInTime ? record.lateMinutes : lateMinutes,
           locationLat: dto.locationLat || null,
           locationLng: dto.locationLng || null,
           shiftId: shift.id,
         }, { transaction: t });
+        await record.reload({ transaction: t });
       }
 
       // Create log
@@ -263,13 +270,17 @@ export class AttendanceService {
 
       await t.commit();
 
+      // After committing, fetch a fresh record to ensure all values are up-to-date from the database.
+      // This bypasses any potential in-transaction caching or staleness of the 'record' instance.
+      const freshRecord = await this.recordModel.findByPk(record.id);
+
       try {
-        this.attendanceGateway.emitCheckedIn(record);
+        this.attendanceGateway.emitCheckedIn(freshRecord);
       } catch (err) {
         console.error('Socket emit error in checkIn:', err);
       }
 
-      return record;
+      return freshRecord;
     } catch (error: any) {
       await t.rollback();
       if (error.name === 'SequelizeUniqueConstraintError') {
@@ -336,18 +347,11 @@ export class AttendanceService {
         transaction: t,
       });
 
-      let totalWorkMs = 0;
       let breakDurationMs = 0;
-      let lastIn: Date | null = null;
       let breakStart: Date | null = null;
 
       for (const log of logs) {
-        if (log.actionType === AttendanceActionType.CHECK_IN) {
-          lastIn = new Date(log.timestamp);
-        } else if (log.actionType === AttendanceActionType.CHECK_OUT && lastIn) {
-          totalWorkMs += log.timestamp.getTime() - lastIn.getTime();
-          lastIn = null;
-        } else if (log.actionType === AttendanceActionType.BREAK_START) {
+        if (log.actionType === AttendanceActionType.BREAK_START) {
           breakStart = new Date(log.timestamp);
         } else if (log.actionType === AttendanceActionType.BREAK_END && breakStart) {
           breakDurationMs += log.timestamp.getTime() - breakStart.getTime();
@@ -355,10 +359,8 @@ export class AttendanceService {
         }
       }
 
-      // Add the current session time
-      if (lastIn) {
-        totalWorkMs += checkOutTime.getTime() - lastIn.getTime();
-      }
+      // Calculate total work from CURRENT checkInTime to avoid stale sessions
+      let totalWorkMs = checkOutTime.getTime() - checkInTime.getTime();
 
       if (breakStart) {
         // Log auto break end if checked out during break
@@ -448,6 +450,7 @@ export class AttendanceService {
         attendanceStatus: finalStatus,
         attendanceState: AttendanceState.CHECKED_OUT,
       }, { transaction: t });
+      await record.reload({ transaction: t });
 
       await this.logModel.create({
         employeeId,
@@ -611,11 +614,13 @@ export class AttendanceService {
     const t = await this.recordModel.sequelize!.transaction();
 
     try {
+      console.log("BEFORE record fetch");
       let record = await this.recordModel.findOne({
         where: { employeeId: employee.id, date: requestDateStr },
         lock: t.LOCK.UPDATE,
         transaction: t,
       });
+      console.log("AFTER record fetch");
 
       if (record && record.isPayrollLocked) {
         throw new ForbiddenException('Attendance locked after payroll processing');
@@ -656,10 +661,31 @@ export class AttendanceService {
       }
 
       if (finalCheckIn && finalCheckOut) {
-        // Calculate break duration
+        // Calculate actual break duration from logs instead of shift default
+        let breakDurationMs = 0;
+        if (record && record.id) {
+          const logs = await this.logModel.findAll({
+            where: { attendanceRecordId: record.id },
+            order: [['timestamp', 'ASC']],
+            transaction: t,
+          });
+          let breakStart: Date | null = null;
+          for (const log of logs) {
+            if (log.actionType === AttendanceActionType.BREAK_START) {
+              breakStart = new Date(log.timestamp);
+            } else if (log.actionType === AttendanceActionType.BREAK_END && breakStart) {
+              breakDurationMs += log.timestamp.getTime() - breakStart.getTime();
+              breakStart = null;
+            }
+          }
+          if (breakStart && finalCheckOut.getTime() > breakStart.getTime()) {
+             breakDurationMs += finalCheckOut.getTime() - breakStart.getTime();
+          }
+        }
+
         const breakMinutes = shift.breakMinutes || 0;
         const totalDurationMs = finalCheckOut.getTime() - finalCheckIn.getTime();
-        totalHours = Math.max(0, parseFloat(((totalDurationMs - (breakMinutes * 60 * 1000)) / (1000 * 60 * 60)).toFixed(2)));
+        totalHours = Math.max(0, parseFloat(((totalDurationMs - breakDurationMs) / (1000 * 60 * 60)).toFixed(2)));
 
         // Shift duration for OT
         const [shStart, smStart] = shift.startTime.split(':').map(Number);
@@ -678,7 +704,7 @@ export class AttendanceService {
       // Determine Status
       const minHoursPresent = policy?.minHoursForPresent !== undefined ? Number(policy.minHoursForPresent) : 8;
       const minHoursHalfDay = policy?.minHoursForHalfDay !== undefined ? Number(policy.minHoursForHalfDay) : 4;
-      let finalStatus = AttendanceStatus.PRESENT;
+      let finalStatus = record ? record.attendanceStatus : AttendanceStatus.PRESENT;
 
       if (finalCheckIn && !finalCheckOut) {
         finalStatus = lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
@@ -689,6 +715,8 @@ export class AttendanceService {
           finalStatus = AttendanceStatus.HALF_DAY;
         } else if (lateMinutes > 0) {
           finalStatus = AttendanceStatus.LATE;
+        } else {
+          finalStatus = AttendanceStatus.PRESENT;
         }
       } else {
         finalStatus = AttendanceStatus.ABSENT;
@@ -710,7 +738,9 @@ export class AttendanceService {
           attendanceState: stateToSet,
           shiftId: shift.id,
         } as any, { transaction: t });
+        await record.reload({ transaction: t });
       } else {
+        console.log("BEFORE record.update");
         await record.update({
           checkInTime: finalCheckIn,
           checkOutTime: finalCheckOut,
@@ -722,6 +752,9 @@ export class AttendanceService {
           attendanceSource: AttendanceSource.REGULARIZATION_APPROVED,
           shiftId: shift.id,
         }, { transaction: t });
+        console.log("AFTER record.update");
+        await record.reload({ transaction: t });
+        console.log("AFTER record.reload");
       }
 
       // Update Exception status
@@ -749,16 +782,38 @@ export class AttendanceService {
         },
       } as any, { transaction: t });
 
-      await t.commit();
+      await t.commit(); // Ensure all DB changes are committed
+      console.log("AFTER transaction commit");
 
-      if (record) {
-        try {
-          this.attendanceGateway.emitAttendanceUpdate('regularization_approved', record);
-        } catch (err) {
-          console.error('Socket emit error in approveCorrection:', err);
-        }
+      // --- PATCH START ---
+      // Fetch a fresh AttendanceRecord after commit to ensure all fields are up-to-date.
+      // This resolves stale data issues for returned objects and websocket emissions.
+      let freshRecord = null;
+      if (record) { // Only fetch if a record was actually created or updated
+        freshRecord = await this.recordModel.findByPk(record.id, {
+          include: [Employee]
+        });
+      }
+      console.log("AFTER fresh DB query");
+      // --- PATCH END ---
+
+      if (!freshRecord) {
+         throw new InternalServerErrorException(
+            "Failed to fetch updated attendance record after approval"
+         );
       }
 
+      this.attendanceGateway.emitAttendanceUpdate(
+         "regularization_approved",
+         freshRecord
+      );
+
+      exception.setDataValue(
+         "attendanceRecord",
+         freshRecord
+      );
+
+      console.log("BEFORE return exception");
       return exception;
     } catch (error) {
       await t.rollback();
@@ -825,11 +880,92 @@ export class AttendanceService {
     return this.exceptionModel.findAll({
       where: { status: AttendanceExceptionStatus.PENDING },
       include: [
-        { model: Employee, as: 'employee', where: { companyId } },
+        { 
+          model: Employee, 
+          as: 'employee', 
+          where: { companyId },
+          include: [
+            { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
+          ]
+        },
         { model: AttendanceRecord, as: 'attendanceRecord' }
       ],
       order: [['createdAt', 'DESC']],
     });
+  }
+
+  async getRegularizationHistory(companyId: number, query: any): Promise<any> {
+    const { page = 1, limit = 10, status, employeeId, search, startDate, endDate, approverId } = query;
+    const offset = (page - 1) * limit;
+
+    const whereClause: any = {};
+    if (status) {
+      whereClause.status = status;
+    } else {
+      whereClause.status = { [Op.in]: [AttendanceExceptionStatus.APPROVED, AttendanceExceptionStatus.REJECTED] };
+    }
+
+    if (employeeId) {
+      whereClause.employeeId = employeeId;
+    }
+
+    if (approverId) {
+      whereClause.approvedBy = approverId;
+    }
+
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      if (startDate) {
+        whereClause.createdAt[Op.gte] = new Date(startDate);
+      }
+      if (endDate) {
+        const endD = new Date(endDate);
+        endD.setHours(23, 59, 59, 999);
+        whereClause.createdAt[Op.lte] = endD;
+      }
+    }
+
+    const employeeWhere: any = { companyId };
+    const userWhere: any = {};
+    if (search) {
+      userWhere.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const { rows, count } = await this.exceptionModel.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: Employee,
+          as: 'employee',
+          where: employeeWhere,
+          include: [
+            { model: User, as: 'user', attributes: ['id', 'name', 'email'], where: search ? userWhere : undefined, required: !!search },
+            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
+          ]
+        },
+        {
+          model: Employee,
+          as: 'approver',
+          required: false,
+          include: [
+            { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
+          ]
+        },
+        { model: AttendanceRecord, as: 'attendanceRecord' }
+      ],
+      order: [['updatedAt', 'DESC']],
+      limit,
+      offset,
+    });
+
+    return {
+      data: rows,
+      totalCount: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
   // 8. Get Own Attendance (Self)
@@ -1098,6 +1234,7 @@ export class AttendanceService {
       const records = employeeRecordsMap.get(employee.id) || [];
       const recordMap = new Map<string, AttendanceRecord>();
       for (const rec of records) {
+        console.log("MONTHLY REPORT DB RECORD DATE:", rec.date, typeof rec.date, rec.id);
         recordMap.set(rec.date, rec);
       }
 
@@ -1151,7 +1288,7 @@ export class AttendanceService {
 
         if (record) {
           status = record.attendanceStatus;
-          workHours = Number(record.totalHours || 0);
+          workHours = record.attendanceState === AttendanceState.WORKING ? 0 : Number(record.totalHours || 0);
           overtime = Number(record.overtimeHours || 0);
           lateMinutes = Number(record.lateMinutes || 0);
           checkIn = record.checkInTime;

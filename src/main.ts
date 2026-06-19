@@ -12,7 +12,7 @@ async function bootstrap() {
   });
 
   // Serve static assets (like uploaded profile images)
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
 

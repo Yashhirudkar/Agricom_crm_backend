@@ -13,6 +13,7 @@ import {
   Request,
   BadRequestException,
   ForbiddenException,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { AttendanceService } from '../services/attendance.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -35,6 +36,10 @@ export class AttendanceController {
   }
 
   private async getEmployeeId(req: any): Promise<number> {
+    console.log("GET EMPLOYEE ID CALLED", req.user);
+    if (req.user.employeeId) {
+      return req.user.employeeId;
+    }
     const employeeId = req.user.employeeId;
     if (!employeeId) {
       throw new BadRequestException('Employee profile not linked to your user account.');
@@ -134,6 +139,28 @@ export class AttendanceController {
     return this.attendanceService.getPendingCorrections(companyId);
   }
 
+  @Get('admin/regularization-history')
+  @RequirePermission('attendance_regularization:read')
+  async getRegularizationHistory(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('status') status: string,
+    @Query('employeeId') employeeId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.attendanceService.getRegularizationHistory(companyId, {
+      page,
+      limit,
+      status,
+      employeeId,
+      startDate,
+      endDate,
+    });
+  }
+
   @Post('request-regularization')
   @RequirePermission('attendance_regularization:create')
   async requestCorrection(@Body() dto: RequestCorrectionDto, @Request() req) {
@@ -146,7 +173,12 @@ export class AttendanceController {
   @RequirePermission('attendance_regularization:override')
   async approveCorrection(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolveCorrectionDto, @Request() req) {
     const companyId = this.getCompanyId(req);
-    const approverEmployeeId = await this.getEmployeeId(req);
+    console.log("APPROVE REQUEST USER", {
+      userId: req.user.userId,
+      email: req.user.email,
+      employeeId: req.user.employeeId
+    });
+    const approverEmployeeId = req.user.employeeId;
     return this.attendanceService.approveCorrection(id, companyId, approverEmployeeId, req.user.type, dto);
   }
 

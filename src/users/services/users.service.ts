@@ -64,7 +64,7 @@ export class UsersService {
         {
           model: UserCompany,
           include: [
-            { model: Company, attributes: ['id', 'name'] },
+            { model: Company, attributes: ['id', 'name', 'clientId'] },
             { 
               model: Role, 
               attributes: ['id', 'name'],
@@ -284,9 +284,15 @@ export class UsersService {
     const updatedUser = await this.findByIdWithRoles(id);
 
     if (actor) {
+      let validCompanyId = null;
+      if (user.lastCompanyId) {
+        const companyExists = await this.companyModel.findByPk(user.lastCompanyId);
+        if (companyExists) validCompanyId = user.lastCompanyId;
+      }
+
       await this.auditService.writeDiffLog({
         clientId: user.clientId,
-        companyId: user.lastCompanyId || null,
+        companyId: validCompanyId,
         userId: actor.userId,
         entityType: 'User',
         entityId: id,
@@ -308,9 +314,15 @@ export class UsersService {
     const oldRecord = (await this.findByIdWithRoles(id))?.toJSON();
 
     if (actor) {
+      let validCompanyId = null;
+      if (user.lastCompanyId) {
+        const companyExists = await this.companyModel.findByPk(user.lastCompanyId);
+        if (companyExists) validCompanyId = user.lastCompanyId;
+      }
+
       await this.auditService.writeDiffLog({
         clientId: user.clientId,
-        companyId: user.lastCompanyId || null,
+        companyId: validCompanyId,
         userId: actor.userId,
         entityType: 'User',
         entityId: id,
@@ -319,6 +331,17 @@ export class UsersService {
         ipAddress: actor.ipAddress,
         userAgent: actor.userAgent,
       });
+    }
+
+    // Clean up associated records that might not have ON DELETE CASCADE at the database level
+    if (this.userModel.sequelize) {
+      const models = this.userModel.sequelize.models;
+      if (models.UserPreference) await models.UserPreference.destroy({ where: { userId: id } });
+      if (models.UserPasswordHistory) await models.UserPasswordHistory.destroy({ where: { userId: id } });
+      if (models.ProfileActivityLog) await models.ProfileActivityLog.destroy({ where: { userId: id } });
+      if (models.UserSession) await models.UserSession.destroy({ where: { userId: id } });
+      if (models.UserRole) await models.UserRole.destroy({ where: { userId: id } });
+      if (models.UserCompany) await models.UserCompany.destroy({ where: { userId: id } });
     }
 
     await user.destroy();

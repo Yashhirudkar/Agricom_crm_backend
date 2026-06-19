@@ -92,13 +92,13 @@ export class AuthService {
 
       // Determine type
       let type: 'super_admin' | 'client_admin' | 'user' = 'user';
-      if (user.clientId === null) {
+      const hasSuperAdminRole = user.roles?.some((r) => r.name === 'Admin');
+      const hasClientAdminRole = user.roles?.some((r) => r.name === 'Client Admin');
+
+      if (hasSuperAdminRole || (user.clientId === null && user.email === 'admin@agricom.com')) {
         type = 'super_admin';
-      } else {
-        const hasClientAdminRole = user.roles?.some((r) => r.name === 'Client Admin');
-        if (hasClientAdminRole) {
-          type = 'client_admin';
-        }
+      } else if (hasClientAdminRole) {
+        type = 'client_admin';
       }
 
       const tokens = await this.generateSessionTokens(user.id, user.clientId, user.email, type, ipAddress, userAgent);

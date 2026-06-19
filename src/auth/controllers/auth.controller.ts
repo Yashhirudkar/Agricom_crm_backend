@@ -101,20 +101,30 @@ export class AuthController {
 
     // Determine type
     let type: 'super_admin' | 'client_admin' | 'user' = 'user';
-    if (user.clientId === null) {
+    const hasSuperAdminRole = user.roles?.some((r) => r.name === 'Admin');
+    const hasClientAdminRole = user.roles?.some((r) => r.name === 'Client Admin');
+
+    if (hasSuperAdminRole || (user.clientId === null && user.email === 'admin@agricom.com')) {
       type = 'super_admin';
-    } else {
-      const hasClientAdminRole = user.roles?.some((r) => r.name === 'Client Admin');
-      if (hasClientAdminRole) {
-        type = 'client_admin';
-      }
+    } else if (hasClientAdminRole) {
+      type = 'client_admin';
     }
 
     let workspaces = [];
     let permissions: string[] = [];
+    let derivedClientId = user.clientId;
 
-    const activeCompanyId = req.headers['x-company-id'] || user.lastCompanyId;
+    const activeCompanyId = req.headers['x-company-id'] || user.lastCompanyId || user.userCompanies?.[0]?.company?.id;
 
+    console.log({
+     userId: user.id,
+     clientId: user.clientId,
+     lastCompanyId: user.lastCompanyId,
+     activeCompanyId,
+     userCompaniesCount: user.userCompanies?.length,
+     rolesCount: user.roles?.length
+    });
+    
     if (type === 'client_admin') {
       const allCompanies = await this.userCompanyModel.sequelize!.query(
         `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
@@ -131,17 +141,24 @@ export class AuthController {
         status: c.status || 'Active',
       }));
     } else {
-      workspaces = user.userCompanies?.map((uc) => {
+      workspaces = await Promise.all((user.userCompanies || []).map(async (uc) => {
         // Extract permissions for the active workspace
         if (uc.company?.id?.toString() === activeCompanyId?.toString()) {
-          if (uc.role && uc.role.roleActionPermissions) {
-            permissions = uc.role.roleActionPermissions
-              .map((rp: any) => 
-                rp.resourceAction?.resource 
-                  ? `${rp.resourceAction.resource.name.toLowerCase()}:${rp.resourceAction.name.toLowerCase()}` 
-                  : null
-              )
-              .filter(Boolean) as string[];
+          derivedClientId = uc.company.clientId || derivedClientId;
+          
+          if (uc.role) {
+            const perms = await this.userCompanyModel.sequelize!.query(`
+              SELECT m.name AS resource_name, a.name AS action_name
+              FROM role_action_permissions rap
+              JOIN resource_actions a ON a.id = rap.resource_action_id
+              JOIN module_resources m ON m.id = a.resource_id
+              WHERE rap.role_id = :roleId
+            `, { 
+              replacements: { roleId: uc.role.id }, 
+              type: 'SELECT' 
+            }) as any[];
+            
+            permissions = perms.map((p) => `${p.resource_name.toLowerCase()}:${p.action_name.toLowerCase()}`);
           }
         }
         
@@ -151,8 +168,13 @@ export class AuthController {
           role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
           status: uc.status,
         };
-      }) || [];
+      }));
     }
+
+    console.log({
+     permissionsCount: permissions.length,
+     permissions
+    });
 
     return {
       id: user.id,
@@ -160,7 +182,7 @@ export class AuthController {
       email: user.email,
       type,
       status: user.status,
-      clientId: user.clientId,
+      clientId: derivedClientId,
       lastCompanyId: user.lastCompanyId,
       isActive: user.isActive,
       roles: user.roles?.map((r: any) => ({
@@ -178,18 +200,22 @@ export class AuthController {
   async getMyMenu(@Request() req) {
     const profile = await this.getProfile(req);
     const userPermissions = profile.permissions || [];
-    const isSuperAdmin = profile.type === 'super_admin';
-    const isClientAdmin = profile.type === 'client_admin';
     console.log("=== GET MY MENU DEBUG ===");
     console.log("req.user:", req.user);
     console.log("profile.type:", profile.type);
-    console.log("isSuperAdmin:", isSuperAdmin);
+
+    const isSuperAdmin = profile.type === 'super_admin';
+    const isClientAdmin = profile.type === 'client_admin';
 
     const menuData = await this.systemService.getSidebar({
       type: profile.type,
       clientId: profile.clientId,
       roles: profile.roles || []
     });
+
+    console.log("=== auth.controller.ts ===");
+    console.log("baseMenu folders:", menuData.folders.length);
+    console.log("baseMenu standalone:", menuData.standaloneItems.length);
 
     const filterItem = (item: any) => {
       if (!item.permission_link) return true;
@@ -231,7 +257,9 @@ export class AuthController {
       type: 'item'
     }));
 
-    return [...folders, ...standaloneItems];
+    const finalMenu = [...folders, ...standaloneItems];
+    console.log("FINAL MENU RETURNED:", JSON.stringify(finalMenu, null, 2));
+    return finalMenu;
   }
 
 
