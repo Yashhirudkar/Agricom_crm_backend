@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../models/attendance-record.model';
 import { AttendanceLog } from '../models/attendance-log.model';
+import { AttendanceException, AttendanceExceptionStatus } from '../models/attendance-exception.model';
 import { Shift } from '../models/shift.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { LeaveRequest, LeaveRequestStatus } from '../../hrms/models/leave-request.model';
@@ -10,6 +11,8 @@ import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model'
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { Op } from 'sequelize';
+import { User } from '../../users/models/user.model';
+import { Designation } from '../../hrms/models/designation.model';
 import { AttendanceHelperService } from './attendance-helper.service';
 
 @Injectable()
@@ -17,6 +20,10 @@ export class AttendanceReportService {
   constructor(
     @InjectModel(AttendanceRecord)
     private readonly recordModel: typeof AttendanceRecord,
+    @InjectModel(AttendanceLog)
+    private readonly logModel: typeof AttendanceLog,
+    @InjectModel(AttendanceException)
+    private readonly exceptionModel: typeof AttendanceException,
     @InjectModel(Shift)
     private readonly shiftModel: typeof Shift,
     @InjectModel(Employee)

@@ -27,6 +27,7 @@ import { AttendanceHelperService } from './services/attendance-helper.service';
 import { AttendanceReportService } from './services/attendance-report.service';
 import { AttendanceAdminService } from './services/attendance-admin.service';
 import { AttendanceRegularizationService } from './services/attendance-regularization.service';
+import { AttendanceExceptionsQueryService } from './services/attendance-exceptions-query.service';
 import { ShiftsService } from './services/shifts.service';
 import { AttendanceCronService } from './services/attendance-cron.service';
 import { AttendanceBreakCronService } from './services/attendance-break-cron.service';
@@ -68,7 +69,7 @@ import { AuditModule } from '../audit/modules/audit.module';
     }),
   ],
   controllers: [AttendanceController, ShiftsController],
-  providers: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
-  exports: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  providers: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, AttendanceExceptionsQueryService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  exports: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, AttendanceExceptionsQueryService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
 })
 export class AttendanceModule {}

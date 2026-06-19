@@ -26,6 +26,7 @@ import { AttendanceHelperService } from './attendance-helper.service';
 import { AttendanceReportService } from './attendance-report.service';
 import { AttendanceAdminService } from './attendance-admin.service';
 import { AttendanceRegularizationService } from './attendance-regularization.service';
+import { AttendanceExceptionsQueryService } from './attendance-exceptions-query.service';
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 
@@ -57,6 +58,7 @@ export class AttendanceService {
     private readonly reportService: AttendanceReportService,
     private readonly adminService: AttendanceAdminService,
     private readonly regularizationService: AttendanceRegularizationService,
+    private readonly exceptionsQueryService: AttendanceExceptionsQueryService,
   ) {}
 
   // 1. Employee Check In
@@ -427,11 +429,11 @@ export class AttendanceService {
   }
 
   async getPendingCorrections(companyId: number): Promise<AttendanceException[]> {
-    return this.regularizationService.getPendingCorrections(companyId);
+    return this.exceptionsQueryService.getPendingCorrections(companyId);
   }
 
   async getRegularizationHistory(companyId: number, query: any): Promise<any> {
-    return this.regularizationService.getRegularizationHistory(companyId, query);
+    return this.exceptionsQueryService.getRegularizationHistory(companyId, query);
   }
 
   // 8. Get Own Attendance (Self)
