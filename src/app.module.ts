@@ -68,7 +68,8 @@ import { ClientFolderAccess } from './clients/models/client-folder-access.model'
 import { ClientItemAccess } from './clients/models/client-item-access.model';
 import { ClientModuleAccess } from './clients/models/client-module-access.model';
 import { ClientActionAccess } from './clients/models/client-action-access.model';
-
+import { MastersModule } from './masters/masters.module';
+import { Category } from './masters/category/category.model';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -92,7 +93,7 @@ import { ClientActionAccess } from './clients/models/client-action-access.model'
           username: configService.get<string>('DB_USERNAME'),
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
-          models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess],
+          models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess, Category],
           autoLoadModels: true,
           logging: false,
           retryAttempts: 0,
@@ -112,6 +113,7 @@ import { ClientActionAccess } from './clients/models/client-action-access.model'
     HolidaysModule,
     ProfileModule,
     AttendanceModule,
+    MastersModule,
   ],
 })
 export class AppModule implements NestModule {
