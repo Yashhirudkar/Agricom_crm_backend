@@ -27,7 +27,7 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  @RequirePermission('masters.product.create')
+  @RequirePermission('product:create')
   @AuditLog({ entityType: 'Product', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createProductDto: CreateProductDto) {
@@ -35,19 +35,19 @@ export class ProductController {
   }
 
   @Get()
-  @RequirePermission('masters.product.view')
+  @RequirePermission('product:view')
   findAll(@Query() query: QueryProductDto) {
     return this.productService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.product.view')
+  @RequirePermission('product:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.product.update')
+  @RequirePermission('product:update')
   @AuditLog({ entityType: 'Product', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class ProductController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.product.delete')
+  @RequirePermission('product:delete')
   @AuditLog({ entityType: 'Product', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.productService.remove(id);

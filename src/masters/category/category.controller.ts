@@ -27,7 +27,7 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
-  @RequirePermission('masters.category.create')
+  @RequirePermission('category:create')
   @AuditLog({ entityType: 'Category', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createCategoryDto: CreateCategoryDto) {
@@ -35,19 +35,19 @@ export class CategoryController {
   }
 
   @Get()
-  @RequirePermission('masters.category.view')
+  @RequirePermission('category:view')
   findAll(@Query() query: QueryCategoryDto) {
     return this.categoryService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.category.view')
+  @RequirePermission('category:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.category.update')
+  @RequirePermission('category:update')
   @AuditLog({ entityType: 'Category', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class CategoryController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.category.delete')
+  @RequirePermission('category:delete')
   @AuditLog({ entityType: 'Category', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     // Soft delete sets isActive to false

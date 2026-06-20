@@ -27,7 +27,7 @@ export class HSCodeController {
   constructor(private readonly hsCodeService: HSCodeService) {}
 
   @Post()
-  @RequirePermission('masters.hscode.create')
+  @RequirePermission('hscode:create')
   @AuditLog({ entityType: 'HSCode', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createHSCodeDto: CreateHSCodeDto) {
@@ -35,19 +35,19 @@ export class HSCodeController {
   }
 
   @Get()
-  @RequirePermission('masters.hscode.view')
+  @RequirePermission('hscode:view')
   findAll(@Query() query: QueryHSCodeDto) {
     return this.hsCodeService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.hscode.view')
+  @RequirePermission('hscode:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.hsCodeService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.hscode.update')
+  @RequirePermission('hscode:update')
   @AuditLog({ entityType: 'HSCode', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class HSCodeController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.hscode.delete')
+  @RequirePermission('hscode:delete')
   @AuditLog({ entityType: 'HSCode', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.hsCodeService.remove(id);

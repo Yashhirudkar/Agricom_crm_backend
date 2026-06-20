@@ -27,7 +27,7 @@ export class CountryController {
   constructor(private readonly countryService: CountryService) {}
 
   @Post()
-  @RequirePermission('masters.country.create')
+  @RequirePermission('country:create')
   @AuditLog({ entityType: 'Country', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createCountryDto: CreateCountryDto) {
@@ -35,19 +35,19 @@ export class CountryController {
   }
 
   @Get()
-  @RequirePermission('masters.country.view')
+  @RequirePermission('country:view')
   findAll(@Query() query: QueryCountryDto) {
     return this.countryService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.country.view')
+  @RequirePermission('country:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.countryService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.country.update')
+  @RequirePermission('country:update')
   @AuditLog({ entityType: 'Country', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class CountryController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.country.delete')
+  @RequirePermission('country:delete')
   @AuditLog({ entityType: 'Country', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.countryService.remove(id);

@@ -491,3 +491,41 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
 
   console.log('[Migration] Attendance Management Tables created successfully.');
 }
+
+export async function runMastersSidebarMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+  console.log('[Migration] Safely setting up Masters Sidebar...');
+
+  // Idempotency Check: Does the Masters folder already exist?
+  const [folderCheck] = await sequelize.query(`
+    SELECT id FROM "sidebar_folders" WHERE "name" = 'Masters';
+  `, { transaction });
+
+  if ((folderCheck as any[]).length > 0) {
+    console.log('[Migration] Masters folder already exists. Skipping sidebar migration safely.');
+    return;
+  }
+
+  // Insert Folder
+  const [folderInsert] = await sequelize.query(`
+    INSERT INTO "sidebar_folders" ("name", "icon_name", "sort_order", "is_active", "createdAt", "updatedAt")
+    VALUES ('Masters', 'Database', 60, true, NOW(), NOW())
+    RETURNING id;
+  `, { transaction });
+
+  const folderId = (folderInsert as any)[0].id;
+
+  // Insert Children Items
+  await sequelize.query(`
+    INSERT INTO "sidebar_items" ("name", "route", "icon_name", "folder_id", "sort_order", "is_active", "permission_link", "createdAt", "updatedAt")
+    VALUES 
+      ('Categories', '/masters/categories', 'Tags', ${folderId}, 10, true, 'category:view', NOW(), NOW()),
+      ('Countries', '/masters/countries', 'Globe', ${folderId}, 20, true, 'country:view', NOW(), NOW()),
+      ('HS Codes', '/masters/hs-codes', 'Barcode', ${folderId}, 30, true, 'hscode:view', NOW(), NOW()),
+      ('Partner Roles', '/masters/partner-roles', 'UserCog', ${folderId}, 40, true, 'partnerrole:view', NOW(), NOW()),
+      ('Products', '/masters/products', 'Package', ${folderId}, 50, true, 'product:view', NOW(), NOW()),
+      ('Partners', '/masters/partners', 'Handshake', ${folderId}, 60, true, 'partner:view', NOW(), NOW());
+  `, { transaction });
+
+  console.log('[Migration] Masters Sidebar created successfully.');
+}
+

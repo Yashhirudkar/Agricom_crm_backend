@@ -71,12 +71,18 @@ export class AttendanceRegularizationService {
     const todayDate = new Date(todayDateStr);
     const requestDate = new Date(dto.date);
 
-    const diffTime = Math.abs(todayDate.getTime() - requestDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays > (policy.maxCorrectionDays || 3)) {
+    if (
+      requestDate.getFullYear() !== todayDate.getFullYear() ||
+      requestDate.getMonth() !== todayDate.getMonth()
+    ) {
       throw new BadRequestException(
-        `Correction requests are limited to within ${policy.maxCorrectionDays} days (Requested date: ${dto.date}, Current date: ${todayDateStr})`,
+        `Correction requests are only allowed for dates within the current month (Requested date: ${dto.date}, Current month: ${todayDateStr.substring(0, 7)}).`,
+      );
+    }
+
+    if (requestDate > todayDate) {
+      throw new BadRequestException(
+        `Correction requests cannot be made for future dates (Requested date: ${dto.date}, Current date: ${todayDateStr}).`,
       );
     }
 

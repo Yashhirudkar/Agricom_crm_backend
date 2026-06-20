@@ -27,7 +27,7 @@ export class PartnerRoleController {
   constructor(private readonly partnerRoleService: PartnerRoleService) {}
 
   @Post()
-  @RequirePermission('masters.partnerrole.create')
+  @RequirePermission('partnerrole:create')
   @AuditLog({ entityType: 'PartnerRole', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createPartnerRoleDto: CreatePartnerRoleDto) {
@@ -35,19 +35,19 @@ export class PartnerRoleController {
   }
 
   @Get()
-  @RequirePermission('masters.partnerrole.view')
+  @RequirePermission('partnerrole:view')
   findAll(@Query() query: QueryPartnerRoleDto) {
     return this.partnerRoleService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.partnerrole.view')
+  @RequirePermission('partnerrole:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.partnerRoleService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.partnerrole.update')
+  @RequirePermission('partnerrole:update')
   @AuditLog({ entityType: 'PartnerRole', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class PartnerRoleController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.partnerrole.delete')
+  @RequirePermission('partnerrole:delete')
   @AuditLog({ entityType: 'PartnerRole', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.partnerRoleService.remove(id);

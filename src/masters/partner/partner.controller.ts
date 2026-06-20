@@ -27,7 +27,7 @@ export class PartnerController {
   constructor(private readonly partnerService: PartnerService) {}
 
   @Post()
-  @RequirePermission('masters.partner.create')
+  @RequirePermission('partner:create')
   @AuditLog({ entityType: 'Partner', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createPartnerDto: CreatePartnerDto) {
@@ -35,19 +35,19 @@ export class PartnerController {
   }
 
   @Get()
-  @RequirePermission('masters.partner.view')
+  @RequirePermission('partner:view')
   findAll(@Query() query: QueryPartnerDto) {
     return this.partnerService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('masters.partner.view')
+  @RequirePermission('partner:view')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.partnerService.findOne(id);
   }
 
   @Patch(':id')
-  @RequirePermission('masters.partner.update')
+  @RequirePermission('partner:update')
   @AuditLog({ entityType: 'Partner', action: 'UPDATE' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -57,7 +57,7 @@ export class PartnerController {
   }
 
   @Delete(':id')
-  @RequirePermission('masters.partner.delete')
+  @RequirePermission('partner:delete')
   @AuditLog({ entityType: 'Partner', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.partnerService.remove(id);
