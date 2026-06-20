@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { HSCodeService } from './hs-code.service';
 import { CreateHSCodeDto } from './dto/create-hs-code.dto';
@@ -56,10 +58,39 @@ export class HSCodeController {
     return this.hsCodeService.update(id, updateHSCodeDto);
   }
 
+  @Patch(':id/restore')
+  @RequirePermission('hscode:update')
+  @AuditLog({ entityType: 'HSCode', action: 'RESTORE' })
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.hsCodeService.restore(id, req.user);
+  }
+
   @Delete(':id')
   @RequirePermission('hscode:delete')
   @AuditLog({ entityType: 'HSCode', action: 'DELETE' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.hsCodeService.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason?: string,
+    @Req() req?: any,
+  ) {
+    return this.hsCodeService.remove(id, reason, req?.user);
+  }
+
+  @Delete(':id/permanent')
+  @RequirePermission('hscode:force_delete')
+  @AuditLog({ entityType: 'HSCode', action: 'FORCE_DELETE' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePermanent(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason: string,
+    @Req() req: any,
+  ) {
+    if (req.user.type !== 'super_admin') {
+      throw new ForbiddenException('Super Admin only');
+    }
+    return this.hsCodeService.removePermanent(id, reason, req.user);
   }
 }

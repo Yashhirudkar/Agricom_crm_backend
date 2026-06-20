@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CountryService } from './country.service';
 import { CreateCountryDto } from './dto/create-country.dto';
@@ -56,10 +58,39 @@ export class CountryController {
     return this.countryService.update(id, updateCountryDto);
   }
 
+  @Patch(':id/restore')
+  @RequirePermission('country:update')
+  @AuditLog({ entityType: 'Country', action: 'RESTORE' })
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.countryService.restore(id, req.user);
+  }
+
   @Delete(':id')
   @RequirePermission('country:delete')
   @AuditLog({ entityType: 'Country', action: 'DELETE' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.countryService.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason?: string,
+    @Req() req?: any,
+  ) {
+    return this.countryService.remove(id, reason, req?.user);
+  }
+
+  @Delete(':id/permanent')
+  @RequirePermission('country:force_delete')
+  @AuditLog({ entityType: 'Country', action: 'FORCE_DELETE' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePermanent(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason: string,
+    @Req() req: any,
+  ) {
+    if (req.user.type !== 'super_admin') {
+      throw new ForbiddenException('Super Admin only');
+    }
+    return this.countryService.removePermanent(id, reason, req.user);
   }
 }

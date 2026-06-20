@@ -5,12 +5,16 @@ import { Country } from './country.model';
 import { CreateCountryDto } from './dto/create-country.dto';
 import { UpdateCountryDto } from './dto/update-country.dto';
 import { QueryCountryDto } from './dto/query-country.dto';
+import { DeletionValidatorService } from '../deletion-validator.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 @Injectable()
 export class CountryService {
   constructor(
     @InjectModel(Country)
     private readonly countryModel: typeof Country,
+    private readonly deletionValidator: DeletionValidatorService,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(dto: CreateCountryDto): Promise<Country> {
@@ -76,8 +80,20 @@ export class CountryService {
     return country;
   }
 
+  async findOneActive(id: number): Promise<Country> {
+    return this.findOne(id);
+  }
+
+  async findOneAnyState(id: number): Promise<Country> {
+    const country = await this.countryModel.findByPk(id);
+    if (!country) {
+      throw new NotFoundException('Country not found');
+    }
+    return country;
+  }
+
   async update(id: number, dto: UpdateCountryDto): Promise<Country> {
-    const country = await this.findOne(id);
+    const country = await this.findOneActive(id);
     
     let normalizedName = dto.name;
     let normalizedIso2 = dto.iso2Code;
@@ -113,9 +129,72 @@ export class CountryService {
     return country.reload();
   }
 
-  async remove(id: number): Promise<Country> {
-    const country = await this.findOne(id);
-    await country.update({ isActive: false });
+  async restore(id: number, user: any): Promise<Country> {
+    const country = await this.findOneAnyState(id);
+    const oldIsActive = country.isActive;
+    await country.update({ isActive: true });
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Country',
+      entityId: country.id,
+      action: 'RESTORE',
+      oldValue: { isActive: oldIsActive },
+      newValue: { isActive: true },
+    });
+
     return country.reload();
+  }
+
+  async remove(id: number, reason?: string, user?: any): Promise<Country> {
+    const country = await this.findOneActive(id);
+    await country.update({ isActive: false });
+
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'Country',
+        entityId: id,
+        action: 'DELETE',
+        oldValue: {
+          isActive: true,
+          deletedAt: new Date(),
+          deletedBy: user.userId,
+          deleteReason: reason || 'Deactivated'
+        },
+        newValue: { isActive: false }
+      });
+    }
+
+    return country.reload();
+  }
+
+  async removePermanent(id: number, reason: string, user: any): Promise<void> {
+    const country = await this.findOneAnyState(id);
+    await this.deletionValidator.validateCountryDelete(id);
+
+    const oldValue = {
+      ...country.toJSON(),
+      deletedAt: new Date(),
+      deletedBy: user.userId,
+      deleteReason: reason || 'No reason provided'
+    };
+
+    await country.destroy();
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Country',
+      entityId: id,
+      action: 'FORCE_DELETE',
+      oldValue,
+      newValue: null,
+    });
   }
 }

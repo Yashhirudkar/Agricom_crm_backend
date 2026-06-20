@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PartnerService } from './partner.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
@@ -56,10 +58,39 @@ export class PartnerController {
     return this.partnerService.update(id, updatePartnerDto);
   }
 
+  @Patch(':id/restore')
+  @RequirePermission('partner:update')
+  @AuditLog({ entityType: 'Partner', action: 'RESTORE' })
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.partnerService.restore(id, req.user);
+  }
+
   @Delete(':id')
   @RequirePermission('partner:delete')
   @AuditLog({ entityType: 'Partner', action: 'DELETE' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.partnerService.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason?: string,
+    @Req() req?: any,
+  ) {
+    return this.partnerService.remove(id, reason, req?.user);
+  }
+
+  @Delete(':id/permanent')
+  @RequirePermission('partner:force_delete')
+  @AuditLog({ entityType: 'Partner', action: 'FORCE_DELETE' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePermanent(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason: string,
+    @Req() req: any,
+  ) {
+    if (req.user.type !== 'super_admin') {
+      throw new ForbiddenException('Super Admin only');
+    }
+    return this.partnerService.removePermanent(id, reason, req.user);
   }
 }

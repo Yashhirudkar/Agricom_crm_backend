@@ -5,12 +5,16 @@ import { Category } from './category.model';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { QueryCategoryDto } from './dto/query-category.dto';
+import { DeletionValidatorService } from '../deletion-validator.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
+    private readonly deletionValidator: DeletionValidatorService,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(dto: CreateCategoryDto): Promise<Category> {
@@ -63,8 +67,20 @@ export class CategoryService {
     return category;
   }
 
+  async findOneActive(id: number): Promise<Category> {
+    return this.findOne(id);
+  }
+
+  async findOneAnyState(id: number): Promise<Category> {
+    const category = await this.categoryModel.findByPk(id);
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+    return category;
+  }
+
   async update(id: number, dto: UpdateCategoryDto): Promise<Category> {
-    const category = await this.findOne(id);
+    const category = await this.findOneActive(id);
     
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
@@ -85,9 +101,72 @@ export class CategoryService {
     return category.reload();
   }
 
-  async remove(id: number): Promise<Category> {
-    const category = await this.findOne(id);
-    await category.update({ isActive: false });
+  async restore(id: number, user: any): Promise<Category> {
+    const category = await this.findOneAnyState(id);
+    const oldIsActive = category.isActive;
+    await category.update({ isActive: true });
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Category',
+      entityId: category.id,
+      action: 'RESTORE',
+      oldValue: { isActive: oldIsActive },
+      newValue: { isActive: true },
+    });
+
     return category.reload();
+  }
+
+  async remove(id: number, reason?: string, user?: any): Promise<Category> {
+    const category = await this.findOneActive(id);
+    await category.update({ isActive: false });
+
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'Category',
+        entityId: id,
+        action: 'DELETE',
+        oldValue: {
+          isActive: true,
+          deletedAt: new Date(),
+          deletedBy: user.userId,
+          deleteReason: reason || 'Deactivated'
+        },
+        newValue: { isActive: false }
+      });
+    }
+
+    return category.reload();
+  }
+
+  async removePermanent(id: number, reason: string, user: any): Promise<void> {
+    const category = await this.findOneAnyState(id);
+    await this.deletionValidator.validateCategoryDelete(id);
+
+    const oldValue = {
+      ...category.toJSON(),
+      deletedAt: new Date(),
+      deletedBy: user.userId,
+      deleteReason: reason || 'No reason provided'
+    };
+
+    await category.destroy();
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Category',
+      entityId: id,
+      action: 'FORCE_DELETE',
+      oldValue,
+      newValue: null,
+    });
   }
 }

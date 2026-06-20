@@ -14,6 +14,8 @@ import { QueryPartnerDto } from './dto/query-partner.dto';
 import { buildPagination } from '../common/pagination.helper';
 import { buildSearchQuery } from '../common/search.helper';
 import { buildPaginatedResponse } from '../common/response.helper';
+import { DeletionValidatorService } from '../deletion-validator.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 const INCLUDE_RELATIONS = [
   { model: PartnerRole, attributes: ['id', 'name'], where: { isActive: true }, required: false },
@@ -38,6 +40,8 @@ export class PartnerService {
     @InjectModel(Product)
     private readonly productModel: typeof Product,
     private sequelize: Sequelize,
+    private readonly deletionValidator: DeletionValidatorService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async validateForeignKeys(partnerRoleId?: number, countryId?: number, productIds?: number[]) {
@@ -139,8 +143,23 @@ export class PartnerService {
     return partner;
   }
 
+  async findOneActive(id: number): Promise<Partner> {
+    return this.findOne(id);
+  }
+
+  async findOneAnyState(id: number): Promise<Partner> {
+    const partner = await this.partnerModel.findOne({
+      where: { id },
+      include: INCLUDE_RELATIONS,
+    });
+    if (!partner) {
+      throw new NotFoundException('Partner not found');
+    }
+    return partner;
+  }
+
   async update(id: number, dto: UpdatePartnerDto): Promise<Partner> {
-    const partner = await this.findOne(id);
+    const partner = await this.findOneActive(id);
     
     if (dto.entityName) {
       dto.entityName = dto.entityName.trim().toUpperCase();
@@ -187,9 +206,72 @@ export class PartnerService {
     return partner.reload({ include: INCLUDE_RELATIONS });
   }
 
-  async remove(id: number): Promise<Partner> {
-    const partner = await this.findOne(id);
-    await partner.update({ isActive: false });
+  async restore(id: number, user: any): Promise<Partner> {
+    const partner = await this.findOneAnyState(id);
+    const oldIsActive = partner.isActive;
+    await partner.update({ isActive: true });
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Partner',
+      entityId: partner.id,
+      action: 'RESTORE',
+      oldValue: { isActive: oldIsActive },
+      newValue: { isActive: true },
+    });
+
     return partner.reload({ include: INCLUDE_RELATIONS });
+  }
+
+  async remove(id: number, reason?: string, user?: any): Promise<Partner> {
+    const partner = await this.findOneActive(id);
+    await partner.update({ isActive: false });
+
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'Partner',
+        entityId: id,
+        action: 'DELETE',
+        oldValue: {
+          isActive: true,
+          deletedAt: new Date(),
+          deletedBy: user.userId,
+          deleteReason: reason || 'Deactivated'
+        },
+        newValue: { isActive: false }
+      });
+    }
+
+    return partner.reload({ include: INCLUDE_RELATIONS });
+  }
+
+  async removePermanent(id: number, reason: string, user: any): Promise<void> {
+    const partner = await this.findOneAnyState(id);
+    // Note: Partner contacts and products are automatically deleted via onDelete: CASCADE db config.
+    
+    const oldValue = {
+      ...partner.toJSON(),
+      deletedAt: new Date(),
+      deletedBy: user.userId,
+      deleteReason: reason || 'No reason provided'
+    };
+
+    await partner.destroy();
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Partner',
+      entityId: id,
+      action: 'FORCE_DELETE',
+      oldValue,
+      newValue: null,
+    });
   }
 }

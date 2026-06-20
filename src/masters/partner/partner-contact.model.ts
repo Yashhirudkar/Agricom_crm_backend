@@ -16,7 +16,7 @@ export class PartnerContact extends Model<PartnerContact> {
 
   @ForeignKey(() => Partner)
   @AllowNull(false)
-  @Column({ field: 'partner_id', type: DataType.INTEGER })
+  @Column({ field: 'partner_id', type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare partnerId: number;
 
   @BelongsTo(() => Partner)

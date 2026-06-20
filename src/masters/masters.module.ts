@@ -21,13 +21,16 @@ import { PartnerProduct } from './partner/partner-product.model';
 import { PartnerController } from './partner/partner.controller';
 import { PartnerService } from './partner/partner.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
+import { DeletionValidatorService } from './deletion-validator.service';
+import { AuditModule } from '../audit/modules/audit.module';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Category, Country, HSCode, PartnerRole, Product, Partner, PartnerContact, PartnerProduct]),
     RbacModule,
+    AuditModule,
   ],
   controllers: [CategoryController, CountryController, HSCodeController, PartnerRoleController, ProductController, PartnerController],
-  providers: [CategoryService, CountryService, HSCodeService, PartnerRoleService, ProductService, PartnerService],
+  providers: [CategoryService, CountryService, HSCodeService, PartnerRoleService, ProductService, PartnerService, DeletionValidatorService],
 })
-export class MastersModule {}
+export class MastersModule { }

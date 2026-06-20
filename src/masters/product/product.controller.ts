@@ -11,6 +11,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -56,10 +58,39 @@ export class ProductController {
     return this.productService.update(id, updateProductDto);
   }
 
+  @Patch(':id/restore')
+  @RequirePermission('product:update')
+  @AuditLog({ entityType: 'Product', action: 'RESTORE' })
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return this.productService.restore(id, req.user);
+  }
+
   @Delete(':id')
   @RequirePermission('product:delete')
   @AuditLog({ entityType: 'Product', action: 'DELETE' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.productService.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason?: string,
+    @Req() req?: any,
+  ) {
+    return this.productService.remove(id, reason, req?.user);
+  }
+
+  @Delete(':id/permanent')
+  @RequirePermission('product:force_delete')
+  @AuditLog({ entityType: 'Product', action: 'FORCE_DELETE' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePermanent(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('reason') reason: string,
+    @Req() req: any,
+  ) {
+    if (req.user.type !== 'super_admin') {
+      throw new ForbiddenException('Super Admin only');
+    }
+    return this.productService.removePermanent(id, reason, req.user);
   }
 }

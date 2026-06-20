@@ -11,6 +11,8 @@ import { QueryProductDto } from './dto/query-product.dto';
 import { buildPagination } from '../common/pagination.helper';
 import { buildSearchQuery } from '../common/search.helper';
 import { buildPaginatedResponse } from '../common/response.helper';
+import { DeletionValidatorService } from '../deletion-validator.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 const INCLUDE_RELATIONS = [
   { model: Category, attributes: ['id', 'name'], where: { isActive: true }, required: false },
@@ -29,6 +31,8 @@ export class ProductService {
     private readonly countryModel: typeof Country,
     @InjectModel(HSCode)
     private readonly hsCodeModel: typeof HSCode,
+    private readonly deletionValidator: DeletionValidatorService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async validateForeignKeys(categoryId?: number, countryId?: number, hsCodeId?: number) {
@@ -107,8 +111,23 @@ export class ProductService {
     return product;
   }
 
+  async findOneActive(id: number): Promise<Product> {
+    return this.findOne(id);
+  }
+
+  async findOneAnyState(id: number): Promise<Product> {
+    const product = await this.productModel.findOne({
+      where: { id },
+      include: INCLUDE_RELATIONS,
+    });
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+    return product;
+  }
+
   async update(id: number, dto: UpdateProductDto): Promise<Product> {
-    const product = await this.findOne(id);
+    const product = await this.findOneActive(id);
     
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
@@ -130,9 +149,72 @@ export class ProductService {
     return product.reload({ include: INCLUDE_RELATIONS });
   }
 
-  async remove(id: number): Promise<Product> {
-    const product = await this.findOne(id);
-    await product.update({ isActive: false });
+  async restore(id: number, user: any): Promise<Product> {
+    const product = await this.findOneAnyState(id);
+    const oldIsActive = product.isActive;
+    await product.update({ isActive: true });
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Product',
+      entityId: product.id,
+      action: 'RESTORE',
+      oldValue: { isActive: oldIsActive },
+      newValue: { isActive: true },
+    });
+
     return product.reload({ include: INCLUDE_RELATIONS });
+  }
+
+  async remove(id: number, reason?: string, user?: any): Promise<Product> {
+    const product = await this.findOneActive(id);
+    await product.update({ isActive: false });
+
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'Product',
+        entityId: id,
+        action: 'DELETE',
+        oldValue: {
+          isActive: true,
+          deletedAt: new Date(),
+          deletedBy: user.userId,
+          deleteReason: reason || 'Deactivated'
+        },
+        newValue: { isActive: false }
+      });
+    }
+
+    return product.reload({ include: INCLUDE_RELATIONS });
+  }
+
+  async removePermanent(id: number, reason: string, user: any): Promise<void> {
+    const product = await this.findOneAnyState(id);
+    await this.deletionValidator.validateProductDelete(id);
+
+    const oldValue = {
+      ...product.toJSON(),
+      deletedAt: new Date(),
+      deletedBy: user.userId,
+      deleteReason: reason || 'No reason provided'
+    };
+
+    await product.destroy();
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'Product',
+      entityId: id,
+      action: 'FORCE_DELETE',
+      oldValue,
+      newValue: null,
+    });
   }
 }

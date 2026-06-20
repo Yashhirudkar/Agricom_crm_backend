@@ -5,12 +5,16 @@ import { PartnerRole } from './partner-role.model';
 import { CreatePartnerRoleDto } from './dto/create-partner-role.dto';
 import { UpdatePartnerRoleDto } from './dto/update-partner-role.dto';
 import { QueryPartnerRoleDto } from './dto/query-partner-role.dto';
+import { DeletionValidatorService } from '../deletion-validator.service';
+import { AuditService } from '../../audit/services/audit.service';
 
 @Injectable()
 export class PartnerRoleService {
   constructor(
     @InjectModel(PartnerRole)
     private readonly partnerRoleModel: typeof PartnerRole,
+    private readonly deletionValidator: DeletionValidatorService,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(dto: CreatePartnerRoleDto): Promise<PartnerRole> {
@@ -74,8 +78,20 @@ export class PartnerRoleService {
     return partnerRole;
   }
 
+  async findOneActive(id: number): Promise<PartnerRole> {
+    return this.findOne(id);
+  }
+
+  async findOneAnyState(id: number): Promise<PartnerRole> {
+    const partnerRole = await this.partnerRoleModel.findByPk(id);
+    if (!partnerRole) {
+      throw new NotFoundException('Partner Role not found');
+    }
+    return partnerRole;
+  }
+
   async update(id: number, dto: UpdatePartnerRoleDto): Promise<PartnerRole> {
-    const partnerRole = await this.findOne(id);
+    const partnerRole = await this.findOneActive(id);
     
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
@@ -102,9 +118,72 @@ export class PartnerRoleService {
     return partnerRole.reload();
   }
 
-  async remove(id: number): Promise<PartnerRole> {
-    const partnerRole = await this.findOne(id);
-    await partnerRole.update({ isActive: false });
+  async restore(id: number, user: any): Promise<PartnerRole> {
+    const partnerRole = await this.findOneAnyState(id);
+    const oldIsActive = partnerRole.isActive;
+    await partnerRole.update({ isActive: true });
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'PartnerRole',
+      entityId: partnerRole.id,
+      action: 'RESTORE',
+      oldValue: { isActive: oldIsActive },
+      newValue: { isActive: true },
+    });
+
     return partnerRole.reload();
+  }
+
+  async remove(id: number, reason?: string, user?: any): Promise<PartnerRole> {
+    const partnerRole = await this.findOneActive(id);
+    await partnerRole.update({ isActive: false });
+
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'PartnerRole',
+        entityId: id,
+        action: 'DELETE',
+        oldValue: {
+          isActive: true,
+          deletedAt: new Date(),
+          deletedBy: user.userId,
+          deleteReason: reason || 'Deactivated'
+        },
+        newValue: { isActive: false }
+      });
+    }
+
+    return partnerRole.reload();
+  }
+
+  async removePermanent(id: number, reason: string, user: any): Promise<void> {
+    const partnerRole = await this.findOneAnyState(id);
+    await this.deletionValidator.validatePartnerRoleDelete(id);
+
+    const oldValue = {
+      ...partnerRole.toJSON(),
+      deletedAt: new Date(),
+      deletedBy: user.userId,
+      deleteReason: reason || 'No reason provided'
+    };
+
+    await partnerRole.destroy();
+
+    await this.auditService.writeLog({
+      clientId: user.clientId || null,
+      companyId: user.companyId || null,
+      userId: user.userId,
+      entityType: 'PartnerRole',
+      entityId: id,
+      action: 'FORCE_DELETE',
+      oldValue,
+      newValue: null,
+    });
   }
 }

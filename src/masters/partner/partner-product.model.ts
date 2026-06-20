@@ -17,7 +17,7 @@ export class PartnerProduct extends Model<PartnerProduct> {
   declare id: number;
 
   @ForeignKey(() => Partner)
-  @Column({ field: 'partner_id', type: DataType.INTEGER })
+  @Column({ field: 'partner_id', type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare partnerId: number;
 
   @ForeignKey(() => Product)

@@ -41,10 +41,10 @@ export class Partner extends Model<Partner> {
   @BelongsTo(() => Country)
   declare country: Country;
 
-  @HasMany(() => PartnerContact)
+  @HasMany(() => PartnerContact, { onDelete: 'CASCADE', hooks: true })
   declare contacts: PartnerContact[];
 
-  @BelongsToMany(() => Product, () => PartnerProduct)
+  @BelongsToMany(() => Product, { through: () => PartnerProduct, onDelete: 'CASCADE', hooks: true })
   declare products: Product[];
 
   @AllowNull(true)
