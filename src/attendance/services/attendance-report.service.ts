@@ -76,9 +76,9 @@ export class AttendanceReportService {
         }
       });
 
-      if (activeLeaves.length > 0) {
         const t = await this.recordModel.sequelize!.transaction();
         try {
+          const requiredDates = new Set<string>();
           for (const leave of activeLeaves) {
             const leaveFromTime = new Date(leave.fromDate).getTime();
             const filterStartTime = new Date(filters.startDate || '1970-01-01').getTime();
@@ -89,14 +89,23 @@ export class AttendanceReportService {
             const end = new Date(leaveToTime < filterEndTime ? leave.toDate : (filters.endDate || '9999-12-31'));
             const curr = new Date(start);
             while (curr <= end) {
-              const dStr = curr.toLocaleDateString('en-CA', { timeZone: 'UTC' });
-              const record = await this.recordModel.findOne({
-                where: { employeeId, date: dStr },
-                lock: t.LOCK.UPDATE,
-                transaction: t,
-              });
-              if (!record) {
-                await this.recordModel.create({
+              requiredDates.add(curr.toLocaleDateString('en-CA', { timeZone: 'UTC' }));
+              curr.setDate(curr.getDate() + 1);
+            }
+          }
+
+          if (requiredDates.size > 0) {
+            const existingRecords = await this.recordModel.findAll({
+              where: { employeeId, date: Array.from(requiredDates) },
+              lock: t.LOCK.UPDATE,
+              transaction: t,
+            });
+            const existingDates = new Set(existingRecords.map(r => r.date));
+            const missingRecords = [];
+            
+            for (const dStr of requiredDates) {
+              if (!existingDates.has(dStr)) {
+                missingRecords.push({
                   employeeId,
                   companyId,
                   date: dStr,
@@ -105,16 +114,17 @@ export class AttendanceReportService {
                   overtimeHours: 0,
                   lateMinutes: 0,
                   shiftId: null,
-                } as any, { transaction: t });
+                });
               }
-              curr.setDate(curr.getDate() + 1);
+            }
+            if (missingRecords.length > 0) {
+              await this.recordModel.bulkCreate(missingRecords as any[], { transaction: t });
             }
           }
           await t.commit();
         } catch (err) {
           await t.rollback();
         }
-      }
     }
 
     const records = await this.recordModel.findAll({
@@ -155,34 +165,42 @@ export class AttendanceReportService {
         }
       });
 
-      if (activeLeaves.length > 0) {
         const t = await this.recordModel.sequelize!.transaction();
         try {
-          for (const leave of activeLeaves) {
-            const record = await this.recordModel.findOne({
-              where: { employeeId: leave.employeeId, date: filters.date },
+          const employeeIds = activeLeaves.map(l => l.employeeId);
+          
+          if (employeeIds.length > 0) {
+            const existingRecords = await this.recordModel.findAll({
+              where: { employeeId: employeeIds, date: filters.date },
               lock: t.LOCK.UPDATE,
               transaction: t,
             });
+            const existingEmpIds = new Set(existingRecords.map(r => r.employeeId));
+            const missingRecords = [];
 
-            if (!record) {
-              await this.recordModel.create({
-                employeeId: leave.employeeId,
-                companyId,
-                date: filters.date,
-                attendanceStatus: AttendanceStatus.ON_LEAVE,
-                totalHours: 0,
-                overtimeHours: 0,
-                lateMinutes: 0,
-                shiftId: null,
-              } as any, { transaction: t });
+            for (const empId of employeeIds) {
+              if (!existingEmpIds.has(empId)) {
+                missingRecords.push({
+                  employeeId: empId,
+                  companyId,
+                  date: filters.date,
+                  attendanceStatus: AttendanceStatus.ON_LEAVE,
+                  totalHours: 0,
+                  overtimeHours: 0,
+                  lateMinutes: 0,
+                  shiftId: null,
+                });
+              }
+            }
+
+            if (missingRecords.length > 0) {
+              await this.recordModel.bulkCreate(missingRecords as any[], { transaction: t });
             }
           }
           await t.commit();
         } catch (err) {
           await t.rollback();
         }
-      }
     }
 
     return this.recordModel.findAll({

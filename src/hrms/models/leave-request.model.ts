@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -11,8 +10,7 @@ import {
   CreatedAt,
   UpdatedAt,
   Default,
-  HasMany,
-} from 'sequelize-typescript';
+  HasMany, } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Employee } from './employee.model';
 import { LeaveType } from './leave-type.model';
@@ -47,6 +45,7 @@ export class LeaveRequest extends Model<LeaveRequest> {
 
   @ForeignKey(() => Company)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
@@ -55,6 +54,7 @@ export class LeaveRequest extends Model<LeaveRequest> {
 
   @ForeignKey(() => Employee)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 

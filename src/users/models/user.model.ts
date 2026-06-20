@@ -1,7 +1,5 @@
-import {
-  Table, Column, Model, DataType, Unique, AllowNull, Default,
-  HasMany, BelongsToMany, ForeignKey, BelongsTo,
-} from 'sequelize-typescript';
+import { Index, Table, Column, Model, DataType, Unique, AllowNull, Default,
+  HasMany, BelongsToMany, ForeignKey, BelongsTo, } from 'sequelize-typescript';
 import { UserSession } from './user-session.model';
 import { Company } from '../../companies/models/company.model';
 import { Client } from '../../clients/models/client.model';
@@ -45,6 +43,7 @@ export class User extends Model<User> {
 
   @ForeignKey(() => Client)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
@@ -70,6 +69,7 @@ export class User extends Model<User> {
 
   // Keep legacy companyId column in model definition so Sequelize doesn't crash or trigger alters, but make it simple
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare companyId: number;
 

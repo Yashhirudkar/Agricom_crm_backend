@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -11,8 +10,7 @@ import {
   BelongsTo,
   CreatedAt,
   UpdatedAt,
-  BelongsToMany,
-} from 'sequelize-typescript';
+  BelongsToMany, } from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
 import { Role } from '../../rbac/models/role.model';

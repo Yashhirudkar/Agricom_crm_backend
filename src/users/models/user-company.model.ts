@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   PrimaryKey,
   AutoIncrement,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { User } from './user.model';
 import { Company } from '../../companies/models/company.model';
 import { Role } from '../../rbac/models/role.model';
@@ -39,14 +37,17 @@ export class UserCompany extends Model<UserCompany> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
+  @Index
   @ForeignKey(() => User)
   @Column({ type: DataType.INTEGER, allowNull: false, onDelete: 'CASCADE' })
   declare userId: number;
 
+  @Index
   @ForeignKey(() => Company)
   @Column({ type: DataType.INTEGER, allowNull: false, onDelete: 'CASCADE' })
   declare companyId: number;
 
+  @Index
   @ForeignKey(() => Role)
   @Column({ type: DataType.INTEGER, allowNull: true, onDelete: 'SET NULL' })
   declare roleId: number;

@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -12,8 +11,7 @@ import {
   CreatedAt,
   UpdatedAt,
   ForeignKey,
-  BelongsTo,
-} from 'sequelize-typescript';
+  BelongsTo, } from 'sequelize-typescript';
 
 import { UserRole } from './user-role.model';
 import { User } from '../../users/models/user.model';
@@ -50,6 +48,7 @@ export class Role extends Model<Role> {
 
   @ForeignKey(() => Client)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
@@ -63,6 +62,7 @@ export class Role extends Model<Role> {
 
   // Legacy companyId column kept for DB sync compatibility
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare companyId: number;
 

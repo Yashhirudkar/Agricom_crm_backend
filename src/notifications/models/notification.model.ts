@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -10,8 +9,7 @@ import {
   Default,
   AllowNull,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 
 @Table({
@@ -26,6 +24,7 @@ export class Notification extends Model<Notification> {
 
   @ForeignKey(() => User)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare userId: number;
 

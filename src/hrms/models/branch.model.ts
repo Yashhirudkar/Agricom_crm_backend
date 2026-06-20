@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -11,8 +10,7 @@ import {
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default,
-} from 'sequelize-typescript';
+  Default, } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { User } from '../../users/models/user.model';
 import { Employee } from './employee.model';
@@ -39,6 +37,7 @@ export class Branch extends Model<Branch> {
 
   @ForeignKey(() => Company)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
@@ -88,6 +87,7 @@ export class Branch extends Model<Branch> {
 
   @ForeignKey(() => Employee)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare managerId: number;
 

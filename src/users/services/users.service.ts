@@ -333,18 +333,24 @@ export class UsersService {
       });
     }
 
-    // Clean up associated records that might not have ON DELETE CASCADE at the database level
-    if (this.userModel.sequelize) {
-      const models = this.userModel.sequelize.models;
-      if (models.UserPreference) await models.UserPreference.destroy({ where: { userId: id } });
-      if (models.UserPasswordHistory) await models.UserPasswordHistory.destroy({ where: { userId: id } });
-      if (models.ProfileActivityLog) await models.ProfileActivityLog.destroy({ where: { userId: id } });
-      if (models.UserSession) await models.UserSession.destroy({ where: { userId: id } });
-      if (models.UserRole) await models.UserRole.destroy({ where: { userId: id } });
-      if (models.UserCompany) await models.UserCompany.destroy({ where: { userId: id } });
-    }
+    const t = await this.userModel.sequelize.transaction();
+    try {
+      if (this.userModel.sequelize) {
+        const models = this.userModel.sequelize.models;
+        if (models.UserPreference) await models.UserPreference.destroy({ where: { userId: id }, transaction: t });
+        if (models.UserPasswordHistory) await models.UserPasswordHistory.destroy({ where: { userId: id }, transaction: t });
+        if (models.ProfileActivityLog) await models.ProfileActivityLog.destroy({ where: { userId: id }, transaction: t });
+        if (models.UserSession) await models.UserSession.destroy({ where: { userId: id }, transaction: t });
+        if (models.UserRole) await models.UserRole.destroy({ where: { userId: id }, transaction: t });
+        if (models.UserCompany) await models.UserCompany.destroy({ where: { userId: id }, transaction: t });
+      }
 
-    await user.destroy();
+      await user.destroy({ transaction: t });
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
 
     return { message: `User "${email}" deleted successfully` };
   }

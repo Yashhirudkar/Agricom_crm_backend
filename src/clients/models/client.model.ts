@@ -1,13 +1,11 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
   Unique,
   AllowNull,
   Default,
-  HasMany,
-} from 'sequelize-typescript';
+  HasMany, } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Role } from '../../rbac/models/role.model';
 import { ClientFolderAccess } from './client-folder-access.model';

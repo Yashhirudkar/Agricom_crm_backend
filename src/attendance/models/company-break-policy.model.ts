@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -10,8 +9,7 @@ import {
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default,
-} from 'sequelize-typescript';
+  Default, } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 
 @Table({
@@ -26,6 +24,7 @@ export class CompanyBreakPolicy extends Model<CompanyBreakPolicy> {
 
   @ForeignKey(() => Company)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 

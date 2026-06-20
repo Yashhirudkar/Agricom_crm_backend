@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -9,8 +8,7 @@ import {
   AutoIncrement,
   AllowNull,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
 import { Company } from '../../companies/models/company.model';
@@ -27,6 +25,7 @@ export class AuditLog extends Model<AuditLog> {
 
   @ForeignKey(() => Client)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
@@ -35,6 +34,7 @@ export class AuditLog extends Model<AuditLog> {
 
   @ForeignKey(() => Company)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare companyId: number;
 
@@ -43,6 +43,7 @@ export class AuditLog extends Model<AuditLog> {
 
   @ForeignKey(() => User)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare userId: number;
 

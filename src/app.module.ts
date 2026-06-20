@@ -94,8 +94,6 @@ import { ClientActionAccess } from './clients/models/client-action-access.model'
           database: configService.get<string>('DB_NAME'),
           models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess],
           autoLoadModels: true,
-          synchronize: shouldSync,
-          sync: shouldSync ? { alter: true } : undefined,
           logging: false,
           retryAttempts: 0,
         };

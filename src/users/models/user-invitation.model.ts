@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -10,8 +9,7 @@ import {
   Default,
   AllowNull,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { User } from './user.model';
 import { Client } from '../../clients/models/client.model';
 import { Role } from '../../rbac/models/role.model';
@@ -46,6 +44,7 @@ export class UserInvitation extends Model<UserInvitation> {
 
   @ForeignKey(() => Client)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
@@ -54,6 +53,7 @@ export class UserInvitation extends Model<UserInvitation> {
 
   @ForeignKey(() => Role)
   @AllowNull(true)
+  @Index
   @Column({ type: DataType.INTEGER })
   declare roleId: number;
 

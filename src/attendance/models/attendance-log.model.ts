@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   PrimaryKey,
   AutoIncrement,
   AllowNull,
-  CreatedAt,
-} from 'sequelize-typescript';
+  CreatedAt, } from 'sequelize-typescript';
 import { Employee } from '../../hrms/models/employee.model';
 import { AttendanceRecord } from './attendance-record.model';
 
@@ -40,6 +38,7 @@ export class AttendanceLog extends Model<AttendanceLog> {
 
   @ForeignKey(() => Employee)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 

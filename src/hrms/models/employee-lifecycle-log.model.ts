@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   PrimaryKey,
   AutoIncrement,
   AllowNull,
-  CreatedAt,
-} from 'sequelize-typescript';
+  CreatedAt, } from 'sequelize-typescript';
 import { Employee, EmployeeStatus } from './employee.model';
 import { User } from '../../users/models/user.model';
 
@@ -26,6 +24,7 @@ export class EmployeeLifecycleLog extends Model<EmployeeLifecycleLog> {
 
   @ForeignKey(() => Employee)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 

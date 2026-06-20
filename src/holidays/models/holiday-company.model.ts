@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -7,8 +6,7 @@ import {
   BelongsTo,
   PrimaryKey,
   AutoIncrement,
-  AllowNull,
-} from 'sequelize-typescript';
+  AllowNull, } from 'sequelize-typescript';
 import { Holiday } from './holiday.model';
 import { Company } from '../../companies/models/company.model';
 
@@ -38,6 +36,7 @@ export class HolidayCompany extends Model<HolidayCompany> {
 
   @ForeignKey(() => Company)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 

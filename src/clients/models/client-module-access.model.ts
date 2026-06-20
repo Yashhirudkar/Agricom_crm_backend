@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -7,8 +6,7 @@ import {
   AutoIncrement,
   ForeignKey,
   BelongsTo,
-  CreatedAt,
-} from 'sequelize-typescript';
+  CreatedAt, } from 'sequelize-typescript';
 import { Client } from './client.model';
 import { AppModule } from '../../system/models/app-module.model';
 

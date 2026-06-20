@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -11,8 +10,7 @@ import {
   BelongsTo,
   HasMany,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { AppModule } from './app-module.model';
 import { ResourceAction } from './resource-action.model';
 

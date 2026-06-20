@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   ForeignKey,
   BelongsTo,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { Role } from './role.model';
 import { ResourceAction } from '../../system/models/resource-action.model';
 

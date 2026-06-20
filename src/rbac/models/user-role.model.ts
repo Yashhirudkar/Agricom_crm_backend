@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   PrimaryKey,
   AutoIncrement,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { Role } from './role.model';
 import { User } from '../../users/models/user.model';
 
@@ -23,10 +21,12 @@ export class UserRole extends Model<UserRole> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
+  @Index
   @ForeignKey(() => User)
   @Column({ type: DataType.INTEGER, allowNull: false, onDelete: 'CASCADE' })
   declare userId: number;
 
+  @Index
   @ForeignKey(() => Role)
   @Column({ type: DataType.INTEGER, allowNull: false, onDelete: 'CASCADE' })
   declare roleId: number;

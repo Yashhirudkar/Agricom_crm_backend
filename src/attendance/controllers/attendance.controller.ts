@@ -19,6 +19,7 @@ import { AttendanceService } from '../services/attendance.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto, AssignShiftDto, ManualAttendanceDto } from '../dto/attendance.dto';
 import { AttendanceStatus } from '../models/attendance-record.model';
 
@@ -52,6 +53,7 @@ export class AttendanceController {
   @Post('check-in')
   @RequirePermission('attendance_activity:create')
   @HttpCode(HttpStatus.OK)
+  @AuditLog({ entityType: 'AttendanceRecord', action: 'CREATE' })
   async checkIn(@Body() dto: CheckInDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = await this.getEmployeeId(req);
@@ -61,6 +63,7 @@ export class AttendanceController {
   @Post('check-out')
   @RequirePermission('attendance_activity:create')
   @HttpCode(HttpStatus.OK)
+  @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async checkOut(@Body() dto: CheckOutDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = await this.getEmployeeId(req);
@@ -70,6 +73,7 @@ export class AttendanceController {
   @Post('break-start')
   @RequirePermission('attendance_activity:create')
   @HttpCode(HttpStatus.OK)
+  @AuditLog({ entityType: 'AttendanceLog', action: 'CREATE' })
   async startBreak(@Body() dto: BreakStartDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = await this.getEmployeeId(req);
@@ -79,6 +83,7 @@ export class AttendanceController {
   @Post('break-end')
   @RequirePermission('attendance_activity:create')
   @HttpCode(HttpStatus.OK)
+  @AuditLog({ entityType: 'AttendanceLog', action: 'UPDATE' })
   async endBreak(@Body() dto: BreakEndDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = await this.getEmployeeId(req);
@@ -142,6 +147,7 @@ export class AttendanceController {
 
   @Post('request-regularization')
   @RequirePermission('attendance_regularization:create')
+  @AuditLog({ entityType: 'AttendanceException', action: 'CREATE' })
   async requestCorrection(@Body() dto: RequestCorrectionDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = await this.getEmployeeId(req);
@@ -150,6 +156,7 @@ export class AttendanceController {
 
   @Put('admin/approve-regularization/:id')
   @RequirePermission('attendance_regularization:override')
+  @AuditLog({ entityType: 'AttendanceException', action: 'UPDATE' })
   async approveCorrection(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolveCorrectionDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     console.log("APPROVE REQUEST USER", {
@@ -163,6 +170,7 @@ export class AttendanceController {
 
   @Put('admin/reject-regularization/:id')
   @RequirePermission('attendance_regularization:override')
+  @AuditLog({ entityType: 'AttendanceException', action: 'UPDATE' })
   async rejectCorrection(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolveCorrectionDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const approverEmployeeId = await this.getEmployeeId(req);
@@ -171,6 +179,7 @@ export class AttendanceController {
 
   @Post('admin/manual-attendance')
   @RequirePermission('attendance_regularization:override')
+  @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async manualAttendance(
     @Body() dto: ManualAttendanceDto,
     @Request() req,
@@ -204,6 +213,7 @@ export class AttendanceController {
 
   @Post('assign-shift/:employeeId')
   @RequirePermission('attendance_shifts:assign_shift')
+  @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async assignShift(
     @Param('employeeId', ParseIntPipe) employeeId: number,
     @Body() dto: AssignShiftDto,
@@ -215,6 +225,7 @@ export class AttendanceController {
 
   @Put(':id/override')
   @RequirePermission('attendance_regularization:override')
+  @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async overrideAttendance(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ResolveCorrectionDto & { checkInTime?: string; checkOutTime?: string; attendanceStatus?: AttendanceStatus; lateMinutes?: number },

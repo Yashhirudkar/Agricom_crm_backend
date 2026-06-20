@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -11,8 +10,7 @@ import {
   CreatedAt,
   UpdatedAt,
   Default,
-  HasMany,
-} from 'sequelize-typescript';
+  HasMany, } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { Shift } from './shift.model';
@@ -63,6 +61,7 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
 
   @ForeignKey(() => Employee)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
@@ -71,6 +70,7 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
 
   @ForeignKey(() => Company)
   @AllowNull(false)
+  @Index
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 

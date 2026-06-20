@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -8,8 +7,7 @@ import {
   AllowNull,
   ForeignKey,
   BelongsTo,
-  CreatedAt,
-} from 'sequelize-typescript';
+  CreatedAt, } from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 
 @Table({

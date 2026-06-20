@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -9,8 +8,7 @@ import {
   AutoIncrement,
   AllowNull,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { LeaveRequest } from './leave-request.model';
 import { User } from '../../users/models/user.model';
 

@@ -1,5 +1,4 @@
-import {
-  Table,
+import { Index, Table,
   Column,
   Model,
   DataType,
@@ -9,8 +8,7 @@ import {
   AllowNull,
   HasMany,
   CreatedAt,
-  UpdatedAt,
-} from 'sequelize-typescript';
+  UpdatedAt, } from 'sequelize-typescript';
 import { ModuleResource } from './module-resource.model';
 import { ClientModuleAccess } from '../../clients/models/client-module-access.model';
 
