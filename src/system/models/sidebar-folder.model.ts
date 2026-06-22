@@ -30,6 +30,10 @@ export class SidebarFolder extends Model<SidebarFolder> {
   @Column({ type: DataType.STRING(50) })
   declare icon_name: string;
 
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(50), field: 'icon_color' })
+  declare iconColor: string;
+
   @Default(0)
   @AllowNull(false)
   @Column({ type: DataType.INTEGER })
@@ -39,6 +43,11 @@ export class SidebarFolder extends Model<SidebarFolder> {
   @AllowNull(false)
   @Column({ type: DataType.BOOLEAN })
   declare is_active: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN, field: 'is_collapsible' })
+  declare isCollapsible: boolean;
 
   @HasMany(() => SidebarItem)
   declare items: SidebarItem[];

@@ -116,14 +116,7 @@ export class AuthController {
 
     const activeCompanyId = req.headers['x-company-id'] || user.lastCompanyId || user.userCompanies?.[0]?.company?.id;
 
-    console.log({
-     userId: user.id,
-     clientId: user.clientId,
-     lastCompanyId: user.lastCompanyId,
-     activeCompanyId,
-     userCompaniesCount: user.userCompanies?.length,
-     rolesCount: user.roles?.length
-    });
+
     
     if (type === 'client_admin') {
       const allCompanies = await this.userCompanyModel.sequelize!.query(
@@ -171,10 +164,7 @@ export class AuthController {
       }));
     }
 
-    console.log({
-     permissionsCount: permissions.length,
-     permissions
-    });
+
 
     return {
       id: user.id,
@@ -200,9 +190,7 @@ export class AuthController {
   async getMyMenu(@Request() req) {
     const profile = await this.getProfile(req);
     const userPermissions = profile.permissions || [];
-    console.log("=== GET MY MENU DEBUG ===");
-    console.log("req.user:", req.user);
-    console.log("profile.type:", profile.type);
+
 
     const isSuperAdmin = profile.type === 'super_admin';
     const isClientAdmin = profile.type === 'client_admin';
@@ -213,9 +201,7 @@ export class AuthController {
       roles: profile.roles || []
     });
 
-    console.log("=== auth.controller.ts ===");
-    console.log("baseMenu folders:", menuData.folders.length);
-    console.log("baseMenu standalone:", menuData.standaloneItems.length);
+
 
     const filterItem = (item: any) => {
       if (!item.permission_link) return true;
@@ -232,6 +218,8 @@ export class AuthController {
         route: null,
         href: '#',
         icon: f.icon_name || f.icon,
+        iconColor: f.icon_color || null,
+        isCollapsible: f.is_collapsible === true,
         type: 'parent',
         items: items.map((i: any) => ({
           id: i.id,
@@ -240,6 +228,7 @@ export class AuthController {
           route: i.route,
           href: i.route || '#',
           icon: i.icon_name || i.icon,
+          iconColor: i.final_color || null,
           permission: i.permission_link,
           type: 'item'
         }))
@@ -253,12 +242,13 @@ export class AuthController {
       route: i.route,
       href: i.route || '#',
       icon: i.icon_name || i.icon,
+      iconColor: i.final_color || null,
       permission: i.permission_link,
       type: 'item'
     }));
 
     const finalMenu = [...folders, ...standaloneItems];
-    console.log("FINAL MENU RETURNED:", JSON.stringify(finalMenu, null, 2));
+
     return finalMenu;
   }
 

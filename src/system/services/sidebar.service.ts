@@ -15,7 +15,7 @@ export class SidebarService {
   ) {}
 
   async getTree() {
-    return this.sidebarFolderModel.findAll({
+    const folders = await this.sidebarFolderModel.findAll({
       where: { is_active: true },
       order: [
         ['sort_order', 'ASC'],
@@ -30,14 +30,30 @@ export class SidebarService {
         }
       ]
     });
+
+    return folders.map(f => {
+      const folderData: any = f.toJSON();
+      folderData.icon_color = folderData.iconColor;
+      folderData.is_collapsible = folderData.isCollapsible;
+      if (folderData.items) {
+        folderData.items = folderData.items.map((i: any) => {
+          i.icon_color = i.iconColor;
+          i.use_folder_color = i.useFolderColor;
+          return i;
+        });
+      }
+      return folderData;
+    });
   }
 
-  async createFolder(userId: number | null, dto: { name: string; icon_name?: string; sort_order?: number }) {
+  async createFolder(userId: number | null, dto: { name: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean; sort_order?: number }) {
     const t = await this.sidebarFolderModel.sequelize!.transaction();
     try {
       const folder = await this.sidebarFolderModel.create({
         name: dto.name,
         icon_name: dto.icon_name || null,
+        iconColor: dto.icon_color || null,
+        isCollapsible: dto.is_collapsible !== undefined ? dto.is_collapsible : false,
         sort_order: dto.sort_order || 0,
       } as any, { transaction: t });
 
@@ -50,7 +66,7 @@ export class SidebarService {
     }
   }
 
-  async createItem(userId: number | null, dto: { name: string; route: string; folder_id?: number; icon_name?: string; permission_link?: string; sort_order?: number }) {
+  async createItem(userId: number | null, dto: { name: string; route: string; folder_id?: number; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string; sort_order?: number }) {
     const t = await this.sidebarItemModel.sequelize!.transaction();
     try {
       const item = await this.sidebarItemModel.create({
@@ -58,6 +74,8 @@ export class SidebarService {
         route: dto.route,
         folder_id: dto.folder_id || null,
         icon_name: dto.icon_name || null,
+        iconColor: dto.icon_color || null,
+        useFolderColor: dto.use_folder_color !== undefined ? dto.use_folder_color : true,
         permission_link: dto.permission_link || null,
         sort_order: dto.sort_order || 0,
       } as any, { transaction: t });
@@ -71,18 +89,36 @@ export class SidebarService {
     }
   }
 
-  async updateFolder(userId: number | null, id: number, dto: { name?: string; icon_name?: string }) {
+  async updateFolder(userId: number | null, id: number, dto: { name?: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean }) {
     const folder = await this.sidebarFolderModel.findByPk(id);
     if (!folder) throw new NotFoundException('Folder not found');
-    await folder.update(dto);
+    const updateData: any = { ...dto };
+    if (dto.icon_color !== undefined) {
+      updateData.iconColor = dto.icon_color;
+      delete updateData.icon_color;
+    }
+    if (dto.is_collapsible !== undefined) {
+      updateData.isCollapsible = dto.is_collapsible;
+      delete updateData.is_collapsible;
+    }
+    await folder.update(updateData);
     await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_UPDATE', { id, dto });
     return folder;
   }
 
-  async updateItem(userId: number | null, id: number, dto: { name?: string; route?: string; icon_name?: string; permission_link?: string }) {
+  async updateItem(userId: number | null, id: number, dto: { name?: string; route?: string; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string }) {
     const item = await this.sidebarItemModel.findByPk(id);
     if (!item) throw new NotFoundException('Item not found');
-    await item.update(dto);
+    const updateData: any = { ...dto };
+    if (dto.icon_color !== undefined) {
+      updateData.iconColor = dto.icon_color;
+      delete updateData.icon_color;
+    }
+    if (dto.use_folder_color !== undefined) {
+      updateData.useFolderColor = dto.use_folder_color;
+      delete updateData.use_folder_color;
+    }
+    await item.update(updateData);
     await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_UPDATE', { id, dto });
     return item;
   }

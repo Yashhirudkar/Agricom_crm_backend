@@ -70,6 +70,7 @@ import { ClientModuleAccess } from './clients/models/client-module-access.model'
 import { ClientActionAccess } from './clients/models/client-action-access.model';
 import { MastersModule } from './masters/masters.module';
 import { Category } from './masters/category/category.model';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -95,6 +96,8 @@ import { Category } from './masters/category/category.model';
           database: configService.get<string>('DB_NAME'),
           models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess, Category],
           autoLoadModels: true,
+          synchronize: false,
+          sync: { alter: false, force: false },
           logging: false,
           retryAttempts: 0,
         };
@@ -114,6 +117,7 @@ import { Category } from './masters/category/category.model';
     ProfileModule,
     AttendanceModule,
     MastersModule,
+
   ],
 })
 export class AppModule implements NestModule {

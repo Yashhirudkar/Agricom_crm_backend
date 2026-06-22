@@ -23,10 +23,13 @@ import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
+
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(
+    private readonly categoryService: CategoryService,
+  ) {}
 
   @Post()
   @RequirePermission('category:create')
@@ -38,14 +41,22 @@ export class CategoryController {
 
   @Get()
   @RequirePermission('category:view')
-  findAll(@Query() query: QueryCategoryDto) {
-    return this.categoryService.findAll(query);
+  async findAll(@Query() query: QueryCategoryDto) {
+    const result = await this.categoryService.findAll(query);
+    
+    
+    
+    return result;
   }
 
   @Get(':id')
   @RequirePermission('category:view')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.categoryService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const category = await this.categoryService.findOne(id);
+    
+    
+    
+    return category;
   }
 
   @Patch(':id')

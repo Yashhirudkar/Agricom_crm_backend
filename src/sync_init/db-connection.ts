@@ -47,6 +47,7 @@ import { ClientItemAccess } from '../clients/models/client-item-access.model';
 import { ClientModuleAccess } from '../clients/models/client-module-access.model';
 import { ClientActionAccess } from '../clients/models/client-action-access.model';
 
+
 dotenv.config();
 
 export const sequelize = new Sequelize(

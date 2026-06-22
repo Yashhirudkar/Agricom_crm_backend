@@ -44,8 +44,39 @@ export class SystemService {
       order: [['sort_order', 'ASC']],
     });
 
+    const mapFolder = (f: any) => {
+      const jsonF = f.toJSON ? f.toJSON() : { ...f };
+      jsonF.icon_color = jsonF.iconColor;
+      jsonF.is_collapsible = jsonF.isCollapsible;
+      if (jsonF.items) {
+        jsonF.items = jsonF.items.map((i: any) => {
+          const jsonI = i.toJSON ? i.toJSON() : { ...i };
+          jsonI.icon_color = jsonI.iconColor;
+          jsonI.use_folder_color = jsonI.useFolderColor;
+          if (jsonI.useFolderColor === true || jsonI.useFolderColor === null || jsonI.useFolderColor === undefined) {
+            jsonI.final_color = jsonF.iconColor;
+          } else {
+            jsonI.final_color = jsonI.iconColor;
+          }
+          return jsonI;
+        });
+      }
+      return jsonF;
+    };
+
+    const mapStandalone = (i: any) => {
+      const jsonI = i.toJSON ? i.toJSON() : { ...i };
+      jsonI.icon_color = jsonI.iconColor;
+      jsonI.use_folder_color = jsonI.useFolderColor;
+      jsonI.final_color = jsonI.iconColor;
+      return jsonI;
+    };
+
     if (isSuperAdmin) {
-      return { folders, standaloneItems };
+      return { 
+        folders: folders.map(mapFolder), 
+        standaloneItems: standaloneItems.map(mapStandalone) 
+      };
     }
 
     // Client user filtering
@@ -60,12 +91,12 @@ export class SystemService {
     const filteredFolders = folders
       .filter(f => allowedFolderIds.includes(f.id))
       .map(f => {
-        const jsonF = f.toJSON() as any;
+        const jsonF = mapFolder(f);
         jsonF.items = (jsonF.items || []).filter((i: any) => allowedItemIds.includes(i.id));
         return jsonF;
       });
 
-    const filteredStandaloneItems = standaloneItems.filter(i => allowedItemIds.includes(i.id));
+    const filteredStandaloneItems = standaloneItems.filter(i => allowedItemIds.includes(i.id)).map(mapStandalone);
 
     console.log("=== system.service.ts ===");
     console.log("allFolders count:", folders.length);

@@ -43,7 +43,7 @@ export class AuditService {
     userId: number | null;
     entityType: string;
     entityId: number | null;
-    action: 'CREATE' | 'UPDATE' | 'DELETE';
+    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'ROLLBACK';
     oldRecord?: any;
     newRecord?: any;
     ipAddress?: string;
@@ -69,7 +69,7 @@ export class AuditService {
       newValue = sanitizeRecord(params.newRecord);
     } else if (params.action === 'DELETE') {
       oldValue = sanitizeRecord(params.oldRecord);
-    } else if (params.action === 'UPDATE') {
+    } else if (params.action === 'UPDATE' || params.action === 'ROLLBACK') {
       const cleanOld = sanitizeRecord(params.oldRecord) || {};
       const cleanNew = sanitizeRecord(params.newRecord) || {};
 
@@ -89,7 +89,7 @@ export class AuditService {
         }
       }
 
-      if (!hasChanges) {
+      if (!hasChanges && params.action !== 'ROLLBACK') {
         return null;
       }
       oldValue = diffOld;

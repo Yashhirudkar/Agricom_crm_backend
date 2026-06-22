@@ -37,6 +37,15 @@ export class SidebarItem extends Model<SidebarItem> {
   declare icon_name: string;
 
   @AllowNull(true)
+  @Column({ type: DataType.STRING(50), field: 'icon_color' })
+  declare iconColor: string;
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN, field: 'use_folder_color' })
+  declare useFolderColor: boolean;
+
+  @AllowNull(true)
   @Column({ type: DataType.STRING(100) })
   declare permission_link: string; // e.g., employees:read
 

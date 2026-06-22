@@ -8,6 +8,7 @@ import {
   runLeaveMigrations,
   runAttendanceMigrations,
   runMastersSidebarMigrations,
+  runSidebarCollapsibleMigration,
 } from './migration-tasks';
 
 /**
@@ -74,6 +75,7 @@ async function run() {
       await runLeaveMigrations(sequelize, transaction);
       await runAttendanceMigrations(sequelize, transaction);
       await runMastersSidebarMigrations(sequelize, transaction);
+      await runSidebarCollapsibleMigration(sequelize, transaction);
     });
 
     console.log('[Migration] All migration tasks executed successfully.');

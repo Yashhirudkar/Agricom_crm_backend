@@ -7,7 +7,7 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('system/sidebar')
 export class SidebarController {
-  constructor(private readonly sidebarService: SidebarService) {}
+  constructor(private readonly sidebarService: SidebarService) { }
 
   @Get('tree')
   @RequirePermission('system:manage_sidebar')
@@ -17,13 +17,13 @@ export class SidebarController {
 
   @Post('folder')
   @RequirePermission('system:manage_sidebar') // Only Super Admin should have this
-  async createFolder(@Req() req: any, @Body() dto: { name: string; icon_name?: string; sort_order?: number }) {
+  async createFolder(@Req() req: any, @Body() dto: { name: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean; sort_order?: number }) {
     return this.sidebarService.createFolder(req.user.id, dto);
   }
 
   @Post('item')
   @RequirePermission('system:manage_sidebar')
-  async createItem(@Req() req: any, @Body() dto: { name: string; route: string; folder_id?: number; icon_name?: string; permission_link?: string; sort_order?: number }) {
+  async createItem(@Req() req: any, @Body() dto: { name: string; route: string; folder_id?: number; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string; sort_order?: number }) {
     return this.sidebarService.createItem(req.user.id, dto);
   }
 
@@ -41,13 +41,13 @@ export class SidebarController {
 
   @Patch('folder/:id')
   @RequirePermission('system:manage_sidebar')
-  async updateFolder(@Req() req: any, @Param('id') id: string, @Body() dto: { name?: string; icon_name?: string }) {
+  async updateFolder(@Req() req: any, @Param('id') id: string, @Body() dto: { name?: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean }) {
     return this.sidebarService.updateFolder(req.user.id, parseInt(id, 10), dto);
   }
 
   @Patch('item/:id')
   @RequirePermission('system:manage_sidebar')
-  async updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: { name?: string; route?: string; icon_name?: string; permission_link?: string }) {
+  async updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: { name?: string; route?: string; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string }) {
     return this.sidebarService.updateItem(req.user.id, parseInt(id, 10), dto);
   }
 

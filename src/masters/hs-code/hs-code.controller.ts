@@ -26,7 +26,9 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/hs-codes')
 export class HSCodeController {
-  constructor(private readonly hsCodeService: HSCodeService) {}
+  constructor(
+    private readonly hsCodeService: HSCodeService,
+  ) {}
 
   @Post()
   @RequirePermission('hscode:create')
@@ -38,14 +40,18 @@ export class HSCodeController {
 
   @Get()
   @RequirePermission('hscode:view')
-  findAll(@Query() query: QueryHSCodeDto) {
-    return this.hsCodeService.findAll(query);
+  async findAll(@Query() query: QueryHSCodeDto) {
+    const result = await this.hsCodeService.findAll(query);
+    
+    return result;
   }
 
   @Get(':id')
   @RequirePermission('hscode:view')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.hsCodeService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const item = await this.hsCodeService.findOne(id);
+    
+    return item;
   }
 
   @Patch(':id')

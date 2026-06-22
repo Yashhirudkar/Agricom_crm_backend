@@ -26,7 +26,9 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+  ) {}
 
   @Post()
   @RequirePermission('product:create')
@@ -38,14 +40,18 @@ export class ProductController {
 
   @Get()
   @RequirePermission('product:view')
-  findAll(@Query() query: QueryProductDto) {
-    return this.productService.findAll(query);
+  async findAll(@Query() query: QueryProductDto) {
+    const result = await this.productService.findAll(query);
+    
+    return result;
   }
 
   @Get(':id')
   @RequirePermission('product:view')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.productService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const item = await this.productService.findOne(id);
+    
+    return item;
   }
 
   @Patch(':id')

@@ -26,7 +26,9 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partners')
 export class PartnerController {
-  constructor(private readonly partnerService: PartnerService) {}
+  constructor(
+    private readonly partnerService: PartnerService,
+  ) {}
 
   @Post()
   @RequirePermission('partner:create')
@@ -38,14 +40,18 @@ export class PartnerController {
 
   @Get()
   @RequirePermission('partner:view')
-  findAll(@Query() query: QueryPartnerDto) {
-    return this.partnerService.findAll(query);
+  async findAll(@Query() query: QueryPartnerDto) {
+    const result = await this.partnerService.findAll(query);
+    
+    return result;
   }
 
   @Get(':id')
   @RequirePermission('partner:view')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.partnerService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const item = await this.partnerService.findOne(id);
+    
+    return item;
   }
 
   @Patch(':id')

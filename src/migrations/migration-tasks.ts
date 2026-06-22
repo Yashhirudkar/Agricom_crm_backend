@@ -529,3 +529,13 @@ export async function runMastersSidebarMigrations(sequelize: Sequelize, transact
   console.log('[Migration] Masters Sidebar created successfully.');
 }
 
+export async function runSidebarCollapsibleMigration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+  console.log('[Migration] Safely adding is_collapsible column to sidebar_folders...');
+
+  await sequelize.query(`
+    ALTER TABLE sidebar_folders
+    ADD COLUMN IF NOT EXISTS is_collapsible BOOLEAN DEFAULT false;
+  `, { transaction });
+
+  console.log('[Migration] sidebar_folders.is_collapsible column ready.');
+}
