@@ -20,7 +20,7 @@ export class LeaveRequestsQueryService {
     private readonly employeeLeaveBalanceModel: typeof EmployeeLeaveBalance,
   ) {}
 
-  async getLeaveRequests(companyId: number, query: GetLeaveRequestsFilterDto): Promise<LeaveRequest[]> {
+  async getLeaveRequests(companyId: number, query: GetLeaveRequestsFilterDto): Promise<{ data: LeaveRequest[], meta: any }> {
     const where: any = { companyId };
     if (query.employeeId) where.employeeId = query.employeeId;
     if (query.status) where.status = query.status;
@@ -28,15 +28,32 @@ export class LeaveRequestsQueryService {
       where.fromDate = { [Op.between]: [query.startDate, query.endDate] };
     }
 
-    return this.leaveRequestModel.findAll({
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.leaveRequestModel.findAndCountAll({
       where,
+      limit,
+      offset,
       include: [
         { model: Employee, attributes: ['id', 'firstName', 'lastName', 'email', 'employeeCode'] },
         { model: LeaveType, attributes: ['id', 'name', 'code', 'isPaid'] },
         { model: LeaveApprovalStep, include: [{ model: Employee, as: 'approver', attributes: ['id', 'firstName', 'lastName'] }] }
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
+      distinct: true,
     });
+
+    return {
+      data: rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      }
+    };
   }
 
   async getLeaveRequestById(id: number, companyId: number): Promise<LeaveRequest> {

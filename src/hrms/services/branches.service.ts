@@ -118,10 +118,12 @@ export class BranchesService {
 
     return {
       data: rows,
-      total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+      meta: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / limit),
+      }
     };
   }
 

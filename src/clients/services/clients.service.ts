@@ -97,12 +97,40 @@ export class ClientsService {
 
   }
 
-  async findAll(): Promise<Client[]> {
-    return this.clientModel.findAll({
+  async findAll(query?: { search?: string; page?: number; limit?: number }): Promise<{ data: Client[]; meta: any }> {
+    const { Op } = require('sequelize');
+    const where: any = {};
+    const search = query?.search;
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+    
+    const page = query?.page || 1;
+    const limit = query?.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.clientModel.findAndCountAll({
+      where,
+      limit,
+      offset,
       attributes: { exclude: ['password'] },
       include: ['folderAccess', 'itemAccess', 'moduleAccess', 'actionAccess'],
       order: [['createdAt', 'DESC']],
+      distinct: true,
     });
+
+    return {
+      data: rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      },
+    };
   }
 
   async findById(id: number): Promise<Client | null> {

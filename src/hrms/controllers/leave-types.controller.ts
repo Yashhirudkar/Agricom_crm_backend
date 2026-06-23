@@ -12,6 +12,7 @@ import {
   HttpStatus,
   Request,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { LeaveTypesService } from '../services/leave-types.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -53,9 +54,18 @@ export class LeaveTypesController {
 
   @Get()
   @RequirePermission('leave_types:read')
-  getLeaveTypes(@Request() req) {
+  getLeaveTypes(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const companyId = this.getCompanyId(req);
-    return this.leaveTypesService.getLeaveTypes(companyId);
+    return this.leaveTypesService.getLeaveTypes(companyId, {
+      search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
   }
 
   @Get(':id')

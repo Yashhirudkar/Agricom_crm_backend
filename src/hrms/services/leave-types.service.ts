@@ -53,11 +53,32 @@ export class LeaveTypesService {
     }
   }
 
-  async getLeaveTypes(companyId: number): Promise<LeaveType[]> {
-    return this.leaveTypeModel.findAll({
-      where: { companyId, isActive: true },
+  async getLeaveTypes(companyId: number, query?: { search?: string, page?: number, limit?: number }): Promise<{ data: LeaveType[], meta: any }> {
+    const where: any = { companyId, isActive: true };
+    if (query?.search) {
+      where.name = { [Op.iLike]: `%${query.search}%` };
+    }
+
+    const page = query?.page || 1;
+    const limit = query?.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.leaveTypeModel.findAndCountAll({
+      where,
+      limit,
+      offset,
       order: [['name', 'ASC']],
     });
+
+    return {
+      data: rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      }
+    };
   }
 
   async getLeaveTypeById(id: number, companyId: number): Promise<LeaveType> {

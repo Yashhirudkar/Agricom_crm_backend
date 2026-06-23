@@ -71,7 +71,7 @@ export class AuthController {
       if (!client) throw new UnauthorizedException('Client not found');
 
       const allCompanies = await this.userCompanyModel.sequelize!.query(
-        `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        `SELECT id, name, "logoUrl", status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
         {
           replacements: { clientId: client.id },
           type: 'SELECT'
@@ -81,9 +81,19 @@ export class AuthController {
       const workspaces = allCompanies.map(c => ({
         id: c.id,
         name: c.name,
+        logoUrl: c.logoUrl,
         role: { id: 0, name: 'Client Admin' },
         status: c.status || 'Active',
       }));
+
+      const activeCompanyId = req.headers['x-company-id'];
+      const activeWorkspace = workspaces.find(w => w.id?.toString() === activeCompanyId?.toString()) || workspaces[0];
+
+      const company = activeWorkspace ? {
+        id: activeWorkspace.id,
+        name: activeWorkspace.name,
+        logoUrl: activeWorkspace.logoUrl || null,
+      } : { name: "Agricom", logoUrl: null };
 
       return {
         id: client.id,
@@ -92,6 +102,7 @@ export class AuthController {
         type: 'client_admin',
         isActive: client.isActive,
         workspaces,
+        company,
       };
     }
 
@@ -120,7 +131,7 @@ export class AuthController {
     
     if (type === 'client_admin') {
       const allCompanies = await this.userCompanyModel.sequelize!.query(
-        `SELECT id, name, status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        `SELECT id, name, "logoUrl", status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
         {
           replacements: { clientId: user.clientId },
           type: 'SELECT'
@@ -130,6 +141,7 @@ export class AuthController {
       workspaces = allCompanies.map(c => ({
         id: c.id,
         name: c.name,
+        logoUrl: c.logoUrl,
         role: { id: 0, name: 'Client Admin' },
         status: c.status || 'Active',
       }));
@@ -158,11 +170,46 @@ export class AuthController {
         return {
           id: uc.company?.id,
           name: uc.company?.name,
+          logoUrl: uc.company?.logoUrl,
           role: uc.role ? { id: uc.role.id, name: uc.role.name } : null,
           status: uc.status,
         };
       }));
     }
+
+    let activeCompanyDetails = null;
+    if (activeCompanyId) {
+       // if client admin, we can find in workspaces
+       if (type === 'client_admin') {
+          activeCompanyDetails = workspaces.find(w => w.id?.toString() === activeCompanyId?.toString());
+       } else {
+          const userCompany = user.userCompanies?.find(uc => uc.company?.id?.toString() === activeCompanyId?.toString());
+          if (userCompany && userCompany.company) {
+             activeCompanyDetails = { id: userCompany.company.id, name: userCompany.company.name, logoUrl: userCompany.company.logoUrl };
+          } else {
+             // For super admin switching to a workspace not in userCompanies
+             if (type === 'super_admin') {
+               const targetCompany = await this.userCompanyModel.sequelize!.query(
+                  `SELECT id, name, "logoUrl" FROM "companies" WHERE id = :companyId LIMIT 1;`,
+                  { replacements: { companyId: activeCompanyId }, type: 'SELECT' }
+               ) as any[];
+               if (targetCompany.length > 0) {
+                 activeCompanyDetails = targetCompany[0];
+               }
+             }
+          }
+       }
+    }
+    
+    if (!activeCompanyDetails && workspaces.length > 0) {
+      activeCompanyDetails = workspaces[0];
+    }
+
+    const companyData = activeCompanyDetails ? {
+      id: activeCompanyDetails.id,
+      name: activeCompanyDetails.name,
+      logoUrl: activeCompanyDetails.logoUrl || null,
+    } : { name: "Agricom", logoUrl: null };
 
 
 
@@ -181,6 +228,7 @@ export class AuthController {
       })) ?? [],
       workspaces,
       permissions,
+      company: companyData,
       employeeId: req.user.employeeId || null,
     };
   }

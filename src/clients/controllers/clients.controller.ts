@@ -24,9 +24,19 @@ export class ClientsController {
 
   @Get('/GetClients')
   @RequirePermission('clients:read')
-  async getClients(@Request() req) {
+  async getClients(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
-    return this.clientsService.findAll();
+    const query = {
+      search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    };
+    return this.clientsService.findAll(query);
   }
 
   @Post('/CreateClient')

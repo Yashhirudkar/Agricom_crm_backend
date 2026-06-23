@@ -131,6 +131,14 @@ export class GetUsersFilterDto {
   @IsOptional()
   @IsString()
   clientId?: string;
+
+  @IsOptional()
+  @IsString()
+  page?: string;
+
+  @IsOptional()
+  @IsString()
+  limit?: string;
 }
 
 export class VerifyInvitationDto {

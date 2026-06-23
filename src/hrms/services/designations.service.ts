@@ -233,10 +233,12 @@ export class DesignationsService {
 
     return {
       data,
-      total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+      meta: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / limit),
+      }
     };
   }
 

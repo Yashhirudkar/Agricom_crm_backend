@@ -147,18 +147,39 @@ export class RbacService {
     return { message: `Role "${role.name}" deleted successfully` };
   }
 
-  async getRoles(clientId?: number | null): Promise<Role[]> {
+  async getRoles(query?: { clientId?: number | null, search?: string, page?: number, limit?: number }): Promise<{ data: Role[]; meta: any }> {
     const where: any = {};
+    const clientId = query?.clientId;
     if (clientId !== undefined && clientId !== null) {
       where[Op.or] = [
         { clientId: null, isSystemRole: true },
         { clientId }
       ];
     }
-    return this.roleModel.findAll({
+    if (query?.search) {
+      where.name = { [Op.iLike]: `%${query.search}%` };
+    }
+
+    const page = query?.page || 1;
+    const limit = query?.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.roleModel.findAndCountAll({
       where,
+      limit,
+      offset,
       order: [['createdAt', 'DESC']],
     });
+
+    return {
+      data: rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      },
+    };
   }
 
   async getRoleById(id: number): Promise<Role> {

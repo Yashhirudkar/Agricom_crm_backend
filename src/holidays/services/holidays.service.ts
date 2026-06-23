@@ -136,9 +136,12 @@ export class HolidaysService {
 
     return {
       data: holidays.rows,
-      total: holidays.count,
-      page,
-      limit,
+      meta: {
+        total: holidays.count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(holidays.count / limit),
+      }
     };
   }
 

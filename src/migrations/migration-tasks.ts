@@ -539,3 +539,92 @@ export async function runSidebarCollapsibleMigration(sequelize: Sequelize, trans
 
   console.log('[Migration] sidebar_folders.is_collapsible column ready.');
 }
+
+export async function runCompaniesPhase1Migration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+  console.log('[Migration] Phase 1 — Expanding companies table (Basic Info + Branding + Contact)...');
+
+  // 1. Create company_type enum (idempotent)
+  await sequelize.query(`
+    DO $$ BEGIN
+      CREATE TYPE "enum_companies_companyType" AS ENUM (
+        'PRIVATE_LTD', 'LLP', 'PARTNERSHIP', 'ENTERPRISE', 'SOLE_PROPRIETOR'
+      );
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+  `, { transaction });
+
+  // 2. Create industry_type enum (idempotent)
+  await sequelize.query(`
+    DO $$ BEGIN
+      CREATE TYPE "enum_companies_industryType" AS ENUM (
+        'AGRICULTURE', 'FINANCE', 'IT', 'HEALTHCARE', 'EDUCATION', 'OTHER'
+      );
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+  `, { transaction });
+
+  // 3. Add all 8 new columns (idempotent via IF NOT EXISTS)
+  await sequelize.query(`
+    ALTER TABLE "companies"
+      ADD COLUMN IF NOT EXISTS "legalName"    VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS "companyCode"  VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS "companyType"  "enum_companies_companyType",
+      ADD COLUMN IF NOT EXISTS "industryType" "enum_companies_industryType",
+      ADD COLUMN IF NOT EXISTS "logoUrl"      TEXT,
+      ADD COLUMN IF NOT EXISTS "faviconUrl"   TEXT,
+      ADD COLUMN IF NOT EXISTS "email"        VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS "phone"        VARCHAR(30);
+  `, { transaction });
+
+  // 4. Unique constraint on companyCode (idempotent)
+  await sequelize.query(`
+    ALTER TABLE "companies"
+      DROP CONSTRAINT IF EXISTS "companies_companyCode_key";
+    ALTER TABLE "companies"
+      ADD CONSTRAINT "companies_companyCode_key" UNIQUE ("companyCode");
+  `, { transaction });
+
+  console.log('[Migration] companies Phase 1 columns added successfully.');
+}
+
+export async function runCompaniesPhase2Migration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+  console.log('[Migration] Phase 2 — Expanding companies table (Address + Website + EstablishedYear)...');
+
+  await sequelize.query(`
+    ALTER TABLE "companies"
+      ADD COLUMN IF NOT EXISTS "website"          VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS "country"          VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "state"            VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "city"             VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "address"          TEXT,
+      ADD COLUMN IF NOT EXISTS "pincode"          VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS "established_year" INTEGER;
+  `, { transaction });
+
+  console.log('[Migration] companies Phase 2 columns added successfully.');
+}
+
+export async function runCompanyEnumRemovalMigration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+  console.log('[Migration] Phase 3 — Removing Enums and Expanding Enterprise Fields...');
+
+  // Safely alter columns from ENUM to VARCHAR
+  await sequelize.query(`
+    ALTER TABLE "companies"
+      ALTER COLUMN "companyType" TYPE VARCHAR(100),
+      ALTER COLUMN "industryType" TYPE VARCHAR(100);
+  `, { transaction });
+
+  // Safely add missing enterprise fields
+  await sequelize.query(`
+    ALTER TABLE "companies"
+      ADD COLUMN IF NOT EXISTS "description" TEXT,
+      ADD COLUMN IF NOT EXISTS "registration_number" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "tax_number" VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS "employee_count" INTEGER,
+      ADD COLUMN IF NOT EXISTS "company_size" VARCHAR(50);
+  `, { transaction });
+
+  console.log('[Migration] companies Phase 3 (Enum removal & Enterprise fields) completed successfully.');
+}

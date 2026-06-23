@@ -55,11 +55,13 @@ export class UsersController {
       clientId,
       status: filterDto.status,
       search: filterDto.search,
+      page: filterDto.page ? parseInt(filterDto.page, 10) : 1,
+      limit: filterDto.limit ? parseInt(filterDto.limit, 10) : 20,
     };
     if (filterDto.companyId) filters.companyId = parseInt(filterDto.companyId, 10);
     if (filterDto.roleId) filters.roleId = parseInt(filterDto.roleId, 10);
 
-    const users = await this.usersService.getUsers(filters);
+    const { data: users, meta: paginationMeta } = await this.usersService.getUsers(filters);
 
     if (!isSuper && clientId) {
       const client = await this.clientModel.findByPk(clientId);
@@ -67,6 +69,7 @@ export class UsersController {
       return {
         users,
         meta: {
+          ...paginationMeta,
           clientId,
           clientName: client?.name,
           maxUsers: client?.allowedUsers ?? 15,
@@ -76,7 +79,7 @@ export class UsersController {
       };
     }
 
-    return { users, meta: null };
+    return { users, meta: paginationMeta };
   }
 
   @Post('CreateUser')

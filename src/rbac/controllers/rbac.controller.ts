@@ -92,13 +92,26 @@ export class RbacController {
 
   @Get('GetRoles')
   @RequirePermission('roles:read')
-  getRoles(@Request() req, @Query('clientId') filterClientId?: string) {
+  getRoles(
+    @Request() req,
+    @Query('clientId') filterClientId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
       ? (filterClientId ? parseInt(filterClientId, 10) : null)
       : req.user.clientId;
 
-    return this.rbacService.getRoles(clientId);
+    const query = {
+      clientId,
+      search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    };
+
+    return this.rbacService.getRoles(query);
   }
 
   @Get('GetRoleById')

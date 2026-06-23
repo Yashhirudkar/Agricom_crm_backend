@@ -9,6 +9,9 @@ import {
   runAttendanceMigrations,
   runMastersSidebarMigrations,
   runSidebarCollapsibleMigration,
+  runCompaniesPhase1Migration,
+  runCompaniesPhase2Migration,
+  runCompanyEnumRemovalMigration,
 } from './migration-tasks';
 
 /**
@@ -76,6 +79,9 @@ async function run() {
       await runAttendanceMigrations(sequelize, transaction);
       await runMastersSidebarMigrations(sequelize, transaction);
       await runSidebarCollapsibleMigration(sequelize, transaction);
+      await runCompaniesPhase1Migration(sequelize, transaction);
+      await runCompaniesPhase2Migration(sequelize, transaction);
+      await runCompanyEnumRemovalMigration(sequelize, transaction);
     });
 
     console.log('[Migration] All migration tasks executed successfully.');

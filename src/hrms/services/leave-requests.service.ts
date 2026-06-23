@@ -330,7 +330,7 @@ export class LeaveRequestsService {
     return this.workflowService.cancelLeave(requestId, companyId, employeeId, dto, actor);
   }
 
-  async getLeaveRequests(companyId: number, query: GetLeaveRequestsFilterDto): Promise<LeaveRequest[]> {
+  async getLeaveRequests(companyId: number, query: GetLeaveRequestsFilterDto): Promise<{ data: LeaveRequest[], meta: any }> {
     return this.queryService.getLeaveRequests(companyId, query);
   }
 

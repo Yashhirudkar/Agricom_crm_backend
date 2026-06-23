@@ -64,7 +64,7 @@ export class UsersService {
         {
           model: UserCompany,
           include: [
-            { model: Company, attributes: ['id', 'name', 'clientId'] },
+            { model: Company, attributes: ['id', 'name', 'clientId', 'logoUrl'] },
             { 
               model: Role, 
               attributes: ['id', 'name'],
@@ -92,7 +92,9 @@ export class UsersService {
     roleId?: number | null;
     status?: string | null;
     search?: string | null;
-  }): Promise<User[]> {
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: User[]; meta: any }> {
     const where: any = {};
     const userCompanyWhere: any = {};
     let userCompanyRequired = false;
@@ -120,8 +122,14 @@ export class UsersService {
       }
     }
 
-    return this.userModel.findAll({
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const { rows, count } = await this.userModel.findAndCountAll({
       where,
+      limit,
+      offset,
       attributes: { exclude: ['password'] },
       include: [
         {
@@ -134,13 +142,24 @@ export class UsersService {
           where: Object.keys(userCompanyWhere).length > 0 ? userCompanyWhere : undefined,
           required: userCompanyRequired,
           include: [
-            { model: Company, attributes: ['id', 'name'] },
+            { model: Company, attributes: ['id', 'name', 'logoUrl'] },
             { model: Role, attributes: ['id', 'name'] },
           ],
         },
       ],
       order: [['createdAt', 'DESC']],
+      distinct: true,
     });
+
+    return {
+      data: rows,
+      meta: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        totalPages: Math.ceil(count / limit),
+      },
+    };
   }
 
   async createUser(data: {

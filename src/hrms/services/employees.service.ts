@@ -6,6 +6,7 @@ import { EmployeeLifecycleLog } from '../models/employee-lifecycle-log.model';
 import { EmployeeDocument, DocumentCategory, VerificationStatus } from '../models/employee-document.model';
 import { Department } from '../../companies/models/department.model';
 import { Designation } from '../models/designation.model';
+import { Branch } from '../models/branch.model';
 import { User } from '../../users/models/user.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { AuditService } from '../../audit/services/audit.service';
@@ -410,10 +411,12 @@ export class EmployeesService {
 
     return {
       data: rows,
-      total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+      meta: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / limit),
+      }
     };
   }
 
@@ -423,6 +426,7 @@ export class EmployeesService {
       include: [
         { model: Department, attributes: ['id', 'name'] },
         { model: Designation, attributes: ['id', 'name'] },
+        { model: Branch, attributes: ['id', 'branchName'] },
         { model: Employee, as: 'manager', attributes: ['id', 'firstName', 'lastName', 'email'] },
         { 
           model: User, 
