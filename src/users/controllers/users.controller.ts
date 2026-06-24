@@ -259,4 +259,16 @@ export class UsersController {
 
     return this.usersService.updateUserCompanyRole(dto.userId, dto.companyId, dto.roleId);
   }
+
+  @Get('options')
+  @RequirePermission('users:read')
+  async getUserOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const clientId = req.user.type === 'super_admin' ? null : req.user.clientId;
+    return this.usersService.getUsersForOptions(clientId, search, page, limit);
+  }
 }

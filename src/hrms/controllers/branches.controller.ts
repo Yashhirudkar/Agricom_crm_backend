@@ -59,6 +59,18 @@ export class BranchesController {
     return this.branchesService.getBranches(companyId, query);
   }
 
+  @Get('options')
+  @RequirePermission('branches:read')
+  getBranchOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.branchesService.getBranchesForOptions(companyId, search, page, limit);
+  }
+
   @Get(':id')
   @RequirePermission('branches:read')
   getBranchById(@Param('id', ParseIntPipe) id: number, @Request() req) {

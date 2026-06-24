@@ -303,4 +303,33 @@ export class DesignationsService {
 
     return roots;
   }
+
+  async getDesignationsForOptions(companyId: number, search?: string, page: string = '1', limit: string = '10') {
+    const where: any = { companyId, isActive: true, status: 'Active' };
+    
+    if (search) {
+      where.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 10;
+    
+    const { rows, count } = await this.designationModel.findAndCountAll({
+      where,
+      attributes: ['id', 'name'],
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
+      order: [['name', 'ASC']],
+    });
+
+    return {
+      data: rows.map(r => ({ value: r.id, label: r.name })),
+      meta: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: count,
+        totalPages: Math.ceil(count / parsedLimit),
+      }
+    };
+  }
 }

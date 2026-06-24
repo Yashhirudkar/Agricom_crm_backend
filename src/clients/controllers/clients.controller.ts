@@ -85,4 +85,16 @@ export class ClientsController {
     await this.clientsService.delete(data.id, actor);
     return { id: data.id };
   }
+
+  @Get('/options')
+  @RequirePermission('clients:read')
+  async getClientOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    return this.clientsService.getClientsForOptions(search, page, limit);
+  }
 }

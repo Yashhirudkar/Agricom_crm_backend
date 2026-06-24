@@ -295,4 +295,36 @@ export class BranchesService {
       throw err;
     }
   }
+
+  async getBranchesForOptions(companyId: number, search?: string, page: string = '1', limit: string = '10') {
+    const where: any = { companyId, isActive: true };
+    
+    if (search) {
+      where[Op.or] = [
+        { branchName: { [Op.iLike]: `%${search}%` } },
+        { branchCode: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 10;
+    
+    const { rows, count } = await this.branchModel.findAndCountAll({
+      where,
+      attributes: ['id', 'branchName', 'branchCode'],
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
+      order: [['branchName', 'ASC']],
+    });
+
+    return {
+      data: rows.map(r => ({ value: r.id, label: r.branchCode ? `${r.branchName} (${r.branchCode})` : r.branchName })),
+      meta: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: count,
+        totalPages: Math.ceil(count / parsedLimit),
+      }
+    };
+  }
 }

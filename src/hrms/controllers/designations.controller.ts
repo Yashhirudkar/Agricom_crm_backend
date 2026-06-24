@@ -61,6 +61,18 @@ export class DesignationsController {
     return this.designationsService.getDesignations(companyId, filterDto);
   }
 
+  @Get('options')
+  @RequirePermission('designations:read')
+  getDesignationOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.designationsService.getDesignationsForOptions(companyId, search, page, limit);
+  }
+
   @Get('hierarchy')
   @RequirePermission('designations:read')
   getDesignationHierarchy(@Request() req) {

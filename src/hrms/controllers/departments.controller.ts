@@ -61,6 +61,18 @@ export class DepartmentsController {
     return this.departmentsService.getDepartments(companyId, filterDto);
   }
 
+  @Get('options')
+  @RequirePermission('departments:read')
+  getDepartmentOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.departmentsService.getDepartmentsForOptions(companyId, search, page, limit);
+  }
+
   @Get('tree')
   @RequirePermission('departments:read')
   getDepartmentTree(@Request() req) {

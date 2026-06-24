@@ -114,6 +114,19 @@ export class RbacController {
     return this.rbacService.getRoles(query);
   }
 
+  @Get('options')
+  @RequirePermission('roles:read')
+  async getRoleOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const isSuper = req.user.type === 'super_admin';
+    const clientId = isSuper ? null : req.user.clientId;
+    return this.rbacService.getRolesForOptions(clientId, search, page, limit);
+  }
+
   @Get('GetRoleById')
   @RequirePermission('roles:read')
   async getRoleById(@Query('id', ParseIntPipe) id: number, @Request() req) {

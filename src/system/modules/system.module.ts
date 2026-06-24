@@ -18,11 +18,13 @@ import { ModuleResource } from '../models/module-resource.model';
 import { ResourceAction } from '../models/resource-action.model';
 import { ClientFolderAccess } from '../../clients/models/client-folder-access.model';
 import { ClientItemAccess } from '../../clients/models/client-item-access.model';
+import { OptionsController } from '../controllers/options.controller';
+import { OptionsService } from '../services/options.service';
 
 @Module({
   imports: [SequelizeModule.forFeature([SidebarFolder, SidebarItem, SystemAuditLog, AppModuleModel, ModuleResource, ResourceAction, ClientFolderAccess, ClientItemAccess]), RbacModule],
-  controllers: [SystemController, SidebarController, MatrixBuilderController],
-  providers: [SystemService, SidebarService, MatrixBuilderService, SystemAuditService, SidebarSeederService],
-  exports: [SystemService, SidebarService, MatrixBuilderService, SystemAuditService],
+  controllers: [SystemController, SidebarController, MatrixBuilderController, OptionsController],
+  providers: [SystemService, SidebarService, MatrixBuilderService, SystemAuditService, SidebarSeederService, OptionsService],
+  exports: [SystemService, SidebarService, MatrixBuilderService, SystemAuditService, OptionsService],
 })
 export class SystemModule {}

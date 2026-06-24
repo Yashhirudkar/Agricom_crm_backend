@@ -438,4 +438,39 @@ export class UsersService {
     await mapping.save({ transaction });
     return mapping;
   }
+
+  async getUsersForOptions(clientId: number | null, search?: string, page: string = '1', limit: string = '10') {
+    const where: any = { isActive: true };
+    if (clientId !== null) {
+      where.clientId = clientId;
+    }
+    
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 10;
+    
+    const { rows, count } = await this.userModel.findAndCountAll({
+      where,
+      attributes: ['id', 'name', 'email'],
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
+      order: [['name', 'ASC']],
+    });
+
+    return {
+      data: rows.map(r => ({ value: r.id, label: `${r.name} (${r.email})` })),
+      meta: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: count,
+        totalPages: Math.ceil(count / parsedLimit),
+      }
+    };
+  }
 }

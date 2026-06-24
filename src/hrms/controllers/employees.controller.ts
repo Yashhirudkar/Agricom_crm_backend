@@ -68,6 +68,18 @@ export class EmployeesController {
     return this.employeesService.getEmployees(companyId, query);
   }
 
+  @Get('options')
+  @RequirePermission('employees:read')
+  getEmployeeOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.employeesService.getEmployeesForOptions(companyId, search, page, limit);
+  }
+
   @Get('org-chart/full')
   @RequirePermission('employee_hierarchy:view_hierarchy')
   getOrgChart(@Request() req) {

@@ -129,8 +129,14 @@ export class CompaniesController {
 
   @Get('options')
   @RequirePermission('companies:read')
-  getCompanyOptions() {
-    return this.companiesService.getCompanyOptions();
+  async getCompanyOptions(
+    @Request() req,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const clientId = req.user.type === 'super_admin' ? null : req.user.clientId;
+    return this.companiesService.getCompaniesForOptions(clientId, search, page, limit);
   }
 
   @Post('upload-logo')

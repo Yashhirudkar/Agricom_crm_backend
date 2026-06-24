@@ -487,4 +487,37 @@ export class EmployeesService {
   async downloadDocument(employeeId: number, documentId: number, companyId: number, actor: any): Promise<string> {
     return this.documentService.downloadDocument(employeeId, documentId, companyId, actor);
   }
+
+  async getEmployeesForOptions(companyId: number, search?: string, page: string = '1', limit: string = '10') {
+    const where: any = { companyId, isActive: true, status: 'Active' };
+    
+    if (search) {
+      where[Op.or] = [
+        { firstName: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 10;
+    
+    const { rows, count } = await this.employeeModel.findAndCountAll({
+      where,
+      attributes: ['id', 'firstName', 'lastName', 'email'],
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
+      order: [['firstName', 'ASC']],
+    });
+
+    return {
+      data: rows.map(r => ({ value: r.id, label: `${r.firstName} ${r.lastName} (${r.email})` })),
+      meta: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: count,
+        totalPages: Math.ceil(count / parsedLimit),
+      }
+    };
+  }
 }

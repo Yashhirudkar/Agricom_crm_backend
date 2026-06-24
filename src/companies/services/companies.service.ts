@@ -282,11 +282,35 @@ export class CompaniesService {
 
   // ─── Options ───────────────────────────────────────────────────────────────
 
-  getCompanyOptions() {
+  async getCompaniesForOptions(clientId: number | null, search?: string, page: string = '1', limit: string = '10') {
+    const where: any = { isActive: true };
+    if (clientId !== null) {
+      where.clientId = clientId;
+    }
+    
+    if (search) {
+      where.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const parsedPage = parseInt(page, 10) || 1;
+    const parsedLimit = parseInt(limit, 10) || 10;
+    
+    const { rows, count } = await this.companyModel.findAndCountAll({
+      where,
+      attributes: ['id', 'name'],
+      limit: parsedLimit,
+      offset: (parsedPage - 1) * parsedLimit,
+      order: [['name', 'ASC']],
+    });
+
     return {
-      companyTypes: COMPANY_TYPES,
-      industryTypes: INDUSTRY_TYPES,
-      companySizes: COMPANY_SIZES,
+      data: rows.map(r => ({ value: r.id, label: r.name })),
+      meta: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: count,
+        totalPages: Math.ceil(count / parsedLimit),
+      }
     };
   }
 }
