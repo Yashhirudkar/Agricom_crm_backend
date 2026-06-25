@@ -26,6 +26,10 @@ export function standardizePermission(permKey: string): {
     action = 'read';
   }
 
+  if (action === 'edit') {
+    action = 'update';
+  }
+
   if (resource === 'manager' && action === 'approve_leave') {
     resource = 'leave';
     action = 'approve';
@@ -238,14 +242,14 @@ export class PermissionsGuard implements CanActivate {
       ],
     });
 
-    // Build a Set of "resource:action" strings the user holds
+    // Build a Set of standardized "resource:action" strings the user holds
     // Normalize to lowercase — DB stores action names in UPPERCASE (READ, CREATE, etc.)
     // but @RequirePermission decorators pass lowercase (users:read, roles:create, etc.)
     const grantedSet = new Set<string>(
-      rolePermissions.map(
-        (rp) =>
-          `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`,
-      ),
+      rolePermissions.map((rp) => {
+        const rawPerm = `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`;
+        return standardizePermission(rawPerm).name;
+      }),
     );
 
     // Check every required permission

@@ -19,7 +19,7 @@ export class TaskQueryRepository {
   constructor(
     @InjectModel(Task)
     private readonly taskModel: typeof Task,
-  ) {}
+  ) { }
 
   async findAndCountAll(clientId: number, query: TaskQueryDto) {
     const {
@@ -66,7 +66,11 @@ export class TaskQueryRepository {
         case 'my_tasks':
           where[Op.or] = [
             { ownerId: query['userId'] },
-            { createdById: query['userId'] }
+            { createdById: query['userId'] },
+            this.taskModel.sequelize.literal(`EXISTS (
+              SELECT 1 FROM "task_assignees" AS "assignees"
+              WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${Number(query['userId'])}
+            )`)
           ];
           break;
         case 'overdue_tasks':
@@ -102,11 +106,20 @@ export class TaskQueryRepository {
 
     // Search (Full-Text friendly setup, fallback to iLike)
     if (search) {
-      where[Op.or] = [
+      const searchConditions = [
         { title: { [Op.iLike]: `%${search}%` } },
         { taskCode: { [Op.iLike]: `%${search}%` } },
         { description: { [Op.iLike]: `%${search}%` } },
       ];
+      if (where[Op.or]) {
+        where[Op.and] = [
+          { [Op.or]: where[Op.or] },
+          { [Op.or]: searchConditions }
+        ];
+        delete where[Op.or];
+      } else {
+        where[Op.or] = searchConditions;
+      }
     }
 
     // Date filters
@@ -144,11 +157,26 @@ export class TaskQueryRepository {
     ];
 
     if (filterCompleted !== undefined) {
-      include.push({
-        model: TaskStatus,
-        where: { isCompleted: filterCompleted },
-        required: true,
-      });
+      if (filterCompleted === false) {
+        // Include tasks where status is null OR status.isCompleted is false using EXISTS
+        include.push({
+          model: TaskStatus,
+          required: false,
+        });
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push(
+          this.taskModel.sequelize.literal(`("Task"."statusId" IS NULL OR EXISTS (
+            SELECT 1 FROM "task_statuses" AS "status"
+            WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = false
+          ))`)
+        );
+      } else {
+        include.push({
+          model: TaskStatus,
+          where: { isCompleted: true },
+          required: true,
+        });
+      }
     } else {
       include.push({ model: TaskStatus, required: false });
     }

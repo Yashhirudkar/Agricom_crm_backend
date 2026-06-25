@@ -32,7 +32,7 @@ export class TasksController {
   constructor(
     private readonly tasksService: TasksService,
     private readonly transitionRepo: TaskStatusTransitionRepository,
-  ) {}
+  ) { }
 
   @Post()
   @RequirePermission('task:create')

@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -10,6 +12,7 @@ import { TaskRepository, TaskQueryRepository } from '../repositories';
 import { TaskActivityService } from './task-activity.service';
 import { TaskDueDateService } from './task-due-date.service';
 import { TaskHealthService, TaskHealthState } from './task-health.service';
+import { TaskSubtaskService } from './task-subtask.service';
 import {
   CreateTaskDto,
   UpdateTaskDto,
@@ -30,6 +33,8 @@ export class TasksService {
     private readonly dueDateService: TaskDueDateService,
     private readonly healthService: TaskHealthService,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(forwardRef(() => TaskSubtaskService))
+    private readonly subtaskService: TaskSubtaskService,
     @InjectModel(TaskSequence)
     private readonly sequenceModel: typeof TaskSequence,
     @InjectModel(TaskStatus)
@@ -108,22 +113,56 @@ export class TasksService {
     const transaction = await this.sequelize.transaction();
     try {
       // 1. Generate Task Code safely
-      let sequence = await this.sequenceModel.findOne({
-        where: { clientId, modulePrefix: 'TASK' },
-        lock: transaction.LOCK.UPDATE,
-        transaction,
-      });
+      let taskCode: string;
+      if (dto.parentTaskId) {
+        // Find the parent task to get its taskCode
+        const parentTask = await this.taskModel.findOne({
+          where: { id: dto.parentTaskId, clientId },
+          transaction,
+        });
+        if (!parentTask) {
+          throw new NotFoundException('Parent task not found');
+        }
 
-      if (!sequence) {
-        sequence = await this.sequenceModel.create(
-          { clientId, modulePrefix: 'TASK', currentSequence: 0 },
-          { transaction },
-        );
+        // Count existing subtasks under this parent task (including soft-deleted ones)
+        const subtaskCount = await this.taskModel.count({
+          where: { parentTaskId: dto.parentTaskId, clientId },
+          paranoid: false,
+          transaction,
+        });
+
+        // Convert the count to a letter suffix (0 -> A, 1 -> B, etc.)
+        const getLetterSuffix = (num: number): string => {
+          let temp = num;
+          let suffix = '';
+          while (temp >= 0) {
+            suffix = String.fromCharCode((temp % 26) + 65) + suffix;
+            temp = Math.floor(temp / 26) - 1;
+          }
+          return suffix;
+        };
+
+        const suffix = getLetterSuffix(subtaskCount);
+        const parentCode = parentTask.taskCode || `TASK-${parentTask.id}`;
+        taskCode = `${parentCode}-${suffix}`;
+      } else {
+        let sequence = await this.sequenceModel.findOne({
+          where: { clientId, modulePrefix: 'TASK' },
+          lock: transaction.LOCK.UPDATE,
+          transaction,
+        });
+
+        if (!sequence) {
+          sequence = await this.sequenceModel.create(
+            { clientId, modulePrefix: 'TASK', currentSequence: 0 },
+            { transaction },
+          );
+        }
+
+        const newSeq = sequence.currentSequence + 1;
+        await sequence.update({ currentSequence: newSeq }, { transaction });
+        taskCode = `TASK-${newSeq}`;
       }
-
-      const newSeq = sequence.currentSequence + 1;
-      await sequence.update({ currentSequence: newSeq }, { transaction });
-      const taskCode = `TASK-${newSeq}`;
 
       // 2. Validate tenant relationships (Status, Priority, Assignees)
       let resolvedStatusId = dto.statusId;
@@ -351,6 +390,18 @@ export class TasksService {
 
       await transaction.commit();
 
+      // ── CASCADE: If parent task is now completed, cascade to all subtasks ──
+      // Only run if this is a parent task (parentTaskId IS NULL) and status changed
+      if (dto.statusId) {
+        const updatedStatus = await this.statusModel.findOne({
+          where: { id: dto.statusId, clientId },
+        });
+        const isParentTask = !oldTask.parentTaskId; // Only cascade from true parent tasks
+        if (updatedStatus?.isCompleted && isParentTask) {
+          await this.subtaskService.cascadeStatusToSubtasks(id, clientId, dto.statusId);
+        }
+      }
+
       this.eventEmitter.emit('task.updated', {
         taskId: id,
         clientId,
@@ -397,6 +448,11 @@ export class TasksService {
 
       await transaction.commit();
 
+      // ── CASCADE: Mirror archive state to all subtasks ─────────────────────
+      if (!task.parentTaskId) {
+        await this.subtaskService.cascadeArchiveToSubtasks(id, clientId, isArchived, userId);
+      }
+
       this.eventEmitter.emit(isArchived ? 'task.archived' : 'task.unarchived', {
         taskId: id,
         clientId,
@@ -430,6 +486,11 @@ export class TasksService {
       );
 
       await transaction.commit();
+
+      // ── CASCADE: Soft-delete all subtasks when parent is deleted ──────────
+      if (!task.parentTaskId) {
+        await this.subtaskService.cascadeDeleteToSubtasks(id, clientId, userId);
+      }
 
       this.eventEmitter.emit('task.deleted', { taskId: id, clientId, userId });
       return { success: true };

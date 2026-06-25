@@ -2,26 +2,33 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Task } from '../models';
+import { TaskStatus } from '../models/task-status.model';
 import { CreateTaskDto } from '../dto';
 import { TasksService } from './tasks.service';
-import { Transaction } from 'sequelize';
 
 @Injectable()
 export class TaskSubtaskService {
   constructor(
     @InjectModel(Task)
     private readonly taskModel: typeof Task,
+    @InjectModel(TaskStatus)
+    private readonly statusModel: typeof TaskStatus,
+    @Inject(forwardRef(() => TasksService))
     private readonly tasksService: TasksService,
   ) {}
 
   async findAllSubtasks(parentId: number, clientId: number): Promise<Task[]> {
-    // Basic infinite depth or up to 3 levels could be done with a recursive CTE or just nested eager loading
     return this.taskModel.findAll({
       where: { parentTaskId: parentId, clientId, isDeleted: false },
-      order: [['id', 'ASC']], // Or by a displayOrder if added
+      include: [
+        { model: TaskStatus, as: 'status' },
+      ],
+      order: [['displayOrder', 'ASC'], ['id', 'ASC']],
     });
   }
 
@@ -93,13 +100,11 @@ export class TaskSubtaskService {
     clientId: number,
     subtaskIds: number[],
   ): Promise<void> {
-    // Assumes we added displayOrder to Task model. Wait, user said "Add: displayOrder field in database. Do NOT rely on createdAt sorting."
-    // We will add it to the migration and model shortly.
     const transaction = await this.taskModel.sequelize.transaction();
     try {
       for (let i = 0; i < subtaskIds.length; i++) {
         await this.taskModel.update(
-          { displayOrder: i }, // we will add this property
+          { displayOrder: i },
           {
             where: { id: subtaskIds[i], parentTaskId: parentId, clientId },
             transaction,
@@ -111,5 +116,82 @@ export class TaskSubtaskService {
       await transaction.rollback();
       throw new BadRequestException('Failed to reorder subtasks');
     }
+  }
+
+  // ── CASCADE: Parent Status → All Subtasks ─────────────────────────────────
+  // Called when parent task is updated to a "completed" status.
+  // Bulk-sets all child subtask statuses to the same completed status.
+  async cascadeStatusToSubtasks(
+    parentId: number,
+    clientId: number,
+    completedStatusId: number,
+  ): Promise<void> {
+    await this.taskModel.update(
+      { statusId: completedStatusId },
+      {
+        where: {
+          parentTaskId: parentId,
+          clientId,
+          isDeleted: false,
+        },
+      },
+    );
+  }
+
+  // ── CASCADE: Parent Archive → All Subtasks ────────────────────────────────
+  // Called when parent task is archived or unarchived.
+  // Mirrors the archive state to all child subtasks.
+  async cascadeArchiveToSubtasks(
+    parentId: number,
+    clientId: number,
+    isArchived: boolean,
+    archivedById?: number,
+  ): Promise<void> {
+    await this.taskModel.update(
+      {
+        isArchived,
+        archivedAt: isArchived ? new Date() : null,
+        archivedById: isArchived ? (archivedById ?? null) : null,
+      },
+      {
+        where: {
+          parentTaskId: parentId,
+          clientId,
+          isDeleted: false,
+        },
+      },
+    );
+  }
+
+  // ── CASCADE: Parent Delete → All Subtasks ─────────────────────────────────
+  // Called when a parent task is soft-deleted.
+  // Soft-deletes (marks isDeleted = true) all child subtasks.
+  async cascadeDeleteToSubtasks(
+    parentId: number,
+    clientId: number,
+    deletedBy?: number,
+  ): Promise<void> {
+    await this.taskModel.update(
+      {
+        isDeleted: true,
+        deletedBy: deletedBy ?? null,
+      },
+      {
+        where: {
+          parentTaskId: parentId,
+          clientId,
+          isDeleted: false,
+        },
+      },
+    );
+
+    // Also trigger sequelize paranoid soft-delete (deletedAt)
+    await this.taskModel.destroy({
+      where: {
+        parentTaskId: parentId,
+        clientId,
+      },
+      individualHooks: false,
+    });
   }
 }

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
 import { InjectModel } from '@nestjs/sequelize';
-import { Task } from '../models/task.model';
+import { Task, TaskSequence } from '../models';
 import { TaskTemplateRepository } from '../repositories/task-template.repository';
 import { TaskRepository } from '../repositories/task.repository';
 import { TaskActivityService } from './task-activity.service';
@@ -19,6 +19,7 @@ export class TaskTemplateService {
     private readonly activityService: TaskActivityService,
     private readonly sequelize: Sequelize,
     @InjectModel(Task) private readonly taskModel: typeof Task,
+    @InjectModel(TaskSequence) private readonly sequenceModel: typeof TaskSequence,
   ) {}
 
   async create(clientId: number, userId: number, dto: CreateTemplateDto) {
@@ -67,6 +68,24 @@ export class TaskTemplateService {
 
     const transaction = await this.sequelize.transaction();
     try {
+      // 1. Generate Task Code safely for parent task
+      let sequence = await this.sequenceModel.findOne({
+        where: { clientId, modulePrefix: 'TASK' },
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+
+      if (!sequence) {
+        sequence = await this.sequenceModel.create(
+          { clientId, modulePrefix: 'TASK', currentSequence: 0 },
+          { transaction },
+        );
+      }
+
+      const newSeq = sequence.currentSequence + 1;
+      await sequence.update({ currentSequence: newSeq }, { transaction });
+      const parentTaskCode = `TASK-${newSeq}`;
+
       // Create parent task from template
       const task = await this.taskRepo.create(
         {
@@ -77,12 +96,26 @@ export class TaskTemplateService {
           statusId: dto.statusId ?? null,
           priorityId: dto.priorityId ?? null,
           completionPercentage: 0,
+          taskCode: parentTaskCode,
         },
         transaction,
       );
 
       // Create subtasks from template items
+      let subtaskIndex = 0;
       for (const item of items) {
+        const getLetterSuffix = (num: number): string => {
+          let temp = num;
+          let suffix = '';
+          while (temp >= 0) {
+            suffix = String.fromCharCode((temp % 26) + 65) + suffix;
+            temp = Math.floor(temp / 26) - 1;
+          }
+          return suffix;
+        };
+        const suffix = getLetterSuffix(subtaskIndex++);
+        const subtaskCode = `${parentTaskCode}-${suffix}`;
+
         await this.taskRepo.create(
           {
             clientId,
@@ -94,6 +127,7 @@ export class TaskTemplateService {
             statusId: dto.statusId ?? null,
             priorityId: dto.priorityId ?? null,
             completionPercentage: 0,
+            taskCode: subtaskCode,
           },
           transaction,
         );

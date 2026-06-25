@@ -752,7 +752,12 @@ export class EmployeesService {
     page: string = '1',
     limit: string = '10',
   ) {
-    const where: any = { companyId, isActive: true, status: 'Active' };
+    const where: any = {
+      companyId,
+      status: {
+        [Op.notIn]: [EmployeeStatus.TERMINATED, EmployeeStatus.RESIGNED],
+      },
+    };
 
     if (search) {
       where[Op.or] = [
