@@ -28,7 +28,6 @@ import { UserCompany } from '../../users/models/user-company.model';
   timestamps: true,
 })
 export class Company extends Model<Company> {
-
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

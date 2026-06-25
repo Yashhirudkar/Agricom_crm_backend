@@ -1,4 +1,20 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, Index, ForeignKey, BelongsTo, HasMany, BelongsToMany } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  Index,
+  ForeignKey,
+  BelongsTo,
+  HasMany,
+  BelongsToMany,
+} from 'sequelize-typescript';
 import { PartnerRole } from '../partner-role/partner-role.model';
 import { Country } from '../country/country.model';
 import { PartnerContact } from './partner-contact.model';
@@ -13,7 +29,7 @@ import { PartnerProduct } from './partner-product.model';
     { fields: ['partner_role_id'] },
     { fields: ['country_id'] },
     { fields: ['is_active'] },
-  ]
+  ],
 })
 export class Partner extends Model<Partner> {
   @PrimaryKey
@@ -44,7 +60,11 @@ export class Partner extends Model<Partner> {
   @HasMany(() => PartnerContact, { onDelete: 'CASCADE', hooks: true })
   declare contacts: PartnerContact[];
 
-  @BelongsToMany(() => Product, { through: () => PartnerProduct, onDelete: 'CASCADE', hooks: true })
+  @BelongsToMany(() => Product, {
+    through: () => PartnerProduct,
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare products: Product[];
 
   @AllowNull(true)

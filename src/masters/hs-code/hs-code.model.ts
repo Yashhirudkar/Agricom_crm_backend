@@ -1,9 +1,22 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, Unique, Index } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  Unique,
+  Index,
+} from 'sequelize-typescript';
 
 @Table({
   tableName: 'hs_codes',
   timestamps: true,
-  indexes: [{ fields: ['is_active'] }]
+  indexes: [{ fields: ['is_active'] }],
 })
 export class HSCode extends Model<HSCode> {
   @PrimaryKey

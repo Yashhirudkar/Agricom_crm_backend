@@ -8,6 +8,7 @@ export interface AuditLogOptions {
 }
 
 export const AuditLog = (options: string | AuditLogOptions) => {
-  const metadata = typeof options === 'string' ? { entityType: options } : options;
+  const metadata =
+    typeof options === 'string' ? { entityType: options } : options;
   return SetMetadata(AUDIT_LOG_KEY, metadata);
 };

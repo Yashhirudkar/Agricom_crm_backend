@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Op } from 'sequelize';
@@ -18,10 +22,36 @@ import { DeletionValidatorService } from '../deletion-validator.service';
 import { AuditService } from '../../audit/services/audit.service';
 
 const INCLUDE_RELATIONS = [
-  { model: PartnerRole, attributes: ['id', 'name'], where: { isActive: true }, required: false },
-  { model: Country, attributes: ['id', 'name', 'iso2Code'], where: { isActive: true }, required: false },
-  { model: PartnerContact, attributes: ['id', 'name', 'designation', 'phone', 'email', 'communicationType', 'isPrimary'] },
-  { model: Product, attributes: ['id', 'name'], where: { isActive: true }, required: false }
+  {
+    model: PartnerRole,
+    attributes: ['id', 'name'],
+    where: { isActive: true },
+    required: false,
+  },
+  {
+    model: Country,
+    attributes: ['id', 'name', 'iso2Code'],
+    where: { isActive: true },
+    required: false,
+  },
+  {
+    model: PartnerContact,
+    attributes: [
+      'id',
+      'name',
+      'designation',
+      'phone',
+      'email',
+      'communicationType',
+      'isPrimary',
+    ],
+  },
+  {
+    model: Product,
+    attributes: ['id', 'name'],
+    where: { isActive: true },
+    required: false,
+  },
 ];
 
 @Injectable()
@@ -44,32 +74,48 @@ export class PartnerService {
     private readonly auditService: AuditService,
   ) {}
 
-  private async validateForeignKeys(partnerRoleId?: number, countryId?: number, productIds?: number[]) {
+  private async validateForeignKeys(
+    partnerRoleId?: number,
+    countryId?: number,
+    productIds?: number[],
+  ) {
     if (partnerRoleId) {
-      const role = await this.partnerRoleModel.findOne({ where: { id: partnerRoleId, isActive: true } });
-      if (!role) throw new BadRequestException('Partner Role not found or inactive');
+      const role = await this.partnerRoleModel.findOne({
+        where: { id: partnerRoleId, isActive: true },
+      });
+      if (!role)
+        throw new BadRequestException('Partner Role not found or inactive');
     }
     if (countryId) {
-      const country = await this.countryModel.findOne({ where: { id: countryId, isActive: true } });
-      if (!country) throw new BadRequestException('Country not found or inactive');
+      const country = await this.countryModel.findOne({
+        where: { id: countryId, isActive: true },
+      });
+      if (!country)
+        throw new BadRequestException('Country not found or inactive');
     }
     if (productIds && productIds.length > 0) {
       const products = await this.productModel.findAll({
-        where: { id: { [Op.in]: productIds }, isActive: true }
+        where: { id: { [Op.in]: productIds }, isActive: true },
       });
       if (products.length !== productIds.length) {
-        throw new BadRequestException('One or more Products not found or inactive');
+        throw new BadRequestException(
+          'One or more Products not found or inactive',
+        );
       }
     }
   }
 
   async create(dto: CreatePartnerDto): Promise<Partner> {
     const normalizedName = dto.entityName.trim().toUpperCase();
-    
+
     if (dto.address) dto.address = dto.address.trim();
     if (dto.city) dto.city = dto.city.trim();
 
-    await this.validateForeignKeys(dto.partnerRoleId, dto.countryId, dto.productIds);
+    await this.validateForeignKeys(
+      dto.partnerRoleId,
+      dto.countryId,
+      dto.productIds,
+    );
 
     return await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...partnerData } = dto;
@@ -78,7 +124,7 @@ export class PartnerService {
           ...partnerData,
           entityName: normalizedName,
         },
-        { transaction }
+        { transaction },
       );
 
       if (dto.contacts && dto.contacts.length > 0) {
@@ -86,7 +132,9 @@ export class PartnerService {
           ...c,
           partnerId: partner.id,
         }));
-        await this.partnerContactModel.bulkCreate(contactsPayload, { transaction });
+        await this.partnerContactModel.bulkCreate(contactsPayload, {
+          transaction,
+        });
       }
 
       if (dto.productIds && dto.productIds.length > 0) {
@@ -95,7 +143,9 @@ export class PartnerService {
           partnerId: partner.id,
           productId: pId,
         }));
-        await this.partnerProductModel.bulkCreate(productsPayload, { transaction });
+        await this.partnerProductModel.bulkCreate(productsPayload, {
+          transaction,
+        });
       }
 
       return partner;
@@ -109,7 +159,7 @@ export class PartnerService {
     const whereClause: any = {
       ...buildSearchQuery(search, ['entityName']),
     };
-    
+
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
     }
@@ -160,7 +210,7 @@ export class PartnerService {
 
   async update(id: number, dto: UpdatePartnerDto): Promise<Partner> {
     const partner = await this.findOneActive(id);
-    
+
     if (dto.entityName) {
       dto.entityName = dto.entityName.trim().toUpperCase();
     }
@@ -172,7 +222,11 @@ export class PartnerService {
     }
 
     if (dto.partnerRoleId || dto.countryId || dto.productIds) {
-      await this.validateForeignKeys(dto.partnerRoleId, dto.countryId, dto.productIds);
+      await this.validateForeignKeys(
+        dto.partnerRoleId,
+        dto.countryId,
+        dto.productIds,
+      );
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -180,25 +234,35 @@ export class PartnerService {
       await partner.update(updateData, { transaction });
 
       if (dto.contacts !== undefined) {
-        await this.partnerContactModel.destroy({ where: { partnerId: id }, transaction });
+        await this.partnerContactModel.destroy({
+          where: { partnerId: id },
+          transaction,
+        });
         if (dto.contacts.length > 0) {
           const contactsPayload = dto.contacts.map((c) => ({
             ...c,
             partnerId: id,
           }));
-          await this.partnerContactModel.bulkCreate(contactsPayload, { transaction });
+          await this.partnerContactModel.bulkCreate(contactsPayload, {
+            transaction,
+          });
         }
       }
 
       if (dto.productIds !== undefined) {
-        await this.partnerProductModel.destroy({ where: { partnerId: id }, transaction });
+        await this.partnerProductModel.destroy({
+          where: { partnerId: id },
+          transaction,
+        });
         if (dto.productIds.length > 0) {
           const uniqueProductIds = [...new Set(dto.productIds)];
           const productsPayload = uniqueProductIds.map((pId) => ({
             partnerId: id,
             productId: pId,
           }));
-          await this.partnerProductModel.bulkCreate(productsPayload, { transaction });
+          await this.partnerProductModel.bulkCreate(productsPayload, {
+            transaction,
+          });
         }
       }
     });
@@ -241,9 +305,9 @@ export class PartnerService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -253,12 +317,12 @@ export class PartnerService {
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
     const partner = await this.findOneAnyState(id);
     // Note: Partner contacts and products are automatically deleted via onDelete: CASCADE db config.
-    
+
     const oldValue = {
       ...partner.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await partner.destroy();

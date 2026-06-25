@@ -1,11 +1,24 @@
-import { Index, Table, Column, Model, DataType, Unique, AllowNull, Default,
-  HasMany, BelongsToMany, ForeignKey, BelongsTo, } from 'sequelize-typescript';
+import {
+  Index,
+  Table,
+  Column,
+  Model,
+  DataType,
+  Unique,
+  AllowNull,
+  Default,
+  HasMany,
+  BelongsToMany,
+  ForeignKey,
+  BelongsTo,
+} from 'sequelize-typescript';
 import { UserSession } from './user-session.model';
 import { Company } from '../../companies/models/company.model';
 import { Client } from '../../clients/models/client.model';
 import { Role } from '../../rbac/models/role.model';
 import { UserRole } from '../../rbac/models/user-role.model';
 import { UserCompany } from './user-company.model';
+import { TaskAssignee } from '../../tasks/models/task-assignee.model';
 
 @Table({
   tableName: 'users',
@@ -75,6 +88,9 @@ export class User extends Model<User> {
 
   @HasMany(() => UserSession)
   declare sessions: UserSession[];
+
+  @HasMany(() => TaskAssignee, 'userId')
+  declare assignedTasks: TaskAssignee[];
 
   // Many-to-many with Company through UserCompany
   @BelongsToMany(() => Company, () => UserCompany)

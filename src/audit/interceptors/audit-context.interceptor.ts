@@ -1,4 +1,9 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { AuditContext } from '../audit.context';
 
@@ -14,9 +19,9 @@ export class AuditContextInterceptor implements NestInterceptor {
         store.clientId = request.user.clientId;
       }
       // Assuming companyId is passed via header or body
-      store.companyId = request.headers['x-company-id'] 
-        ? parseInt(request.headers['x-company-id'] as string, 10) 
-        : (request.body?.companyId || request.query?.companyId || null);
+      store.companyId = request.headers['x-company-id']
+        ? parseInt(request.headers['x-company-id'] as string, 10)
+        : request.body?.companyId || request.query?.companyId || null;
     }
 
     return next.handle();

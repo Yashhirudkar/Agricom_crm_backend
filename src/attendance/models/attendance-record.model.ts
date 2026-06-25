@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -10,7 +12,8 @@ import { Index, Table,
   CreatedAt,
   UpdatedAt,
   Default,
-  HasMany, } from 'sequelize-typescript';
+  HasMany,
+} from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { Shift } from './shift.model';
@@ -113,14 +116,30 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
 
   @AllowNull(true)
   @Column({
-    type: DataType.ENUM('PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'WEEK_OFF', 'ON_LEAVE', 'HOLIDAY', 'UPCOMING'),
+    type: DataType.ENUM(
+      'PRESENT',
+      'ABSENT',
+      'HALF_DAY',
+      'LATE',
+      'WEEK_OFF',
+      'ON_LEAVE',
+      'HOLIDAY',
+      'UPCOMING',
+    ),
   })
   declare attendanceStatus: AttendanceStatus;
 
   @Default(AttendanceSource.SELF_PUNCH)
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('SELF_PUNCH', 'ADMIN_MARKED', 'REGULARIZATION_APPROVED', 'AUTO_BREAK_SYSTEM', 'BIOMETRIC', 'API_IMPORT'),
+    type: DataType.ENUM(
+      'SELF_PUNCH',
+      'ADMIN_MARKED',
+      'REGULARIZATION_APPROVED',
+      'AUTO_BREAK_SYSTEM',
+      'BIOMETRIC',
+      'API_IMPORT',
+    ),
   })
   declare attendanceSource: AttendanceSource;
 

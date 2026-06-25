@@ -15,12 +15,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET')!,
+      secretOrKey: configService.get<string>('JWT_SECRET'),
       passReqToCallback: true,
     });
   }
 
-  async validate(req: any, payload: { sub: number; userId: number | null; clientId: number | null; email: string; type: string; sessionId: string }) {
+  async validate(
+    req: any,
+    payload: {
+      sub: number;
+      userId: number | null;
+      clientId: number | null;
+      email: string;
+      type: string;
+      sessionId: string;
+    },
+  ) {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!payload.sessionId || !UUID_REGEX.test(payload.sessionId)) {
+      throw new UnauthorizedException('Invalid session token format');
+    }
+
     const session = await this.userSessionModel.findOne({
       where: { sessionId: payload.sessionId, isRevoked: false },
     });
@@ -41,42 +56,39 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
       queryStr += ` LIMIT 1;`;
 
-      const employee = await this.userSessionModel.sequelize!.query(
-        queryStr,
-        {
-          replacements,
-          type: 'SELECT'
-        }
-      ) as any[];
+      const employee = (await this.userSessionModel.sequelize.query(queryStr, {
+        replacements,
+        type: 'SELECT',
+      })) as any[];
       if (employee && employee.length > 0) {
         employeeId = employee[0].id;
       } else {
         // Fallback: If employees.userId is NULL, fix employee-user linking by email
         let fallbackQueryStr = `SELECT id FROM "employees" WHERE "email" = :email AND "userId" IS NULL`;
         const fallbackReplacements: any = { email: payload.email };
-        
+
         if (companyId) {
           fallbackQueryStr += ` AND "companyId" = :companyId`;
           fallbackReplacements.companyId = parseInt(companyId, 10);
         }
         fallbackQueryStr += ` LIMIT 1;`;
 
-        const fallbackEmployee = await this.userSessionModel.sequelize!.query(
+        const fallbackEmployee = (await this.userSessionModel.sequelize.query(
           fallbackQueryStr,
           {
             replacements: fallbackReplacements,
-            type: 'SELECT'
-          }
-        ) as any[];
+            type: 'SELECT',
+          },
+        )) as any[];
 
         if (fallbackEmployee && fallbackEmployee.length > 0) {
           employeeId = fallbackEmployee[0].id;
           // Update the DB to permanently link the user and employee
-          await this.userSessionModel.sequelize!.query(
+          await this.userSessionModel.sequelize.query(
             `UPDATE "employees" SET "userId" = :userId WHERE "id" = :empId;`,
             {
-              replacements: { userId: payload.userId, empId: employeeId }
-            }
+              replacements: { userId: payload.userId, empId: employeeId },
+            },
           );
         }
       }

@@ -11,7 +11,6 @@ import { Company } from '../companies/models/company.model';
 import { UserCompany } from '../users/models/user-company.model';
 import { UserInvitation } from '../users/models/user-invitation.model';
 import { AuditLog } from '../audit/models/audit-log.model';
-import { Notification } from '../notifications/models/notification.model';
 import { Department } from '../companies/models/department.model';
 import { Designation } from '../hrms/models/designation.model';
 import { Employee } from '../hrms/models/employee.model';
@@ -47,6 +46,19 @@ import { ClientItemAccess } from '../clients/models/client-item-access.model';
 import { ClientModuleAccess } from '../clients/models/client-module-access.model';
 import { ClientActionAccess } from '../clients/models/client-action-access.model';
 
+import { Category } from '../masters/category/category.model';
+import {
+  Task,
+  TaskSequence,
+  TaskStatus,
+  TaskPriority,
+  TaskAssignee,
+  TaskActivity,
+  TaskComment,
+  TaskAttachment,
+  TaskLabel,
+  TaskLabelMap,
+} from '../tasks/models';
 
 dotenv.config();
 
@@ -60,14 +72,59 @@ export const sequelize = new Sequelize(
     dialect: 'postgres',
     logging: false,
     models: [
-      Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, 
-      AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, 
-      Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, 
-      EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, 
-      LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, 
-      AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, 
-      ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, 
-      ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess
+      Client,
+      Company,
+      User,
+      UserSession,
+      Role,
+      UserRole,
+      UserCompany,
+      UserInvitation,
+      AuditLog,
+      Department,
+      Designation,
+      Employee,
+      EmployeeDocument,
+      Branch,
+      Holiday,
+      HolidayCompany,
+      EmployeeLifecycleLog,
+      CompanyHrPolicy,
+      LeaveType,
+      EmployeeLeaveBalance,
+      LeaveBalanceHistory,
+      LeaveRequest,
+      LeaveApprovalStep,
+      LeaveApprovalLog,
+      UserPreference,
+      UserPasswordHistory,
+      ProfileActivityLog,
+      Shift,
+      AttendanceRecord,
+      AttendanceLog,
+      AttendanceException,
+      AppModuleModel,
+      ModuleResource,
+      ResourceAction,
+      SidebarFolder,
+      SidebarItem,
+      SystemAuditLog,
+      RoleActionPermission,
+      ClientFolderAccess,
+      ClientItemAccess,
+      ClientModuleAccess,
+      ClientActionAccess,
+      Category,
+      Task,
+      TaskSequence,
+      TaskStatus,
+      TaskPriority,
+      TaskAssignee,
+      TaskActivity,
+      TaskComment,
+      TaskAttachment,
+      TaskLabel,
+      TaskLabelMap,
     ],
-  }
+  },
 );

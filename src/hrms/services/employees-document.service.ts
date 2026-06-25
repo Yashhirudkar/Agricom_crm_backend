@@ -1,7 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Employee } from '../models/employee.model';
-import { EmployeeDocument, VerificationStatus } from '../models/employee-document.model';
+import {
+  EmployeeDocument,
+  VerificationStatus,
+} from '../models/employee-document.model';
 import { User } from '../../users/models/user.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { StorageService } from './storage.service';
@@ -21,8 +29,14 @@ export class EmployeesDocumentService {
     private readonly employeesOrgService: EmployeesOrgService,
   ) {}
 
-  async checkDocumentAccess(employeeId: number, companyId: number, actor: any): Promise<void> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
+  async checkDocumentAccess(
+    employeeId: number,
+    companyId: number,
+    actor: any,
+  ): Promise<void> {
+    const employee = await this.employeeModel.findOne({
+      where: { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
     if (actor.type === 'super_admin') {
@@ -34,11 +48,15 @@ export class EmployeesDocumentService {
       return;
     }
 
-
-
-    const actorEmployee = await this.employeeModel.findOne({ where: { userId: actor.userId, companyId } });
+    const actorEmployee = await this.employeeModel.findOne({
+      where: { userId: actor.userId, companyId },
+    });
     if (actorEmployee) {
-      const isManager = await this.employeesOrgService.isCircularManager(actorEmployee.id, employee.id, companyId);
+      const isManager = await this.employeesOrgService.isCircularManager(
+        actorEmployee.id,
+        employee.id,
+        companyId,
+      );
       if (isManager) {
         return;
       }
@@ -47,15 +65,27 @@ export class EmployeesDocumentService {
     throw new ForbiddenException('Access denied to this employee documents');
   }
 
-  async addDocument(employeeId: number, companyId: number, data: any, file: Express.Multer.File, actor?: any): Promise<EmployeeDocument> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
+  async addDocument(
+    employeeId: number,
+    companyId: number,
+    data: any,
+    file: Express.Multer.File,
+    actor?: any,
+  ): Promise<EmployeeDocument> {
+    const employee = await this.employeeModel.findOne({
+      where: { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
     const relativeDir = `tenants/${companyId}/employees/${employeeId}/documents`;
     const uniqueFilename = `${crypto.randomUUID()}${path.extname(file.originalname)}`;
-    const filePath = await this.storageService.uploadFile(file, relativeDir, uniqueFilename);
+    const filePath = await this.storageService.uploadFile(
+      file,
+      relativeDir,
+      uniqueFilename,
+    );
 
-    const t = await this.employeeModel.sequelize!.transaction();
+    const t = await this.employeeModel.sequelize.transaction();
     try {
       const existingDoc = await this.employeeDocumentModel.findOne({
         where: { employeeId, documentType: data.documentType, isActive: true },
@@ -69,27 +99,30 @@ export class EmployeesDocumentService {
         await existingDoc.update({ isActive: false }, { transaction: t });
       }
 
-      const document = await this.employeeDocumentModel.create({
-        employeeId,
-        companyId,
-        documentCategory: data.documentCategory,
-        documentType: data.documentType,
-        documentName: data.documentName || data.documentType,
-        fileName: file.originalname,
-        fileUrl: '', // Populated next
-        filePath,
-        fileSize: file.size,
-        mimeType: file.mimetype,
-        documentNumber: data.documentNumber || null,
-        issueDate: data.issueDate || null,
-        expiryDate: data.expiryDate || null,
-        notifyBeforeExpiryDays: data.notifyBeforeExpiryDays || null,
-        verificationStatus: VerificationStatus.PENDING,
-        isMandatory: data.isMandatory === 'true' || data.isMandatory === true,
-        version,
-        isActive: true,
-        uploadedBy: actor?.userId || null,
-      } as any, { transaction: t });
+      const document = await this.employeeDocumentModel.create(
+        {
+          employeeId,
+          companyId,
+          documentCategory: data.documentCategory,
+          documentType: data.documentType,
+          documentName: data.documentName || data.documentType,
+          fileName: file.originalname,
+          fileUrl: '', // Populated next
+          filePath,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          documentNumber: data.documentNumber || null,
+          issueDate: data.issueDate || null,
+          expiryDate: data.expiryDate || null,
+          notifyBeforeExpiryDays: data.notifyBeforeExpiryDays || null,
+          verificationStatus: VerificationStatus.PENDING,
+          isMandatory: data.isMandatory === 'true' || data.isMandatory === true,
+          version,
+          isActive: true,
+          uploadedBy: actor?.userId || null,
+        },
+        { transaction: t },
+      );
 
       const fileUrl = `/employees/${employeeId}/documents/${document.id}/download`;
       await document.update({ fileUrl }, { transaction: t });
@@ -118,7 +151,11 @@ export class EmployeesDocumentService {
     }
   }
 
-  async getDocuments(employeeId: number, companyId: number, actor?: any): Promise<EmployeeDocument[]> {
+  async getDocuments(
+    employeeId: number,
+    companyId: number,
+    actor?: any,
+  ): Promise<EmployeeDocument[]> {
     if (actor) {
       await this.checkDocumentAccess(employeeId, companyId, actor);
     }
@@ -133,20 +170,28 @@ export class EmployeesDocumentService {
     });
   }
 
-  async deleteDocument(employeeId: number, documentId: number, companyId: number, actor?: any): Promise<{ message: string }> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
+  async deleteDocument(
+    employeeId: number,
+    documentId: number,
+    companyId: number,
+    actor?: any,
+  ): Promise<{ message: string }> {
+    const employee = await this.employeeModel.findOne({
+      where: { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
     const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
+      where: { id: documentId, employeeId, companyId },
     });
     if (!document) throw new NotFoundException('Document not found');
 
     if (actor) {
-      const isSelf = employee.userId !== null && employee.userId !== undefined && employee.userId === actor.userId;
-      let isAdmin = actor.type === 'super_admin';
-
-
+      const isSelf =
+        employee.userId !== null &&
+        employee.userId !== undefined &&
+        employee.userId === actor.userId;
+      const isAdmin = actor.type === 'super_admin';
 
       if (!isSelf && !isAdmin) {
         throw new ForbiddenException('Access denied to delete this document');
@@ -154,7 +199,9 @@ export class EmployeesDocumentService {
 
       if (isSelf && !isAdmin) {
         if (document.verificationStatus === VerificationStatus.VERIFIED) {
-          throw new BadRequestException('Verified documents cannot be deleted by the employee');
+          throw new BadRequestException(
+            'Verified documents cannot be deleted by the employee',
+          );
         }
       }
     }
@@ -183,9 +230,15 @@ export class EmployeesDocumentService {
     return { message: 'Document deleted successfully' };
   }
 
-  async verifyDocument(employeeId: number, documentId: number, companyId: number, data: any, actor?: any): Promise<EmployeeDocument> {
+  async verifyDocument(
+    employeeId: number,
+    documentId: number,
+    companyId: number,
+    data: any,
+    actor?: any,
+  ): Promise<EmployeeDocument> {
     const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
+      where: { id: documentId, employeeId, companyId },
     });
     if (!document) throw new NotFoundException('Document not found');
 
@@ -195,14 +248,17 @@ export class EmployeesDocumentService {
 
     const oldRecord = document.toJSON();
 
-    const t = await this.employeeDocumentModel.sequelize!.transaction();
+    const t = await this.employeeDocumentModel.sequelize.transaction();
     try {
-      await document.update({
-        verificationStatus: data.verificationStatus,
-        verificationRemarks: data.verificationRemarks || null,
-        verifiedBy: actor?.userId || null,
-        verifiedAt: new Date(),
-      }, { transaction: t });
+      await document.update(
+        {
+          verificationStatus: data.verificationStatus,
+          verificationRemarks: data.verificationRemarks || null,
+          verifiedBy: actor?.userId || null,
+          verifiedAt: new Date(),
+        },
+        { transaction: t },
+      );
 
       await t.commit();
       const updated = await document.reload();
@@ -229,11 +285,16 @@ export class EmployeesDocumentService {
     }
   }
 
-  async downloadDocument(employeeId: number, documentId: number, companyId: number, actor: any): Promise<string> {
+  async downloadDocument(
+    employeeId: number,
+    documentId: number,
+    companyId: number,
+    actor: any,
+  ): Promise<string> {
     await this.checkDocumentAccess(employeeId, companyId, actor);
 
     const document = await this.employeeDocumentModel.findOne({
-      where: { id: documentId, employeeId, companyId }
+      where: { id: documentId, employeeId, companyId },
     });
     if (!document) throw new NotFoundException('Document not found');
 

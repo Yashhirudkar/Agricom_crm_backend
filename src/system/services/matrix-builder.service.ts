@@ -50,38 +50,63 @@ export class MatrixBuilderService {
     }));
   }
 
-  async createModule(userId: number | null, dto: { name: string; icon_name?: string; sort_order?: number }) {
+  async createModule(
+    userId: number | null,
+    dto: { name: string; icon_name?: string; sort_order?: number },
+  ) {
     const module = await this.appModuleModel.create({
       name: dto.name,
       icon_name: dto.icon_name || null,
       sort_order: dto.sort_order || 0,
-    } as any);
+    });
 
-    await this.systemAuditService.logAction(userId, 'MATRIX_MODULE_CREATE', { module });
+    await this.systemAuditService.logAction(userId, 'MATRIX_MODULE_CREATE', {
+      module,
+    });
     return module;
   }
 
-  async createResource(userId: number | null, dto: { name: string; display_name?: string; module_id: number; sort_order?: number }) {
+  async createResource(
+    userId: number | null,
+    dto: {
+      name: string;
+      display_name?: string;
+      module_id: number;
+      sort_order?: number;
+    },
+  ) {
     const resource = await this.moduleResourceModel.create({
       name: dto.name,
       display_name: dto.display_name || dto.name,
       module_id: dto.module_id,
       sort_order: dto.sort_order || 0,
-    } as any);
+    });
 
-    await this.systemAuditService.logAction(userId, 'MATRIX_RESOURCE_CREATE', { resource });
+    await this.systemAuditService.logAction(userId, 'MATRIX_RESOURCE_CREATE', {
+      resource,
+    });
     return resource;
   }
 
-  async createAction(userId: number | null, dto: { name: string; display_name?: string; resource_id: number; sort_order?: number }) {
+  async createAction(
+    userId: number | null,
+    dto: {
+      name: string;
+      display_name?: string;
+      resource_id: number;
+      sort_order?: number;
+    },
+  ) {
     const action = await this.resourceActionModel.create({
       name: dto.name.toUpperCase(),
       display_name: dto.display_name || dto.name.toUpperCase(),
       resource_id: dto.resource_id,
       sort_order: dto.sort_order || 0,
-    } as any);
+    });
 
-    await this.systemAuditService.logAction(userId, 'MATRIX_ACTION_CREATE', { action });
+    await this.systemAuditService.logAction(userId, 'MATRIX_ACTION_CREATE', {
+      action,
+    });
     return action;
   }
 
@@ -90,7 +115,10 @@ export class MatrixBuilderService {
     if (!module) throw new NotFoundException('Module not found');
 
     await module.destroy();
-    await this.systemAuditService.logAction(userId, 'MATRIX_MODULE_DELETE', { id, name: module.name });
+    await this.systemAuditService.logAction(userId, 'MATRIX_MODULE_DELETE', {
+      id,
+      name: module.name,
+    });
     return { success: true };
   }
 
@@ -99,7 +127,10 @@ export class MatrixBuilderService {
     if (!resource) throw new NotFoundException('Resource not found');
 
     await resource.destroy();
-    await this.systemAuditService.logAction(userId, 'MATRIX_RESOURCE_DELETE', { id, name: resource.name });
+    await this.systemAuditService.logAction(userId, 'MATRIX_RESOURCE_DELETE', {
+      id,
+      name: resource.name,
+    });
     return { success: true };
   }
 
@@ -108,7 +139,10 @@ export class MatrixBuilderService {
     if (!action) throw new NotFoundException('Action not found');
 
     await action.destroy();
-    await this.systemAuditService.logAction(userId, 'MATRIX_ACTION_DELETE', { id, name: action.name });
+    await this.systemAuditService.logAction(userId, 'MATRIX_ACTION_DELETE', {
+      id,
+      name: action.name,
+    });
     return { success: true };
   }
 }

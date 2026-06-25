@@ -7,19 +7,41 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { AttendanceRecord, AttendanceStatus, AttendanceState, AttendanceSource } from '../models/attendance-record.model';
-import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.model';
-import { AttendanceException, AttendanceExceptionType, AttendanceExceptionStatus } from '../models/attendance-exception.model';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+  AttendanceState,
+  AttendanceSource,
+} from '../models/attendance-record.model';
+import {
+  AttendanceLog,
+  AttendanceActionType,
+} from '../models/attendance-log.model';
+import {
+  AttendanceException,
+  AttendanceExceptionType,
+  AttendanceExceptionStatus,
+} from '../models/attendance-exception.model';
 import { Shift } from '../models/shift.model';
 import { Employee, EmployeeStatus } from '../../hrms/models/employee.model';
-import { LeaveRequest, LeaveRequestStatus } from '../../hrms/models/leave-request.model';
+import {
+  LeaveRequest,
+  LeaveRequestStatus,
+} from '../../hrms/models/leave-request.model';
 import { EmployeeLeaveBalance } from '../../hrms/models/employee-leave-balance.model';
 import { LeaveType } from '../../hrms/models/leave-type.model';
 import { Branch } from '../../hrms/models/branch.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
-import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto } from '../dto/attendance.dto';
+import {
+  CheckInDto,
+  CheckOutDto,
+  BreakStartDto,
+  BreakEndDto,
+  RequestCorrectionDto,
+  ResolveCorrectionDto,
+} from '../dto/attendance.dto';
 import { Op, Transaction } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
 import { AttendanceHelperService } from './attendance-helper.service';
@@ -62,23 +84,39 @@ export class AttendanceService {
   ) {}
 
   // 1. Employee Check In
-  async checkIn(employeeId: number, companyId: number, dto: CheckInDto): Promise<AttendanceRecord> {
-    const employee = await this.helperService.getActiveEmployee(employeeId, companyId);
-    this.helperService.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
+  async checkIn(
+    employeeId: number,
+    companyId: number,
+    dto: CheckInDto,
+  ): Promise<AttendanceRecord> {
+    const employee = await this.helperService.getActiveEmployee(
+      employeeId,
+      companyId,
+    );
+    this.helperService.validateGeoLocation(
+      employee,
+      dto.locationLat,
+      dto.locationLng,
+    );
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-    const { todayDateStr, minutesOfDay, jsDay } = this.helperService.getLocalTimeDetails(timezone);
+    const { todayDateStr, minutesOfDay, jsDay } =
+      this.helperService.getLocalTimeDetails(timezone);
 
     // Holiday Check
     const holiday = await this.holidayModel.findOne({
       where: { holidayDate: todayDateStr, isActive: true },
-      include: [{
-        model: HolidayCompany,
-        where: { companyId },
-        required: true,
-      }],
+      include: [
+        {
+          model: HolidayCompany,
+          where: { companyId },
+          required: true,
+        },
+      ],
     });
     if (holiday) {
-      throw new BadRequestException(`Check-in blocked: today (${todayDateStr}) is a company holiday: ${holiday.title}`);
+      throw new BadRequestException(
+        `Check-in blocked: today (${todayDateStr}) is a company holiday: ${holiday.title}`,
+      );
     }
 
     // Leave Check
@@ -87,12 +125,14 @@ export class AttendanceService {
         employeeId,
         status: LeaveRequestStatus.APPROVED,
         fromDate: { [Op.lte]: todayDateStr },
-        toDate: { [Op.gte]: todayDateStr }
-      }
+        toDate: { [Op.gte]: todayDateStr },
+      },
     });
 
     if (activeLeave) {
-      throw new ConflictException(`Check-in blocked: You have an approved leave for today. Please cancel your leave if you intend to work.`);
+      throw new ConflictException(
+        `Check-in blocked: You have an approved leave for today. Please cancel your leave if you intend to work.`,
+      );
     }
 
     // Resolve Shift details
@@ -101,7 +141,9 @@ export class AttendanceService {
     const policy = await this.policyModel.findOne({ where: { companyId } });
 
     if (targetShiftId) {
-      shift = await this.shiftModel.findOne({ where: { id: targetShiftId, companyId } });
+      shift = await this.shiftModel.findOne({
+        where: { id: targetShiftId, companyId },
+      });
     }
 
     if (!shift) {
@@ -119,10 +161,14 @@ export class AttendanceService {
 
     // Determine status & late minutes
     const isWeeklyOff = shift.weeklyOffDays.includes(jsDay);
-    const lateMinutes = this.helperService.calculateLateMinutes(minutesOfDay, shift.startTime, shift.gracePeriodMinutes);
-    let initialStatus = null; // Do not set PRESENT on check-in
+    const lateMinutes = this.helperService.calculateLateMinutes(
+      minutesOfDay,
+      shift.startTime,
+      shift.gracePeriodMinutes,
+    );
+    const initialStatus = null; // Do not set PRESENT on check-in
 
-    const t = await this.recordModel.sequelize!.transaction();
+    const t = await this.recordModel.sequelize.transaction();
 
     try {
       // row locking check-in record for today
@@ -133,7 +179,9 @@ export class AttendanceService {
       });
 
       if (record && record.isPayrollLocked) {
-        throw new ForbiddenException('Attendance locked after payroll processing');
+        throw new ForbiddenException(
+          'Attendance locked after payroll processing',
+        );
       }
 
       if (record && record.attendanceState === AttendanceState.WORKING) {
@@ -144,49 +192,58 @@ export class AttendanceService {
       const checkInTime = record?.checkInTime || currentPunchTime;
 
       if (!record) {
-        record = await this.recordModel.create({
-          employeeId,
-          companyId,
-          date: todayDateStr,
-          checkInTime,
-          attendanceStatus: initialStatus,
-          attendanceState: AttendanceState.WORKING,
-          attendanceSource: AttendanceSource.SELF_PUNCH,
-          lateMinutes,
-          locationLat: dto.locationLat || null,
-          locationLng: dto.locationLng || null,
-          shiftId: shift.id,
-        } as any, { transaction: t });
+        record = await this.recordModel.create(
+          {
+            employeeId,
+            companyId,
+            date: todayDateStr,
+            checkInTime,
+            attendanceStatus: initialStatus,
+            attendanceState: AttendanceState.WORKING,
+            attendanceSource: AttendanceSource.SELF_PUNCH,
+            lateMinutes,
+            locationLat: dto.locationLat || null,
+            locationLng: dto.locationLng || null,
+            shiftId: shift.id,
+          },
+          { transaction: t },
+        );
       } else {
-        await record.update({
-          attendanceState: AttendanceState.WORKING,
-          checkInTime: currentPunchTime,
-          checkOutTime: null,
-          totalHours: 0,
-          overtimeHours: 0,
-          attendanceSource: AttendanceSource.SELF_PUNCH,
-          lateMinutes: record.checkInTime ? record.lateMinutes : lateMinutes,
-          locationLat: dto.locationLat || null,
-          locationLng: dto.locationLng || null,
-          shiftId: shift.id,
-        }, { transaction: t });
+        await record.update(
+          {
+            attendanceState: AttendanceState.WORKING,
+            checkInTime: currentPunchTime,
+            checkOutTime: null,
+            totalHours: 0,
+            overtimeHours: 0,
+            attendanceSource: AttendanceSource.SELF_PUNCH,
+            lateMinutes: record.checkInTime ? record.lateMinutes : lateMinutes,
+            locationLat: dto.locationLat || null,
+            locationLng: dto.locationLng || null,
+            shiftId: shift.id,
+          },
+          { transaction: t },
+        );
         await record.reload({ transaction: t });
       }
 
       // Create log
-      await this.logModel.create({
-        employeeId,
-        attendanceRecordId: record.id,
-        actionType: AttendanceActionType.CHECK_IN,
-        timestamp: currentPunchTime,
-        metadata: {
-          locationLat: dto.locationLat,
-          locationLng: dto.locationLng,
-          biometricVerificationId: dto.biometricVerificationId,
-          verificationMethod: dto.verificationMethod || 'WEB',
-          shiftUsed: shift.name,
+      await this.logModel.create(
+        {
+          employeeId,
+          attendanceRecordId: record.id,
+          actionType: AttendanceActionType.CHECK_IN,
+          timestamp: currentPunchTime,
+          metadata: {
+            locationLat: dto.locationLat,
+            locationLng: dto.locationLng,
+            biometricVerificationId: dto.biometricVerificationId,
+            verificationMethod: dto.verificationMethod || 'WEB',
+            shiftUsed: shift.name,
+          },
         },
-      } as any, { transaction: t });
+        { transaction: t },
+      );
 
       await t.commit();
 
@@ -211,13 +268,24 @@ export class AttendanceService {
   }
 
   // 2. Employee Check Out
-  async checkOut(employeeId: number, companyId: number, dto: CheckOutDto): Promise<AttendanceRecord> {
-    const employee = await this.helperService.getActiveEmployee(employeeId, companyId);
-    this.helperService.validateGeoLocation(employee, dto.locationLat, dto.locationLng);
+  async checkOut(
+    employeeId: number,
+    companyId: number,
+    dto: CheckOutDto,
+  ): Promise<AttendanceRecord> {
+    const employee = await this.helperService.getActiveEmployee(
+      employeeId,
+      companyId,
+    );
+    this.helperService.validateGeoLocation(
+      employee,
+      dto.locationLat,
+      dto.locationLng,
+    );
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
     const { todayDateStr } = this.helperService.getLocalTimeDetails(timezone);
 
-    const t = await this.recordModel.sequelize!.transaction();
+    const t = await this.recordModel.sequelize.transaction();
 
     try {
       let record = await this.recordModel.findOne({
@@ -230,7 +298,8 @@ export class AttendanceService {
       if (!record || record.checkOutTime) {
         const yesterdayDate = new Date();
         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const { todayDateStr: yesterdayDateStr } = this.helperService.getLocalTimeDetails(timezone, yesterdayDate);
+        const { todayDateStr: yesterdayDateStr } =
+          this.helperService.getLocalTimeDetails(timezone, yesterdayDate);
 
         const yesterdayRecord = await this.recordModel.findOne({
           where: { employeeId, date: yesterdayDateStr, checkOutTime: null },
@@ -244,14 +313,21 @@ export class AttendanceService {
       }
 
       if (!record || !record.checkInTime) {
-        throw new BadRequestException('Cannot check out without checking in first');
+        throw new BadRequestException(
+          'Cannot check out without checking in first',
+        );
       }
 
       if (record.isPayrollLocked) {
-        throw new ForbiddenException('Attendance locked after payroll processing');
+        throw new ForbiddenException(
+          'Attendance locked after payroll processing',
+        );
       }
 
-      if (record.attendanceState !== AttendanceState.WORKING && record.attendanceState !== AttendanceState.ON_BREAK) {
+      if (
+        record.attendanceState !== AttendanceState.WORKING &&
+        record.attendanceState !== AttendanceState.ON_BREAK
+      ) {
         throw new ConflictException('You are not currently checked in');
       }
 
@@ -273,7 +349,10 @@ export class AttendanceService {
       for (const log of logs) {
         if (log.actionType === AttendanceActionType.BREAK_START) {
           breakStart = new Date(log.timestamp);
-        } else if (log.actionType === AttendanceActionType.BREAK_END && breakStart) {
+        } else if (
+          log.actionType === AttendanceActionType.BREAK_END &&
+          breakStart
+        ) {
           breakDurationMs += log.timestamp.getTime() - breakStart.getTime();
           breakStart = null;
         }
@@ -285,26 +364,37 @@ export class AttendanceService {
       if (breakStart) {
         // Log auto break end if checked out during break
         breakDurationMs += checkOutTime.getTime() - breakStart.getTime();
-        await this.logModel.create({
-          employeeId,
-          attendanceRecordId: record.id,
-          actionType: AttendanceActionType.BREAK_END,
-          timestamp: checkOutTime,
-          metadata: { autoClosed: true, reason: 'Checked out during break' },
-        } as any, { transaction: t });
+        await this.logModel.create(
+          {
+            employeeId,
+            attendanceRecordId: record.id,
+            actionType: AttendanceActionType.BREAK_END,
+            timestamp: checkOutTime,
+            metadata: { autoClosed: true, reason: 'Checked out during break' },
+          },
+          { transaction: t },
+        );
         // Deduct current ongoing break from total work time (since lastIn tracks check-in)
-        totalWorkMs -= (checkOutTime.getTime() - breakStart.getTime());
+        totalWorkMs -= checkOutTime.getTime() - breakStart.getTime();
       }
 
-      const totalHours = Math.max(0, parseFloat((totalWorkMs / (1000 * 60 * 60)).toFixed(2)));
+      const totalHours = Math.max(
+        0,
+        parseFloat((totalWorkMs / (1000 * 60 * 60)).toFixed(2)),
+      );
 
       // Fetch policy details
-      const policy = await this.policyModel.findOne({ where: { companyId }, transaction: t });
+      const policy = await this.policyModel.findOne({
+        where: { companyId },
+        transaction: t,
+      });
 
       // Determine shift duration to calculate overtime
       let shift: any = null;
       if (record.shiftId) {
-        shift = await this.shiftModel.findByPk(record.shiftId, { transaction: t });
+        shift = await this.shiftModel.findByPk(record.shiftId, {
+          transaction: t,
+        });
       }
 
       if (!shift) {
@@ -318,11 +408,14 @@ export class AttendanceService {
 
       const [shStart, smStart] = shift.startTime.split(':').map(Number);
       const [shEnd, smEnd] = shift.endTime.split(':').map(Number);
-      let shiftDiff = (shEnd * 60 + smEnd) - (shStart * 60 + smStart);
+      let shiftDiff = shEnd * 60 + smEnd - (shStart * 60 + smStart);
       if (shiftDiff < 0) {
         shiftDiff += 24 * 60; // night shift crossover
       }
-      const shiftHours = Math.max(0, (shiftDiff - (shift.breakMinutes || 0)) / 60);
+      const shiftHours = Math.max(
+        0,
+        (shiftDiff - (shift.breakMinutes || 0)) / 60,
+      );
 
       // Overtime
       let overtimeHours = 0;
@@ -331,8 +424,14 @@ export class AttendanceService {
       }
 
       // Determine status from working hours
-      const minHoursPresent = policy?.minHoursForPresent !== undefined ? Number(policy.minHoursForPresent) : 8;
-      const minHoursHalfDay = policy?.minHoursForHalfDay !== undefined ? Number(policy.minHoursForHalfDay) : 4;
+      const minHoursPresent =
+        policy?.minHoursForPresent !== undefined
+          ? Number(policy.minHoursForPresent)
+          : 8;
+      const minHoursHalfDay =
+        policy?.minHoursForHalfDay !== undefined
+          ? Number(policy.minHoursForHalfDay)
+          : 4;
 
       let finalStatus = AttendanceStatus.PRESENT;
 
@@ -350,7 +449,7 @@ export class AttendanceService {
           employeeId,
           status: LeaveRequestStatus.APPROVED,
           fromDate: { [Op.lte]: record.date },
-          toDate: { [Op.gte]: record.date }
+          toDate: { [Op.gte]: record.date },
         },
         transaction: t,
       });
@@ -363,30 +462,36 @@ export class AttendanceService {
         }
       }
 
-      await record.update({
-        checkOutTime,
-        totalHours,
-        overtimeHours,
-        attendanceStatus: finalStatus,
-        attendanceState: AttendanceState.CHECKED_OUT,
-      }, { transaction: t });
-      await record.reload({ transaction: t });
-
-      await this.logModel.create({
-        employeeId,
-        attendanceRecordId: record.id,
-        actionType: AttendanceActionType.CHECK_OUT,
-        timestamp: checkOutTime,
-        metadata: {
-          locationLat: dto.locationLat,
-          locationLng: dto.locationLng,
-          biometricVerificationId: dto.biometricVerificationId,
-          verificationMethod: dto.verificationMethod || 'WEB',
+      await record.update(
+        {
+          checkOutTime,
           totalHours,
           overtimeHours,
-          breakDurationMinutes: Math.round(breakDurationMs / (1000 * 60)),
+          attendanceStatus: finalStatus,
+          attendanceState: AttendanceState.CHECKED_OUT,
         },
-      } as any, { transaction: t });
+        { transaction: t },
+      );
+      await record.reload({ transaction: t });
+
+      await this.logModel.create(
+        {
+          employeeId,
+          attendanceRecordId: record.id,
+          actionType: AttendanceActionType.CHECK_OUT,
+          timestamp: checkOutTime,
+          metadata: {
+            locationLat: dto.locationLat,
+            locationLng: dto.locationLng,
+            biometricVerificationId: dto.biometricVerificationId,
+            verificationMethod: dto.verificationMethod || 'WEB',
+            totalHours,
+            overtimeHours,
+            breakDurationMinutes: Math.round(breakDurationMs / (1000 * 60)),
+          },
+        },
+        { transaction: t },
+      );
 
       await t.commit();
 
@@ -404,55 +509,116 @@ export class AttendanceService {
   }
 
   // 3. Break Start (DEPRECATED)
-  async breakStart(employeeId: number, companyId: number, dto: BreakStartDto): Promise<AttendanceLog> {
-    throw new ForbiddenException('Manual breaks are disabled by company policy. Breaks are recorded automatically.');
+  async breakStart(
+    employeeId: number,
+    companyId: number,
+    dto: BreakStartDto,
+  ): Promise<AttendanceLog> {
+    throw new ForbiddenException(
+      'Manual breaks are disabled by company policy. Breaks are recorded automatically.',
+    );
   }
 
   // 4. Break End (DEPRECATED)
-  async breakEnd(employeeId: number, companyId: number, dto: BreakEndDto): Promise<AttendanceLog> {
-    throw new ForbiddenException('Manual breaks are disabled by company policy. Breaks are recorded automatically.');
+  async breakEnd(
+    employeeId: number,
+    companyId: number,
+    dto: BreakEndDto,
+  ): Promise<AttendanceLog> {
+    throw new ForbiddenException(
+      'Manual breaks are disabled by company policy. Breaks are recorded automatically.',
+    );
   }
 
   // 5. Attendance Correction Request
-  async requestCorrection(employeeId: number, companyId: number, dto: RequestCorrectionDto): Promise<AttendanceException> {
-    return this.regularizationService.requestCorrection(employeeId, companyId, dto);
+  async requestCorrection(
+    employeeId: number,
+    companyId: number,
+    dto: RequestCorrectionDto,
+  ): Promise<AttendanceException> {
+    return this.regularizationService.requestCorrection(
+      employeeId,
+      companyId,
+      dto,
+    );
   }
 
   // 6. Approve Correction Request
-  async approveCorrection(exceptionId: number, companyId: number, approverEmployeeId: number, approverType: string, dto: ResolveCorrectionDto): Promise<AttendanceException> {
-    return this.regularizationService.approveCorrection(exceptionId, companyId, approverEmployeeId, approverType, dto);
+  async approveCorrection(
+    exceptionId: number,
+    companyId: number,
+    approverEmployeeId: number,
+    approverType: string,
+    dto: ResolveCorrectionDto,
+  ): Promise<AttendanceException> {
+    return this.regularizationService.approveCorrection(
+      exceptionId,
+      companyId,
+      approverEmployeeId,
+      approverType,
+      dto,
+    );
   }
 
   // 7. Reject Correction Request
-  async rejectCorrection(exceptionId: number, approverEmployeeId: number, approverType: string, dto: ResolveCorrectionDto): Promise<AttendanceException> {
-    return this.regularizationService.rejectCorrection(exceptionId, approverEmployeeId, approverType, dto);
+  async rejectCorrection(
+    exceptionId: number,
+    approverEmployeeId: number,
+    approverType: string,
+    dto: ResolveCorrectionDto,
+  ): Promise<AttendanceException> {
+    return this.regularizationService.rejectCorrection(
+      exceptionId,
+      approverEmployeeId,
+      approverType,
+      dto,
+    );
   }
 
-  async getPendingCorrections(companyId: number): Promise<AttendanceException[]> {
+  async getPendingCorrections(
+    companyId: number,
+  ): Promise<AttendanceException[]> {
     return this.exceptionsQueryService.getPendingCorrections(companyId);
   }
 
   async getRegularizationHistory(companyId: number, query: any): Promise<any> {
-    return this.exceptionsQueryService.getRegularizationHistory(companyId, query);
+    return this.exceptionsQueryService.getRegularizationHistory(
+      companyId,
+      query,
+    );
   }
 
   // 8. Get Own Attendance (Self)
-  async getMyAttendance(employeeId: number, companyId: number, filters: { startDate?: string, endDate?: string }): Promise<any> {
+  async getMyAttendance(
+    employeeId: number,
+    companyId: number,
+    filters: { startDate?: string; endDate?: string },
+  ): Promise<any> {
     return this.reportService.getMyAttendance(employeeId, companyId, filters);
   }
 
   // 9. Get Company Attendance
-  async getCompanyAttendance(companyId: number, filters: { date?: string, employeeId?: number }): Promise<AttendanceRecord[]> {
+  async getCompanyAttendance(
+    companyId: number,
+    filters: { date?: string; employeeId?: number },
+  ): Promise<AttendanceRecord[]> {
     return this.reportService.getCompanyAttendance(companyId, filters);
   }
 
   // 10. Monthly Attendance Report
-  async getMonthlyReport(companyId: number, query: { month: number; year: number; employeeId?: number }): Promise<any> {
+  async getMonthlyReport(
+    companyId: number,
+    query: { month: number; year: number; employeeId?: number },
+  ): Promise<any> {
     return this.reportService.getMonthlyReport(companyId, query);
   }
 
   // 11. Assign Shift to Employee
-  async assignShift(employeeId: number, companyId: number, shiftId: number): Promise<Employee> {
+  async assignShift(
+    employeeId: number,
+    companyId: number,
+    shiftId: number,
+  ): Promise<Employee> {
     return this.adminService.assignShift(employeeId, companyId, shiftId);
   }
 
@@ -461,13 +627,26 @@ export class AttendanceService {
     recordId: number,
     companyId: number,
     adminEmployeeId: number,
-    dto: { checkInTime?: string; checkOutTime?: string; attendanceStatus?: AttendanceStatus; lateMinutes?: number; remarks?: string }
+    dto: {
+      checkInTime?: string;
+      checkOutTime?: string;
+      attendanceStatus?: AttendanceStatus;
+      lateMinutes?: number;
+      remarks?: string;
+    },
   ): Promise<AttendanceRecord> {
-    return this.adminService.manualOverride(recordId, companyId, adminEmployeeId, dto);
+    return this.adminService.manualOverride(
+      recordId,
+      companyId,
+      adminEmployeeId,
+      dto,
+    );
   }
 
   // Admin fallback helper
-  async getFallbackEmployeeIdForAdmin(companyId: number): Promise<number | null> {
+  async getFallbackEmployeeIdForAdmin(
+    companyId: number,
+  ): Promise<number | null> {
     return this.adminService.getFallbackEmployeeIdForAdmin(companyId);
   }
 
@@ -475,9 +654,16 @@ export class AttendanceService {
   async manualAttendance(
     companyId: number,
     adminEmployeeId: number,
-    dto: { employeeId: number; date: string; checkInTime?: string; checkOutTime?: string; status: AttendanceStatus; leaveTypeId?: number; reason?: string }
+    dto: {
+      employeeId: number;
+      date: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+      status: AttendanceStatus;
+      leaveTypeId?: number;
+      reason?: string;
+    },
   ): Promise<AttendanceRecord> {
     return this.adminService.manualAttendance(companyId, adminEmployeeId, dto);
   }
-
 }

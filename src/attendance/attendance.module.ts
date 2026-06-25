@@ -35,6 +35,7 @@ import { AttendanceGateway } from './gateways/attendance.gateway';
 
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
+import { SystemModule } from '../system/modules/system.module';
 
 @Module({
   imports: [
@@ -57,19 +58,43 @@ import { AuditModule } from '../audit/modules/audit.module';
     ]),
     RbacModule,
     AuditModule,
+    SystemModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET')!,
+        secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') || '15m') as any,
+          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') ||
+            '15m') as any,
         },
       }),
     }),
   ],
   controllers: [AttendanceController, ShiftsController],
-  providers: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, AttendanceExceptionsQueryService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
-  exports: [AttendanceService, AttendanceHelperService, AttendanceReportService, AttendanceAdminService, AttendanceRegularizationService, AttendanceExceptionsQueryService, ShiftsService, AttendanceCronService, AttendanceBreakCronService, AttendanceGateway],
+  providers: [
+    AttendanceService,
+    AttendanceHelperService,
+    AttendanceReportService,
+    AttendanceAdminService,
+    AttendanceRegularizationService,
+    AttendanceExceptionsQueryService,
+    ShiftsService,
+    AttendanceCronService,
+    AttendanceBreakCronService,
+    AttendanceGateway,
+  ],
+  exports: [
+    AttendanceService,
+    AttendanceHelperService,
+    AttendanceReportService,
+    AttendanceAdminService,
+    AttendanceRegularizationService,
+    AttendanceExceptionsQueryService,
+    ShiftsService,
+    AttendanceCronService,
+    AttendanceBreakCronService,
+    AttendanceGateway,
+  ],
 })
 export class AttendanceModule {}

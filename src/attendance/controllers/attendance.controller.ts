@@ -20,7 +20,16 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
-import { CheckInDto, CheckOutDto, BreakStartDto, BreakEndDto, RequestCorrectionDto, ResolveCorrectionDto, AssignShiftDto, ManualAttendanceDto } from '../dto/attendance.dto';
+import {
+  CheckInDto,
+  CheckOutDto,
+  BreakStartDto,
+  BreakEndDto,
+  RequestCorrectionDto,
+  ResolveCorrectionDto,
+  AssignShiftDto,
+  ManualAttendanceDto,
+} from '../dto/attendance.dto';
 import { AttendanceStatus } from '../models/attendance-record.model';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -37,18 +46,18 @@ export class AttendanceController {
   }
 
   private async getEmployeeId(req: any): Promise<number> {
-    console.log("GET EMPLOYEE ID CALLED", req.user);
+    console.log('GET EMPLOYEE ID CALLED', req.user);
     if (req.user.employeeId) {
       return req.user.employeeId;
     }
     const employeeId = req.user.employeeId;
     if (!employeeId) {
-      throw new BadRequestException('Employee profile not linked to your user account.');
+      throw new BadRequestException(
+        'Employee profile not linked to your user account.',
+      );
     }
     return employeeId;
   }
-
-
 
   @Post('check-in')
   @RequirePermission('attendance_activity:create')
@@ -102,7 +111,10 @@ export class AttendanceController {
     if (!employeeId) {
       return []; // Return empty array if admin has no profile
     }
-    return this.attendanceService.getMyAttendance(employeeId, companyId, { startDate, endDate });
+    return this.attendanceService.getMyAttendance(employeeId, companyId, {
+      startDate,
+      endDate,
+    });
   }
 
   @Get('company')
@@ -113,7 +125,10 @@ export class AttendanceController {
     @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.attendanceService.getCompanyAttendance(companyId, { date, employeeId });
+    return this.attendanceService.getCompanyAttendance(companyId, {
+      date,
+      employeeId,
+    });
   }
 
   @Get('corrections')
@@ -157,36 +172,56 @@ export class AttendanceController {
   @Put('admin/approve-regularization/:id')
   @RequirePermission('attendance_regularization:override')
   @AuditLog({ entityType: 'AttendanceException', action: 'UPDATE' })
-  async approveCorrection(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolveCorrectionDto, @Request() req) {
+  async approveCorrection(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResolveCorrectionDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
-    console.log("APPROVE REQUEST USER", {
+    console.log('APPROVE REQUEST USER', {
       userId: req.user.userId,
       email: req.user.email,
-      employeeId: req.user.employeeId
+      employeeId: req.user.employeeId,
     });
     const approverEmployeeId = req.user.employeeId;
-    return this.attendanceService.approveCorrection(id, companyId, approverEmployeeId, req.user.type, dto);
+    return this.attendanceService.approveCorrection(
+      id,
+      companyId,
+      approverEmployeeId,
+      req.user.type,
+      dto,
+    );
   }
 
   @Put('admin/reject-regularization/:id')
   @RequirePermission('attendance_regularization:override')
   @AuditLog({ entityType: 'AttendanceException', action: 'UPDATE' })
-  async rejectCorrection(@Param('id', ParseIntPipe) id: number, @Body() dto: ResolveCorrectionDto, @Request() req) {
+  async rejectCorrection(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ResolveCorrectionDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const approverEmployeeId = await this.getEmployeeId(req);
-    return this.attendanceService.rejectCorrection(id, approverEmployeeId, req.user.type, dto);
+    return this.attendanceService.rejectCorrection(
+      id,
+      approverEmployeeId,
+      req.user.type,
+      dto,
+    );
   }
 
   @Post('admin/manual-attendance')
   @RequirePermission('attendance_regularization:override')
   @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
-  async manualAttendance(
-    @Body() dto: ManualAttendanceDto,
-    @Request() req,
-  ) {
+  async manualAttendance(@Body() dto: ManualAttendanceDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     const adminEmployeeId = await this.getEmployeeId(req);
-    return this.attendanceService.manualAttendance(companyId, adminEmployeeId, dto);
+    return this.attendanceService.manualAttendance(
+      companyId,
+      adminEmployeeId,
+      dto,
+    );
   }
 
   @Get('report/monthly')
@@ -206,9 +241,14 @@ export class AttendanceController {
       }
     }
 
-    const isSelf = req.user.employeeId && req.user.employeeId === targetEmployeeId;
+    const isSelf =
+      req.user.employeeId && req.user.employeeId === targetEmployeeId;
 
-    return this.attendanceService.getMonthlyReport(companyId, { month, year, employeeId: targetEmployeeId });
+    return this.attendanceService.getMonthlyReport(companyId, {
+      month,
+      year,
+      employeeId: targetEmployeeId,
+    });
   }
 
   @Post('assign-shift/:employeeId')
@@ -220,7 +260,11 @@ export class AttendanceController {
     @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.attendanceService.assignShift(employeeId, companyId, dto.shiftId);
+    return this.attendanceService.assignShift(
+      employeeId,
+      companyId,
+      dto.shiftId,
+    );
   }
 
   @Put(':id/override')
@@ -228,11 +272,22 @@ export class AttendanceController {
   @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async overrideAttendance(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ResolveCorrectionDto & { checkInTime?: string; checkOutTime?: string; attendanceStatus?: AttendanceStatus; lateMinutes?: number },
+    @Body()
+    dto: ResolveCorrectionDto & {
+      checkInTime?: string;
+      checkOutTime?: string;
+      attendanceStatus?: AttendanceStatus;
+      lateMinutes?: number;
+    },
     @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const adminEmployeeId = await this.getEmployeeId(req);
-    return this.attendanceService.manualOverride(id, companyId, adminEmployeeId, dto);
+    return this.attendanceService.manualOverride(
+      id,
+      companyId,
+      adminEmployeeId,
+      dto,
+    );
   }
 }

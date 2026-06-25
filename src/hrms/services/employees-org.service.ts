@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { QueryTypes } from 'sequelize';
 import { Employee } from '../models/employee.model';
@@ -16,17 +20,21 @@ export class EmployeesOrgService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async isCircularManager(employeeId: number, managerId: number, companyId: number): Promise<boolean> {
+  async isCircularManager(
+    employeeId: number,
+    managerId: number,
+    companyId: number,
+  ): Promise<boolean> {
     if (employeeId === managerId) return true;
     const subordinates = await this.getAllSubordinates(employeeId, companyId);
-    return subordinates.some(sub => sub.id === managerId);
+    return subordinates.some((sub) => sub.id === managerId);
   }
 
   private async executeRecursiveCTE(
     companyId: number,
     startCondition: string,
     joinCondition: string,
-    replacements: any
+    replacements: any,
   ): Promise<any[]> {
     const query = `
       WITH RECURSIVE org_tree AS (
@@ -44,7 +52,7 @@ export class EmployeesOrgService {
       SELECT * FROM org_tree;
     `;
 
-    return this.employeeModel.sequelize!.query(query, {
+    return this.employeeModel.sequelize.query(query, {
       replacements: { companyId, ...replacements },
       type: QueryTypes.SELECT,
     });
@@ -55,18 +63,18 @@ export class EmployeesOrgService {
       companyId,
       '"managerId" IS NULL',
       'e."managerId" = ot.id',
-      {}
+      {},
     );
 
     // Build nested tree
     const map = new Map<number, any>();
     const roots: any[] = [];
 
-    rawData.forEach(item => {
+    rawData.forEach((item) => {
       map.set(item.id, { ...item, children: [] });
     });
 
-    rawData.forEach(item => {
+    rawData.forEach((item) => {
       if (item.managerId) {
         const parent = map.get(item.managerId);
         if (parent) {
@@ -88,35 +96,45 @@ export class EmployeesOrgService {
       include: [
         { model: Department, attributes: ['id', 'name'] },
         { model: Designation, attributes: ['id', 'name'] },
-      ]
+      ],
     });
   }
 
-  async getAllSubordinates(managerId: number, companyId: number): Promise<any[]> {
+  async getAllSubordinates(
+    managerId: number,
+    companyId: number,
+  ): Promise<any[]> {
     return this.executeRecursiveCTE(
       companyId,
       'id = :managerId',
       'e."managerId" = ot.id',
-      { managerId }
+      { managerId },
     );
   }
 
-  async getReportingChain(employeeId: number, companyId: number): Promise<any[]> {
+  async getReportingChain(
+    employeeId: number,
+    companyId: number,
+  ): Promise<any[]> {
     return this.executeRecursiveCTE(
       companyId,
       'id = :employeeId',
       'e.id = ot."managerId"',
-      { employeeId }
+      { employeeId },
     );
   }
 
-  private async checkMaxHierarchyDepth(employeeId: number, newManagerId: number, companyId: number): Promise<void> {
+  private async checkMaxHierarchyDepth(
+    employeeId: number,
+    newManagerId: number,
+    companyId: number,
+  ): Promise<void> {
     if (!newManagerId) return;
 
     // 1. Get deepest subordinate level of the employee
     const subordinates = await this.getAllSubordinates(employeeId, companyId);
     let maxSubordinateDepth = 0;
-    subordinates.forEach(sub => {
+    subordinates.forEach((sub) => {
       if (sub.depth > maxSubordinateDepth) maxSubordinateDepth = sub.depth;
     });
 
@@ -125,18 +143,29 @@ export class EmployeesOrgService {
     const managerDepth = managerChain.length; // includes the manager themselves up to CEO
 
     if (managerDepth + maxSubordinateDepth > 15) {
-      throw new BadRequestException(`Hierarchy depth limit exceeded. Maximum allowed depth is 15. Proposed depth would be ${managerDepth + maxSubordinateDepth}.`);
+      throw new BadRequestException(
+        `Hierarchy depth limit exceeded. Maximum allowed depth is 15. Proposed depth would be ${managerDepth + maxSubordinateDepth}.`,
+      );
     }
   }
 
-  async changeManager(employeeId: number, companyId: number, dto: any, actor: any): Promise<{ message: string }> {
-    const employee = await this.employeeModel.findOne({ where: { id: employeeId, companyId } });
+  async changeManager(
+    employeeId: number,
+    companyId: number,
+    dto: any,
+    actor: any,
+  ): Promise<{ message: string }> {
+    const employee = await this.employeeModel.findOne({
+      where: { id: employeeId, companyId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
     const newManagerId = dto.newManagerId;
 
     if (newManagerId === employee.managerId) {
-      throw new BadRequestException('New manager is the same as the current manager');
+      throw new BadRequestException(
+        'New manager is the same as the current manager',
+      );
     }
 
     if (newManagerId) {
@@ -144,7 +173,9 @@ export class EmployeesOrgService {
         throw new BadRequestException('Employee cannot be their own manager');
       }
 
-      const manager = await this.employeeModel.findOne({ where: { id: newManagerId, companyId } });
+      const manager = await this.employeeModel.findOne({
+        where: { id: newManagerId, companyId },
+      });
       if (!manager) throw new NotFoundException('Manager not found');
 
       if (!['ACTIVE', 'CONFIRMED'].includes(manager.status)) {
@@ -152,9 +183,14 @@ export class EmployeesOrgService {
       }
 
       // Loop Prevention
-      const subordinates = await this.getAllSubordinates(employee.id, companyId);
-      if (subordinates.some(sub => sub.id === newManagerId)) {
-        throw new BadRequestException('Circular reporting hierarchy detected (new manager is currently a subordinate)');
+      const subordinates = await this.getAllSubordinates(
+        employee.id,
+        companyId,
+      );
+      if (subordinates.some((sub) => sub.id === newManagerId)) {
+        throw new BadRequestException(
+          'Circular reporting hierarchy detected (new manager is currently a subordinate)',
+        );
       }
 
       // Max Depth Check
@@ -164,9 +200,12 @@ export class EmployeesOrgService {
     const oldRecord = employee.toJSON();
     const oldManagerId = employee.managerId;
 
-    const t = await this.employeeModel.sequelize!.transaction();
+    const t = await this.employeeModel.sequelize.transaction();
     try {
-      await employee.update({ managerId: newManagerId || null, updatedBy: actor?.userId }, { transaction: t });
+      await employee.update(
+        { managerId: newManagerId || null, updatedBy: actor?.userId },
+        { transaction: t },
+      );
 
       await t.commit();
       const updated = await employee.reload();

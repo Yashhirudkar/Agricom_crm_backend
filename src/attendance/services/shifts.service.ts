@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Shift } from '../models/shift.model';
 import { CreateShiftDto, UpdateShiftDto } from '../dto/shift.dto';
@@ -15,7 +19,9 @@ export class ShiftsService {
       where: { companyId, name: dto.name },
     });
     if (existing) {
-      throw new ConflictException(`Shift with name "${dto.name}" already exists for this company`);
+      throw new ConflictException(
+        `Shift with name "${dto.name}" already exists for this company`,
+      );
     }
 
     return this.shiftModel.create({
@@ -27,7 +33,7 @@ export class ShiftsService {
       gracePeriodMinutes: dto.gracePeriodMinutes || 0,
       isNightShift: dto.isNightShift || false,
       weeklyOffDays: dto.weeklyOffDays || [],
-    } as any);
+    });
   }
 
   async getShifts(companyId: number): Promise<Shift[]> {
@@ -47,7 +53,11 @@ export class ShiftsService {
     return shift;
   }
 
-  async updateShift(id: number, companyId: number, dto: UpdateShiftDto): Promise<Shift> {
+  async updateShift(
+    id: number,
+    companyId: number,
+    dto: UpdateShiftDto,
+  ): Promise<Shift> {
     const shift = await this.getShiftById(id, companyId);
 
     if (dto.name && dto.name !== shift.name) {
@@ -55,7 +65,9 @@ export class ShiftsService {
         where: { companyId, name: dto.name },
       });
       if (conflict) {
-        throw new ConflictException(`Shift with name "${dto.name}" already exists for this company`);
+        throw new ConflictException(
+          `Shift with name "${dto.name}" already exists for this company`,
+        );
       }
     }
 
@@ -64,15 +76,22 @@ export class ShiftsService {
       ...(dto.startTime !== undefined && { startTime: dto.startTime }),
       ...(dto.endTime !== undefined && { endTime: dto.endTime }),
       ...(dto.breakMinutes !== undefined && { breakMinutes: dto.breakMinutes }),
-      ...(dto.gracePeriodMinutes !== undefined && { gracePeriodMinutes: dto.gracePeriodMinutes }),
+      ...(dto.gracePeriodMinutes !== undefined && {
+        gracePeriodMinutes: dto.gracePeriodMinutes,
+      }),
       ...(dto.isNightShift !== undefined && { isNightShift: dto.isNightShift }),
-      ...(dto.weeklyOffDays !== undefined && { weeklyOffDays: dto.weeklyOffDays }),
+      ...(dto.weeklyOffDays !== undefined && {
+        weeklyOffDays: dto.weeklyOffDays,
+      }),
     });
 
     return shift.reload();
   }
 
-  async deleteShift(id: number, companyId: number): Promise<{ message: string }> {
+  async deleteShift(
+    id: number,
+    companyId: number,
+  ): Promise<{ message: string }> {
     const shift = await this.getShiftById(id, companyId);
     await shift.destroy();
     return { message: `Shift "${shift.name}" deleted successfully` };

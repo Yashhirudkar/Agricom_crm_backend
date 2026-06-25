@@ -34,4 +34,4 @@ import { AuditModule } from '../../audit/modules/audit.module';
   controllers: [UsersController, UserInvitationController],
   exports: [UsersService, UserInvitationService],
 })
-export class UsersModule { }
+export class UsersModule {}

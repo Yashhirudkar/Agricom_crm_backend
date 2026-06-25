@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -10,7 +12,8 @@ import { Index, Table,
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default, } from 'sequelize-typescript';
+  Default,
+} from 'sequelize-typescript';
 import { Company } from './company.model';
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
@@ -59,7 +62,10 @@ export class Department extends Model<Department> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare departmentHeadId: number;
 
-  @BelongsTo(() => Employee, { foreignKey: 'departmentHeadId', constraints: false })
+  @BelongsTo(() => Employee, {
+    foreignKey: 'departmentHeadId',
+    constraints: false,
+  })
   declare departmentHead: Employee;
 
   @AllowNull(true)

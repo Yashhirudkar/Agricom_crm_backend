@@ -34,7 +34,7 @@ export class AuditService {
       newValue: params.newValue || null,
       ipAddress: params.ipAddress || null,
       userAgent: params.userAgent || null,
-    } as any);
+    });
   }
 
   async writeDiffLog(params: {
@@ -52,7 +52,14 @@ export class AuditService {
     let oldValue: any = null;
     let newValue: any = null;
 
-    const sensitiveFields = ['password', 'accessToken', 'refreshToken', 'sessionId', 'createdAt', 'updatedAt'];
+    const sensitiveFields = [
+      'password',
+      'accessToken',
+      'refreshToken',
+      'sessionId',
+      'createdAt',
+      'updatedAt',
+    ];
 
     const sanitizeRecord = (rec: any) => {
       if (!rec) return null;
@@ -73,7 +80,10 @@ export class AuditService {
       const cleanOld = sanitizeRecord(params.oldRecord) || {};
       const cleanNew = sanitizeRecord(params.newRecord) || {};
 
-      const allKeys = new Set([...Object.keys(cleanOld), ...Object.keys(cleanNew)]);
+      const allKeys = new Set([
+        ...Object.keys(cleanOld),
+        ...Object.keys(cleanNew),
+      ]);
       let hasChanges = false;
 
       const diffOld: any = {};
@@ -133,9 +143,7 @@ export class AuditService {
 
     return this.auditLogModel.findAll({
       where,
-      include: [
-        { model: User, attributes: ['id', 'name', 'email'] }
-      ],
+      include: [{ model: User, attributes: ['id', 'name', 'email'] }],
       order: [['createdAt', 'DESC']],
       limit: 100, // safety limit
     });

@@ -18,7 +18,12 @@ import { HolidaysService } from '../services/holidays.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateHolidayDto, UpdateHolidayDto, GetHolidaysFilterDto, CreateRecurringHolidayDto } from '../dto/holiday.dto';
+import {
+  CreateHolidayDto,
+  UpdateHolidayDto,
+  GetHolidaysFilterDto,
+  CreateRecurringHolidayDto,
+} from '../dto/holiday.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('holidays')
@@ -53,9 +58,16 @@ export class HolidaysController {
   @Post('recurring')
   @RequirePermission('holidays:create')
   @HttpCode(HttpStatus.CREATED)
-  createRecurringHolidays(@Body() dto: CreateRecurringHolidayDto, @Request() req) {
+  createRecurringHolidays(
+    @Body() dto: CreateRecurringHolidayDto,
+    @Request() req,
+  ) {
     const actor = this.getActor(req);
-    return this.holidaysService.createRecurringHolidays(actor.clientId, dto, actor);
+    return this.holidaysService.createRecurringHolidays(
+      actor.clientId,
+      dto,
+      actor,
+    );
   }
 
   @Get('upcoming')
@@ -87,7 +99,11 @@ export class HolidaysController {
 
   @Put(':id')
   @RequirePermission('holidays:update')
-  updateHoliday(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateHolidayDto, @Request() req) {
+  updateHoliday(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateHolidayDto,
+    @Request() req,
+  ) {
     const actor = this.getActor(req);
     return this.holidaysService.updateHoliday(id, actor.clientId, dto, actor);
   }

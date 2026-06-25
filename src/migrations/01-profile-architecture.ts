@@ -46,12 +46,16 @@ async function run() {
       console.log('[Migration] Executing profile architecture migration...');
 
       // 1. Add avatarUrl to users
-      await sequelize.query(`
+      await sequelize.query(
+        `
         ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatarUrl" VARCHAR(1000);
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
       // 2. Create user_preferences table
-      await sequelize.query(`
+      await sequelize.query(
+        `
         CREATE TABLE IF NOT EXISTS "user_preferences" (
           "id" SERIAL PRIMARY KEY,
           "userId" INTEGER NOT NULL REFERENCES "users"("id") ON DELETE CASCADE UNIQUE,
@@ -62,18 +66,24 @@ async function run() {
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
       // 3. Create profile_activity_logs table
-      await sequelize.query(`
+      await sequelize.query(
+        `
         DO $$ BEGIN
             CREATE TYPE "enum_profile_activity_logs_actorType" AS ENUM ('EMPLOYEE', 'ADMIN', 'SYSTEM');
         EXCEPTION
             WHEN duplicate_object THEN null;
         END $$;
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
-      await sequelize.query(`
+      await sequelize.query(
+        `
         CREATE TABLE IF NOT EXISTS "profile_activity_logs" (
           "id" SERIAL PRIMARY KEY,
           "userId" INTEGER NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
@@ -86,16 +96,22 @@ async function run() {
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
       // 4. Indexes for profile_activity_logs
-      await sequelize.query(`
+      await sequelize.query(
+        `
         CREATE INDEX IF NOT EXISTS "idx_profile_activity_logs_userId" ON "profile_activity_logs"("userId");
         CREATE INDEX IF NOT EXISTS "idx_profile_activity_logs_createdAt" ON "profile_activity_logs"("createdAt");
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
       // 5. Create user_password_histories table
-      await sequelize.query(`
+      await sequelize.query(
+        `
         CREATE TABLE IF NOT EXISTS "user_password_histories" (
           "id" SERIAL PRIMARY KEY,
           "userId" INTEGER NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
@@ -103,9 +119,13 @@ async function run() {
           "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
           "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
-      `, { transaction });
+      `,
+        { transaction },
+      );
 
-      console.log('[Migration] Profile architecture tables and columns created successfully.');
+      console.log(
+        '[Migration] Profile architecture tables and columns created successfully.',
+      );
     });
 
     console.log('[Migration] All migration tasks executed successfully.');

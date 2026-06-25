@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { COMPANY_TYPES, INDUSTRY_TYPES, COMPANY_SIZES } from '../../constants/company-options';
+import {
+  COMPANY_TYPES,
+  INDUSTRY_TYPES,
+  COMPANY_SIZES,
+} from '../../constants/company-options';
 
 @Injectable()
 export class OptionsService {
@@ -9,7 +13,7 @@ export class OptionsService {
         statuses: [
           { value: 'Active', label: 'Active' },
           { value: 'Inactive', label: 'Inactive' },
-        ]
+        ],
       },
       users: {
         statuses: [
@@ -25,7 +29,7 @@ export class OptionsService {
           { value: 'INACTIVE', label: 'Inactive' },
           { value: 'SUSPENDED', label: 'Suspended' },
         ],
-        types: COMPANY_TYPES.map(t => ({ value: t, label: t })),
+        types: COMPANY_TYPES.map((t) => ({ value: t, label: t })),
         industryTypes: INDUSTRY_TYPES,
         companySizes: COMPANY_SIZES,
       },
@@ -82,7 +86,7 @@ export class OptionsService {
           { value: 'SHUTDOWN', label: 'Office Shutdown' },
           { value: 'FESTIVAL', label: 'Festival Holiday' },
           { value: 'REGIONAL', label: 'Regional Holiday' },
-        ]
+        ],
       },
       masters: {
         partnerStatuses: [
@@ -97,8 +101,8 @@ export class OptionsService {
           { value: 'Average', label: 'Average' },
           { value: 'Poor', label: 'Poor' },
           { value: 'Blacklisted', label: 'Blacklisted' },
-        ]
-      }
+        ],
+      },
     };
   }
 }

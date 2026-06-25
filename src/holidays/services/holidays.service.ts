@@ -1,10 +1,18 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Holiday } from '../models/holiday.model';
 import { HolidayCompany } from '../models/holiday-company.model';
-import { CreateHolidayDto, UpdateHolidayDto, GetHolidaysFilterDto, CreateRecurringHolidayDto } from '../dto/holiday.dto';
+import {
+  CreateHolidayDto,
+  UpdateHolidayDto,
+  GetHolidaysFilterDto,
+  CreateRecurringHolidayDto,
+} from '../dto/holiday.dto';
 import { AuditService } from '../../audit/services/audit.service';
-import { NotificationsService } from '../../notifications/services/notifications.service';
 import { UserCompany } from '../../users/models/user-company.model';
 import { User } from '../../users/models/user.model';
 import { Company } from '../../companies/models/company.model';
@@ -20,32 +28,34 @@ export class HolidaysService {
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
     private readonly auditService: AuditService,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createHoliday(
     clientId: number,
     dto: CreateHolidayDto,
-    actor: { userId: number; ipAddress?: string; userAgent?: string }
+    actor: { userId: number; ipAddress?: string; userAgent?: string },
   ) {
     let holiday: Holiday;
     const t = await this.holidayModel.sequelize.transaction();
     try {
       await this.validateConflict(clientId, dto, t);
 
-      holiday = await this.holidayModel.create({
-        clientId,
-        title: dto.title,
-        holidayDate: dto.holidayDate as any,
-        holidayType: dto.holidayType,
-        description: dto.description || null,
-        isOptional: dto.isOptional || false,
-        isWeeklyOff: dto.isWeeklyOff || false,
-        isHalfDay: dto.isHalfDay || false,
-        halfDayStart: dto.halfDayStart || null,
-        halfDayEnd: dto.halfDayEnd || null,
-        createdBy: actor.userId,
-      }, { transaction: t });
+      holiday = await this.holidayModel.create(
+        {
+          clientId,
+          title: dto.title,
+          holidayDate: dto.holidayDate as any,
+          holidayType: dto.holidayType,
+          description: dto.description || null,
+          isOptional: dto.isOptional || false,
+          isWeeklyOff: dto.isWeeklyOff || false,
+          isHalfDay: dto.isHalfDay || false,
+          halfDayStart: dto.halfDayStart || null,
+          halfDayEnd: dto.halfDayEnd || null,
+          createdBy: actor.userId,
+        },
+        { transaction: t },
+      );
 
       if (dto.companyIds && dto.companyIds.length > 0) {
         const mappings = dto.companyIds.map((cId) => ({
@@ -54,7 +64,7 @@ export class HolidaysService {
         }));
         await this.holidayCompanyModel.bulkCreate(mappings, { transaction: t });
       }
-      
+
       await t.commit();
     } catch (error) {
       await t.rollback();
@@ -76,7 +86,11 @@ export class HolidaysService {
     });
 
     // Notifications
-    await this.notifyUsers(createdHoliday, 'New Holiday Added', `A new holiday '${holiday.title}' has been scheduled for ${holiday.holidayDate}.`);
+    await this.notifyUsers(
+      createdHoliday,
+      'New Holiday Added',
+      `A new holiday '${holiday.title}' has been scheduled for ${holiday.holidayDate}.`,
+    );
 
     return createdHoliday;
   }
@@ -125,9 +139,11 @@ export class HolidaysService {
 
     if (filter.companyId) {
       // Filter out holidays that are restricted to other companies
-      holidays.rows = holidays.rows.filter(h => {
+      holidays.rows = holidays.rows.filter((h) => {
         if (h.holidayCompanies && h.holidayCompanies.length > 0) {
-          return h.holidayCompanies.some(hc => hc.companyId == filter.companyId);
+          return h.holidayCompanies.some(
+            (hc) => hc.companyId == filter.companyId,
+          );
         }
         return true; // Client level holiday (applies to all companies)
       });
@@ -141,13 +157,13 @@ export class HolidaysService {
         page: Number(page),
         limit: Number(limit),
         totalPages: Math.ceil(holidays.count / limit),
-      }
+      },
     };
   }
 
   async getUpcomingHolidays(clientId: number, companyId: number) {
     const today = new Date().toISOString().split('T')[0];
-    
+
     const holidays = await this.holidayModel.findAll({
       where: {
         clientId,
@@ -163,9 +179,9 @@ export class HolidaysService {
       limit: 5,
     });
 
-    return holidays.filter(h => {
+    return holidays.filter((h) => {
       if (h.holidayCompanies && h.holidayCompanies.length > 0) {
-        return h.holidayCompanies.some(hc => hc.companyId == companyId);
+        return h.holidayCompanies.some((hc) => hc.companyId == companyId);
       }
       return true;
     });
@@ -192,7 +208,7 @@ export class HolidaysService {
     id: number,
     clientId: number,
     dto: UpdateHolidayDto,
-    actor: { userId: number; ipAddress?: string; userAgent?: string }
+    actor: { userId: number; ipAddress?: string; userAgent?: string },
   ) {
     const holiday = await this.getHolidayById(id, clientId);
     const oldRecord = holiday.toJSON();
@@ -200,24 +216,34 @@ export class HolidaysService {
     const t = await this.holidayModel.sequelize.transaction();
     try {
       if (dto.title !== undefined) holiday.title = dto.title;
-      if (dto.holidayDate !== undefined) holiday.holidayDate = dto.holidayDate as any;
+      if (dto.holidayDate !== undefined)
+        holiday.holidayDate = dto.holidayDate as any;
       if (dto.holidayType !== undefined) holiday.holidayType = dto.holidayType;
       if (dto.description !== undefined) holiday.description = dto.description;
       if (dto.isOptional !== undefined) holiday.isOptional = dto.isOptional;
       if (dto.isWeeklyOff !== undefined) holiday.isWeeklyOff = dto.isWeeklyOff;
       if (dto.isHalfDay !== undefined) holiday.isHalfDay = dto.isHalfDay;
-      if (dto.halfDayStart !== undefined) holiday.halfDayStart = dto.halfDayStart;
+      if (dto.halfDayStart !== undefined)
+        holiday.halfDayStart = dto.halfDayStart;
       if (dto.halfDayEnd !== undefined) holiday.halfDayEnd = dto.halfDayEnd;
       if (dto.isActive !== undefined) holiday.isActive = dto.isActive;
-      
+
       holiday.updatedBy = actor.userId;
       await holiday.save({ transaction: t });
 
       if (dto.companyIds !== undefined) {
-        await this.holidayCompanyModel.destroy({ where: { holidayId: id }, transaction: t });
+        await this.holidayCompanyModel.destroy({
+          where: { holidayId: id },
+          transaction: t,
+        });
         if (dto.companyIds.length > 0) {
-          const mappings = dto.companyIds.map(cId => ({ holidayId: id, companyId: cId }));
-          await this.holidayCompanyModel.bulkCreate(mappings, { transaction: t });
+          const mappings = dto.companyIds.map((cId) => ({
+            holidayId: id,
+            companyId: cId,
+          }));
+          await this.holidayCompanyModel.bulkCreate(mappings, {
+            transaction: t,
+          });
         }
       }
       await t.commit();
@@ -247,14 +273,17 @@ export class HolidaysService {
   async deleteHoliday(
     id: number,
     clientId: number,
-    actor: { userId: number; ipAddress?: string; userAgent?: string }
+    actor: { userId: number; ipAddress?: string; userAgent?: string },
   ) {
     const holiday = await this.getHolidayById(id, clientId);
     const oldRecord = holiday.toJSON();
 
     const t = await this.holidayModel.sequelize.transaction();
     try {
-      await this.holidayCompanyModel.destroy({ where: { holidayId: id }, transaction: t });
+      await this.holidayCompanyModel.destroy({
+        where: { holidayId: id },
+        transaction: t,
+      });
       await holiday.destroy({ transaction: t });
       await t.commit();
     } catch (err) {
@@ -278,34 +307,7 @@ export class HolidaysService {
   }
 
   private async notifyUsers(holiday: Holiday, title: string, message: string) {
-    let targetUserIds: number[] = [];
-
-    if (holiday.holidayCompanies && holiday.holidayCompanies.length > 0) {
-      const companyIds = holiday.holidayCompanies.map(hc => hc.companyId);
-      const userComps = await this.userCompanyModel.findAll({
-        where: { companyId: { [Op.in]: companyIds } }
-      });
-      targetUserIds = [...new Set(userComps.map(uc => uc.userId))];
-    } else {
-      // Client level holiday, fetch all users of this client via userCompany mapping of client's companies
-      const companies = await Company.findAll({ where: { clientId: holiday.clientId } });
-      const companyIds = companies.map(c => c.id);
-      const userComps = await this.userCompanyModel.findAll({
-        where: { companyId: { [Op.in]: companyIds } }
-      });
-      targetUserIds = [...new Set(userComps.map(uc => uc.userId))];
-    }
-
-    for (const uId of targetUserIds) {
-      await this.notificationsService.createNotification({
-        userId: uId,
-        title,
-        message,
-        type: 'HOLIDAY',
-        entityType: 'Holiday',
-        entityId: holiday.id,
-      });
-    }
+    // Notifications have been removed from the system.
   }
 
   private async validateConflict(clientId: number, dto: any, t: any) {
@@ -320,13 +322,13 @@ export class HolidaysService {
     const newCompanyIds = dto.companyIds || [];
 
     for (const ex of existingHolidays) {
-      const exCompanyIds = ex.holidayCompanies?.map(c => c.companyId) || [];
-      
+      const exCompanyIds = ex.holidayCompanies?.map((c) => c.companyId) || [];
+
       let overlap = false;
       if (newCompanyIds.length === 0 || exCompanyIds.length === 0) {
         overlap = true;
       } else {
-        overlap = exCompanyIds.some(cId => newCompanyIds.includes(cId));
+        overlap = exCompanyIds.some((cId) => newCompanyIds.includes(cId));
       }
 
       if (overlap) {
@@ -338,15 +340,21 @@ export class HolidaysService {
         }
 
         if ((isNewHalfDay && !isExHalfDay) || (!isNewHalfDay && isExHalfDay)) {
-          throw new BadRequestException(`Conflict: Cannot mix half day and full holiday on the same date (${dto.holidayDate}).`);
+          throw new BadRequestException(
+            `Conflict: Cannot mix half day and full holiday on the same date (${dto.holidayDate}).`,
+          );
         }
 
         if (isNewWeeklyOff && isExWeeklyOff) {
-          throw new BadRequestException(`Conflict: A weekly off already exists on ${dto.holidayDate} for the specified company(s).`);
+          throw new BadRequestException(
+            `Conflict: A weekly off already exists on ${dto.holidayDate} for the specified company(s).`,
+          );
         }
 
         if (!isNewWeeklyOff && !isExWeeklyOff) {
-          throw new BadRequestException(`Conflict: A holiday (${ex.title}) already exists on ${dto.holidayDate} for the specified company(s).`);
+          throw new BadRequestException(
+            `Conflict: A holiday (${ex.title}) already exists on ${dto.holidayDate} for the specified company(s).`,
+          );
         }
       }
     }
@@ -356,7 +364,14 @@ export class HolidaysService {
     const day = date.getDay();
     let count = 0;
     for (let d = 1; d <= date.getDate(); d++) {
-      const current = new Date(date.getFullYear(), date.getMonth(), d, 12, 0, 0);
+      const current = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        d,
+        12,
+        0,
+        0,
+      );
       if (current.getDay() === day) {
         count++;
       }
@@ -364,9 +379,13 @@ export class HolidaysService {
     return count;
   }
 
-  async createRecurringHolidays(clientId: number, dto: CreateRecurringHolidayDto, actor: any) {
+  async createRecurringHolidays(
+    clientId: number,
+    dto: CreateRecurringHolidayDto,
+    actor: any,
+  ) {
     const dates: string[] = [];
-    
+
     const sParts = dto.startDate.split('-').map(Number);
     const eParts = dto.endDate.split('-').map(Number);
     const start = new Date(sParts[0], sParts[1] - 1, sParts[2], 12, 0, 0);
@@ -388,7 +407,9 @@ export class HolidaysService {
     }
 
     if (dates.length === 0) {
-      throw new BadRequestException('No matching dates found for the given recurrence rules.');
+      throw new BadRequestException(
+        'No matching dates found for the given recurrence rules.',
+      );
     }
 
     const t = await this.holidayModel.sequelize.transaction();
@@ -398,37 +419,44 @@ export class HolidaysService {
         const singleDto = { ...dto, holidayDate: dateStr };
         await this.validateConflict(clientId, singleDto, t);
 
-        const holiday = await this.holidayModel.create({
-          clientId,
-          title: dto.title,
-          holidayDate: dateStr as any,
-          holidayType: dto.holidayType,
-          description: dto.description || null,
-          isOptional: dto.isOptional || false,
-          isWeeklyOff: dto.isWeeklyOff || false,
-          isHalfDay: dto.isHalfDay || false,
-          halfDayStart: dto.halfDayStart || null,
-          halfDayEnd: dto.halfDayEnd || null,
-          createdBy: actor.userId,
-        }, { transaction: t });
+        const holiday = await this.holidayModel.create(
+          {
+            clientId,
+            title: dto.title,
+            holidayDate: dateStr as any,
+            holidayType: dto.holidayType,
+            description: dto.description || null,
+            isOptional: dto.isOptional || false,
+            isWeeklyOff: dto.isWeeklyOff || false,
+            isHalfDay: dto.isHalfDay || false,
+            halfDayStart: dto.halfDayStart || null,
+            halfDayEnd: dto.halfDayEnd || null,
+            createdBy: actor.userId,
+          },
+          { transaction: t },
+        );
 
         if (dto.companyIds && dto.companyIds.length > 0) {
           const mappings = dto.companyIds.map((cId) => ({
             holidayId: holiday.id,
             companyId: cId,
           }));
-          await this.holidayCompanyModel.bulkCreate(mappings, { transaction: t });
+          await this.holidayCompanyModel.bulkCreate(mappings, {
+            transaction: t,
+          });
         }
-        
+
         createdHolidays.push(holiday);
       }
       await t.commit();
     } catch (err) {
       await t.rollback();
       if (err instanceof BadRequestException) {
-          throw err;
+        throw err;
       }
-      throw new BadRequestException('Error creating recurring holidays: ' + err.message);
+      throw new BadRequestException(
+        'Error creating recurring holidays: ' + err.message,
+      );
     }
 
     for (const h of createdHolidays) {
@@ -444,9 +472,15 @@ export class HolidaysService {
         ipAddress: actor.ipAddress,
         userAgent: actor.userAgent,
       });
-      await this.notifyUsers(createdHoliday, 'New Holiday Added', `A new holiday '${h.title}' has been scheduled for ${h.holidayDate}.`);
+      await this.notifyUsers(
+        createdHoliday,
+        'New Holiday Added',
+        `A new holiday '${h.title}' has been scheduled for ${h.holidayDate}.`,
+      );
     }
 
-    return { message: `Successfully created ${createdHolidays.length} recurring holidays.` };
+    return {
+      message: `Successfully created ${createdHolidays.length} recurring holidays.`,
+    };
   }
 }

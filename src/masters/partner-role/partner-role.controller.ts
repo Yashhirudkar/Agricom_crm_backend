@@ -26,9 +26,7 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partner-roles')
 export class PartnerRoleController {
-  constructor(
-    private readonly partnerRoleService: PartnerRoleService,
-  ) {}
+  constructor(private readonly partnerRoleService: PartnerRoleService) {}
 
   @Post()
   @RequirePermission('partnerrole:create')
@@ -42,7 +40,7 @@ export class PartnerRoleController {
   @RequirePermission('partnerrole:view')
   async findAll(@Query() query: QueryPartnerRoleDto) {
     const result = await this.partnerRoleService.findAll(query);
-    
+
     return result;
   }
 
@@ -50,7 +48,7 @@ export class PartnerRoleController {
   @RequirePermission('partnerrole:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const item = await this.partnerRoleService.findOne(id);
-    
+
     return item;
   }
 
@@ -67,10 +65,7 @@ export class PartnerRoleController {
   @Patch(':id/restore')
   @RequirePermission('partnerrole:update')
   @AuditLog({ entityType: 'PartnerRole', action: 'RESTORE' })
-  restore(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
+  restore(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.partnerRoleService.restore(id, req.user);
   }
 

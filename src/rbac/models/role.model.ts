@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -11,7 +13,8 @@ import { Index, Table,
   CreatedAt,
   UpdatedAt,
   ForeignKey,
-  BelongsTo, } from 'sequelize-typescript';
+  BelongsTo,
+} from 'sequelize-typescript';
 
 import { UserRole } from './user-role.model';
 import { User } from '../../users/models/user.model';
@@ -25,8 +28,8 @@ import { RoleActionPermission } from './role-action-permission.model';
     {
       unique: true,
       fields: ['name', 'clientId'], // A role name should be unique per client. System roles (null clientId) are globally unique.
-    }
-  ]
+    },
+  ],
 })
 export class Role extends Model<Role> {
   @PrimaryKey
@@ -71,8 +74,6 @@ export class Role extends Model<Role> {
 
   @UpdatedAt
   declare updatedAt: Date;
-
-
 
   @BelongsToMany(() => User, () => UserRole)
   declare users: User[];

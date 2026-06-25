@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -9,7 +11,8 @@ import { Index, Table,
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default, } from 'sequelize-typescript';
+  Default,
+} from 'sequelize-typescript';
 import { Employee } from '../../hrms/models/employee.model';
 import { AttendanceRecord } from './attendance-record.model';
 
@@ -59,7 +62,12 @@ export class AttendanceException extends Model<AttendanceException> {
 
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('MISSED_PUNCH', 'MANUAL_ENTRY', 'REGULARIZATION', 'OVERRIDE'),
+    type: DataType.ENUM(
+      'MISSED_PUNCH',
+      'MANUAL_ENTRY',
+      'REGULARIZATION',
+      'OVERRIDE',
+    ),
   })
   declare type: AttendanceExceptionType;
 

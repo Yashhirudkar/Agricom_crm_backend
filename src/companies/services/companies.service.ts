@@ -11,7 +11,11 @@ import { Client } from '../../clients/models/client.model';
 import { User } from '../../users/models/user.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { CreateCompanyDto, UpdateCompanyDto } from '../dto/companies.dto';
-import { COMPANY_TYPES, INDUSTRY_TYPES, COMPANY_SIZES } from '../../constants/company-options';
+import {
+  COMPANY_TYPES,
+  INDUSTRY_TYPES,
+  COMPANY_SIZES,
+} from '../../constants/company-options';
 
 @Injectable()
 export class CompaniesService {
@@ -25,63 +29,73 @@ export class CompaniesService {
 
   // ─── Create ──────────────────────────────────────────────────────────────
 
-  async createCompany(clientId: number, data: CreateCompanyDto, actor?: any): Promise<Company> {
+  async createCompany(
+    clientId: number,
+    data: CreateCompanyDto,
+    actor?: any,
+  ): Promise<Company> {
     const client = await this.clientModel.findByPk(clientId);
     if (!client) throw new NotFoundException('Client not found');
 
     const currentCount = await this.companyModel.count({ where: { clientId } });
     if (currentCount >= client.allowedCompanies) {
-      throw new ForbiddenException(`Company limit reached. Allowed: ${client.allowedCompanies}`);
+      throw new ForbiddenException(
+        `Company limit reached. Allowed: ${client.allowedCompanies}`,
+      );
     }
 
     // Unique company_code guard
     if (data.companyCode) {
-      const existing = await this.companyModel.findOne({ where: { companyCode: data.companyCode } });
+      const existing = await this.companyModel.findOne({
+        where: { companyCode: data.companyCode },
+      });
       if (existing) {
-        throw new ConflictException(`Company code "${data.companyCode}" is already taken.`);
+        throw new ConflictException(
+          `Company code "${data.companyCode}" is already taken.`,
+        );
       }
     }
 
     const company = await this.companyModel.create({
       clientId,
-      name:            data.name,
-      legalName:       data.legalName       ?? null,
-      companyCode:     data.companyCode     ?? null,
-      companyType:     data.companyType     ?? null,
-      industryType:    data.industryType    ?? null,
-      logoUrl:            data.logoUrl            ?? null,
-      faviconUrl:         data.faviconUrl         ?? null,
-      email:              data.email              ?? null,
-      phone:              data.phone              ?? null,
+      name: data.name,
+      legalName: data.legalName ?? null,
+      companyCode: data.companyCode ?? null,
+      companyType: data.companyType ?? null,
+      industryType: data.industryType ?? null,
+      logoUrl: data.logoUrl ?? null,
+      faviconUrl: data.faviconUrl ?? null,
+      email: data.email ?? null,
+      phone: data.phone ?? null,
       // Enterprise fields
-      description:        data.description        ?? null,
+      description: data.description ?? null,
       registrationNumber: data.registrationNumber ?? null,
-      taxNumber:          data.taxNumber          ?? null,
-      employeeCount:      data.employeeCount      ?? null,
-      companySize:        data.companySize        ?? null,
+      taxNumber: data.taxNumber ?? null,
+      employeeCount: data.employeeCount ?? null,
+      companySize: data.companySize ?? null,
       // Phase 2
-      website:            data.website            ?? null,
-      country:            data.country            ?? null,
-      state:              data.state              ?? null,
-      city:               data.city               ?? null,
-      address:            data.address            ?? null,
-      pincode:            data.pincode            ?? null,
-      establishedYear:    data.establishedYear    ?? null,
-      isActive:        data.isActive        !== undefined ? data.isActive : true,
-      status:          'Active',
-    } as any);
+      website: data.website ?? null,
+      country: data.country ?? null,
+      state: data.state ?? null,
+      city: data.city ?? null,
+      address: data.address ?? null,
+      pincode: data.pincode ?? null,
+      establishedYear: data.establishedYear ?? null,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      status: 'Active',
+    });
 
     if (actor) {
       await this.auditService.writeDiffLog({
         clientId,
-        companyId:  company.id,
-        userId:     actor.userId,
+        companyId: company.id,
+        userId: actor.userId,
         entityType: 'Company',
-        entityId:   company.id,
-        action:     'CREATE',
-        newRecord:  company,
-        ipAddress:  actor.ipAddress,
-        userAgent:  actor.userAgent,
+        entityId: company.id,
+        action: 'CREATE',
+        newRecord: company,
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
       });
     }
 
@@ -109,54 +123,64 @@ export class CompaniesService {
         where: { companyCode: data.companyCode, id: { [Op.ne]: id } },
       });
       if (existing) {
-        throw new ConflictException(`Company code "${data.companyCode}" is already taken.`);
+        throw new ConflictException(
+          `Company code "${data.companyCode}" is already taken.`,
+        );
       }
     }
 
     const oldRecord = company.toJSON();
 
     await company.update({
-      ...(data.name            !== undefined && { name:            data.name }),
-      ...(data.legalName       !== undefined && { legalName:       data.legalName }),
-      ...(data.companyCode     !== undefined && { companyCode:     data.companyCode }),
-      ...(data.companyType     !== undefined && { companyType:     data.companyType }),
-      ...(data.industryType    !== undefined && { industryType:    data.industryType }),
-      ...(data.logoUrl            !== undefined && { logoUrl:            data.logoUrl }),
-      ...(data.faviconUrl         !== undefined && { faviconUrl:         data.faviconUrl }),
-      ...(data.email              !== undefined && { email:              data.email }),
-      ...(data.phone              !== undefined && { phone:              data.phone }),
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.legalName !== undefined && { legalName: data.legalName }),
+      ...(data.companyCode !== undefined && { companyCode: data.companyCode }),
+      ...(data.companyType !== undefined && { companyType: data.companyType }),
+      ...(data.industryType !== undefined && {
+        industryType: data.industryType,
+      }),
+      ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+      ...(data.faviconUrl !== undefined && { faviconUrl: data.faviconUrl }),
+      ...(data.email !== undefined && { email: data.email }),
+      ...(data.phone !== undefined && { phone: data.phone }),
       // Enterprise fields
-      ...(data.description        !== undefined && { description:        data.description }),
-      ...(data.registrationNumber !== undefined && { registrationNumber: data.registrationNumber }),
-      ...(data.taxNumber          !== undefined && { taxNumber:          data.taxNumber }),
-      ...(data.employeeCount      !== undefined && { employeeCount:      data.employeeCount }),
-      ...(data.companySize        !== undefined && { companySize:        data.companySize }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.registrationNumber !== undefined && {
+        registrationNumber: data.registrationNumber,
+      }),
+      ...(data.taxNumber !== undefined && { taxNumber: data.taxNumber }),
+      ...(data.employeeCount !== undefined && {
+        employeeCount: data.employeeCount,
+      }),
+      ...(data.companySize !== undefined && { companySize: data.companySize }),
       // Phase 2
-      ...(data.website            !== undefined && { website:            data.website }),
-      ...(data.country            !== undefined && { country:            data.country }),
-      ...(data.state              !== undefined && { state:              data.state }),
-      ...(data.city               !== undefined && { city:               data.city }),
-      ...(data.address            !== undefined && { address:            data.address }),
-      ...(data.pincode            !== undefined && { pincode:            data.pincode }),
-      ...(data.establishedYear    !== undefined && { establishedYear:    data.establishedYear }),
-      ...(data.isActive        !== undefined && { isActive:        data.isActive }),
-      ...(data.status          !== undefined && { status:          data.status }),
+      ...(data.website !== undefined && { website: data.website }),
+      ...(data.country !== undefined && { country: data.country }),
+      ...(data.state !== undefined && { state: data.state }),
+      ...(data.city !== undefined && { city: data.city }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.pincode !== undefined && { pincode: data.pincode }),
+      ...(data.establishedYear !== undefined && {
+        establishedYear: data.establishedYear,
+      }),
+      ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.status !== undefined && { status: data.status }),
     });
 
     const updated = await company.reload();
 
     if (actor) {
       await this.auditService.writeDiffLog({
-        clientId:   company.clientId,
-        companyId:  id,
-        userId:     actor.userId,
+        clientId: company.clientId,
+        companyId: id,
+        userId: actor.userId,
         entityType: 'Company',
-        entityId:   id,
-        action:     'UPDATE',
+        entityId: id,
+        action: 'UPDATE',
         oldRecord,
-        newRecord:  updated,
-        ipAddress:  actor.ipAddress,
-        userAgent:  actor.userAgent,
+        newRecord: updated,
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
       });
     }
 
@@ -165,7 +189,11 @@ export class CompaniesService {
 
   // ─── Delete ──────────────────────────────────────────────────────────────
 
-  async deleteCompany(id: number, clientId: number | null, actor?: any): Promise<{ message: string }> {
+  async deleteCompany(
+    id: number,
+    clientId: number | null,
+    actor?: any,
+  ): Promise<{ message: string }> {
     const company = await this.companyModel.findByPk(id);
     if (!company) throw new NotFoundException('Company not found');
 
@@ -177,15 +205,15 @@ export class CompaniesService {
 
     if (actor) {
       await this.auditService.writeDiffLog({
-        clientId:   company.clientId,
-        companyId:  id,
-        userId:     actor.userId,
+        clientId: company.clientId,
+        companyId: id,
+        userId: actor.userId,
         entityType: 'Company',
-        entityId:   id,
-        action:     'DELETE',
+        entityId: id,
+        action: 'DELETE',
         oldRecord,
-        ipAddress:  actor.ipAddress,
-        userAgent:  actor.userAgent,
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
       });
     }
 
@@ -224,7 +252,8 @@ export class CompaniesService {
     }
 
     if (companyType && companyType !== 'ALL') where.companyType = companyType;
-    if (industryType && industryType !== 'ALL') where.industryType = industryType;
+    if (industryType && industryType !== 'ALL')
+      where.industryType = industryType;
     if (status && status !== 'ALL') where.status = status;
 
     const findOptions: any = {
@@ -245,7 +274,8 @@ export class CompaniesService {
     }
 
     if (limit) {
-      const { rows, count } = await this.companyModel.findAndCountAll(findOptions);
+      const { rows, count } =
+        await this.companyModel.findAndCountAll(findOptions);
       return {
         data: rows,
         total: count,
@@ -269,7 +299,7 @@ export class CompaniesService {
     const company = await this.companyModel.findByPk(id, {
       include: [
         { model: Client, attributes: ['id', 'name'] },
-        { model: User,   attributes: ['id', 'name', 'email'] },
+        { model: User, attributes: ['id', 'name', 'email'] },
       ],
     });
     if (!company) throw new NotFoundException('Company not found');
@@ -282,19 +312,24 @@ export class CompaniesService {
 
   // ─── Options ───────────────────────────────────────────────────────────────
 
-  async getCompaniesForOptions(clientId: number | null, search?: string, page: string = '1', limit: string = '10') {
+  async getCompaniesForOptions(
+    clientId: number | null,
+    search?: string,
+    page: string = '1',
+    limit: string = '10',
+  ) {
     const where: any = { isActive: true };
     if (clientId !== null) {
       where.clientId = clientId;
     }
-    
+
     if (search) {
       where.name = { [Op.iLike]: `%${search}%` };
     }
 
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 10;
-    
+
     const { rows, count } = await this.companyModel.findAndCountAll({
       where,
       attributes: ['id', 'name'],
@@ -304,13 +339,13 @@ export class CompaniesService {
     });
 
     return {
-      data: rows.map(r => ({ value: r.id, label: r.name })),
+      data: rows.map((r) => ({ value: r.id, label: r.name })),
       meta: {
         page: parsedPage,
         limit: parsedLimit,
         total: count,
         totalPages: Math.ceil(count / parsedLimit),
-      }
+      },
     };
   }
 }

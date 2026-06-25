@@ -15,7 +15,11 @@ import { ClientsService } from '../services/clients.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateClientDto, UpdateClientDto, DeleteClientDto } from '../dto/clients.dto';
+import {
+  CreateClientDto,
+  UpdateClientDto,
+  DeleteClientDto,
+} from '../dto/clients.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('clients')
@@ -30,7 +34,8 @@ export class ClientsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    if (req.user.type !== 'super_admin')
+      throw new ForbiddenException('Super Admin only');
     const query = {
       search,
       page: page ? parseInt(page, 10) : 1,
@@ -43,7 +48,8 @@ export class ClientsController {
   @RequirePermission('clients:create')
   @HttpCode(HttpStatus.CREATED)
   async createClient(@Body() data: CreateClientDto, @Request() req) {
-    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    if (req.user.type !== 'super_admin')
+      throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
@@ -59,7 +65,8 @@ export class ClientsController {
   @RequirePermission('clients:update')
   @HttpCode(HttpStatus.OK)
   async updateClient(@Body() data: UpdateClientDto, @Request() req) {
-    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    if (req.user.type !== 'super_admin')
+      throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
@@ -75,7 +82,8 @@ export class ClientsController {
   @RequirePermission('clients:delete')
   @HttpCode(HttpStatus.OK)
   async deleteClient(@Body() data: DeleteClientDto, @Request() req) {
-    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    if (req.user.type !== 'super_admin')
+      throw new ForbiddenException('Super Admin only');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
@@ -94,7 +102,8 @@ export class ClientsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    if (req.user.type !== 'super_admin') throw new ForbiddenException('Super Admin only');
+    if (req.user.type !== 'super_admin')
+      throw new ForbiddenException('Super Admin only');
     return this.clientsService.getClientsForOptions(search, page, limit);
   }
 }

@@ -48,7 +48,9 @@ export class RbacService {
       where: { name: dto.name, clientId },
     });
     if (existing) {
-      throw new ConflictException(`Role "${dto.name}" already exists for this client scope.`);
+      throw new ConflictException(
+        `Role "${dto.name}" already exists for this client scope.`,
+      );
     }
     const role = await this.roleModel.create({
       name: dto.name,
@@ -56,7 +58,7 @@ export class RbacService {
       clientId,
       isSystemRole: dto.isSystemRole !== undefined ? dto.isSystemRole : false,
       isActive: true,
-    } as any);
+    });
 
     const store = AuditContext.getStore();
     if (store && store.userId) {
@@ -86,7 +88,9 @@ export class RbacService {
         where: { name: dto.name, clientId: role.clientId || null },
       });
       if (conflict) {
-        throw new ConflictException(`Role name "${dto.name}" is already taken for this client scope.`);
+        throw new ConflictException(
+          `Role name "${dto.name}" is already taken for this client scope.`,
+        );
       }
     }
     const oldRecord = role.toJSON();
@@ -96,7 +100,7 @@ export class RbacService {
       ...(dto.description !== undefined && { description: dto.description }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
-    
+
     const updatedRole = await role.reload();
 
     const store = AuditContext.getStore();
@@ -124,7 +128,9 @@ export class RbacService {
       throw new NotFoundException(`Role with id ${id} not found`);
     }
     if (role.isSystemRole) {
-      throw new BadRequestException(`Cannot delete system-wide role "${role.name}"`);
+      throw new BadRequestException(
+        `Cannot delete system-wide role "${role.name}"`,
+      );
     }
     const oldRecord = role.toJSON();
     await role.destroy();
@@ -147,14 +153,16 @@ export class RbacService {
     return { message: `Role "${role.name}" deleted successfully` };
   }
 
-  async getRoles(query?: { clientId?: number | null, search?: string, page?: number, limit?: number }): Promise<{ data: Role[]; meta: any }> {
+  async getRoles(query?: {
+    clientId?: number | null;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: Role[]; meta: any }> {
     const where: any = {};
     const clientId = query?.clientId;
     if (clientId !== undefined && clientId !== null) {
-      where[Op.or] = [
-        { clientId: null, isSystemRole: true },
-        { clientId }
-      ];
+      where[Op.or] = [{ clientId: null, isSystemRole: true }, { clientId }];
     }
     if (query?.search) {
       where.name = { [Op.iLike]: `%${query.search}%` };
@@ -182,22 +190,24 @@ export class RbacService {
     };
   }
 
-  async getRolesForOptions(clientId: number | null, search?: string, page: string = '1', limit: string = '10') {
+  async getRolesForOptions(
+    clientId: number | null,
+    search?: string,
+    page: string = '1',
+    limit: string = '10',
+  ) {
     const where: any = { isActive: true };
     if (clientId !== null) {
-      where[Op.or] = [
-        { clientId: null, isSystemRole: true },
-        { clientId }
-      ];
+      where[Op.or] = [{ clientId: null, isSystemRole: true }, { clientId }];
     }
-    
+
     if (search) {
       where.name = { [Op.iLike]: `%${search}%` };
     }
 
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 10;
-    
+
     const { rows, count } = await this.roleModel.findAndCountAll({
       where,
       attributes: ['id', 'name'],
@@ -207,13 +217,13 @@ export class RbacService {
     });
 
     return {
-      data: rows.map(r => ({ value: r.id, label: r.name })),
+      data: rows.map((r) => ({ value: r.id, label: r.name })),
       meta: {
         page: parsedPage,
         limit: parsedLimit,
         total: count,
         totalPages: Math.ceil(count / parsedLimit),
-      }
+      },
     };
   }
 
@@ -225,15 +235,13 @@ export class RbacService {
     return role;
   }
 
-
-
   async getRolePermissions(roleId: number): Promise<Role> {
     const role = await this.roleModel.findByPk(roleId, {
       include: [
         {
           model: RoleActionPermission,
-          include: ['resourceAction']
-        }
+          include: ['resourceAction'],
+        },
       ],
     });
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
@@ -242,12 +250,16 @@ export class RbacService {
 
   // ─── User ↔ Role ───────────────────────────────────────────────────────────
 
-  async assignRoleToUser(dto: AssignRoleToUserDto): Promise<{ message: string }> {
+  async assignRoleToUser(
+    dto: AssignRoleToUserDto,
+  ): Promise<{ message: string }> {
     const user = await this.userModel.findByPk(dto.userId);
-    if (!user) throw new NotFoundException(`User with id ${dto.userId} not found`);
+    if (!user)
+      throw new NotFoundException(`User with id ${dto.userId} not found`);
 
     const role = await this.roleModel.findByPk(dto.roleId);
-    if (!role) throw new NotFoundException(`Role with id ${dto.roleId} not found`);
+    if (!role)
+      throw new NotFoundException(`Role with id ${dto.roleId} not found`);
 
     const existing = await this.userRoleModel.findOne({
       where: { userId: dto.userId, roleId: dto.roleId },
@@ -261,19 +273,23 @@ export class RbacService {
     await this.userRoleModel.create({
       userId: dto.userId,
       roleId: dto.roleId,
-    } as any);
+    });
 
     return {
       message: `Role "${role.name}" assigned to user "${user.email}" successfully`,
     };
   }
 
-  async removeRoleFromUser(dto: RemoveRoleFromUserDto): Promise<{ message: string }> {
+  async removeRoleFromUser(
+    dto: RemoveRoleFromUserDto,
+  ): Promise<{ message: string }> {
     const user = await this.userModel.findByPk(dto.userId);
-    if (!user) throw new NotFoundException(`User with id ${dto.userId} not found`);
+    if (!user)
+      throw new NotFoundException(`User with id ${dto.userId} not found`);
 
     const role = await this.roleModel.findByPk(dto.roleId);
-    if (!role) throw new NotFoundException(`Role with id ${dto.roleId} not found`);
+    if (!role)
+      throw new NotFoundException(`Role with id ${dto.roleId} not found`);
 
     const record = await this.userRoleModel.findOne({
       where: { userId: dto.userId, roleId: dto.roleId },
@@ -290,7 +306,9 @@ export class RbacService {
     };
   }
 
-  async getUserRoles(userId: number): Promise<{ userId: number; roles: Role[] }> {
+  async getUserRoles(
+    userId: number,
+  ): Promise<{ userId: number; roles: Role[] }> {
     const user = await this.userModel.findByPk(userId);
     if (!user) throw new NotFoundException(`User with id ${userId} not found`);
 
@@ -302,8 +320,8 @@ export class RbacService {
           include: [
             {
               model: RoleActionPermission,
-              include: ['resourceAction']
-            }
+              include: ['resourceAction'],
+            },
           ],
         },
       ],
@@ -321,7 +339,10 @@ export class RbacService {
     return user;
   }
 
-  async updateRolePermissions(roleId: number, permissionIds: number[]): Promise<{ message: string }> {
+  async updateRolePermissions(
+    roleId: number,
+    permissionIds: number[],
+  ): Promise<{ message: string }> {
     const role = await this.roleModel.findByPk(roleId);
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
 
@@ -338,19 +359,24 @@ export class RbacService {
       if (role.clientId) {
         const allowedActions = await this.clientActionAccessModel.findAll({
           where: { client_id: role.clientId },
-          transaction: t
+          transaction: t,
         });
-        const allowedIds = allowedActions.map(a => a.resource_action_id);
-        
+        const allowedIds = allowedActions.map((a) => a.resource_action_id);
+
         for (const reqId of permissionIds) {
           if (!allowedIds.includes(reqId)) {
-            throw new ForbiddenException(`Client does not have access to resource action ID ${reqId}`);
+            throw new ForbiddenException(
+              `Client does not have access to resource action ID ${reqId}`,
+            );
           }
         }
       }
 
       // Remove existing associations
-      await this.roleActionPermissionModel.destroy({ where: { role_id: roleId }, transaction: t });
+      await this.roleActionPermissionModel.destroy({
+        where: { role_id: roleId },
+        transaction: t,
+      });
 
       // Bulk insert new associations
       if (permissionIds.length > 0) {
@@ -359,9 +385,11 @@ export class RbacService {
           role_id: roleId,
           resource_action_id: permId,
         }));
-        await this.roleActionPermissionModel.bulkCreate(records as any[], { transaction: t });
+        await this.roleActionPermissionModel.bulkCreate(records, {
+          transaction: t,
+        });
       }
-      
+
       await t.commit();
     } catch (err) {
       await t.rollback();

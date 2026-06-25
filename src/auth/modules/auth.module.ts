@@ -26,9 +26,10 @@ import { SessionCleanupService } from '../services/session-cleanup.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET')!,
+        secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') || '15m') as any,
+          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') ||
+            '15m') as any,
         },
       }),
     }),

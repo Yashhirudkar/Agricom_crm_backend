@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Product } from './product.model';
@@ -15,9 +19,24 @@ import { DeletionValidatorService } from '../deletion-validator.service';
 import { AuditService } from '../../audit/services/audit.service';
 
 const INCLUDE_RELATIONS = [
-  { model: Category, attributes: ['id', 'name'], where: { isActive: true }, required: false },
-  { model: Country, attributes: ['id', 'name', 'iso2Code'], where: { isActive: true }, required: false },
-  { model: HSCode, attributes: ['id', 'code', 'description'], where: { isActive: true }, required: false }
+  {
+    model: Category,
+    attributes: ['id', 'name'],
+    where: { isActive: true },
+    required: false,
+  },
+  {
+    model: Country,
+    attributes: ['id', 'name', 'iso2Code'],
+    where: { isActive: true },
+    required: false,
+  },
+  {
+    model: HSCode,
+    attributes: ['id', 'code', 'description'],
+    where: { isActive: true },
+    required: false,
+  },
 ];
 
 @Injectable()
@@ -35,24 +54,37 @@ export class ProductService {
     private readonly auditService: AuditService,
   ) {}
 
-  private async validateForeignKeys(categoryId?: number, countryId?: number, hsCodeId?: number) {
+  private async validateForeignKeys(
+    categoryId?: number,
+    countryId?: number,
+    hsCodeId?: number,
+  ) {
     if (categoryId) {
-      const category = await this.categoryModel.findOne({ where: { id: categoryId, isActive: true } });
-      if (!category) throw new BadRequestException('Category not found or inactive');
+      const category = await this.categoryModel.findOne({
+        where: { id: categoryId, isActive: true },
+      });
+      if (!category)
+        throw new BadRequestException('Category not found or inactive');
     }
     if (countryId) {
-      const country = await this.countryModel.findOne({ where: { id: countryId, isActive: true } });
-      if (!country) throw new BadRequestException('Country not found or inactive');
+      const country = await this.countryModel.findOne({
+        where: { id: countryId, isActive: true },
+      });
+      if (!country)
+        throw new BadRequestException('Country not found or inactive');
     }
     if (hsCodeId) {
-      const hsCode = await this.hsCodeModel.findOne({ where: { id: hsCodeId, isActive: true } });
-      if (!hsCode) throw new BadRequestException('HS Code not found or inactive');
+      const hsCode = await this.hsCodeModel.findOne({
+        where: { id: hsCodeId, isActive: true },
+      });
+      if (!hsCode)
+        throw new BadRequestException('HS Code not found or inactive');
     }
   }
 
   async create(dto: CreateProductDto): Promise<Product> {
     const normalizedName = dto.name.trim().toUpperCase();
-    
+
     if (dto.qualitySubType) {
       dto.qualitySubType = dto.qualitySubType.trim();
     }
@@ -69,13 +101,14 @@ export class ProductService {
   }
 
   async findAll(query: QueryProductDto) {
-    const { search, isActive, categoryId, countryId, hsCodeId, page, limit } = query;
+    const { search, isActive, categoryId, countryId, hsCodeId, page, limit } =
+      query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
       ...buildSearchQuery(search, ['name']),
     };
-    
+
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
     }
@@ -128,7 +161,7 @@ export class ProductService {
 
   async update(id: number, dto: UpdateProductDto): Promise<Product> {
     const product = await this.findOneActive(id);
-    
+
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
       dto.name = normalizedName;
@@ -142,7 +175,11 @@ export class ProductService {
     }
 
     if (dto.categoryId || dto.countryId || dto.hsCodeId) {
-      await this.validateForeignKeys(dto.categoryId, dto.countryId, dto.hsCodeId);
+      await this.validateForeignKeys(
+        dto.categoryId,
+        dto.countryId,
+        dto.hsCodeId,
+      );
     }
 
     await product.update(dto);
@@ -184,9 +221,9 @@ export class ProductService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -201,7 +238,7 @@ export class ProductService {
       ...product.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await product.destroy();

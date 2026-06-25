@@ -14,7 +14,6 @@ async function main() {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
 
-
     // run npm run sync in terminal
     // Sync in order to respect foreign key constraints
     await syncCore();

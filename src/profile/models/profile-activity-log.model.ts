@@ -1,4 +1,16 @@
-import { Index, Table, Column, Model, DataType, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, CreatedAt, UpdatedAt } from 'sequelize-typescript';
+import {
+  Index,
+  Table,
+  Column,
+  Model,
+  DataType,
+  ForeignKey,
+  BelongsTo,
+  PrimaryKey,
+  AutoIncrement,
+  CreatedAt,
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 
 export enum ActorType {
@@ -34,10 +46,10 @@ export class ProfileActivityLog extends Model<ProfileActivityLog> {
   @Column({ type: DataType.TEXT, allowNull: true })
   declare newValue: string;
 
-  @Column({ 
-    type: DataType.ENUM('EMPLOYEE', 'ADMIN', 'SYSTEM'), 
-    allowNull: false, 
-    defaultValue: 'EMPLOYEE' 
+  @Column({
+    type: DataType.ENUM('EMPLOYEE', 'ADMIN', 'SYSTEM'),
+    allowNull: false,
+    defaultValue: 'EMPLOYEE',
   })
   declare actorType: ActorType;
 

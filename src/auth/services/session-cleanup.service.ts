@@ -34,7 +34,9 @@ export class SessionCleanupService {
         },
       });
 
-      this.logger.log(`Cleanup complete. Purged ${deletedCount} expired or old revoked user sessions.`);
+      this.logger.log(
+        `Cleanup complete. Purged ${deletedCount} expired or old revoked user sessions.`,
+      );
     } catch (error) {
       this.logger.error('Failed to run daily user sessions cleanup', error);
     }

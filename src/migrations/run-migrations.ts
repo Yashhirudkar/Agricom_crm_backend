@@ -16,15 +16,15 @@ import {
 
 /**
  * Enterprise Safe Migration Runner
- * 
+ *
  * Future-Proof & Scalable Approach:
  * 1. This script safely loads the database configuration from the environment.
  * 2. It connects to the database and verifies the connection.
  * 3. It establishes a transactional scope for safe DDL and Data operations.
- * 
- * Note: Since NestJS is currently configured with `sync: { alter: true }` in 
+ *
+ * Note: Since NestJS is currently configured with `sync: { alter: true }` in
  * app.module.ts, structural schema updates happen automatically during development.
- * This script is reserved for complex data migrations or production-level manual 
+ * This script is reserved for complex data migrations or production-level manual
  * schema alterations that `alter: true` cannot handle natively.
  */
 
@@ -70,7 +70,9 @@ async function run() {
 
     // Start a managed transaction for safe migrations
     await sequelize.transaction(async (transaction) => {
-      console.log('[Migration] Executing migration tasks within transaction...');
+      console.log(
+        '[Migration] Executing migration tasks within transaction...',
+      );
 
       await runEmployeeMigrations(sequelize, transaction);
       await runDocumentMigrations(sequelize, transaction);
@@ -86,11 +88,12 @@ async function run() {
 
     console.log('[Migration] All migration tasks executed successfully.');
     console.log('----------------------------------------------------');
-
   } catch (error) {
     console.error('[Migration] Critical Failure during migration sequence:');
     console.error(error);
-    console.log('[Migration] Transaction rolled back. Database state preserved.');
+    console.log(
+      '[Migration] Transaction rolled back. Database state preserved.',
+    );
     process.exit(1);
   } finally {
     await sequelize.close();

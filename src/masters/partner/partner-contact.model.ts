@@ -1,12 +1,23 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  ForeignKey,
+  BelongsTo,
+} from 'sequelize-typescript';
 import { Partner } from './partner.model';
 
 @Table({
   tableName: 'partner_contacts',
   timestamps: true,
-  indexes: [
-    { fields: ['partner_id'] }
-  ]
+  indexes: [{ fields: ['partner_id'] }],
 })
 export class PartnerContact extends Model<PartnerContact> {
   @PrimaryKey

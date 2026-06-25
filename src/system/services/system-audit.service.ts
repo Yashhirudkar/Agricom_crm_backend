@@ -14,6 +14,6 @@ export class SystemAuditService {
       user_id: userId,
       action,
       payload,
-    } as any);
+    });
   }
 }

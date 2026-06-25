@@ -25,15 +25,17 @@ export class SystemService {
     const folders = await this.sidebarFolderModel.findAll({
       where: { is_active: true },
       order: [['sort_order', 'ASC']],
-      include: [{
-        model: SidebarItem,
-        where: { is_active: true },
-        required: false,
-      }],
+      include: [
+        {
+          model: SidebarItem,
+          where: { is_active: true },
+          required: false,
+        },
+      ],
     });
-    
+
     // Sort items within folders
-    folders.forEach(f => {
+    folders.forEach((f) => {
       if (f.items) {
         f.items.sort((a, b) => a.sort_order - b.sort_order);
       }
@@ -53,7 +55,11 @@ export class SystemService {
           const jsonI = i.toJSON ? i.toJSON() : { ...i };
           jsonI.icon_color = jsonI.iconColor;
           jsonI.use_folder_color = jsonI.useFolderColor;
-          if (jsonI.useFolderColor === true || jsonI.useFolderColor === null || jsonI.useFolderColor === undefined) {
+          if (
+            jsonI.useFolderColor === true ||
+            jsonI.useFolderColor === null ||
+            jsonI.useFolderColor === undefined
+          ) {
             jsonI.final_color = jsonF.iconColor;
           } else {
             jsonI.final_color = jsonI.iconColor;
@@ -73,9 +79,9 @@ export class SystemService {
     };
 
     if (isSuperAdmin) {
-      return { 
-        folders: folders.map(mapFolder), 
-        standaloneItems: standaloneItems.map(mapStandalone) 
+      return {
+        folders: folders.map(mapFolder),
+        standaloneItems: standaloneItems.map(mapStandalone),
       };
     }
 
@@ -85,30 +91,34 @@ export class SystemService {
       return { folders: [], standaloneItems: [] };
     }
 
-    const allowedFolderIds = (await this.clientFolderAccessModel.findAll({ where: { client_id: clientId } })).map(a => a.folder_id);
-    const allowedItemIds = (await this.clientItemAccessModel.findAll({ where: { client_id: clientId } })).map(a => a.item_id);
+    const allowedFolderIds = (
+      await this.clientFolderAccessModel.findAll({
+        where: { client_id: clientId },
+      })
+    ).map((a) => a.folder_id);
+    const allowedItemIds = (
+      await this.clientItemAccessModel.findAll({
+        where: { client_id: clientId },
+      })
+    ).map((a) => a.item_id);
 
     const filteredFolders = folders
-      .filter(f => allowedFolderIds.includes(f.id))
-      .map(f => {
+      .filter((f) => allowedFolderIds.includes(f.id))
+      .map((f) => {
         const jsonF = mapFolder(f);
-        jsonF.items = (jsonF.items || []).filter((i: any) => allowedItemIds.includes(i.id));
+        jsonF.items = (jsonF.items || []).filter((i: any) =>
+          allowedItemIds.includes(i.id),
+        );
         return jsonF;
       });
 
-    const filteredStandaloneItems = standaloneItems.filter(i => allowedItemIds.includes(i.id)).map(mapStandalone);
+    const filteredStandaloneItems = standaloneItems
+      .filter((i) => allowedItemIds.includes(i.id))
+      .map(mapStandalone);
 
-    console.log("=== system.service.ts ===");
-    console.log("allFolders count:", folders.length);
-    console.log("allowedFolderIds count:", allowedFolderIds.length);
-    console.log("filteredFolders count:", filteredFolders.length);
-    console.log("allItems count (standalone):", standaloneItems.length);
-
-    console.log({
-     foldersCount: filteredFolders.length,
-     standaloneItemsCount: filteredStandaloneItems.length
-    });
-
-    return { folders: filteredFolders, standaloneItems: filteredStandaloneItems };
+    return {
+      folders: filteredFolders,
+      standaloneItems: filteredStandaloneItems,
+    };
   }
 }

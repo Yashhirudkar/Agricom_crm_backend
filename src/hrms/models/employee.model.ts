@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -10,7 +12,8 @@ import { Index, Table,
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default, } from 'sequelize-typescript';
+  Default,
+} from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { Department } from '../../companies/models/department.model';
 import { User } from '../../users/models/user.model';
@@ -226,11 +229,7 @@ export class Employee extends Model<Employee> {
 
   @AllowNull(true)
   @Column({
-    type: DataType.ENUM(
-      'REMOTE',
-      'HYBRID',
-      'OFFICE'
-    ),
+    type: DataType.ENUM('REMOTE', 'HYBRID', 'OFFICE'),
   })
   declare workMode: WorkMode;
 
@@ -241,7 +240,7 @@ export class Employee extends Model<Employee> {
       'PART_TIME',
       'INTERN',
       'CONTRACT',
-      'CONSULTANT'
+      'CONSULTANT',
     ),
   })
   declare employmentType: EmploymentType;
@@ -256,7 +255,7 @@ export class Employee extends Model<Employee> {
       'CONFIRMED',
       'NOTICE_PERIOD',
       'RESIGNED',
-      'TERMINATED'
+      'TERMINATED',
     ),
   })
   declare status: EmployeeStatus;

@@ -18,7 +18,11 @@ import { DesignationsService } from '../services/designations.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateDesignationDto, UpdateDesignationDto, GetDesignationsFilterDto } from '../dto/designations.dto';
+import {
+  CreateDesignationDto,
+  UpdateDesignationDto,
+  GetDesignationsFilterDto,
+} from '../dto/designations.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('designations')
@@ -55,7 +59,7 @@ export class DesignationsController {
   @RequirePermission('designations:read')
   getDesignations(
     @Query() filterDto: GetDesignationsFilterDto,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     return this.designationsService.getDesignations(companyId, filterDto);
@@ -70,7 +74,12 @@ export class DesignationsController {
     @Query('limit') limit?: string,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.designationsService.getDesignationsForOptions(companyId, search, page, limit);
+    return this.designationsService.getDesignationsForOptions(
+      companyId,
+      search,
+      page,
+      limit,
+    );
   }
 
   @Get('hierarchy')
@@ -92,11 +101,16 @@ export class DesignationsController {
   updateDesignation(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDesignationDto,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.designationsService.updateDesignation(id, companyId, dto, actor);
+    return this.designationsService.updateDesignation(
+      id,
+      companyId,
+      dto,
+      actor,
+    );
   }
 
   @Delete(':id')

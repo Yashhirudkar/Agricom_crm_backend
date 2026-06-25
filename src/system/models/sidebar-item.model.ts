@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -10,7 +12,8 @@ import { Index, Table,
   BelongsTo,
   HasMany,
   CreatedAt,
-  UpdatedAt, } from 'sequelize-typescript';
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { SidebarFolder } from './sidebar-folder.model';
 import { ClientItemAccess } from '../../clients/models/client-item-access.model';
 

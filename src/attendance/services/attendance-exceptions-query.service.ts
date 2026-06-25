@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AttendanceRecord } from '../models/attendance-record.model';
-import { AttendanceException, AttendanceExceptionStatus } from '../models/attendance-exception.model';
+import {
+  AttendanceException,
+  AttendanceExceptionStatus,
+} from '../models/attendance-exception.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { Op } from 'sequelize';
 import { User } from '../../users/models/user.model';
@@ -14,7 +17,9 @@ export class AttendanceExceptionsQueryService {
     private readonly exceptionModel: typeof AttendanceException,
   ) {}
 
-  async getPendingCorrections(companyId: number): Promise<AttendanceException[]> {
+  async getPendingCorrections(
+    companyId: number,
+  ): Promise<AttendanceException[]> {
     return this.exceptionModel.findAll({
       where: { status: AttendanceExceptionStatus.PENDING },
       include: [
@@ -24,24 +29,42 @@ export class AttendanceExceptionsQueryService {
           where: { companyId },
           include: [
             { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
-            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
-          ]
+            {
+              model: Designation,
+              as: 'designation',
+              attributes: ['id', 'name'],
+            },
+          ],
         },
-        { model: AttendanceRecord, as: 'attendanceRecord' }
+        { model: AttendanceRecord, as: 'attendanceRecord' },
       ],
       order: [['createdAt', 'DESC']],
     });
   }
 
   async getRegularizationHistory(companyId: number, query: any): Promise<any> {
-    const { page = 1, limit = 10, status, employeeId, search, startDate, endDate, approverId } = query;
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      employeeId,
+      search,
+      startDate,
+      endDate,
+      approverId,
+    } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
     if (status) {
       whereClause.status = status;
     } else {
-      whereClause.status = { [Op.in]: [AttendanceExceptionStatus.APPROVED, AttendanceExceptionStatus.REJECTED] };
+      whereClause.status = {
+        [Op.in]: [
+          AttendanceExceptionStatus.APPROVED,
+          AttendanceExceptionStatus.REJECTED,
+        ],
+      };
     }
 
     if (employeeId) {
@@ -78,9 +101,19 @@ export class AttendanceExceptionsQueryService {
           as: 'employee',
           where: employeeWhere,
           include: [
-            { model: User, as: 'user', attributes: ['id', 'name', 'email'], where: search ? userWhere : undefined, required: !!search },
-            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
-          ]
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email'],
+              where: search ? userWhere : undefined,
+              required: !!search,
+            },
+            {
+              model: Designation,
+              as: 'designation',
+              attributes: ['id', 'name'],
+            },
+          ],
         },
         {
           model: Employee,
@@ -88,10 +121,14 @@ export class AttendanceExceptionsQueryService {
           required: false,
           include: [
             { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
-            { model: Designation, as: 'designation', attributes: ['id', 'name'] }
-          ]
+            {
+              model: Designation,
+              as: 'designation',
+              attributes: ['id', 'name'],
+            },
+          ],
         },
-        { model: AttendanceRecord, as: 'attendanceRecord' }
+        { model: AttendanceRecord, as: 'attendanceRecord' },
       ],
       order: [['updatedAt', 'DESC']],
       limit,

@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { ClientsModule } from './clients/modules/clients.module';
 import { UsersModule } from './users/modules/users.module';
 import { AuthModule } from './auth/modules/auth.module';
@@ -18,8 +20,6 @@ import { Company } from './companies/models/company.model';
 import { UserCompany } from './users/models/user-company.model';
 import { UserInvitation } from './users/models/user-invitation.model';
 import { AuditLog } from './audit/models/audit-log.model';
-import { Notification } from './notifications/models/notification.model';
-
 import { Department } from './companies/models/department.model';
 import { Designation } from './hrms/models/designation.model';
 import { Employee } from './hrms/models/employee.model';
@@ -33,7 +33,6 @@ import { LeaveBalanceHistory } from './hrms/models/leave-balance-history.model';
 import { LeaveRequest } from './hrms/models/leave-request.model';
 import { LeaveApprovalStep } from './hrms/models/leave-approval-step.model';
 import { LeaveApprovalLog } from './hrms/models/leave-approval-log.model';
-import { NotificationsModule } from './notifications/modules/notifications.module';
 import { AuditModule } from './audit/modules/audit.module';
 import { HrmsModule } from './hrms/modules/hrms.module';
 import { ProfileModule } from './profile/profile.module';
@@ -71,12 +70,32 @@ import { ClientActionAccess } from './clients/models/client-action-access.model'
 import { MastersModule } from './masters/masters.module';
 import { Category } from './masters/category/category.model';
 
+import { TasksModule } from './tasks/tasks.module';
+import {
+  Task,
+  TaskSequence,
+  TaskStatus,
+  TaskPriority,
+  TaskAssignee,
+  TaskActivity,
+  TaskComment,
+  TaskAttachment,
+  TaskLabel,
+  TaskLabelMap,
+} from './tasks/models';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100, // global default limit: 100 requests per minute
+      },
+    ]),
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     SequelizeModule.forRootAsync({
@@ -85,7 +104,8 @@ import { Category } from './masters/category/category.model';
       useFactory: (configService: ConfigService) => {
         const env = configService.get<string>('NODE_ENV') || 'development';
         const isDevelopment = env === 'development' || env === 'test';
-        const shouldSync = isDevelopment && configService.get<string>('DB_SYNC') === 'true';
+        const shouldSync =
+          isDevelopment && configService.get<string>('DB_SYNC') === 'true';
 
         return {
           dialect: 'postgres',
@@ -94,10 +114,65 @@ import { Category } from './masters/category/category.model';
           username: configService.get<string>('DB_USERNAME'),
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_NAME'),
-          models: [Client, Company, User, UserSession, Role, UserRole, UserCompany, UserInvitation, AuditLog, Notification, Department, Designation, Employee, EmployeeDocument, Branch, Holiday, HolidayCompany, EmployeeLifecycleLog, CompanyHrPolicy, LeaveType, EmployeeLeaveBalance, LeaveBalanceHistory, LeaveRequest, LeaveApprovalStep, LeaveApprovalLog, UserPreference, UserPasswordHistory, ProfileActivityLog, Shift, AttendanceRecord, AttendanceLog, AttendanceException, AppModuleModel, ModuleResource, ResourceAction, SidebarFolder, SidebarItem, SystemAuditLog, RoleActionPermission, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess, Category],
+          models: [
+            Client,
+            Company,
+            User,
+            UserSession,
+            Role,
+            UserRole,
+            UserCompany,
+            UserInvitation,
+            AuditLog,
+            Department,
+            Designation,
+            Employee,
+            EmployeeDocument,
+            Branch,
+            Holiday,
+            HolidayCompany,
+            EmployeeLifecycleLog,
+            CompanyHrPolicy,
+            LeaveType,
+            EmployeeLeaveBalance,
+            LeaveBalanceHistory,
+            LeaveRequest,
+            LeaveApprovalStep,
+            LeaveApprovalLog,
+            UserPreference,
+            UserPasswordHistory,
+            ProfileActivityLog,
+            Shift,
+            AttendanceRecord,
+            AttendanceLog,
+            AttendanceException,
+            AppModuleModel,
+            ModuleResource,
+            ResourceAction,
+            SidebarFolder,
+            SidebarItem,
+            SystemAuditLog,
+            RoleActionPermission,
+            ClientFolderAccess,
+            ClientItemAccess,
+            ClientModuleAccess,
+            ClientActionAccess,
+            Category,
+            Task,
+            TaskSequence,
+            TaskStatus,
+            TaskPriority,
+            TaskAssignee,
+
+            TaskActivity,
+            TaskComment,
+            TaskAttachment,
+            TaskLabel,
+            TaskLabelMap,
+          ],
           autoLoadModels: true,
-          synchronize: false,
-          sync: { alter: false, force: false },
+          synchronize: shouldSync,
+          sync: { alter: shouldSync, force: false },
           logging: false,
           retryAttempts: 0,
         };
@@ -108,7 +183,6 @@ import { Category } from './masters/category/category.model';
     AuthModule,
     RbacModule,
     CompaniesModule,
-    NotificationsModule,
     AuditModule,
     HrmsModule,
     AttachmentsModule,
@@ -117,7 +191,13 @@ import { Category } from './masters/category/category.model';
     ProfileModule,
     AttendanceModule,
     MastersModule,
-
+    TasksModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {
@@ -125,6 +205,3 @@ export class AppModule implements NestModule {
     consumer.apply(AuditMiddleware).forRoutes('*path');
   }
 }
-
-
-

@@ -56,45 +56,63 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       });
     });
 
-    this.logger.log(`Discovered ${discoveredPermissions.size} permissions from controllers.`);
+    this.logger.log(
+      `Discovered ${discoveredPermissions.size} permissions from controllers.`,
+    );
     await this.syncPermissions(Array.from(discoveredPermissions));
   }
 
   private async syncPermissions(permissions: string[]) {
     // Determine admin and client admin roles
-    const adminRole = await this.roleModel.findOne({ where: { name: 'Admin', clientId: null } });
-    const clientAdminRole = await this.roleModel.findOne({ where: { name: 'Client Admin', clientId: null } });
+    const adminRole = await this.roleModel.findOne({
+      where: { name: 'Admin', clientId: null },
+    });
+    const clientAdminRole = await this.roleModel.findOne({
+      where: { name: 'Client Admin', clientId: null },
+    });
 
     for (const permKey of permissions) {
       // Split into resource and action (e.g. 'inventory:create')
       let [resourceName, actionName] = permKey.split(':');
       if (!resourceName || !actionName) continue;
-      
+
       actionName = actionName.toUpperCase(); // e.g. create -> CREATE
 
       let moduleName = resourceName
         .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
-      
+
       // Map to desired frontend matrix modules
       if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
-      else if (resourceName === 'leave_requests' || resourceName === 'leave') moduleName = 'Leaves';
+      else if (resourceName === 'leave_requests' || resourceName === 'leave')
+        moduleName = 'Leaves';
       else if (resourceName === 'leave_types') moduleName = 'Leave Types';
       else if (resourceName.startsWith('employee_')) moduleName = 'Employees';
-      else if (resourceName.startsWith('attendance_')) moduleName = 'Attendance';
+      else if (resourceName.startsWith('attendance_'))
+        moduleName = 'Attendance';
 
-      const isSystemLevel = ['clients', 'subscriptions', 'system'].includes(resourceName) || resourceName.startsWith('system');
-      
+      const isSystemLevel =
+        ['clients', 'subscriptions', 'system'].includes(resourceName) ||
+        resourceName.startsWith('system');
+
       const [sysModule] = await this.appModuleModel.findOrCreate({
         where: { name: moduleName },
-        defaults: { name: moduleName, sort_order: isSystemLevel ? 99 : 10 } as any,
+        defaults: {
+          name: moduleName,
+          sort_order: isSystemLevel ? 99 : 10,
+        } as any,
       });
       const targetModuleId = sysModule.id;
 
       const [resource, created] = await this.moduleResourceModel.findOrCreate({
         where: { name: resourceName },
-        defaults: { name: resourceName, display_name: resourceName, module_id: targetModuleId, sort_order: 0 } as any,
+        defaults: {
+          name: resourceName,
+          display_name: resourceName,
+          module_id: targetModuleId,
+          sort_order: 0,
+        } as any,
       });
 
       // Update module_id if resource was stuck in Uncategorized or moved
@@ -105,7 +123,12 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
 
       const [action] = await this.resourceActionModel.findOrCreate({
         where: { name: actionName, resource_id: resource.id },
-        defaults: { name: actionName, display_name: actionName, resource_id: resource.id, sort_order: 0 } as any,
+        defaults: {
+          name: actionName,
+          display_name: actionName,
+          resource_id: resource.id,
+          sort_order: 0,
+        } as any,
       });
 
       // System level permissions logic already evaluated as isSystemLevel
@@ -114,7 +137,10 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       if (adminRole) {
         await this.roleActionPermissionModel.findOrCreate({
           where: { role_id: adminRole.id, resource_action_id: action.id },
-          defaults: { role_id: adminRole.id, resource_action_id: action.id } as any,
+          defaults: {
+            role_id: adminRole.id,
+            resource_action_id: action.id,
+          } as any,
         });
       }
 
@@ -122,11 +148,16 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       if (clientAdminRole && !isSystemLevel) {
         await this.roleActionPermissionModel.findOrCreate({
           where: { role_id: clientAdminRole.id, resource_action_id: action.id },
-          defaults: { role_id: clientAdminRole.id, resource_action_id: action.id } as any,
+          defaults: {
+            role_id: clientAdminRole.id,
+            resource_action_id: action.id,
+          } as any,
         });
       }
     }
-    
-    this.logger.log('Permission discovery and sync (v2) completed successfully.');
+
+    this.logger.log(
+      'Permission discovery and sync (v2) completed successfully.',
+    );
   }
 }

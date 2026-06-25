@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -7,7 +9,8 @@ import { Index, Table,
   PrimaryKey,
   AutoIncrement,
   CreatedAt,
-  UpdatedAt, } from 'sequelize-typescript';
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { User } from './user.model';
 import { Company } from '../../companies/models/company.model';
 import { Role } from '../../rbac/models/role.model';
@@ -28,7 +31,7 @@ import { Role } from '../../rbac/models/role.model';
     },
     {
       fields: ['roleId'],
-    }
+    },
   ],
 })
 export class UserCompany extends Model<UserCompany> {

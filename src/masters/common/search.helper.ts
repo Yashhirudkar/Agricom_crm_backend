@@ -1,6 +1,9 @@
 import { Op } from 'sequelize';
 
-export function buildSearchQuery(searchText: string | undefined, fields: string[]): any {
+export function buildSearchQuery(
+  searchText: string | undefined,
+  fields: string[],
+): any {
   if (!searchText || !fields || fields.length === 0) {
     return {};
   }

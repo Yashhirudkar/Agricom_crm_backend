@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Branch } from '../models/branch.model';
@@ -15,8 +19,12 @@ export class BranchesService {
     private readonly auditService: AuditService,
   ) {}
 
-  async createBranch(companyId: number, dto: any, actor?: any): Promise<Branch> {
-    const t = await this.branchModel.sequelize!.transaction();
+  async createBranch(
+    companyId: number,
+    dto: any,
+    actor?: any,
+  ): Promise<Branch> {
+    const t = await this.branchModel.sequelize.transaction();
 
     try {
       // 1. Validation A: Unique branch_code per company
@@ -25,7 +33,9 @@ export class BranchesService {
         transaction: t,
       });
       if (existingCode) {
-        throw new BadRequestException(`Branch code '${dto.branchCode}' already exists in this company`);
+        throw new BadRequestException(
+          `Branch code '${dto.branchCode}' already exists in this company`,
+        );
       }
 
       const existingName = await this.branchModel.findOne({
@@ -33,7 +43,9 @@ export class BranchesService {
         transaction: t,
       });
       if (existingName) {
-        throw new BadRequestException(`Branch name '${dto.branchName}' already exists in this company`);
+        throw new BadRequestException(
+          `Branch name '${dto.branchName}' already exists in this company`,
+        );
       }
 
       // 2. Validation B: Only one head office per company
@@ -43,7 +55,9 @@ export class BranchesService {
           transaction: t,
         });
         if (existingHeadOffice) {
-          throw new BadRequestException('Only one head office per company is allowed');
+          throw new BadRequestException(
+            'Only one head office per company is allowed',
+          );
         }
       }
 
@@ -57,15 +71,20 @@ export class BranchesService {
           throw new BadRequestException('Branch manager employee not found');
         }
         if (manager.companyId !== companyId) {
-          throw new BadRequestException('Branch manager must belong to the same company');
+          throw new BadRequestException(
+            'Branch manager must belong to the same company',
+          );
         }
       }
 
-      const branch = await this.branchModel.create({
-        ...dto,
-        companyId,
-        createdBy: actor?.userId || null,
-      }, { transaction: t });
+      const branch = await this.branchModel.create(
+        {
+          ...dto,
+          companyId,
+          createdBy: actor?.userId || null,
+        },
+        { transaction: t },
+      );
 
       await t.commit();
 
@@ -123,7 +142,7 @@ export class BranchesService {
         page: Number(page),
         limit: Number(limit),
         totalPages: Math.ceil(count / limit),
-      }
+      },
     };
   }
 
@@ -144,14 +163,19 @@ export class BranchesService {
     return branch;
   }
 
-  async updateBranch(id: number, companyId: number, dto: any, actor?: any): Promise<Branch> {
+  async updateBranch(
+    id: number,
+    companyId: number,
+    dto: any,
+    actor?: any,
+  ): Promise<Branch> {
     const branch = await this.branchModel.findOne({ where: { id, companyId } });
     if (!branch) {
       throw new NotFoundException('Branch not found');
     }
 
     const oldRecord = branch.toJSON();
-    const t = await this.branchModel.sequelize!.transaction();
+    const t = await this.branchModel.sequelize.transaction();
 
     try {
       // 1. Validation A: Unique branch_code per company
@@ -161,7 +185,9 @@ export class BranchesService {
           transaction: t,
         });
         if (existingCode) {
-          throw new BadRequestException(`Branch code '${dto.branchCode}' already exists in this company`);
+          throw new BadRequestException(
+            `Branch code '${dto.branchCode}' already exists in this company`,
+          );
         }
       }
 
@@ -171,7 +197,9 @@ export class BranchesService {
           transaction: t,
         });
         if (existingName) {
-          throw new BadRequestException(`Branch name '${dto.branchName}' already exists in this company`);
+          throw new BadRequestException(
+            `Branch name '${dto.branchName}' already exists in this company`,
+          );
         }
       }
 
@@ -182,7 +210,9 @@ export class BranchesService {
           transaction: t,
         });
         if (existingHeadOffice) {
-          throw new BadRequestException('Only one head office per company is allowed');
+          throw new BadRequestException(
+            'Only one head office per company is allowed',
+          );
         }
       }
 
@@ -196,7 +226,9 @@ export class BranchesService {
           throw new BadRequestException('Branch manager employee not found');
         }
         if (manager.companyId !== companyId) {
-          throw new BadRequestException('Branch manager must belong to the same company');
+          throw new BadRequestException(
+            'Branch manager must belong to the same company',
+          );
         }
       }
 
@@ -220,14 +252,19 @@ export class BranchesService {
         });
 
         if (activeEmployeesCount > 0) {
-          throw new BadRequestException('Cannot deactivate branch with active employees assigned');
+          throw new BadRequestException(
+            'Cannot deactivate branch with active employees assigned',
+          );
         }
       }
 
-      await branch.update({
-        ...dto,
-        updatedBy: actor?.userId || null,
-      }, { transaction: t });
+      await branch.update(
+        {
+          ...dto,
+          updatedBy: actor?.userId || null,
+        },
+        { transaction: t },
+      );
 
       await t.commit();
       const updated = await branch.reload();
@@ -254,7 +291,11 @@ export class BranchesService {
     }
   }
 
-  async deleteBranch(id: number, companyId: number, actor?: any): Promise<{ message: string }> {
+  async deleteBranch(
+    id: number,
+    companyId: number,
+    actor?: any,
+  ): Promise<{ message: string }> {
     const branch = await this.branchModel.findOne({ where: { id, companyId } });
     if (!branch) {
       throw new NotFoundException('Branch not found');
@@ -265,11 +306,13 @@ export class BranchesService {
       where: { branchId: id },
     });
     if (employeesCount > 0) {
-      throw new BadRequestException('Cannot delete branch that has employees assigned to it');
+      throw new BadRequestException(
+        'Cannot delete branch that has employees assigned to it',
+      );
     }
 
     const oldRecord = branch.toJSON();
-    const t = await this.branchModel.sequelize!.transaction();
+    const t = await this.branchModel.sequelize.transaction();
 
     try {
       await branch.destroy({ transaction: t });
@@ -296,9 +339,14 @@ export class BranchesService {
     }
   }
 
-  async getBranchesForOptions(companyId: number, search?: string, page: string = '1', limit: string = '10') {
+  async getBranchesForOptions(
+    companyId: number,
+    search?: string,
+    page: string = '1',
+    limit: string = '10',
+  ) {
     const where: any = { companyId, isActive: true };
-    
+
     if (search) {
       where[Op.or] = [
         { branchName: { [Op.iLike]: `%${search}%` } },
@@ -308,7 +356,7 @@ export class BranchesService {
 
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 10;
-    
+
     const { rows, count } = await this.branchModel.findAndCountAll({
       where,
       attributes: ['id', 'branchName', 'branchCode'],
@@ -318,13 +366,18 @@ export class BranchesService {
     });
 
     return {
-      data: rows.map(r => ({ value: r.id, label: r.branchCode ? `${r.branchName} (${r.branchCode})` : r.branchName })),
+      data: rows.map((r) => ({
+        value: r.id,
+        label: r.branchCode
+          ? `${r.branchName} (${r.branchCode})`
+          : r.branchName,
+      })),
       meta: {
         page: parsedPage,
         limit: parsedLimit,
         total: count,
         totalPages: Math.ceil(count / parsedLimit),
-      }
+      },
     };
   }
 }

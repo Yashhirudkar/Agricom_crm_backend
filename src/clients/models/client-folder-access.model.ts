@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -6,7 +8,8 @@ import { Index, Table,
   AutoIncrement,
   ForeignKey,
   BelongsTo,
-  CreatedAt, } from 'sequelize-typescript';
+  CreatedAt,
+} from 'sequelize-typescript';
 import { Client } from './client.model';
 import { SidebarFolder } from '../../system/models/sidebar-folder.model';
 

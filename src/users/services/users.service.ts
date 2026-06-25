@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../models/user.model';
 import { Role } from '../../rbac/models/role.model';
@@ -26,13 +31,17 @@ export class UsersService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(name: string, email: string, passwordHash: string): Promise<User> {
+  async create(
+    name: string,
+    email: string,
+    passwordHash: string,
+  ): Promise<User> {
     const normalizedEmail = email.toLowerCase().trim();
     return this.userModel.create({
       name,
       email: normalizedEmail,
       password: passwordHash,
-    } as any);
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -64,9 +73,12 @@ export class UsersService {
         {
           model: UserCompany,
           include: [
-            { model: Company, attributes: ['id', 'name', 'clientId', 'logoUrl'] },
-            { 
-              model: Role, 
+            {
+              model: Company,
+              attributes: ['id', 'name', 'clientId', 'logoUrl'],
+            },
+            {
+              model: Role,
               attributes: ['id', 'name'],
               include: [
                 {
@@ -74,11 +86,11 @@ export class UsersService {
                   include: [
                     {
                       model: ResourceAction,
-                      include: [{ model: ModuleResource }]
-                    }
-                  ]
-                }
-              ]
+                      include: [{ model: ModuleResource }],
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -139,7 +151,10 @@ export class UsersService {
         },
         {
           model: UserCompany,
-          where: Object.keys(userCompanyWhere).length > 0 ? userCompanyWhere : undefined,
+          where:
+            Object.keys(userCompanyWhere).length > 0
+              ? userCompanyWhere
+              : undefined,
           required: userCompanyRequired,
           include: [
             { model: Company, attributes: ['id', 'name', 'logoUrl'] },
@@ -162,17 +177,23 @@ export class UsersService {
     };
   }
 
-  async createUser(data: {
-    name: string;
-    email: string;
-    password: string;
-    clientId: number | null;
-    status?: string;
-    isActive?: boolean;
-    companies?: { companyId: number; roleId?: number }[];
-  }, actor?: any, transaction?: any): Promise<User> {
+  async createUser(
+    data: {
+      name: string;
+      email: string;
+      password: string;
+      clientId: number | null;
+      status?: string;
+      isActive?: boolean;
+      companies?: { companyId: number; roleId?: number }[];
+    },
+    actor?: any,
+    transaction?: any,
+  ): Promise<User> {
     const normalizedEmail = data.email.toLowerCase().trim();
-    const existing = await this.userModel.findOne({ where: { email: normalizedEmail } });
+    const existing = await this.userModel.findOne({
+      where: { email: normalizedEmail },
+    });
     if (existing) throw new ConflictException('Email is already registered');
 
     // Verify companies and roles belong to clientId
@@ -180,15 +201,26 @@ export class UsersService {
       for (const item of data.companies) {
         const company = await this.companyModel.findByPk(item.companyId);
         if (!company) throw new NotFoundException('Company not found');
-        if (data.clientId !== null && String(company.clientId) !== String(data.clientId)) {
-          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+        if (
+          data.clientId !== null &&
+          String(company.clientId) !== String(data.clientId)
+        ) {
+          throw new BadRequestException(
+            'Cross-tenant company assignment is not allowed',
+          );
         }
 
         if (item.roleId) {
           const role = await this.roleModel.findByPk(item.roleId);
           if (!role) throw new NotFoundException('Role not found');
-          if (role.clientId !== null && data.clientId !== null && role.clientId !== data.clientId) {
-            throw new BadRequestException('Cross-tenant role assignment is not allowed');
+          if (
+            role.clientId !== null &&
+            data.clientId !== null &&
+            role.clientId !== data.clientId
+          ) {
+            throw new BadRequestException(
+              'Cross-tenant role assignment is not allowed',
+            );
           }
         }
       }
@@ -197,38 +229,48 @@ export class UsersService {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(data.password, salt);
 
-    const t = transaction || await this.userModel.sequelize.transaction();
+    const t = transaction || (await this.userModel.sequelize.transaction());
     try {
-      const user = await this.userModel.create({
-        name: data.name,
-        email: normalizedEmail,
-        password: hashedPassword,
-        clientId: data.clientId,
-        status: data.status || 'Active',
-        isActive: data.isActive !== undefined ? data.isActive : true,
-      } as any, { transaction: t });
+      const user = await this.userModel.create(
+        {
+          name: data.name,
+          email: normalizedEmail,
+          password: hashedPassword,
+          clientId: data.clientId,
+          status: data.status || 'Active',
+          isActive: data.isActive !== undefined ? data.isActive : true,
+        },
+        { transaction: t },
+      );
 
       // If companies are specified, add user to those companies
       if (data.companies && data.companies.length > 0) {
         for (const item of data.companies) {
-          await this.userCompanyModel.create({
-            userId: user.id,
-            companyId: item.companyId,
-            roleId: item.roleId || null,
-            status: 'Active',
-          } as any, { transaction: t });
+          await this.userCompanyModel.create(
+            {
+              userId: user.id,
+              companyId: item.companyId,
+              roleId: item.roleId || null,
+              status: 'Active',
+            },
+            { transaction: t },
+          );
         }
       }
-      
+
       if (!transaction) await t.commit();
-      
+
       let finalUser = user;
       try {
         const withRoles = await this.userModel.findByPk(user.id, {
           transaction: t,
           include: [
-            { model: Role, through: { attributes: [] }, attributes: ['id', 'name', 'description'] }
-          ]
+            {
+              model: Role,
+              through: { attributes: [] },
+              attributes: ['id', 'name', 'description'],
+            },
+          ],
         });
         if (withRoles) finalUser = withRoles;
       } catch (e) {
@@ -249,7 +291,7 @@ export class UsersService {
         });
       }
 
-      return finalUser as User;
+      return finalUser;
     } catch (err) {
       if (!transaction) await t.rollback();
       throw err;
@@ -277,8 +319,11 @@ export class UsersService {
 
     if (data.email) {
       const normalizedEmail = data.email.toLowerCase().trim();
-      const conflict = await this.userModel.findOne({ where: { email: normalizedEmail } });
-      if (conflict && conflict.id !== id) throw new ConflictException('Email already in use');
+      const conflict = await this.userModel.findOne({
+        where: { email: normalizedEmail },
+      });
+      if (conflict && conflict.id !== id)
+        throw new ConflictException('Email already in use');
       user.email = normalizedEmail;
     }
 
@@ -305,7 +350,9 @@ export class UsersService {
     if (actor) {
       let validCompanyId = null;
       if (user.lastCompanyId) {
-        const companyExists = await this.companyModel.findByPk(user.lastCompanyId);
+        const companyExists = await this.companyModel.findByPk(
+          user.lastCompanyId,
+        );
         if (companyExists) validCompanyId = user.lastCompanyId;
       }
 
@@ -323,7 +370,7 @@ export class UsersService {
       });
     }
 
-    return updatedUser as User;
+    return updatedUser;
   }
 
   async deleteUser(id: number, actor?: any): Promise<{ message: string }> {
@@ -335,7 +382,9 @@ export class UsersService {
     if (actor) {
       let validCompanyId = null;
       if (user.lastCompanyId) {
-        const companyExists = await this.companyModel.findByPk(user.lastCompanyId);
+        const companyExists = await this.companyModel.findByPk(
+          user.lastCompanyId,
+        );
         if (companyExists) validCompanyId = user.lastCompanyId;
       }
 
@@ -356,12 +405,36 @@ export class UsersService {
     try {
       if (this.userModel.sequelize) {
         const models = this.userModel.sequelize.models;
-        if (models.UserPreference) await models.UserPreference.destroy({ where: { userId: id }, transaction: t });
-        if (models.UserPasswordHistory) await models.UserPasswordHistory.destroy({ where: { userId: id }, transaction: t });
-        if (models.ProfileActivityLog) await models.ProfileActivityLog.destroy({ where: { userId: id }, transaction: t });
-        if (models.UserSession) await models.UserSession.destroy({ where: { userId: id }, transaction: t });
-        if (models.UserRole) await models.UserRole.destroy({ where: { userId: id }, transaction: t });
-        if (models.UserCompany) await models.UserCompany.destroy({ where: { userId: id }, transaction: t });
+        if (models.UserPreference)
+          await models.UserPreference.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
+        if (models.UserPasswordHistory)
+          await models.UserPasswordHistory.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
+        if (models.ProfileActivityLog)
+          await models.ProfileActivityLog.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
+        if (models.UserSession)
+          await models.UserSession.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
+        if (models.UserRole)
+          await models.UserRole.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
+        if (models.UserCompany)
+          await models.UserCompany.destroy({
+            where: { userId: id },
+            transaction: t,
+          });
       }
 
       await user.destroy({ transaction: t });
@@ -379,25 +452,42 @@ export class UsersService {
   }
 
   // Junction-specific helpers
-  async addUserToCompany(userId: number, companyId: number, roleId?: number): Promise<UserCompany> {
+  async addUserToCompany(
+    userId: number,
+    companyId: number,
+    roleId?: number,
+  ): Promise<UserCompany> {
     const user = await this.userModel.findByPk(userId);
     if (!user) throw new NotFoundException('User not found');
 
     const company = await this.companyModel.findByPk(companyId);
     if (!company) throw new NotFoundException('Company not found');
-    if (user.clientId !== null && String(company.clientId) !== String(user.clientId)) {
-      throw new BadRequestException('Cross-tenant company assignment is not allowed');
+    if (
+      user.clientId !== null &&
+      String(company.clientId) !== String(user.clientId)
+    ) {
+      throw new BadRequestException(
+        'Cross-tenant company assignment is not allowed',
+      );
     }
 
     if (roleId) {
       const role = await this.roleModel.findByPk(roleId);
       if (!role) throw new NotFoundException('Role not found');
-      if (role.clientId !== null && user.clientId !== null && role.clientId !== user.clientId) {
-        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      if (
+        role.clientId !== null &&
+        user.clientId !== null &&
+        role.clientId !== user.clientId
+      ) {
+        throw new BadRequestException(
+          'Cross-tenant role assignment is not allowed',
+        );
       }
     }
 
-    const existing = await this.userCompanyModel.findOne({ where: { userId, companyId } });
+    const existing = await this.userCompanyModel.findOne({
+      where: { userId, companyId },
+    });
     if (existing) {
       if (roleId !== undefined) {
         existing.roleId = roleId;
@@ -411,26 +501,46 @@ export class UsersService {
       companyId,
       roleId: roleId || null,
       status: 'Active',
-    } as any);
+    });
   }
 
-  async removeUserFromCompany(userId: number, companyId: number): Promise<void> {
-    const mapping = await this.userCompanyModel.findOne({ where: { userId, companyId } });
+  async removeUserFromCompany(
+    userId: number,
+    companyId: number,
+  ): Promise<void> {
+    const mapping = await this.userCompanyModel.findOne({
+      where: { userId, companyId },
+    });
     if (mapping) {
       await mapping.destroy();
     }
   }
 
-  async updateUserCompanyRole(userId: number, companyId: number, roleId: number | null, transaction?: any): Promise<UserCompany> {
-    const mapping = await this.userCompanyModel.findOne({ where: { userId, companyId } });
-    if (!mapping) throw new NotFoundException('User is not a member of this company');
+  async updateUserCompanyRole(
+    userId: number,
+    companyId: number,
+    roleId: number | null,
+    transaction?: any,
+  ): Promise<UserCompany> {
+    const mapping = await this.userCompanyModel.findOne({
+      where: { userId, companyId },
+    });
+    if (!mapping)
+      throw new NotFoundException('User is not a member of this company');
 
     if (roleId) {
       const user = await this.userModel.findByPk(userId);
       const role = await this.roleModel.findByPk(roleId);
       if (!role) throw new NotFoundException('Role not found');
-      if (user && user.clientId !== null && role.clientId !== null && role.clientId !== user.clientId) {
-        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      if (
+        user &&
+        user.clientId !== null &&
+        role.clientId !== null &&
+        role.clientId !== user.clientId
+      ) {
+        throw new BadRequestException(
+          'Cross-tenant role assignment is not allowed',
+        );
       }
     }
 
@@ -439,12 +549,17 @@ export class UsersService {
     return mapping;
   }
 
-  async getUsersForOptions(clientId: number | null, search?: string, page: string = '1', limit: string = '10') {
+  async getUsersForOptions(
+    clientId: number | null,
+    search?: string,
+    page: string = '1',
+    limit: string = '10',
+  ) {
     const where: any = { isActive: true };
     if (clientId !== null) {
       where.clientId = clientId;
     }
-    
+
     if (search) {
       where[Op.or] = [
         { name: { [Op.iLike]: `%${search}%` } },
@@ -454,7 +569,7 @@ export class UsersService {
 
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 10;
-    
+
     const { rows, count } = await this.userModel.findAndCountAll({
       where,
       attributes: ['id', 'name', 'email'],
@@ -464,13 +579,13 @@ export class UsersService {
     });
 
     return {
-      data: rows.map(r => ({ value: r.id, label: `${r.name} (${r.email})` })),
+      data: rows.map((r) => ({ value: r.id, label: `${r.name} (${r.email})` })),
       meta: {
         page: parsedPage,
         limit: parsedLimit,
         total: count,
         totalPages: Math.ceil(count / parsedLimit),
-      }
+      },
     };
   }
 }

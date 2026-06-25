@@ -27,7 +27,9 @@ export class AuditController {
   ) {
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
-      ? (filterClientId ? parseInt(filterClientId, 10) : null)
+      ? filterClientId
+        ? parseInt(filterClientId, 10)
+        : null
       : req.user.clientId;
 
     return this.auditService.getLogs({

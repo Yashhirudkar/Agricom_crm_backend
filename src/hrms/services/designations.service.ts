@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes } from 'sequelize';
 import { Designation } from '../models/designation.model';
@@ -18,25 +22,39 @@ export class DesignationsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async createDesignation(companyId: number, data: any, actor?: any): Promise<Designation> {
-    const department = await this.departmentModel.findOne({ where: { id: data.departmentId, companyId } });
+  async createDesignation(
+    companyId: number,
+    data: any,
+    actor?: any,
+  ): Promise<Designation> {
+    const department = await this.departmentModel.findOne({
+      where: { id: data.departmentId, companyId },
+    });
     if (!department) throw new NotFoundException('Department not found');
 
     if (data.designationCode) {
-      const existing = await this.designationModel.findOne({ where: { companyId, designationCode: data.designationCode } });
+      const existing = await this.designationModel.findOne({
+        where: { companyId, designationCode: data.designationCode },
+      });
       if (existing) {
-        throw new ConflictException(`Designation code '${data.designationCode}' already exists in this company`);
+        throw new ConflictException(
+          `Designation code '${data.designationCode}' already exists in this company`,
+        );
       }
     }
 
     if (data.parentDesignationId) {
-      const parent = await this.designationModel.findOne({ where: { id: data.parentDesignationId, companyId } });
+      const parent = await this.designationModel.findOne({
+        where: { id: data.parentDesignationId, companyId },
+      });
       if (!parent) throw new NotFoundException('Parent designation not found');
     }
 
     if (data.salaryBandMin !== undefined && data.salaryBandMax !== undefined) {
       if (Number(data.salaryBandMin) > Number(data.salaryBandMax)) {
-        throw new ConflictException('Salary band min cannot be greater than salary band max');
+        throw new ConflictException(
+          'Salary band min cannot be greater than salary band max',
+        );
       }
     }
 
@@ -53,7 +71,7 @@ export class DesignationsService {
       status: data.status || 'Active',
       isActive: data.isActive !== undefined ? data.isActive : true,
       createdBy: actor?.userId || null,
-    } as any);
+    });
 
     if (actor) {
       await this.auditService.writeDiffLog({
@@ -72,9 +90,13 @@ export class DesignationsService {
     return designation;
   }
 
-  private async isCircularDesignation(designationId: number, newParentId: number, companyId: number): Promise<boolean> {
+  private async isCircularDesignation(
+    designationId: number,
+    newParentId: number,
+    companyId: number,
+  ): Promise<boolean> {
     if (designationId === newParentId) return true;
-    
+
     // We will use CTE to get all descendants and check if newParentId is one of them.
     const query = `
       WITH RECURSIVE desig_tree AS (
@@ -92,45 +114,78 @@ export class DesignationsService {
       SELECT * FROM desig_tree;
     `;
 
-    const subDesignations = await this.designationModel.sequelize!.query(query, {
+    const subDesignations = await this.designationModel.sequelize.query<{ id: number }>(query, {
       replacements: { companyId, designationId },
       type: QueryTypes.SELECT,
-    }) as any[];
+    });
 
-    return subDesignations.some(sub => sub.id === newParentId);
+    return subDesignations.some((sub) => sub.id === newParentId);
   }
 
-  async updateDesignation(id: number, companyId: number, data: any, actor?: any): Promise<Designation> {
-    const designation = await this.designationModel.findOne({ where: { id, companyId } });
+  async updateDesignation(
+    id: number,
+    companyId: number,
+    data: any,
+    actor?: any,
+  ): Promise<Designation> {
+    const designation = await this.designationModel.findOne({
+      where: { id, companyId },
+    });
     if (!designation) throw new NotFoundException('Designation not found');
 
     if (data.departmentId && data.departmentId !== designation.departmentId) {
-      const department = await this.departmentModel.findOne({ where: { id: data.departmentId, companyId } });
+      const department = await this.departmentModel.findOne({
+        where: { id: data.departmentId, companyId },
+      });
       if (!department) throw new NotFoundException('Department not found');
     }
 
-    if (data.designationCode && data.designationCode !== designation.designationCode) {
-      const existing = await this.designationModel.findOne({ where: { companyId, designationCode: data.designationCode } });
+    if (
+      data.designationCode &&
+      data.designationCode !== designation.designationCode
+    ) {
+      const existing = await this.designationModel.findOne({
+        where: { companyId, designationCode: data.designationCode },
+      });
       if (existing) {
-        throw new ConflictException(`Designation code '${data.designationCode}' already exists in this company`);
+        throw new ConflictException(
+          `Designation code '${data.designationCode}' already exists in this company`,
+        );
       }
     }
 
-    if (data.parentDesignationId && data.parentDesignationId !== designation.parentDesignationId) {
-      const parent = await this.designationModel.findOne({ where: { id: data.parentDesignationId, companyId } });
+    if (
+      data.parentDesignationId &&
+      data.parentDesignationId !== designation.parentDesignationId
+    ) {
+      const parent = await this.designationModel.findOne({
+        where: { id: data.parentDesignationId, companyId },
+      });
       if (!parent) throw new NotFoundException('Parent designation not found');
-      const isCircular = await this.isCircularDesignation(designation.id, data.parentDesignationId, companyId);
+      const isCircular = await this.isCircularDesignation(
+        designation.id,
+        data.parentDesignationId,
+        companyId,
+      );
       if (isCircular) {
         throw new ConflictException('Circular designation hierarchy detected');
       }
     }
 
-    const newMin = data.salaryBandMin !== undefined ? Number(data.salaryBandMin) : Number(designation.salaryBandMin || 0);
-    const newMax = data.salaryBandMax !== undefined ? Number(data.salaryBandMax) : Number(designation.salaryBandMax || Number.MAX_VALUE);
-    
+    const newMin =
+      data.salaryBandMin !== undefined
+        ? Number(data.salaryBandMin)
+        : Number(designation.salaryBandMin || 0);
+    const newMax =
+      data.salaryBandMax !== undefined
+        ? Number(data.salaryBandMax)
+        : Number(designation.salaryBandMax || Number.MAX_VALUE);
+
     if (data.salaryBandMin !== undefined || data.salaryBandMax !== undefined) {
       if (newMin > newMax) {
-        throw new ConflictException('Salary band min cannot be greater than salary band max');
+        throw new ConflictException(
+          'Salary band min cannot be greater than salary band max',
+        );
       }
     }
 
@@ -138,15 +193,25 @@ export class DesignationsService {
 
     await designation.update({
       ...(data.name !== undefined && { name: data.name }),
-      ...(data.designationCode !== undefined && { designationCode: data.designationCode }),
+      ...(data.designationCode !== undefined && {
+        designationCode: data.designationCode,
+      }),
       ...(data.level !== undefined && { level: data.level }),
-      ...(data.parentDesignationId !== undefined && { parentDesignationId: data.parentDesignationId }),
-      ...(data.salaryBandMin !== undefined && { salaryBandMin: data.salaryBandMin }),
-      ...(data.salaryBandMax !== undefined && { salaryBandMax: data.salaryBandMax }),
+      ...(data.parentDesignationId !== undefined && {
+        parentDesignationId: data.parentDesignationId,
+      }),
+      ...(data.salaryBandMin !== undefined && {
+        salaryBandMin: data.salaryBandMin,
+      }),
+      ...(data.salaryBandMax !== undefined && {
+        salaryBandMax: data.salaryBandMax,
+      }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.status !== undefined && { status: data.status }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
-      ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
+      ...(data.departmentId !== undefined && {
+        departmentId: data.departmentId,
+      }),
       updatedBy: actor?.userId || designation.updatedBy,
     });
 
@@ -170,13 +235,23 @@ export class DesignationsService {
     return updated;
   }
 
-  async deleteDesignation(id: number, companyId: number, actor?: any): Promise<{ message: string }> {
-    const designation = await this.designationModel.findOne({ where: { id, companyId } });
+  async deleteDesignation(
+    id: number,
+    companyId: number,
+    actor?: any,
+  ): Promise<{ message: string }> {
+    const designation = await this.designationModel.findOne({
+      where: { id, companyId },
+    });
     if (!designation) throw new NotFoundException('Designation not found');
 
-    const employeeCount = await this.employeeModel.count({ where: { designationId: id } });
+    const employeeCount = await this.employeeModel.count({
+      where: { designationId: id },
+    });
     if (employeeCount > 0) {
-      throw new ConflictException(`Cannot delete designation because it is linked to ${employeeCount} employee(s).`);
+      throw new ConflictException(
+        `Cannot delete designation because it is linked to ${employeeCount} employee(s).`,
+      );
     }
 
     const oldRecord = designation.toJSON();
@@ -201,9 +276,25 @@ export class DesignationsService {
 
   async getDesignations(
     companyId: number,
-    query: { search?: string; status?: string; page?: number; limit?: number; sortBy?: string; sortOrder?: 'ASC' | 'DESC'; departmentId?: number }
+    query: {
+      search?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'ASC' | 'DESC';
+      departmentId?: number;
+    },
   ) {
-    const { search, status, departmentId, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'DESC' } = query;
+    const {
+      search,
+      status,
+      departmentId,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+    } = query;
 
     const whereClause: any = { companyId };
     if (status) whereClause.status = status;
@@ -220,10 +311,10 @@ export class DesignationsService {
       include: [
         { model: Department, attributes: ['id', 'name'] },
         { model: Employee, attributes: ['id'] },
-      ]
+      ],
     });
 
-    const data = rows.map(row => {
+    const data = rows.map((row) => {
       const json = row.toJSON();
       return {
         ...json,
@@ -238,7 +329,7 @@ export class DesignationsService {
         page: Number(page),
         limit: Number(limit),
         totalPages: Math.ceil(count / limit),
-      }
+      },
     };
   }
 
@@ -247,8 +338,11 @@ export class DesignationsService {
       where: { id, companyId },
       include: [
         { model: Department, attributes: ['id', 'name'] },
-        { model: Employee, attributes: ['id', 'firstName', 'lastName', 'email', 'status'] },
-      ]
+        {
+          model: Employee,
+          attributes: ['id', 'firstName', 'lastName', 'email', 'status'],
+        },
+      ],
     });
     if (!designation) throw new NotFoundException('Designation not found');
 
@@ -276,19 +370,19 @@ export class DesignationsService {
       SELECT * FROM desig_tree;
     `;
 
-    const rawData = await this.designationModel.sequelize!.query(query, {
+    const rawData = await this.designationModel.sequelize.query<any>(query, {
       replacements: { companyId },
       type: QueryTypes.SELECT,
-    }) as any[];
+    });
 
     const map = new Map<number, any>();
     const roots: any[] = [];
 
-    rawData.forEach(item => {
+    rawData.forEach((item) => {
       map.set(item.id, { ...item, subDesignations: [] });
     });
 
-    rawData.forEach(item => {
+    rawData.forEach((item) => {
       if (item.parentDesignationId) {
         const parent = map.get(item.parentDesignationId);
         if (parent) {
@@ -304,16 +398,21 @@ export class DesignationsService {
     return roots;
   }
 
-  async getDesignationsForOptions(companyId: number, search?: string, page: string = '1', limit: string = '10') {
+  async getDesignationsForOptions(
+    companyId: number,
+    search?: string,
+    page: string = '1',
+    limit: string = '10',
+  ) {
     const where: any = { companyId, isActive: true, status: 'Active' };
-    
+
     if (search) {
       where.name = { [Op.iLike]: `%${search}%` };
     }
 
     const parsedPage = parseInt(page, 10) || 1;
     const parsedLimit = parseInt(limit, 10) || 10;
-    
+
     const { rows, count } = await this.designationModel.findAndCountAll({
       where,
       attributes: ['id', 'name'],
@@ -323,13 +422,13 @@ export class DesignationsService {
     });
 
     return {
-      data: rows.map(r => ({ value: r.id, label: r.name })),
+      data: rows.map((r) => ({ value: r.id, label: r.name })),
       meta: {
         page: parsedPage,
         limit: parsedLimit,
         total: count,
         totalPages: Math.ceil(count / parsedLimit),
-      }
+      },
     };
   }
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Country } from './country.model';
@@ -21,7 +25,7 @@ export class CountryService {
     const normalizedName = dto.name.trim().toUpperCase();
     const normalizedIso2 = dto.iso2Code.trim().toUpperCase();
     const normalizedIso3 = dto.iso3Code.trim().toUpperCase();
-    
+
     const existing = await this.countryModel.findOne({
       where: {
         [Op.or]: [
@@ -31,9 +35,11 @@ export class CountryService {
         ],
       },
     });
-    
+
     if (existing) {
-      throw new BadRequestException('Country with given name, iso2_code, or iso3_code already exists');
+      throw new BadRequestException(
+        'Country with given name, iso2_code, or iso3_code already exists',
+      );
     }
 
     return this.countryModel.create({
@@ -73,7 +79,9 @@ export class CountryService {
   }
 
   async findOne(id: number): Promise<Country> {
-    const country = await this.countryModel.findOne({ where: { id, isActive: true } });
+    const country = await this.countryModel.findOne({
+      where: { id, isActive: true },
+    });
     if (!country) {
       throw new NotFoundException('Country not found');
     }
@@ -94,7 +102,7 @@ export class CountryService {
 
   async update(id: number, dto: UpdateCountryDto): Promise<Country> {
     const country = await this.findOneActive(id);
-    
+
     let normalizedName = dto.name;
     let normalizedIso2 = dto.iso2Code;
     let normalizedIso3 = dto.iso3Code;
@@ -110,16 +118,18 @@ export class CountryService {
       if (normalizedIso3) orConditions.push({ iso3Code: normalizedIso3 });
 
       const existing = await this.countryModel.findOne({
-        where: { 
+        where: {
           [Op.or]: orConditions,
-          id: { [Op.ne]: id }
-        }
+          id: { [Op.ne]: id },
+        },
       });
-      
+
       if (existing) {
-        throw new BadRequestException('Country with given name, iso2_code, or iso3_code already exists');
+        throw new BadRequestException(
+          'Country with given name, iso2_code, or iso3_code already exists',
+        );
       }
-      
+
       if (normalizedName) dto.name = normalizedName;
       if (normalizedIso2) dto.iso2Code = normalizedIso2;
       if (normalizedIso3) dto.iso3Code = normalizedIso3;
@@ -164,9 +174,9 @@ export class CountryService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -181,7 +191,7 @@ export class CountryService {
       ...country.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await country.destroy();

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { LeaveType } from '../models/leave-type.model';
 import { CreateLeaveTypeDto, UpdateLeaveTypeDto } from '../dto/leave-types.dto';
@@ -13,22 +17,31 @@ export class LeaveTypesService {
     private readonly auditService: AuditService,
   ) {}
 
-  async createLeaveType(companyId: number, dto: CreateLeaveTypeDto, actor?: any): Promise<LeaveType> {
+  async createLeaveType(
+    companyId: number,
+    dto: CreateLeaveTypeDto,
+    actor?: any,
+  ): Promise<LeaveType> {
     const existing = await this.leaveTypeModel.findOne({
       where: { companyId, code: dto.code },
     });
 
     if (existing) {
-      throw new BadRequestException(`Leave type with code '${dto.code}' already exists`);
+      throw new BadRequestException(
+        `Leave type with code '${dto.code}' already exists`,
+      );
     }
 
     const t = await this.leaveTypeModel.sequelize.transaction();
     try {
-      const leaveType = await this.leaveTypeModel.create({
-        ...dto,
-        companyId,
-        createdBy: actor?.userId || null,
-      } as any, { transaction: t });
+      const leaveType = await this.leaveTypeModel.create(
+        {
+          ...dto,
+          companyId,
+          createdBy: actor?.userId || null,
+        },
+        { transaction: t },
+      );
 
       await t.commit();
 
@@ -53,7 +66,10 @@ export class LeaveTypesService {
     }
   }
 
-  async getLeaveTypes(companyId: number, query?: { search?: string, page?: number, limit?: number }): Promise<{ data: LeaveType[], meta: any }> {
+  async getLeaveTypes(
+    companyId: number,
+    query?: { search?: string; page?: number; limit?: number },
+  ): Promise<{ data: LeaveType[]; meta: any }> {
     const where: any = { companyId, isActive: true };
     if (query?.search) {
       where.name = { [Op.iLike]: `%${query.search}%` };
@@ -77,7 +93,7 @@ export class LeaveTypesService {
         limit: Number(limit),
         total: count,
         totalPages: Math.ceil(count / limit),
-      }
+      },
     };
   }
 
@@ -92,7 +108,12 @@ export class LeaveTypesService {
     return leaveType;
   }
 
-  async updateLeaveType(id: number, companyId: number, dto: UpdateLeaveTypeDto, actor?: any): Promise<LeaveType> {
+  async updateLeaveType(
+    id: number,
+    companyId: number,
+    dto: UpdateLeaveTypeDto,
+    actor?: any,
+  ): Promise<LeaveType> {
     const leaveType = await this.leaveTypeModel.findOne({
       where: { id, companyId, isActive: true },
     });
@@ -106,7 +127,9 @@ export class LeaveTypesService {
         where: { companyId, code: dto.code },
       });
       if (existing) {
-        throw new BadRequestException(`Leave type with code '${dto.code}' already exists`);
+        throw new BadRequestException(
+          `Leave type with code '${dto.code}' already exists`,
+        );
       }
     }
 
@@ -114,10 +137,13 @@ export class LeaveTypesService {
 
     const t = await this.leaveTypeModel.sequelize.transaction();
     try {
-      await leaveType.update({
-        ...dto,
-        updatedBy: actor?.userId || leaveType.updatedBy,
-      }, { transaction: t });
+      await leaveType.update(
+        {
+          ...dto,
+          updatedBy: actor?.userId || leaveType.updatedBy,
+        },
+        { transaction: t },
+      );
 
       await t.commit();
       const updated = await leaveType.reload();
@@ -144,7 +170,11 @@ export class LeaveTypesService {
     }
   }
 
-  async deleteLeaveType(id: number, companyId: number, actor?: any): Promise<{ message: string }> {
+  async deleteLeaveType(
+    id: number,
+    companyId: number,
+    actor?: any,
+  ): Promise<{ message: string }> {
     const leaveType = await this.leaveTypeModel.findOne({
       where: { id, companyId, isActive: true },
     });
@@ -157,10 +187,13 @@ export class LeaveTypesService {
 
     const t = await this.leaveTypeModel.sequelize.transaction();
     try {
-      await leaveType.update({
-        isActive: false,
-        updatedBy: actor?.userId || leaveType.updatedBy,
-      }, { transaction: t });
+      await leaveType.update(
+        {
+          isActive: false,
+          updatedBy: actor?.userId || leaveType.updatedBy,
+        },
+        { transaction: t },
+      );
 
       await t.commit();
       const updated = await leaveType.reload();

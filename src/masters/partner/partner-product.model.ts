@@ -1,4 +1,11 @@
-import { Table, Column, Model, DataType, ForeignKey, CreatedAt } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  ForeignKey,
+  CreatedAt,
+} from 'sequelize-typescript';
 import { Partner } from './partner.model';
 import { Product } from '../product/product.model';
 
@@ -9,8 +16,8 @@ import { Product } from '../product/product.model';
   indexes: [
     { fields: ['partner_id'] },
     { fields: ['product_id'] },
-    { unique: true, fields: ['partner_id', 'product_id'] }
-  ]
+    { unique: true, fields: ['partner_id', 'product_id'] },
+  ],
 })
 export class PartnerProduct extends Model<PartnerProduct> {
   @Column({ type: DataType.INTEGER, primaryKey: true, autoIncrement: true })

@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -10,7 +12,8 @@ import { Index, Table,
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default, } from 'sequelize-typescript';
+  Default,
+} from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { User } from '../../users/models/user.model';
 import { Employee } from './employee.model';

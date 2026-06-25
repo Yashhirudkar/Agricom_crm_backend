@@ -1,7 +1,22 @@
-import { IsString, IsEmail, IsOptional, IsNumber, IsBoolean, IsDateString, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { EmployeeStatus, EmploymentType, WorkMode } from '../models/employee.model';
-import { DocumentCategory, VerificationStatus } from '../models/employee-document.model';
+import {
+  EmployeeStatus,
+  EmploymentType,
+  WorkMode,
+} from '../models/employee.model';
+import {
+  DocumentCategory,
+  VerificationStatus,
+} from '../models/employee-document.model';
 
 export class CreateEmployeeDto {
   @IsOptional()

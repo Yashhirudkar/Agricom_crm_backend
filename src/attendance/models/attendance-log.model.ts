@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -7,7 +9,8 @@ import { Index, Table,
   PrimaryKey,
   AutoIncrement,
   AllowNull,
-  CreatedAt, } from 'sequelize-typescript';
+  CreatedAt,
+} from 'sequelize-typescript';
 import { Employee } from '../../hrms/models/employee.model';
 import { AttendanceRecord } from './attendance-record.model';
 
@@ -55,7 +58,15 @@ export class AttendanceLog extends Model<AttendanceLog> {
 
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('CHECK_IN', 'CHECK_OUT', 'BREAK_START', 'BREAK_END', 'AUTO_CORRECTION', 'REGULARIZATION_APPROVED', 'ADMIN_MARKED'),
+    type: DataType.ENUM(
+      'CHECK_IN',
+      'CHECK_OUT',
+      'BREAK_START',
+      'BREAK_END',
+      'AUTO_CORRECTION',
+      'REGULARIZATION_APPROVED',
+      'ADMIN_MARKED',
+    ),
   })
   declare actionType: AttendanceActionType;
 

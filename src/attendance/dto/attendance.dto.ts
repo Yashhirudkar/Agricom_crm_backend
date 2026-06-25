@@ -1,4 +1,11 @@
-import { IsNumber, IsOptional, IsString, IsNotEmpty, IsEnum, Matches } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  Matches,
+} from 'class-validator';
 import { AttendanceExceptionType } from '../models/attendance-exception.model';
 import { AttendanceStatus } from '../models/attendance-record.model';
 
@@ -73,7 +80,9 @@ export class RequestCorrectionDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be in YYYY-MM-DD format' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'date must be in YYYY-MM-DD format',
+  })
   declare date: string;
 
   @IsString()
@@ -104,7 +113,9 @@ export class ManualAttendanceDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be in YYYY-MM-DD format' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'date must be in YYYY-MM-DD format',
+  })
   declare date: string;
 
   @IsString()

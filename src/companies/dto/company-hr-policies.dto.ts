@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsNumber, IsBoolean, IsArray, IsString } from 'class-validator';
+import {
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  IsString,
+} from 'class-validator';
 
 export class UpsertCompanyHrPolicyDto {
   @IsOptional()

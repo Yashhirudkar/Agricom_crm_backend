@@ -18,7 +18,11 @@ import { DepartmentsService } from '../services/departments.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateDepartmentDto, UpdateDepartmentDto, GetDepartmentsFilterDto } from '../dto/departments.dto';
+import {
+  CreateDepartmentDto,
+  UpdateDepartmentDto,
+  GetDepartmentsFilterDto,
+} from '../dto/departments.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('departments')
@@ -53,10 +57,7 @@ export class DepartmentsController {
 
   @Get()
   @RequirePermission('departments:read')
-  getDepartments(
-    @Query() filterDto: GetDepartmentsFilterDto,
-    @Request() req
-  ) {
+  getDepartments(@Query() filterDto: GetDepartmentsFilterDto, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.departmentsService.getDepartments(companyId, filterDto);
   }
@@ -70,7 +71,12 @@ export class DepartmentsController {
     @Query('limit') limit?: string,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.departmentsService.getDepartmentsForOptions(companyId, search, page, limit);
+    return this.departmentsService.getDepartmentsForOptions(
+      companyId,
+      search,
+      page,
+      limit,
+    );
   }
 
   @Get('tree')
@@ -99,7 +105,7 @@ export class DepartmentsController {
   updateDepartment(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateDepartmentDto,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { PartnerRole } from './partner-role.model';
@@ -19,13 +23,15 @@ export class PartnerRoleService {
 
   async create(dto: CreatePartnerRoleDto): Promise<PartnerRole> {
     const normalizedName = dto.name.trim().toUpperCase();
-    
+
     const existing = await this.partnerRoleModel.findOne({
       where: { name: normalizedName },
     });
-    
+
     if (existing) {
-      throw new BadRequestException(`Partner Role '${normalizedName}' already exists`);
+      throw new BadRequestException(
+        `Partner Role '${normalizedName}' already exists`,
+      );
     }
 
     const payload = {
@@ -45,11 +51,11 @@ export class PartnerRoleService {
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
-    
+
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
-    
+
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
     }
@@ -71,7 +77,9 @@ export class PartnerRoleService {
   }
 
   async findOne(id: number): Promise<PartnerRole> {
-    const partnerRole = await this.partnerRoleModel.findOne({ where: { id, isActive: true } });
+    const partnerRole = await this.partnerRoleModel.findOne({
+      where: { id, isActive: true },
+    });
     if (!partnerRole) {
       throw new NotFoundException('Partner Role not found');
     }
@@ -92,21 +100,23 @@ export class PartnerRoleService {
 
   async update(id: number, dto: UpdatePartnerRoleDto): Promise<PartnerRole> {
     const partnerRole = await this.findOneActive(id);
-    
+
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
-      
+
       const existing = await this.partnerRoleModel.findOne({
-        where: { 
+        where: {
           name: normalizedName,
-          id: { [Op.ne]: id }
-        }
+          id: { [Op.ne]: id },
+        },
       });
-      
+
       if (existing) {
-        throw new BadRequestException(`Partner Role '${normalizedName}' already exists`);
+        throw new BadRequestException(
+          `Partner Role '${normalizedName}' already exists`,
+        );
       }
-      
+
       dto.name = normalizedName;
     }
 
@@ -153,9 +163,9 @@ export class PartnerRoleService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -170,7 +180,7 @@ export class PartnerRoleService {
       ...partnerRole.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await partnerRole.destroy();

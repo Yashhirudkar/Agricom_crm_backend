@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { UserInvitation } from '../models/user-invitation.model';
 import { User } from '../models/user.model';
@@ -36,27 +41,39 @@ export class UserInvitationService {
     const emailLower = params.email.toLowerCase().trim();
 
     // 1. Check if user already exists
-    const existingUser = await this.userModel.findOne({ where: { email: emailLower } });
-    if (existingUser) throw new ConflictException('User is already registered in the system');
+    const existingUser = await this.userModel.findOne({
+      where: { email: emailLower },
+    });
+    if (existingUser)
+      throw new ConflictException('User is already registered in the system');
 
     // Verify role belongs to clientId
     if (params.roleId) {
       const role = await this.roleModel.findByPk(params.roleId);
       if (!role) throw new NotFoundException('Role not found');
-      if (role.clientId !== null && String(role.clientId) !== String(params.clientId)) {
-        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+      if (
+        role.clientId !== null &&
+        String(role.clientId) !== String(params.clientId)
+      ) {
+        throw new BadRequestException(
+          'Cross-tenant role assignment is not allowed',
+        );
       }
     }
 
     // Verify companies belong to clientId
     if (params.companyIds && params.companyIds.length > 0) {
-      const companies = await this.companyModel.findAll({ where: { id: params.companyIds } });
+      const companies = await this.companyModel.findAll({
+        where: { id: params.companyIds },
+      });
       if (companies.length !== params.companyIds.length) {
         throw new NotFoundException('One or more companies not found');
       }
       for (const company of companies) {
         if (company.clientId !== params.clientId) {
-          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+          throw new BadRequestException(
+            'Cross-tenant company assignment is not allowed',
+          );
         }
       }
     }
@@ -78,7 +95,7 @@ export class UserInvitationService {
       createdBy: params.createdBy,
       expiresAt,
       status: 'Pending',
-    } as any);
+    });
   }
 
   async verifyInvitation(token: string): Promise<UserInvitation> {
@@ -87,11 +104,12 @@ export class UserInvitationService {
       include: [
         { model: Client, attributes: ['id', 'name'] },
         { model: Role, attributes: ['id', 'name'] },
-      ]
+      ],
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
-    if (invitation.status === 'Accepted') throw new BadRequestException('Invitation has already been accepted');
+    if (invitation.status === 'Accepted')
+      throw new BadRequestException('Invitation has already been accepted');
     if (invitation.status === 'Expired' || invitation.expiresAt < new Date()) {
       invitation.status = 'Expired';
       await invitation.save();
@@ -107,11 +125,11 @@ export class UserInvitationService {
     if (invitation.companyIds && invitation.companyIds.length > 0) {
       companies = await this.companyModel.findAll({
         where: { id: invitation.companyIds },
-        attributes: ['id', 'name']
+        attributes: ['id', 'name'],
       });
     }
-    const data = invitation.toJSON() as any;
-    data.companies = companies;
+    const data = invitation.toJSON();
+    data.companyIds = companies;
     return data;
   }
 
@@ -127,19 +145,25 @@ export class UserInvitationService {
       const role = await this.roleModel.findByPk(invitation.roleId);
       if (!role) throw new NotFoundException('Role not found');
       if (role.clientId !== null && role.clientId !== invitation.clientId) {
-        throw new BadRequestException('Cross-tenant role assignment is not allowed');
+        throw new BadRequestException(
+          'Cross-tenant role assignment is not allowed',
+        );
       }
     }
 
     // Verify companies belong to clientId
     if (invitation.companyIds && invitation.companyIds.length > 0) {
-      const companies = await this.companyModel.findAll({ where: { id: invitation.companyIds } });
+      const companies = await this.companyModel.findAll({
+        where: { id: invitation.companyIds },
+      });
       if (companies.length !== invitation.companyIds.length) {
         throw new NotFoundException('One or more companies not found');
       }
       for (const company of companies) {
         if (company.clientId !== invitation.clientId) {
-          throw new BadRequestException('Cross-tenant company assignment is not allowed');
+          throw new BadRequestException(
+            'Cross-tenant company assignment is not allowed',
+          );
         }
       }
     }
@@ -155,7 +179,7 @@ export class UserInvitationService {
       clientId: invitation.clientId,
       status: 'Active',
       isActive: true,
-    } as any);
+    });
 
     // Add user to the specified companies
     if (invitation.companyIds && invitation.companyIds.length > 0) {
@@ -165,7 +189,7 @@ export class UserInvitationService {
           companyId,
           roleId: invitation.roleId,
           status: 'Active',
-        } as any);
+        });
       }
     }
 

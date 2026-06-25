@@ -19,19 +19,24 @@ export class SidebarService {
       where: { is_active: true },
       order: [
         ['sort_order', 'ASC'],
-        [{ model: SidebarItem, as: 'items' }, 'sort_order', 'ASC']
+        [{ model: SidebarItem, as: 'items' }, 'sort_order', 'ASC'],
       ],
       include: [
         {
           model: SidebarItem,
           as: 'items',
           where: { is_active: true },
-          required: false
-        }
-      ]
+          required: false,
+        },
+      ],
     });
 
-    return folders.map(f => {
+    const standaloneItems = await this.sidebarItemModel.findAll({
+      where: { is_active: true, folder_id: null },
+      order: [['sort_order', 'ASC']],
+    });
+
+    const mappedFolders = folders.map((f) => {
       const folderData: any = f.toJSON();
       folderData.icon_color = folderData.iconColor;
       folderData.is_collapsible = folderData.isCollapsible;
@@ -44,20 +49,53 @@ export class SidebarService {
       }
       return folderData;
     });
+
+    if (standaloneItems.length > 0) {
+      mappedFolders.push({
+        id: 0,
+        name: 'Standalone Items (Root)',
+        icon_name: 'Layout',
+        icon_color: '#6b7280',
+        is_collapsible: false,
+        items: standaloneItems.map((i) => {
+          const itemData: any = i.toJSON();
+          itemData.icon_color = itemData.iconColor;
+          itemData.use_folder_color = itemData.useFolderColor;
+          return itemData;
+        }),
+      });
+    }
+
+    return mappedFolders;
   }
 
-  async createFolder(userId: number | null, dto: { name: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean; sort_order?: number }) {
-    const t = await this.sidebarFolderModel.sequelize!.transaction();
+  async createFolder(
+    userId: number | null,
+    dto: {
+      name: string;
+      icon_name?: string;
+      icon_color?: string;
+      is_collapsible?: boolean;
+      sort_order?: number;
+    },
+  ) {
+    const t = await this.sidebarFolderModel.sequelize.transaction();
     try {
-      const folder = await this.sidebarFolderModel.create({
-        name: dto.name,
-        icon_name: dto.icon_name || null,
-        iconColor: dto.icon_color || null,
-        isCollapsible: dto.is_collapsible !== undefined ? dto.is_collapsible : false,
-        sort_order: dto.sort_order || 0,
-      } as any, { transaction: t });
+      const folder = await this.sidebarFolderModel.create(
+        {
+          name: dto.name,
+          icon_name: dto.icon_name || null,
+          iconColor: dto.icon_color || null,
+          isCollapsible:
+            dto.is_collapsible !== undefined ? dto.is_collapsible : false,
+          sort_order: dto.sort_order || 0,
+        },
+        { transaction: t },
+      );
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_CREATE', { folder });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_CREATE', {
+        folder,
+      });
       await t.commit();
       return folder;
     } catch (err) {
@@ -66,21 +104,39 @@ export class SidebarService {
     }
   }
 
-  async createItem(userId: number | null, dto: { name: string; route: string; folder_id?: number; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string; sort_order?: number }) {
-    const t = await this.sidebarItemModel.sequelize!.transaction();
+  async createItem(
+    userId: number | null,
+    dto: {
+      name: string;
+      route: string;
+      folder_id?: number;
+      icon_name?: string;
+      icon_color?: string;
+      use_folder_color?: boolean;
+      permission_link?: string;
+      sort_order?: number;
+    },
+  ) {
+    const t = await this.sidebarItemModel.sequelize.transaction();
     try {
-      const item = await this.sidebarItemModel.create({
-        name: dto.name,
-        route: dto.route,
-        folder_id: dto.folder_id || null,
-        icon_name: dto.icon_name || null,
-        iconColor: dto.icon_color || null,
-        useFolderColor: dto.use_folder_color !== undefined ? dto.use_folder_color : true,
-        permission_link: dto.permission_link || null,
-        sort_order: dto.sort_order || 0,
-      } as any, { transaction: t });
+      const item = await this.sidebarItemModel.create(
+        {
+          name: dto.name,
+          route: dto.route,
+          folder_id: dto.folder_id || null,
+          icon_name: dto.icon_name || null,
+          iconColor: dto.icon_color || null,
+          useFolderColor:
+            dto.use_folder_color !== undefined ? dto.use_folder_color : true,
+          permission_link: dto.permission_link || null,
+          sort_order: dto.sort_order || 0,
+        },
+        { transaction: t },
+      );
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_CREATE', { item });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_CREATE', {
+        item,
+      });
       await t.commit();
       return item;
     } catch (err) {
@@ -89,7 +145,16 @@ export class SidebarService {
     }
   }
 
-  async updateFolder(userId: number | null, id: number, dto: { name?: string; icon_name?: string; icon_color?: string; is_collapsible?: boolean }) {
+  async updateFolder(
+    userId: number | null,
+    id: number,
+    dto: {
+      name?: string;
+      icon_name?: string;
+      icon_color?: string;
+      is_collapsible?: boolean;
+    },
+  ) {
     const folder = await this.sidebarFolderModel.findByPk(id);
     if (!folder) throw new NotFoundException('Folder not found');
     const updateData: any = { ...dto };
@@ -102,11 +167,25 @@ export class SidebarService {
       delete updateData.is_collapsible;
     }
     await folder.update(updateData);
-    await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_UPDATE', { id, dto });
+    await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_UPDATE', {
+      id,
+      dto,
+    });
     return folder;
   }
 
-  async updateItem(userId: number | null, id: number, dto: { name?: string; route?: string; icon_name?: string; icon_color?: string; use_folder_color?: boolean; permission_link?: string }) {
+  async updateItem(
+    userId: number | null,
+    id: number,
+    dto: {
+      name?: string;
+      route?: string;
+      icon_name?: string;
+      icon_color?: string;
+      use_folder_color?: boolean;
+      permission_link?: string;
+    },
+  ) {
     const item = await this.sidebarItemModel.findByPk(id);
     if (!item) throw new NotFoundException('Item not found');
     const updateData: any = { ...dto };
@@ -119,25 +198,41 @@ export class SidebarService {
       delete updateData.use_folder_color;
     }
     await item.update(updateData);
-    await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_UPDATE', { id, dto });
+    await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_UPDATE', {
+      id,
+      dto,
+    });
     return item;
   }
 
-  async moveItem(userId: number | null, itemId: number, newFolderId: number | null) {
-    const t = await this.sidebarItemModel.sequelize!.transaction();
+  async moveItem(
+    userId: number | null,
+    itemId: number,
+    newFolderId: number | null,
+  ) {
+    const t = await this.sidebarItemModel.sequelize.transaction();
     try {
-      const item = await this.sidebarItemModel.findByPk(itemId, { transaction: t });
+      const item = await this.sidebarItemModel.findByPk(itemId, {
+        transaction: t,
+      });
       if (!item) throw new NotFoundException('Item not found');
 
+      if (newFolderId === 0) newFolderId = null;
+
       if (newFolderId !== null) {
-        const folder = await this.sidebarFolderModel.findByPk(newFolderId, { transaction: t });
+        const folder = await this.sidebarFolderModel.findByPk(newFolderId, {
+          transaction: t,
+        });
         if (!folder) throw new NotFoundException('Target folder not found');
       }
 
-      item.folder_id = newFolderId as any;
+      item.folder_id = newFolderId;
       await item.save({ transaction: t });
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_MOVE', { id: itemId, newFolderId });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_MOVE', {
+        id: itemId,
+        newFolderId,
+      });
       await t.commit();
       return item;
     } catch (err) {
@@ -146,18 +241,29 @@ export class SidebarService {
     }
   }
 
-  async reorder(userId: number | null, updates: { id: number; type: 'FOLDER' | 'ITEM'; sort_order: number }[]) {
-    const t = await this.sidebarFolderModel.sequelize!.transaction();
+  async reorder(
+    userId: number | null,
+    updates: { id: number; type: 'FOLDER' | 'ITEM'; sort_order: number }[],
+  ) {
+    const t = await this.sidebarFolderModel.sequelize.transaction();
     try {
       for (const update of updates) {
         if (update.type === 'FOLDER') {
-          await this.sidebarFolderModel.update({ sort_order: update.sort_order }, { where: { id: update.id }, transaction: t });
+          await this.sidebarFolderModel.update(
+            { sort_order: update.sort_order },
+            { where: { id: update.id }, transaction: t },
+          );
         } else if (update.type === 'ITEM') {
-          await this.sidebarItemModel.update({ sort_order: update.sort_order }, { where: { id: update.id }, transaction: t });
+          await this.sidebarItemModel.update(
+            { sort_order: update.sort_order },
+            { where: { id: update.id }, transaction: t },
+          );
         }
       }
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_REORDER', { updates });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_REORDER', {
+        updates,
+      });
       await t.commit();
       return { success: true };
     } catch (err) {
@@ -167,15 +273,23 @@ export class SidebarService {
   }
 
   async deleteFolder(userId: number | null, id: number) {
-    const t = await this.sidebarFolderModel.sequelize!.transaction();
+    const t = await this.sidebarFolderModel.sequelize.transaction();
     try {
-      const folder = await this.sidebarFolderModel.findByPk(id, { transaction: t });
+      const folder = await this.sidebarFolderModel.findByPk(id, {
+        transaction: t,
+      });
       if (!folder) throw new NotFoundException('Folder not found');
 
-      await this.sidebarItemModel.destroy({ where: { folder_id: id }, transaction: t });
+      await this.sidebarItemModel.destroy({
+        where: { folder_id: id },
+        transaction: t,
+      });
       await folder.destroy({ transaction: t });
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_DELETE', { id, name: folder.name });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_DELETE', {
+        id,
+        name: folder.name,
+      });
       await t.commit();
       return { success: true };
     } catch (err) {
@@ -185,14 +299,17 @@ export class SidebarService {
   }
 
   async deleteItem(userId: number | null, id: number) {
-    const t = await this.sidebarItemModel.sequelize!.transaction();
+    const t = await this.sidebarItemModel.sequelize.transaction();
     try {
       const item = await this.sidebarItemModel.findByPk(id, { transaction: t });
       if (!item) throw new NotFoundException('Item not found');
 
       await item.destroy({ transaction: t });
 
-      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_DELETE', { id, name: item.name });
+      await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_DELETE', {
+        id,
+        name: item.name,
+      });
       await t.commit();
       return { success: true };
     } catch (err) {

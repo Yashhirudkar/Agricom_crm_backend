@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -16,7 +20,11 @@ export class StorageService {
    * Uploads file to local storage directory under the specified relative dir.
    * Returns the relative path for database storage.
    */
-  async uploadFile(file: Express.Multer.File, relativeDir: string, filename: string): Promise<string> {
+  async uploadFile(
+    file: Express.Multer.File,
+    relativeDir: string,
+    filename: string,
+  ): Promise<string> {
     const targetDir = path.join(this.baseDir, relativeDir);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });

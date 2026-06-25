@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -9,7 +11,8 @@ import { Index, Table,
   AllowNull,
   CreatedAt,
   UpdatedAt,
-  Default, } from 'sequelize-typescript';
+  Default,
+} from 'sequelize-typescript';
 import { Employee } from './employee.model';
 import { User } from '../../users/models/user.model';
 import { Company } from '../../companies/models/company.model';
@@ -64,7 +67,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
       DocumentCategory.EMPLOYMENT,
       DocumentCategory.EDUCATION,
       DocumentCategory.FINANCIAL,
-      DocumentCategory.OTHER
+      DocumentCategory.OTHER,
     ),
   })
   declare documentCategory: DocumentCategory;
@@ -119,7 +122,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
     type: DataType.ENUM(
       VerificationStatus.PENDING,
       VerificationStatus.VERIFIED,
-      VerificationStatus.REJECTED
+      VerificationStatus.REJECTED,
     ),
   })
   declare verificationStatus: VerificationStatus;

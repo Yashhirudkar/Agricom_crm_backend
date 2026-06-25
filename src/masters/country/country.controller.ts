@@ -26,9 +26,7 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/countries')
 export class CountryController {
-  constructor(
-    private readonly countryService: CountryService,
-  ) {}
+  constructor(private readonly countryService: CountryService) {}
 
   @Post()
   @RequirePermission('country:create')
@@ -42,7 +40,7 @@ export class CountryController {
   @RequirePermission('country:view')
   async findAll(@Query() query: QueryCountryDto) {
     const result = await this.countryService.findAll(query);
-    
+
     return result;
   }
 
@@ -50,7 +48,7 @@ export class CountryController {
   @RequirePermission('country:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const item = await this.countryService.findOne(id);
-    
+
     return item;
   }
 
@@ -67,10 +65,7 @@ export class CountryController {
   @Patch(':id/restore')
   @RequirePermission('country:update')
   @AuditLog({ entityType: 'Country', action: 'RESTORE' })
-  restore(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
+  restore(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.countryService.restore(id, req.user);
   }
 

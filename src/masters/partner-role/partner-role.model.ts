@@ -1,9 +1,22 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, Unique, Index } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  Unique,
+  Index,
+} from 'sequelize-typescript';
 
 @Table({
   tableName: 'partner_roles',
   timestamps: true,
-  indexes: [{ fields: ['is_active'] }]
+  indexes: [{ fields: ['is_active'] }],
 })
 export class PartnerRole extends Model<PartnerRole> {
   @PrimaryKey

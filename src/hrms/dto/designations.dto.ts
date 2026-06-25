@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsIn, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsIn,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDesignationDto {

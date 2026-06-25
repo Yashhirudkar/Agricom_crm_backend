@@ -21,17 +21,24 @@ export class CompanyHrPoliciesService {
     return policy;
   }
 
-  async upsertHrPolicies(companyId: number, data: UpsertCompanyHrPolicyDto, actor?: any): Promise<CompanyHrPolicy> {
+  async upsertHrPolicies(
+    companyId: number,
+    data: UpsertCompanyHrPolicyDto,
+    actor?: any,
+  ): Promise<CompanyHrPolicy> {
     let policy = await this.policyModel.findOne({ where: { companyId } });
 
     const t = await this.policyModel.sequelize.transaction();
     try {
       if (!policy) {
-        policy = await this.policyModel.create({
-          ...data,
-          companyId,
-          updatedBy: actor?.userId || null,
-        } as any, { transaction: t });
+        policy = await this.policyModel.create(
+          {
+            ...data,
+            companyId,
+            updatedBy: actor?.userId || null,
+          },
+          { transaction: t },
+        );
 
         if (actor) {
           await this.auditService.writeDiffLog({
@@ -49,10 +56,13 @@ export class CompanyHrPoliciesService {
       } else {
         const oldRecord = policy.toJSON();
 
-        await policy.update({
-          ...data,
-          updatedBy: actor?.userId || policy.updatedBy,
-        }, { transaction: t });
+        await policy.update(
+          {
+            ...data,
+            updatedBy: actor?.userId || policy.updatedBy,
+          },
+          { transaction: t },
+        );
 
         const updated = await policy.reload();
 

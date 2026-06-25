@@ -6,7 +6,7 @@ export function buildPaginatedResponse<T>(
 ) {
   const finalPage = Number(page) || 1;
   const finalLimit = Number(limit) || 10;
-  
+
   return {
     data: rows,
     total: count,

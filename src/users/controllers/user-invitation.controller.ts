@@ -81,9 +81,7 @@ export class UserInvitationController {
   // Public endpoint: accept invitation
   @Post('accept')
   @HttpCode(HttpStatus.OK)
-  async acceptInvitation(
-    @Body() dto: AcceptInvitationDto,
-  ) {
+  async acceptInvitation(@Body() dto: AcceptInvitationDto) {
     const user = await this.invitationService.acceptInvitation({
       token: dto.token,
       name: dto.name,

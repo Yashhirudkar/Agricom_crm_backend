@@ -1,4 +1,16 @@
-import { Controller, Post, Get, Body, Query, UseGuards, ParseIntPipe, HttpCode, HttpStatus, Request, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  UseGuards,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+  Request,
+  ForbiddenException,
+} from '@nestjs/common';
 import { RbacService } from '../services/rbac.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
@@ -16,7 +28,11 @@ import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
 export class RbacController {
   constructor(private readonly rbacService: RbacService) {}
 
-  private async validateRoleAccess(roleId: number, reqUser: any, isModification = false) {
+  private async validateRoleAccess(
+    roleId: number,
+    reqUser: any,
+    isModification = false,
+  ) {
     const isSuper = reqUser.type === 'super_admin';
     if (isSuper) return;
     const role = await this.rbacService.getRoleById(roleId);
@@ -53,7 +69,7 @@ export class RbacController {
   createRole(@Body() dto: CreateRoleDto, @Request() req) {
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper ? dto.clientId : req.user.clientId;
-    const isSystemRole = isSuper ? (dto.isSystemRole || false) : false;
+    const isSystemRole = isSuper ? dto.isSystemRole || false : false;
 
     return this.rbacService.createRole({
       ...dto,
@@ -70,7 +86,9 @@ export class RbacController {
     if (!isSuper) {
       const role = await this.rbacService.getRoleById(dto.id);
       if (role.clientId !== req.user.clientId) {
-        throw new ForbiddenException('You can only update your own client roles');
+        throw new ForbiddenException(
+          'You can only update your own client roles',
+        );
       }
     }
     return this.rbacService.updateRole(dto);
@@ -84,7 +102,9 @@ export class RbacController {
     if (!isSuper) {
       const role = await this.rbacService.getRoleById(dto.id);
       if (role.clientId !== req.user.clientId) {
-        throw new ForbiddenException('You can only delete your own client roles');
+        throw new ForbiddenException(
+          'You can only delete your own client roles',
+        );
       }
     }
     return this.rbacService.deleteRole(dto.id);
@@ -101,7 +121,9 @@ export class RbacController {
   ) {
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
-      ? (filterClientId ? parseInt(filterClientId, 10) : null)
+      ? filterClientId
+        ? parseInt(filterClientId, 10)
+        : null
       : req.user.clientId;
 
     const query = {
@@ -132,17 +154,22 @@ export class RbacController {
   async getRoleById(@Query('id', ParseIntPipe) id: number, @Request() req) {
     const role = await this.rbacService.getRoleById(id);
     const isSuper = req.user.type === 'super_admin';
-    if (!isSuper && role.clientId !== null && role.clientId !== req.user.clientId) {
+    if (
+      !isSuper &&
+      role.clientId !== null &&
+      role.clientId !== req.user.clientId
+    ) {
       throw new ForbiddenException('Access denied');
     }
     return role;
   }
 
-
-
   @Get('GetRolePermissions')
   @RequirePermission('roles:read')
-  async getRolePermissions(@Query('roleId', ParseIntPipe) roleId: number, @Request() req) {
+  async getRolePermissions(
+    @Query('roleId', ParseIntPipe) roleId: number,
+    @Request() req,
+  ) {
     await this.validateRoleAccess(roleId, req.user, false);
     return this.rbacService.getRolePermissions(roleId);
   }
@@ -150,9 +177,15 @@ export class RbacController {
   @Post('UpdateRolePermissions')
   @RequirePermission('roles:assign-permission')
   @HttpCode(HttpStatus.OK)
-  async updateRolePermissions(@Body() dto: UpdateRolePermissionsDto, @Request() req) {
+  async updateRolePermissions(
+    @Body() dto: UpdateRolePermissionsDto,
+    @Request() req,
+  ) {
     await this.validateRoleAccess(dto.roleId, req.user, true);
-    return this.rbacService.updateRolePermissions(dto.roleId, dto.permissionIds);
+    return this.rbacService.updateRolePermissions(
+      dto.roleId,
+      dto.permissionIds,
+    );
   }
 
   // ──────────────────────────────────────────────
@@ -179,7 +212,10 @@ export class RbacController {
 
   @Get('GetUserRoles')
   @RequirePermission('users:read')
-  async getUserRoles(@Query('userId', ParseIntPipe) userId: number, @Request() req) {
+  async getUserRoles(
+    @Query('userId', ParseIntPipe) userId: number,
+    @Request() req,
+  ) {
     await this.validateUserAccess(userId, req.user);
     return this.rbacService.getUserRoles(userId);
   }

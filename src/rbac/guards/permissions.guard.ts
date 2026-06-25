@@ -15,9 +15,13 @@ import { Role } from '../models/role.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { Company } from '../../companies/models/company.model';
 
-export function standardizePermission(permKey: string): { name: string; resource: string; action: string } {
+export function standardizePermission(permKey: string): {
+  name: string;
+  resource: string;
+  action: string;
+} {
   let [resource, action] = permKey.split(':');
-  
+
   if (action === 'view') {
     action = 'read';
   }
@@ -43,11 +47,16 @@ export function standardizePermission(permKey: string): { name: string; resource
     } else if (['delete_document'].includes(action)) {
       resource = 'employee_documents';
       action = 'delete';
-    }
-    else if (['assign_manager', 'change_manager', 'view_team', 'view_hierarchy'].includes(action)) {
+    } else if (
+      [
+        'assign_manager',
+        'change_manager',
+        'view_team',
+        'view_hierarchy',
+      ].includes(action)
+    ) {
       resource = 'employee_hierarchy';
-    }
-    else if (['manage_lifecycle', 'manage'].includes(action)) {
+    } else if (['manage_lifecycle', 'manage'].includes(action)) {
       resource = 'employee_lifecycle';
       action = 'manage';
     }
@@ -105,7 +114,9 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const userId = user.userId || user.id;
-    const requestedCompanyId = this.parseCompanyId(request.headers['x-company-id']);
+    const requestedCompanyId = this.parseCompanyId(
+      request.headers['x-company-id'],
+    );
 
     // 1. Super Admins bypass all permissions/company checks
     if (user.type === 'super_admin') {
@@ -132,7 +143,9 @@ export class PermissionsGuard implements CanActivate {
         });
 
         if (!company) {
-          throw new ForbiddenException('Company does not belong to your client organization.');
+          throw new ForbiddenException(
+            'Company does not belong to your client organization.',
+          );
         }
 
         request.activeCompanyId = requestedCompanyId;
@@ -155,20 +168,20 @@ export class PermissionsGuard implements CanActivate {
 
       if (!companyId) {
         // Fallback to user's lastCompanyId from DB
-        const fullUser = await this.userCompanyModel.sequelize!.query(
+        const fullUser = (await this.userCompanyModel.sequelize.query(
           `SELECT "lastCompanyId" FROM "users" WHERE id = :userId LIMIT 1;`,
           {
             replacements: { userId },
-            type: 'SELECT'
-          }
-        ) as any[];
+            type: 'SELECT',
+          },
+        )) as any[];
         companyId = fullUser.length > 0 ? fullUser[0].lastCompanyId : null;
       }
 
       if (!companyId) {
         // If no lastCompanyId is saved, fallback to their first active company membership
         const memberships = await this.userCompanyModel.findAll({
-          where: { userId, status: 'Active' }
+          where: { userId, status: 'Active' },
         });
         if (memberships.length > 0) {
           companyId = memberships[0].companyId;
@@ -187,12 +200,14 @@ export class PermissionsGuard implements CanActivate {
             model: Role,
             where: { isActive: true },
             required: true,
-          }
-        ]
+          },
+        ],
       });
 
       if (!membership) {
-        throw new ForbiddenException('You do not have active access to this company workspace.');
+        throw new ForbiddenException(
+          'You do not have active access to this company workspace.',
+        );
       }
 
       if (membership.roleId) {
@@ -217,8 +232,8 @@ export class PermissionsGuard implements CanActivate {
             {
               model: ModuleResource,
               required: true,
-            }
-          ]
+            },
+          ],
         },
       ],
     });
@@ -227,7 +242,10 @@ export class PermissionsGuard implements CanActivate {
     // Normalize to lowercase — DB stores action names in UPPERCASE (READ, CREATE, etc.)
     // but @RequirePermission decorators pass lowercase (users:read, roles:create, etc.)
     const grantedSet = new Set<string>(
-      rolePermissions.map((rp) => `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`),
+      rolePermissions.map(
+        (rp) =>
+          `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`,
+      ),
     );
 
     // Check every required permission

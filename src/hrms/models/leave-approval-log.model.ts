@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -8,7 +10,8 @@ import { Index, Table,
   AutoIncrement,
   AllowNull,
   CreatedAt,
-  UpdatedAt, } from 'sequelize-typescript';
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { LeaveRequest } from './leave-request.model';
 import { User } from '../../users/models/user.model';
 
@@ -40,7 +43,13 @@ export class LeaveApprovalLog extends Model<LeaveApprovalLog> {
 
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('CREATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'ESCALATED'),
+    type: DataType.ENUM(
+      'CREATED',
+      'APPROVED',
+      'REJECTED',
+      'CANCELLED',
+      'ESCALATED',
+    ),
   })
   declare action: LeaveAction;
 

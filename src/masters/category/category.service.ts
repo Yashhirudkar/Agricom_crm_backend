@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { Category } from './category.model';
@@ -19,13 +23,15 @@ export class CategoryService {
 
   async create(dto: CreateCategoryDto): Promise<Category> {
     const normalizedName = dto.name.trim().toUpperCase();
-    
+
     const existing = await this.categoryModel.findOne({
       where: { name: normalizedName },
     });
-    
+
     if (existing) {
-      throw new BadRequestException(`Category with name '${normalizedName}' already exists`);
+      throw new BadRequestException(
+        `Category with name '${normalizedName}' already exists`,
+      );
     }
 
     return this.categoryModel.create({ ...dto, name: normalizedName });
@@ -60,7 +66,9 @@ export class CategoryService {
   }
 
   async findOne(id: number): Promise<Category> {
-    const category = await this.categoryModel.findOne({ where: { id, isActive: true } });
+    const category = await this.categoryModel.findOne({
+      where: { id, isActive: true },
+    });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
@@ -81,18 +89,20 @@ export class CategoryService {
 
   async update(id: number, dto: UpdateCategoryDto): Promise<Category> {
     const category = await this.findOneActive(id);
-    
+
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
       const existing = await this.categoryModel.findOne({
-        where: { 
+        where: {
           name: normalizedName,
-          id: { [Op.ne]: id }
-        }
+          id: { [Op.ne]: id },
+        },
       });
-      
+
       if (existing) {
-        throw new BadRequestException(`Category with name '${normalizedName}' already exists`);
+        throw new BadRequestException(
+          `Category with name '${normalizedName}' already exists`,
+        );
       }
       dto.name = normalizedName;
     }
@@ -136,9 +146,9 @@ export class CategoryService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -153,7 +163,7 @@ export class CategoryService {
       ...category.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await category.destroy();

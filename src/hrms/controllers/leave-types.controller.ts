@@ -77,7 +77,11 @@ export class LeaveTypesController {
 
   @Put(':id')
   @RequirePermission('leave_types:update')
-  updateLeaveType(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateLeaveTypeDto, @Request() req) {
+  updateLeaveType(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateLeaveTypeDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.leaveTypesService.updateLeaveType(id, companyId, dto, actor);

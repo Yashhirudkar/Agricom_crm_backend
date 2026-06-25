@@ -4,106 +4,152 @@ import { Sequelize, Transaction } from 'sequelize';
  * All SQL migration tasks, extracted from run-migrations.ts for maintainability.
  * Each function accepts the active Sequelize transaction and runs its scope safely.
  */
-export async function runEmployeeMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
-  const [tableCheck] = await sequelize.query(`
+export async function runEmployeeMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  const [tableCheck] = await sequelize.query(
+    `
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
       WHERE table_schema = 'public' 
       AND table_name = 'employees'
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   const tableExists = (tableCheck[0] as any)[0]?.exists;
 
   if (!tableExists) {
-    console.log('[Migration] Table "employees" does not exist in the database. Skipping manual employee migration steps.');
+    console.log(
+      '[Migration] Table "employees" does not exist in the database. Skipping manual employee migration steps.',
+    );
     return;
   }
 
-  console.log('[Migration] Safely casting enum types for Employee Profile Expansion...');
+  console.log(
+    '[Migration] Safely casting enum types for Employee Profile Expansion...',
+  );
 
   // 1. Employee Status
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_employees_status" AS ENUM ('DRAFT', 'ONBOARDING', 'PROBATION', 'ACTIVE', 'CONFIRMED', 'NOTICE_PERIOD', 'RESIGNED', 'TERMINATED');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     UPDATE employees SET status = 'ACTIVE' WHERE status::text = 'Active';
     UPDATE employees SET status = 'TERMINATED' WHERE status::text = 'Inactive';
     UPDATE employees SET status = 'DRAFT' WHERE status::text NOT IN ('DRAFT', 'ONBOARDING', 'PROBATION', 'ACTIVE', 'CONFIRMED', 'NOTICE_PERIOD', 'RESIGNED', 'TERMINATED');
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE employees 
     ALTER COLUMN status TYPE "enum_employees_status" 
     USING status::text::"enum_employees_status";
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 2. Employment Type
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_employees_employmentType" AS ENUM ('FULL_TIME', 'PART_TIME', 'INTERN', 'CONTRACT', 'CONSULTANT');
       EXCEPTION
           WHEN duplicate_object THEN null;
       END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     UPDATE employees SET "employmentType" = 'FULL_TIME' WHERE "employmentType"::text IS NULL OR "employmentType"::text NOT IN ('FULL_TIME', 'PART_TIME', 'INTERN', 'CONTRACT', 'CONSULTANT');
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE employees 
     ALTER COLUMN "employmentType" TYPE "enum_employees_employmentType" 
     USING "employmentType"::text::"enum_employees_employmentType";
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 3. Work Mode
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_employees_workMode" AS ENUM ('REMOTE', 'HYBRID', 'OFFICE');
       EXCEPTION
           WHEN duplicate_object THEN null;
       END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS "workMode" VARCHAR(50);
     UPDATE employees SET "workMode" = 'OFFICE' WHERE "workMode"::text IS NULL OR "workMode"::text NOT IN ('REMOTE', 'HYBRID', 'OFFICE');
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE employees 
     ALTER COLUMN "workMode" TYPE "enum_employees_workMode" 
     USING "workMode"::text::"enum_employees_workMode";
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] Employee enums cast successfully.');
 }
 
-export async function runDocumentMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+export async function runDocumentMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
   console.log('[Migration] Safely expanding employee_documents table...');
 
-  const [docTableCheck] = await sequelize.query(`
+  const [docTableCheck] = await sequelize.query(
+    `
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
       WHERE table_schema = 'public' 
       AND table_name = 'employee_documents'
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   const docTableExists = (docTableCheck[0] as any)?.exists;
 
   if (!docTableExists) {
-    console.log('[Migration] Table "employee_documents" does not exist. Skipping manual document alterations.');
+    console.log(
+      '[Migration] Table "employee_documents" does not exist. Skipping manual document alterations.',
+    );
     return;
   }
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_employee_documents_documentCategory" AS ENUM ('IDENTITY', 'EMPLOYMENT', 'EDUCATION', 'FINANCIAL', 'OTHER');
     EXCEPTION
@@ -115,9 +161,12 @@ export async function runDocumentMigrations(sequelize: Sequelize, transaction: T
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "companyId" INTEGER;
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "documentCategory" "enum_employee_documents_documentCategory" DEFAULT 'OTHER';
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "documentName" VARCHAR(255);
@@ -135,22 +184,31 @@ export async function runDocumentMigrations(sequelize: Sequelize, transaction: T
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "isMandatory" BOOLEAN DEFAULT false;
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "version" INTEGER DEFAULT 1;
     ALTER TABLE "employee_documents" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     UPDATE "employee_documents" ed
     SET "companyId" = e."companyId"
     FROM "employees" e
     WHERE ed."employeeId" = e.id AND ed."companyId" IS NULL;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] employee_documents table expanded successfully.');
 }
 
-export async function runBranchMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+export async function runBranchMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
   console.log('[Migration] Safely setting up branches table...');
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "branches" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -177,17 +235,23 @@ export async function runBranchMigrations(sequelize: Sequelize, transaction: Tra
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "branches" DROP CONSTRAINT IF EXISTS "branches_companyId_branchCode_key";
     ALTER TABLE "branches" ADD CONSTRAINT "branches_companyId_branchCode_key" UNIQUE ("companyId", "branchCode");
 
     ALTER TABLE "branches" DROP CONSTRAINT IF EXISTS "branches_companyId_branchName_key";
     ALTER TABLE "branches" ADD CONSTRAINT "branches_companyId_branchName_key" UNIQUE ("companyId", "branchName");
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "branchId" INTEGER;
     
     ALTER TABLE "employees" DROP CONSTRAINT IF EXISTS "employees_branchId_fkey";
@@ -195,74 +259,103 @@ export async function runBranchMigrations(sequelize: Sequelize, transaction: Tra
 
     ALTER TABLE "branches" DROP CONSTRAINT IF EXISTS "branches_managerId_fkey";
     ALTER TABLE "branches" ADD CONSTRAINT "branches_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "employees"("id") ON DELETE SET NULL;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  console.log('[Migration] branches table and employee relation established successfully.');
+  console.log(
+    '[Migration] branches table and employee relation established successfully.',
+  );
 }
 
-export async function runLeaveMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+export async function runLeaveMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
   console.log('[Migration] Safely setting up Leave Management Enums...');
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_requests_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_requests_halfDayType" AS ENUM ('FIRST_HALF', 'SECOND_HALF');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_approval_steps_status" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'BYPASSED');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_approval_logs_action" AS ENUM ('CREATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'ESCALATED');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_types_genderRestriction" AS ENUM ('MALE', 'FEMALE');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_leave_types_maritalRestriction" AS ENUM ('MARRIED', 'UNMARRIED');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] Leave Management Enums setup successfully.');
 
   console.log('[Migration] Safely updating company_hr_policies table...');
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "company_hr_policies" ADD COLUMN IF NOT EXISTS "allowBackdatedLeave" BOOLEAN DEFAULT false;
     ALTER TABLE "company_hr_policies" ADD COLUMN IF NOT EXISTS "maxBackdatedDays" INTEGER DEFAULT 0;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] No pending manual migrations detected.');
   console.log('[Migration] Safely setting up Leave Management Tables...');
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "leave_types" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -287,9 +380,12 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       UNIQUE ("companyId", "code")
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "employee_leave_balances" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -305,9 +401,12 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       UNIQUE ("employeeId", "leaveTypeId", "year")
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "leave_requests" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -329,9 +428,12 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "leave_approval_steps" (
       "id" SERIAL PRIMARY KEY,
       "leaveRequestId" INTEGER NOT NULL REFERENCES "leave_requests"("id") ON DELETE CASCADE,
@@ -343,9 +445,12 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "leave_approval_logs" (
       "id" SERIAL PRIMARY KEY,
       "leaveRequestId" INTEGER NOT NULL REFERENCES "leave_requests"("id") ON DELETE CASCADE,
@@ -355,9 +460,12 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "leave_balance_history" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -371,16 +479,22 @@ export async function runLeaveMigrations(sequelize: Sequelize, transaction: Tran
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] Leave Management Tables created successfully.');
 }
 
-export async function runAttendanceMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+export async function runAttendanceMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
   console.log('[Migration] Safely setting up Attendance Management Tables...');
 
   // 1. Shifts table
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "shifts" (
       "id" SERIAL PRIMARY KEY,
       "companyId" INTEGER NOT NULL REFERENCES "companies"("id") ON DELETE CASCADE,
@@ -394,27 +508,36 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 2. Add shiftId reference in employees table
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "shiftId" INTEGER;
     
     ALTER TABLE "employees" DROP CONSTRAINT IF EXISTS "employees_shiftId_fkey";
     ALTER TABLE "employees" ADD CONSTRAINT "employees_shiftId_fkey" FOREIGN KEY ("shiftId") REFERENCES "shifts"("id") ON DELETE SET NULL;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 3. Create Custom Enum for Attendance Status
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_attendance_records_attendanceStatus" AS ENUM ('PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'WEEK_OFF', 'ON_LEAVE', 'HOLIDAY', 'UPCOMING');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 4. Attendance Records table
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "attendance_records" (
       "id" SERIAL PRIMARY KEY,
       "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
@@ -433,19 +556,25 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       UNIQUE ("employeeId", "date")
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 5. Create Custom Enum for Attendance Action Types
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_attendance_logs_actionType" AS ENUM ('CHECK_IN', 'CHECK_OUT', 'BREAK_START', 'BREAK_END', 'AUTO_CORRECTION');
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 6. Attendance Logs table
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "attendance_logs" (
       "id" SERIAL PRIMARY KEY,
       "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
@@ -455,10 +584,13 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
       "metadata" JSON,
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 7. Create Custom Enums for Exceptions
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
         CREATE TYPE "enum_attendance_exceptions_requestType" AS ENUM ('CORRECTION', 'MISSED_CHECKIN', 'MISSED_CHECKOUT');
     EXCEPTION
@@ -470,10 +602,13 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
     EXCEPTION
         WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 8. Attendance Exceptions table
-  await sequelize.query(`
+  await sequelize.query(
+    `
     CREATE TABLE IF NOT EXISTS "attendance_exceptions" (
       "id" SERIAL PRIMARY KEY,
       "employeeId" INTEGER NOT NULL REFERENCES "employees"("id") ON DELETE CASCADE,
@@ -487,35 +622,49 @@ export async function runAttendanceMigrations(sequelize: Sequelize, transaction:
       "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] Attendance Management Tables created successfully.');
 }
 
-export async function runMastersSidebarMigrations(sequelize: Sequelize, transaction: Transaction): Promise<void> {
+export async function runMastersSidebarMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
   console.log('[Migration] Safely setting up Masters Sidebar...');
 
   // Idempotency Check: Does the Masters folder already exist?
-  const [folderCheck] = await sequelize.query(`
+  const [folderCheck] = await sequelize.query(
+    `
     SELECT id FROM "sidebar_folders" WHERE "name" = 'Masters';
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   if ((folderCheck as any[]).length > 0) {
-    console.log('[Migration] Masters folder already exists. Skipping sidebar migration safely.');
+    console.log(
+      '[Migration] Masters folder already exists. Skipping sidebar migration safely.',
+    );
     return;
   }
 
   // Insert Folder
-  const [folderInsert] = await sequelize.query(`
+  const [folderInsert] = await sequelize.query(
+    `
     INSERT INTO "sidebar_folders" ("name", "icon_name", "sort_order", "is_active", "createdAt", "updatedAt")
     VALUES ('Masters', 'Database', 60, true, NOW(), NOW())
     RETURNING id;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   const folderId = (folderInsert as any)[0].id;
 
   // Insert Children Items
-  await sequelize.query(`
+  await sequelize.query(
+    `
     INSERT INTO "sidebar_items" ("name", "route", "icon_name", "folder_id", "sort_order", "is_active", "permission_link", "createdAt", "updatedAt")
     VALUES 
       ('Categories', '/masters/categories', 'Tags', ${folderId}, 10, true, 'category:view', NOW(), NOW()),
@@ -524,27 +673,43 @@ export async function runMastersSidebarMigrations(sequelize: Sequelize, transact
       ('Partner Roles', '/masters/partner-roles', 'UserCog', ${folderId}, 40, true, 'partnerrole:view', NOW(), NOW()),
       ('Products', '/masters/products', 'Package', ${folderId}, 50, true, 'product:view', NOW(), NOW()),
       ('Partners', '/masters/partners', 'Handshake', ${folderId}, 60, true, 'partner:view', NOW(), NOW());
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] Masters Sidebar created successfully.');
 }
 
-export async function runSidebarCollapsibleMigration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
-  console.log('[Migration] Safely adding is_collapsible column to sidebar_folders...');
+export async function runSidebarCollapsibleMigration(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log(
+    '[Migration] Safely adding is_collapsible column to sidebar_folders...',
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE sidebar_folders
     ADD COLUMN IF NOT EXISTS is_collapsible BOOLEAN DEFAULT false;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] sidebar_folders.is_collapsible column ready.');
 }
 
-export async function runCompaniesPhase1Migration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
-  console.log('[Migration] Phase 1 — Expanding companies table (Basic Info + Branding + Contact)...');
+export async function runCompaniesPhase1Migration(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log(
+    '[Migration] Phase 1 — Expanding companies table (Basic Info + Branding + Contact)...',
+  );
 
   // 1. Create company_type enum (idempotent)
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
       CREATE TYPE "enum_companies_companyType" AS ENUM (
         'PRIVATE_LTD', 'LLP', 'PARTNERSHIP', 'ENTERPRISE', 'SOLE_PROPRIETOR'
@@ -552,10 +717,13 @@ export async function runCompaniesPhase1Migration(sequelize: Sequelize, transact
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 2. Create industry_type enum (idempotent)
-  await sequelize.query(`
+  await sequelize.query(
+    `
     DO $$ BEGIN
       CREATE TYPE "enum_companies_industryType" AS ENUM (
         'AGRICULTURE', 'FINANCE', 'IT', 'HEALTHCARE', 'EDUCATION', 'OTHER'
@@ -563,10 +731,13 @@ export async function runCompaniesPhase1Migration(sequelize: Sequelize, transact
     EXCEPTION
       WHEN duplicate_object THEN null;
     END $$;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 3. Add all 8 new columns (idempotent via IF NOT EXISTS)
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "companies"
       ADD COLUMN IF NOT EXISTS "legalName"    VARCHAR(255),
       ADD COLUMN IF NOT EXISTS "companyCode"  VARCHAR(50),
@@ -576,23 +747,34 @@ export async function runCompaniesPhase1Migration(sequelize: Sequelize, transact
       ADD COLUMN IF NOT EXISTS "faviconUrl"   TEXT,
       ADD COLUMN IF NOT EXISTS "email"        VARCHAR(255),
       ADD COLUMN IF NOT EXISTS "phone"        VARCHAR(30);
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // 4. Unique constraint on companyCode (idempotent)
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "companies"
       DROP CONSTRAINT IF EXISTS "companies_companyCode_key";
     ALTER TABLE "companies"
       ADD CONSTRAINT "companies_companyCode_key" UNIQUE ("companyCode");
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] companies Phase 1 columns added successfully.');
 }
 
-export async function runCompaniesPhase2Migration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
-  console.log('[Migration] Phase 2 — Expanding companies table (Address + Website + EstablishedYear)...');
+export async function runCompaniesPhase2Migration(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log(
+    '[Migration] Phase 2 — Expanding companies table (Address + Website + EstablishedYear)...',
+  );
 
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "companies"
       ADD COLUMN IF NOT EXISTS "website"          VARCHAR(255),
       ADD COLUMN IF NOT EXISTS "country"          VARCHAR(100),
@@ -601,30 +783,45 @@ export async function runCompaniesPhase2Migration(sequelize: Sequelize, transact
       ADD COLUMN IF NOT EXISTS "address"          TEXT,
       ADD COLUMN IF NOT EXISTS "pincode"          VARCHAR(20),
       ADD COLUMN IF NOT EXISTS "established_year" INTEGER;
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   console.log('[Migration] companies Phase 2 columns added successfully.');
 }
 
-export async function runCompanyEnumRemovalMigration(sequelize: Sequelize, transaction: Transaction): Promise<void> {
-  console.log('[Migration] Phase 3 — Removing Enums and Expanding Enterprise Fields...');
+export async function runCompanyEnumRemovalMigration(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log(
+    '[Migration] Phase 3 — Removing Enums and Expanding Enterprise Fields...',
+  );
 
   // Safely alter columns from ENUM to VARCHAR
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "companies"
       ALTER COLUMN "companyType" TYPE VARCHAR(100),
       ALTER COLUMN "industryType" TYPE VARCHAR(100);
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
   // Safely add missing enterprise fields
-  await sequelize.query(`
+  await sequelize.query(
+    `
     ALTER TABLE "companies"
       ADD COLUMN IF NOT EXISTS "description" TEXT,
       ADD COLUMN IF NOT EXISTS "registration_number" VARCHAR(100),
       ADD COLUMN IF NOT EXISTS "tax_number" VARCHAR(100),
       ADD COLUMN IF NOT EXISTS "employee_count" INTEGER,
       ADD COLUMN IF NOT EXISTS "company_size" VARCHAR(50);
-  `, { transaction });
+  `,
+    { transaction },
+  );
 
-  console.log('[Migration] companies Phase 3 (Enum removal & Enterprise fields) completed successfully.');
+  console.log(
+    '[Migration] companies Phase 3 (Enum removal & Enterprise fields) completed successfully.',
+  );
 }

@@ -1,9 +1,18 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../../users/models/user.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { UserPreference } from '../../users/models/user-preference.model';
-import { ProfileActivityLog, ActorType } from '../models/profile-activity-log.model';
+import {
+  ProfileActivityLog,
+  ActorType,
+} from '../models/profile-activity-log.model';
 import { UserPasswordHistory } from '../../users/models/user-password-history.model';
 import { EmployeeDocument } from '../../hrms/models/employee-document.model';
 import { EmployeeLeaveBalance } from '../../hrms/models/employee-leave-balance.model';
@@ -26,10 +35,14 @@ export class ProfileService {
     @InjectModel(User) private userModel: typeof User,
     @InjectModel(Employee) private employeeModel: typeof Employee,
     @InjectModel(UserPreference) private userPrefModel: typeof UserPreference,
-    @InjectModel(ProfileActivityLog) private activityLogModel: typeof ProfileActivityLog,
-    @InjectModel(UserPasswordHistory) private passwordHistoryModel: typeof UserPasswordHistory,
-    @InjectModel(EmployeeDocument) private documentModel: typeof EmployeeDocument,
-    @InjectModel(EmployeeLeaveBalance) private leaveBalanceModel: typeof EmployeeLeaveBalance,
+    @InjectModel(ProfileActivityLog)
+    private activityLogModel: typeof ProfileActivityLog,
+    @InjectModel(UserPasswordHistory)
+    private passwordHistoryModel: typeof UserPasswordHistory,
+    @InjectModel(EmployeeDocument)
+    private documentModel: typeof EmployeeDocument,
+    @InjectModel(EmployeeLeaveBalance)
+    private leaveBalanceModel: typeof EmployeeLeaveBalance,
     @InjectModel(UserSession) private sessionModel: typeof UserSession,
   ) {}
 
@@ -43,7 +56,15 @@ export class ProfileService {
     const isSuperAdmin = userType === 'super_admin';
 
     const user = await this.userModel.findByPk(userId, {
-      attributes: ['id', 'name', 'email', 'avatarUrl', 'isActive', 'status', 'lastLogin'],
+      attributes: [
+        'id',
+        'name',
+        'email',
+        'avatarUrl',
+        'isActive',
+        'status',
+        'lastLogin',
+      ],
     });
 
     if (!user) throw new NotFoundException('User not found');
@@ -61,9 +82,13 @@ export class ProfileService {
         { model: Designation, attributes: ['id', 'name'] },
         { model: Branch, attributes: ['id', 'branchName'] },
         { model: Company, attributes: ['id', 'name'] },
-        { model: Employee, as: 'manager', attributes: ['id', 'firstName', 'lastName'] }
+        {
+          model: Employee,
+          as: 'manager',
+          attributes: ['id', 'firstName', 'lastName'],
+        },
       ],
-      attributes: { exclude: ['salary'] }
+      attributes: { exclude: ['salary'] },
     });
 
     return { user, employee, preferences: prefs, type: 'FULL' };
@@ -72,7 +97,7 @@ export class ProfileService {
   async getPreferences(userId: number) {
     let prefs = await this.userPrefModel.findOne({ where: { userId } });
     if (!prefs) {
-      prefs = await this.userPrefModel.create({ userId } as any);
+      prefs = await this.userPrefModel.create({ userId });
     }
     return prefs;
   }
@@ -141,11 +166,24 @@ export class ProfileService {
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });
     if (!employee) return { completionPercentage: 0 };
-    
+
     let total = 0;
     let filled = 0;
-    const fields = ['firstName', 'lastName', 'mobile', 'personalEmail', 'dob', 'gender', 'address', 'city', 'state', 'country', 'emergencyContactName', 'emergencyContactNumber'];
-    fields.forEach(f => {
+    const fields = [
+      'firstName',
+      'lastName',
+      'mobile',
+      'personalEmail',
+      'dob',
+      'gender',
+      'address',
+      'city',
+      'state',
+      'country',
+      'emergencyContactName',
+      'emergencyContactNumber',
+    ];
+    fields.forEach((f) => {
       total++;
       if (employee[f as keyof Employee]) filled++;
     });
@@ -155,7 +193,7 @@ export class ProfileService {
     if (user?.avatarUrl) filled++;
 
     return {
-      completionPercentage: Math.round((filled / total) * 100)
+      completionPercentage: Math.round((filled / total) * 100),
     };
   }
 
@@ -167,8 +205,15 @@ export class ProfileService {
     if (!employee) throw new NotFoundException('Employee not found');
 
     // Optimistic locking with 1 second precision allowance
-    if (Math.abs(new Date(dto.updatedAt).getTime() - new Date(employee.updatedAt).getTime()) > 1000) {
-      throw new ConflictException('Record was updated by another process. Please refresh.');
+    if (
+      Math.abs(
+        new Date(dto.updatedAt).getTime() -
+          new Date(employee.updatedAt).getTime(),
+      ) > 1000
+    ) {
+      throw new ConflictException(
+        'Record was updated by another process. Please refresh.',
+      );
     }
 
     const oldValues = { ...employee.toJSON() };
@@ -191,7 +236,11 @@ export class ProfileService {
     const userAgent = req.headers['user-agent'];
 
     for (const key of Object.keys(dto)) {
-      if (key !== 'updatedAt' && oldValues[key] !== (dto as any)[key] && (dto as any)[key] !== undefined) {
+      if (
+        key !== 'updatedAt' &&
+        oldValues[key] !== (dto as any)[key] &&
+        (dto as any)[key] !== undefined
+      ) {
         await this.activityLogModel.create({
           userId,
           fieldName: key,
@@ -200,7 +249,7 @@ export class ProfileService {
           actorType: ActorType.EMPLOYEE,
           ipAddress,
           userAgent,
-        } as any);
+        });
       }
     }
 
@@ -208,15 +257,26 @@ export class ProfileService {
     return { message: 'Updated successfully', updatedAt: employee.updatedAt };
   }
 
-  async updateEmergencyContact(userId: number, dto: UpdateEmergencyContactDto, req: any) {
+  async updateEmergencyContact(
+    userId: number,
+    dto: UpdateEmergencyContactDto,
+    req: any,
+  ) {
     const user = await this.userModel.findByPk(userId);
     this.checkActive(user);
 
     const employee = await this.employeeModel.findOne({ where: { userId } });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    if (Math.abs(new Date(dto.updatedAt).getTime() - new Date(employee.updatedAt).getTime()) > 1000) {
-      throw new ConflictException('Record was updated by another process. Please refresh.');
+    if (
+      Math.abs(
+        new Date(dto.updatedAt).getTime() -
+          new Date(employee.updatedAt).getTime(),
+      ) > 1000
+    ) {
+      throw new ConflictException(
+        'Record was updated by another process. Please refresh.',
+      );
     }
 
     const oldValues = { ...employee.toJSON() };
@@ -231,7 +291,11 @@ export class ProfileService {
     const userAgent = req.headers['user-agent'];
 
     for (const key of Object.keys(dto)) {
-      if (key !== 'updatedAt' && oldValues[key] !== (dto as any)[key] && (dto as any)[key] !== undefined) {
+      if (
+        key !== 'updatedAt' &&
+        oldValues[key] !== (dto as any)[key] &&
+        (dto as any)[key] !== undefined
+      ) {
         await this.activityLogModel.create({
           userId,
           fieldName: key,
@@ -240,7 +304,7 @@ export class ProfileService {
           actorType: ActorType.EMPLOYEE,
           ipAddress,
           userAgent,
-        } as any);
+        });
       }
     }
 
@@ -251,17 +315,34 @@ export class ProfileService {
   async updatePreferences(userId: number, dto: UpdatePreferencesDto) {
     let prefs = await this.userPrefModel.findOne({ where: { userId } });
     if (!prefs) {
-      prefs = await this.userPrefModel.create({ userId } as any);
+      prefs = await this.userPrefModel.create({ userId });
     } else {
-      if (dto.updatedAt && Math.abs(new Date(dto.updatedAt).getTime() - new Date(prefs.updatedAt).getTime()) > 1000) {
-        throw new ConflictException('Record was updated by another process. Please refresh.');
+      if (
+        dto.updatedAt &&
+        Math.abs(
+          new Date(dto.updatedAt).getTime() -
+            new Date(prefs.updatedAt).getTime(),
+        ) > 1000
+      ) {
+        throw new ConflictException(
+          'Record was updated by another process. Please refresh.',
+        );
       }
     }
 
     await prefs.update({
-      twoFactorEnabled: dto.twoFactorEnabled !== undefined ? dto.twoFactorEnabled : prefs.twoFactorEnabled,
-      emailNotifications: dto.emailNotifications !== undefined ? dto.emailNotifications : prefs.emailNotifications,
-      pushNotifications: dto.pushNotifications !== undefined ? dto.pushNotifications : prefs.pushNotifications,
+      twoFactorEnabled:
+        dto.twoFactorEnabled !== undefined
+          ? dto.twoFactorEnabled
+          : prefs.twoFactorEnabled,
+      emailNotifications:
+        dto.emailNotifications !== undefined
+          ? dto.emailNotifications
+          : prefs.emailNotifications,
+      pushNotifications:
+        dto.pushNotifications !== undefined
+          ? dto.pushNotifications
+          : prefs.pushNotifications,
       theme: dto.theme !== undefined ? dto.theme : prefs.theme,
     });
 
@@ -318,7 +399,7 @@ export class ProfileService {
     await this.passwordHistoryModel.create({
       userId,
       passwordHash: hashedNew,
-    } as any);
+    });
 
     // Prune history to last 5
     const newHistories = await this.passwordHistoryModel.findAll({

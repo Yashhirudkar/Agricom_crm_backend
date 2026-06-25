@@ -1,4 +1,6 @@
-import { Index, Table,
+import {
+  Index,
+  Table,
   Column,
   Model,
   DataType,
@@ -8,7 +10,8 @@ import { Index, Table,
   AutoIncrement,
   AllowNull,
   CreatedAt,
-  UpdatedAt, } from 'sequelize-typescript';
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
 import { Company } from '../../companies/models/company.model';

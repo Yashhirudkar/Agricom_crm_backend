@@ -19,7 +19,13 @@ import { LeaveRequestsService } from '../services/leave-requests.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { ApplyLeaveDto, ApproveLeaveDto, RejectLeaveDto, CancelLeaveDto, GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
+import {
+  ApplyLeaveDto,
+  ApproveLeaveDto,
+  RejectLeaveDto,
+  CancelLeaveDto,
+  GetLeaveRequestsFilterDto,
+} from '../dto/leave-requests.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
 
@@ -53,12 +59,19 @@ export class LeaveRequestsController {
   async applyLeave(
     @Body() dto: ApplyLeaveDto,
     @UploadedFile() file: Express.Multer.File,
-    @Request() req
+    @Request() req,
   ) {
     if (file) {
-      const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      const allowedMimeTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+      ];
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException(`File type ${file.mimetype} is not allowed.`);
+        throw new BadRequestException(
+          `File type ${file.mimetype} is not allowed.`,
+        );
       }
       if (file.size > 10 * 1024 * 1024) {
         throw new BadRequestException('File size exceeds the 10 MB limit');
@@ -70,10 +83,18 @@ export class LeaveRequestsController {
     const employeeId = req.user.employeeId;
 
     if (!employeeId) {
-      throw new BadRequestException('Employee profile not linked to your user account. Admins must link a profile to apply for leave.');
+      throw new BadRequestException(
+        'Employee profile not linked to your user account. Admins must link a profile to apply for leave.',
+      );
     }
 
-    return this.leaveRequestsService.applyLeave(employeeId, companyId, dto, file, actor);
+    return this.leaveRequestsService.applyLeave(
+      employeeId,
+      companyId,
+      dto,
+      file,
+      actor,
+    );
   }
 
   @Get()
@@ -92,7 +113,10 @@ export class LeaveRequestsController {
     if (!employeeId) {
       return [];
     }
-    return this.leaveRequestsService.getLeaveRequests(companyId, { ...query, employeeId });
+    return this.leaveRequestsService.getLeaveRequests(companyId, {
+      ...query,
+      employeeId,
+    });
   }
 
   @Get('dashboard/summary')
@@ -106,7 +130,7 @@ export class LeaveRequestsController {
         pendingApprovals: 0,
         balances: [],
         approvedThisMonth: 0,
-        rejectedCount: 0
+        rejectedCount: 0,
       };
     }
 
@@ -122,46 +146,88 @@ export class LeaveRequestsController {
 
   @Put(':id/approve')
   @RequirePermission('leave:approve')
-  async approveLeave(@Param('id', ParseIntPipe) id: number, @Body() dto: ApproveLeaveDto, @Request() req) {
+  async approveLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ApproveLeaveDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
     if (!approverId && actor.type === 'super_admin') {
-      approverId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
+      approverId =
+        await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(
+          companyId,
+        );
     }
 
-    if (!approverId) throw new BadRequestException('Approver profile not linked');
-    return this.leaveRequestsService.approveLeave(id, companyId, approverId, dto, actor);
+    if (!approverId)
+      throw new BadRequestException('Approver profile not linked');
+    return this.leaveRequestsService.approveLeave(
+      id,
+      companyId,
+      approverId,
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/reject')
   @RequirePermission('leave:approve')
-  async rejectLeave(@Param('id', ParseIntPipe) id: number, @Body() dto: RejectLeaveDto, @Request() req) {
+  async rejectLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RejectLeaveDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
     if (!approverId && actor.type === 'super_admin') {
-      approverId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
+      approverId =
+        await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(
+          companyId,
+        );
     }
 
-    if (!approverId) throw new BadRequestException('Approver profile not linked');
-    return this.leaveRequestsService.rejectLeave(id, companyId, approverId, dto, actor);
+    if (!approverId)
+      throw new BadRequestException('Approver profile not linked');
+    return this.leaveRequestsService.rejectLeave(
+      id,
+      companyId,
+      approverId,
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/cancel')
   @RequirePermission('leave:create')
-  async cancelLeave(@Param('id', ParseIntPipe) id: number, @Body() dto: CancelLeaveDto, @Request() req) {
+  async cancelLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelLeaveDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     let employeeId = req.user.employeeId;
 
     if (!employeeId && actor.type === 'super_admin') {
-      employeeId = await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(companyId);
+      employeeId =
+        await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(
+          companyId,
+        );
     }
 
-    if (!employeeId) throw new BadRequestException('Employee profile not linked');
-    return this.leaveRequestsService.cancelLeave(id, companyId, employeeId, dto, actor);
+    if (!employeeId)
+      throw new BadRequestException('Employee profile not linked');
+    return this.leaveRequestsService.cancelLeave(
+      id,
+      companyId,
+      employeeId,
+      dto,
+      actor,
+    );
   }
 }

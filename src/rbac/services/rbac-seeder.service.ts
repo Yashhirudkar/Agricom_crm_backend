@@ -16,8 +16,6 @@ const SEED_CLIENT_NAME = 'TNT Group';
 const SEED_CLIENT_EMAIL = 'admin@tntgroup.com';
 const SEED_CLIENT_PASSWORD = 'password123';
 
-
-
 @Injectable()
 export class RbacSeederService implements OnApplicationBootstrap {
   private readonly logger = new Logger(RbacSeederService.name);
@@ -32,7 +30,7 @@ export class RbacSeederService implements OnApplicationBootstrap {
     private readonly userModel: typeof User,
     @InjectModel(Client)
     private readonly clientModel: typeof Client,
-  ) { }
+  ) {}
 
   async onApplicationBootstrap() {
     if (process.env.SEED_DB !== 'true') {
@@ -73,8 +71,6 @@ export class RbacSeederService implements OnApplicationBootstrap {
       } as any,
     });
 
-
-
     // 4. Ensure Super Admin user exists
     let adminUser = await this.userModel.findOne({
       where: { email: SUPER_ADMIN_EMAIL },
@@ -89,7 +85,7 @@ export class RbacSeederService implements OnApplicationBootstrap {
         password: hashedPassword,
         isActive: true,
         companyId: null,
-      } as any);
+      });
       this.logger.log(`Super Admin user created: ${SUPER_ADMIN_EMAIL}`);
     }
 
@@ -100,7 +96,7 @@ export class RbacSeederService implements OnApplicationBootstrap {
     });
 
     // 6. Create Seed Client (TNT Group)
-    let tntClient = await this.clientModel.findOne({
+    const tntClient = await this.clientModel.findOne({
       where: { email: SEED_CLIENT_EMAIL },
     });
 
@@ -114,8 +110,10 @@ export class RbacSeederService implements OnApplicationBootstrap {
         isActive: true,
         allowedCompanies: 3,
         allowedUsers: 15,
-      } as any);
-      this.logger.log(`Seed Client created: ${SEED_CLIENT_NAME} (${SEED_CLIENT_EMAIL})`);
+      });
+      this.logger.log(
+        `Seed Client created: ${SEED_CLIENT_NAME} (${SEED_CLIENT_EMAIL})`,
+      );
     }
 
     this.logger.log('RBAC & Multi-Tenant seeding completed successfully.');

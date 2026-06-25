@@ -42,13 +42,12 @@ export class UsersController {
 
   @Get('GetUsers')
   @RequirePermission('users:read')
-  async getUsers(
-    @Request() req,
-    @Query() filterDto: GetUsersFilterDto,
-  ) {
+  async getUsers(@Request() req, @Query() filterDto: GetUsersFilterDto) {
     const isSuper = req.user.type === 'super_admin';
     const clientId = isSuper
-      ? (filterDto.clientId ? parseInt(filterDto.clientId, 10) : null)
+      ? filterDto.clientId
+        ? parseInt(filterDto.clientId, 10)
+        : null
       : req.user.clientId;
 
     const filters: any = {
@@ -58,10 +57,12 @@ export class UsersController {
       page: filterDto.page ? parseInt(filterDto.page, 10) : 1,
       limit: filterDto.limit ? parseInt(filterDto.limit, 10) : 20,
     };
-    if (filterDto.companyId) filters.companyId = parseInt(filterDto.companyId, 10);
+    if (filterDto.companyId)
+      filters.companyId = parseInt(filterDto.companyId, 10);
     if (filterDto.roleId) filters.roleId = parseInt(filterDto.roleId, 10);
 
-    const { data: users, meta: paginationMeta } = await this.usersService.getUsers(filters);
+    const { data: users, meta: paginationMeta } =
+      await this.usersService.getUsers(filters);
 
     if (!isSuper && clientId) {
       const client = await this.clientModel.findByPk(clientId);
@@ -91,7 +92,9 @@ export class UsersController {
 
     if (isSuper) {
       if (!dto.clientId) {
-        throw new ForbiddenException('Super Admin must specify a clientId to create a user');
+        throw new ForbiddenException(
+          'Super Admin must specify a clientId to create a user',
+        );
       }
       targetClientId = dto.clientId;
     }
@@ -101,7 +104,9 @@ export class UsersController {
 
     const currentCount = await this.usersService.countByClient(targetClientId);
     if (currentCount >= client.allowedUsers) {
-      throw new ForbiddenException(`User limit reached. Maximum allowed: ${client.allowedUsers}`);
+      throw new ForbiddenException(
+        `User limit reached. Maximum allowed: ${client.allowedUsers}`,
+      );
     }
 
     const actor = {
@@ -111,10 +116,13 @@ export class UsersController {
       userAgent: req.headers['user-agent'],
     };
 
-    return this.usersService.createUser({
-      ...dto,
-      clientId: targetClientId,
-    }, actor);
+    return this.usersService.createUser(
+      {
+        ...dto,
+        clientId: targetClientId,
+      },
+      actor,
+    );
   }
 
   @Post('UpdateUser')
@@ -128,7 +136,9 @@ export class UsersController {
       if (!targetUser) throw new ForbiddenException('User not found');
 
       if (targetUser.clientId !== req.user.clientId) {
-        throw new ForbiddenException('You can only update users in your own client organization');
+        throw new ForbiddenException(
+          'You can only update users in your own client organization',
+        );
       }
     }
 
@@ -148,7 +158,11 @@ export class UsersController {
         if (item.remove) {
           await this.usersService.removeUserFromCompany(dto.id, item.companyId);
         } else {
-          await this.usersService.addUserToCompany(dto.id, item.companyId, item.roleId);
+          await this.usersService.addUserToCompany(
+            dto.id,
+            item.companyId,
+            item.roleId,
+          );
         }
       }
     }
@@ -167,7 +181,9 @@ export class UsersController {
       if (!targetUser) throw new ForbiddenException('User not found');
 
       if (targetUser.clientId !== req.user.clientId) {
-        throw new ForbiddenException('You can only delete users in your own client organization');
+        throw new ForbiddenException(
+          'You can only delete users in your own client organization',
+        );
       }
     }
 
@@ -205,7 +221,10 @@ export class UsersController {
   @Post('AssignUserToCompany')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async assignUserToCompany(@Body() dto: AssignUserToCompanyDto, @Request() req) {
+  async assignUserToCompany(
+    @Body() dto: AssignUserToCompanyDto,
+    @Request() req,
+  ) {
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');
@@ -215,27 +234,40 @@ export class UsersController {
 
     if (!isSuper) {
       if (targetUser.clientId !== req.user.clientId) {
-        throw new ForbiddenException('User does not belong to your client organization');
+        throw new ForbiddenException(
+          'User does not belong to your client organization',
+        );
       }
       if (company.clientId !== req.user.clientId) {
-        throw new ForbiddenException('Company does not belong to your client organization');
+        throw new ForbiddenException(
+          'Company does not belong to your client organization',
+        );
       }
     }
 
-    return this.usersService.addUserToCompany(dto.userId, dto.companyId, dto.roleId);
+    return this.usersService.addUserToCompany(
+      dto.userId,
+      dto.companyId,
+      dto.roleId,
+    );
   }
 
   @Post('RemoveUserFromCompany')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async removeUserFromCompany(@Body() dto: RemoveUserFromCompanyDto, @Request() req) {
+  async removeUserFromCompany(
+    @Body() dto: RemoveUserFromCompanyDto,
+    @Request() req,
+  ) {
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');
 
     if (!isSuper) {
       if (targetUser.clientId !== req.user.clientId) {
-        throw new ForbiddenException('User does not belong to your client organization');
+        throw new ForbiddenException(
+          'User does not belong to your client organization',
+        );
       }
     }
 
@@ -246,18 +278,27 @@ export class UsersController {
   @Post('UpdateUserCompanyRole')
   @RequirePermission('users:update')
   @HttpCode(HttpStatus.OK)
-  async updateUserCompanyRole(@Body() dto: UpdateUserCompanyRoleDto, @Request() req) {
+  async updateUserCompanyRole(
+    @Body() dto: UpdateUserCompanyRoleDto,
+    @Request() req,
+  ) {
     const isSuper = req.user.type === 'super_admin';
     const targetUser = await this.usersService.findById(dto.userId);
     if (!targetUser) throw new NotFoundException('User not found');
 
     if (!isSuper) {
       if (targetUser.clientId !== req.user.clientId) {
-        throw new ForbiddenException('User does not belong to your client organization');
+        throw new ForbiddenException(
+          'User does not belong to your client organization',
+        );
       }
     }
 
-    return this.usersService.updateUserCompanyRole(dto.userId, dto.companyId, dto.roleId);
+    return this.usersService.updateUserCompanyRole(
+      dto.userId,
+      dto.companyId,
+      dto.roleId,
+    );
   }
 
   @Get('options')

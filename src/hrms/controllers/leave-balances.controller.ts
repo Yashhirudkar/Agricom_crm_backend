@@ -27,14 +27,12 @@ export class LeaveBalancesController {
     return parseInt(companyId, 10);
   }
 
-
-
   @Get('employee/:employeeId')
   @RequirePermission('leave:read')
   async getBalancesForEmployee(
     @Param('employeeId') employeeIdParam: string,
     @Query('year') yearParam: string,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = {
@@ -44,8 +42,12 @@ export class LeaveBalancesController {
 
     let employeeId: number;
 
-    if (employeeIdParam === 'undefined' || employeeIdParam === 'null' || employeeIdParam === 'me') {
-      let resolvedId = req.user.employeeId;
+    if (
+      employeeIdParam === 'undefined' ||
+      employeeIdParam === 'null' ||
+      employeeIdParam === 'me'
+    ) {
+      const resolvedId = req.user.employeeId;
       if (!resolvedId) {
         return []; // Admin with no profile has no balances
       }
@@ -53,15 +55,19 @@ export class LeaveBalancesController {
     } else {
       employeeId = parseInt(employeeIdParam, 10);
       if (isNaN(employeeId)) {
-        throw new BadRequestException('Validation failed (numeric string is expected)');
+        throw new BadRequestException(
+          'Validation failed (numeric string is expected)',
+        );
       }
     }
 
     // Dynamic Auth Check: Allow if user is checking their own balance or has leave:read permission
 
-
-
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
-    return this.leaveBalancesService.getBalancesForEmployee(employeeId, companyId, year);
+    return this.leaveBalancesService.getBalancesForEmployee(
+      employeeId,
+      companyId,
+      year,
+    );
   }
 }

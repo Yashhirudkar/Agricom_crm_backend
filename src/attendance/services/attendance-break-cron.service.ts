@@ -1,8 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
-import { AttendanceRecord, AttendanceState, AttendanceStatus } from '../models/attendance-record.model';
-import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.model';
+import {
+  AttendanceRecord,
+  AttendanceState,
+  AttendanceStatus,
+} from '../models/attendance-record.model';
+import {
+  AttendanceLog,
+  AttendanceActionType,
+} from '../models/attendance-log.model';
 import { CompanyBreakPolicy } from '../models/company-break-policy.model';
 import { Employee, EmployeeStatus } from '../../hrms/models/employee.model';
 import { Op } from 'sequelize';
@@ -34,7 +41,12 @@ export class AttendanceBreakCronService {
       // Note: In a robust multi-timezone app, we should check against company/branch timezone.
       // For simplicity, we use the server local time for the cron matching or Asia/Kolkata.
       const tz = 'Asia/Kolkata';
-      const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false, timeZone: tz, hour: '2-digit', minute: '2-digit' });
+      const currentTimeStr = now.toLocaleTimeString('en-US', {
+        hour12: false,
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+      });
       const todayDateStr = now.toLocaleDateString('en-CA', { timeZone: tz });
 
       // Fetch all active automatic policies
@@ -58,11 +70,13 @@ export class AttendanceBreakCronService {
 
         // Condition 1: Break needs to START
         // If current time is past start time but before end time, they should be ON_BREAK
-        const shouldBeOnBreak = currentMins >= policyStartMins && currentMins < policyEndMins;
+        const shouldBeOnBreak =
+          currentMins >= policyStartMins && currentMins < policyEndMins;
 
         // Condition 2: Break needs to END
         // If current time is just past the end time, they should return to WORKING
-        const shouldEndBreak = currentMins >= policyEndMins && currentMins < policyEndMins + 5;
+        const shouldEndBreak =
+          currentMins >= policyEndMins && currentMins < policyEndMins + 5;
 
         if (shouldBeOnBreak) {
           const mutated = await this.startBreaks(policy, todayDateStr, now);
@@ -79,7 +93,7 @@ export class AttendanceBreakCronService {
         if (!companyRecordsMap.has(rec.companyId)) {
           companyRecordsMap.set(rec.companyId, []);
         }
-        companyRecordsMap.get(rec.companyId)!.push(rec);
+        companyRecordsMap.get(rec.companyId).push(rec);
       }
 
       for (const [companyId, records] of companyRecordsMap.entries()) {
@@ -87,14 +101,23 @@ export class AttendanceBreakCronService {
           try {
             this.attendanceGateway.emitBatchUpdate(records, companyId);
           } catch (err) {
-            this.logger.error(`Failed to emit batch socket update for Company ${companyId}`, err);
+            this.logger.error(
+              `Failed to emit batch socket update for Company ${companyId}`,
+              err,
+            );
           }
         } else {
           for (const record of records) {
             try {
-              this.attendanceGateway.emitAttendanceUpdate('break_update', record);
+              this.attendanceGateway.emitAttendanceUpdate(
+                'break_update',
+                record,
+              );
             } catch (err) {
-              this.logger.error(`Failed to emit socket update for Employee ${record.employeeId}`, err);
+              this.logger.error(
+                `Failed to emit socket update for Employee ${record.employeeId}`,
+                err,
+              );
             }
           }
         }
@@ -106,7 +129,11 @@ export class AttendanceBreakCronService {
     }
   }
 
-  private async startBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date): Promise<AttendanceRecord[]> {
+  private async startBreaks(
+    policy: CompanyBreakPolicy,
+    dateStr: string,
+    timestamp: Date,
+  ): Promise<AttendanceRecord[]> {
     // Find all records that are WORKING for this company today
     const records = await this.recordModel.findAll({
       where: {
@@ -119,37 +146,52 @@ export class AttendanceBreakCronService {
     const mutated: AttendanceRecord[] = [];
 
     for (const record of records) {
-      const t = await this.recordModel.sequelize!.transaction();
+      const t = await this.recordModel.sequelize.transaction();
       try {
-        await record.update({
-          attendanceState: AttendanceState.ON_BREAK,
-        }, { transaction: t });
-
-        await this.logModel.create({
-          employeeId: record.employeeId,
-          attendanceRecordId: record.id,
-          actionType: AttendanceActionType.BREAK_START,
-          timestamp,
-          metadata: {
-            policyId: policy.id,
-            policyName: policy.name,
-            autoTriggered: true,
+        await record.update(
+          {
+            attendanceState: AttendanceState.ON_BREAK,
           },
-        } as any, { transaction: t });
+          { transaction: t },
+        );
+
+        await this.logModel.create(
+          {
+            employeeId: record.employeeId,
+            attendanceRecordId: record.id,
+            actionType: AttendanceActionType.BREAK_START,
+            timestamp,
+            metadata: {
+              policyId: policy.id,
+              policyName: policy.name,
+              autoTriggered: true,
+            },
+          },
+          { transaction: t },
+        );
 
         await t.commit();
         mutated.push(record);
-        this.logger.log(`Auto started break for Employee ${record.employeeId} under policy ${policy.name}`);
+        this.logger.log(
+          `Auto started break for Employee ${record.employeeId} under policy ${policy.name}`,
+        );
       } catch (err) {
         await t.rollback();
-        this.logger.error(`Failed to auto-start break for Employee ${record.employeeId}`, err);
+        this.logger.error(
+          `Failed to auto-start break for Employee ${record.employeeId}`,
+          err,
+        );
       }
     }
 
     return mutated;
   }
 
-  private async endBreaks(policy: CompanyBreakPolicy, dateStr: string, timestamp: Date): Promise<AttendanceRecord[]> {
+  private async endBreaks(
+    policy: CompanyBreakPolicy,
+    dateStr: string,
+    timestamp: Date,
+  ): Promise<AttendanceRecord[]> {
     // Find all records that are ON_BREAK for this company today
     const records = await this.recordModel.findAll({
       where: {
@@ -162,32 +204,43 @@ export class AttendanceBreakCronService {
     const mutated: AttendanceRecord[] = [];
 
     for (const record of records) {
-      // Before blindly ending, verify they are actually on THIS break using logs, 
+      // Before blindly ending, verify they are actually on THIS break using logs,
       // but to keep it simple, we just end the break and return them to WORKING.
-      const t = await this.recordModel.sequelize!.transaction();
+      const t = await this.recordModel.sequelize.transaction();
       try {
-        await record.update({
-          attendanceState: AttendanceState.WORKING,
-        }, { transaction: t });
-
-        await this.logModel.create({
-          employeeId: record.employeeId,
-          attendanceRecordId: record.id,
-          actionType: AttendanceActionType.BREAK_END,
-          timestamp,
-          metadata: {
-            policyId: policy.id,
-            policyName: policy.name,
-            autoTriggered: true,
+        await record.update(
+          {
+            attendanceState: AttendanceState.WORKING,
           },
-        } as any, { transaction: t });
+          { transaction: t },
+        );
+
+        await this.logModel.create(
+          {
+            employeeId: record.employeeId,
+            attendanceRecordId: record.id,
+            actionType: AttendanceActionType.BREAK_END,
+            timestamp,
+            metadata: {
+              policyId: policy.id,
+              policyName: policy.name,
+              autoTriggered: true,
+            },
+          },
+          { transaction: t },
+        );
 
         await t.commit();
         mutated.push(record);
-        this.logger.log(`Auto ended break for Employee ${record.employeeId} under policy ${policy.name}`);
+        this.logger.log(
+          `Auto ended break for Employee ${record.employeeId} under policy ${policy.name}`,
+        );
       } catch (err) {
         await t.rollback();
-        this.logger.error(`Failed to auto-end break for Employee ${record.employeeId}`, err);
+        this.logger.error(
+          `Failed to auto-end break for Employee ${record.employeeId}`,
+          err,
+        );
       }
     }
 

@@ -60,13 +60,21 @@ export class AttachmentsController {
       },
       fileFilter: (req, file, cb) => {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-          return cb(new BadRequestException(`File type ${file.mimetype} is not allowed. Allowed types: pdf, jpg, jpeg, png, docx, xlsx.`), false);
+          return cb(
+            new BadRequestException(
+              `File type ${file.mimetype} is not allowed. Allowed types: pdf, jpg, jpeg, png, docx, xlsx.`,
+            ),
+            false,
+          );
         }
         // Double check extension just in case
         const ext = extname(file.originalname).toLowerCase();
         const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx'];
         if (!allowedExts.includes(ext)) {
-          return cb(new BadRequestException(`File extension ${ext} is not allowed.`), false);
+          return cb(
+            new BadRequestException(`File extension ${ext} is not allowed.`),
+            false,
+          );
         }
         cb(null, true);
       },
@@ -75,7 +83,9 @@ export class AttachmentsController {
   @RequirePermission('attachments:upload')
   uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : null;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : null;
 
     if (!companyId) {
       // Cleanup the uploaded file if companyId is missing since multer saves it before the interceptor throws
@@ -95,20 +105,32 @@ export class AttachmentsController {
 
   @Get('download/:filename')
   @RequirePermission('attachments:download')
-  downloadFile(@Param('filename') filename: string, @Request() req, @Res() res: Response) {
+  downloadFile(
+    @Param('filename') filename: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
     // Basic path traversal protection
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    if (
+      filename.includes('..') ||
+      filename.includes('/') ||
+      filename.includes('\\')
+    ) {
       throw new BadRequestException('Invalid filename');
     }
 
     // Verify ownership
-    const isSuper = req.user?.type === 'super_admin' || req.user?.clientId === null;
-    
+    const isSuper =
+      req.user?.type === 'super_admin' || req.user?.clientId === null;
+
     if (!isSuper) {
       const parts = filename.split('_');
       if (parts.length >= 2 && parts[0] === 'client') {
         const fileClientId = parts[1];
-        if (fileClientId !== 'global' && fileClientId !== String(req.user.clientId)) {
+        if (
+          fileClientId !== 'global' &&
+          fileClientId !== String(req.user.clientId)
+        ) {
           throw new ForbiddenException('Access denied to this file');
         }
       } else {

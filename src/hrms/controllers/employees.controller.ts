@@ -22,7 +22,15 @@ import { EmployeesService } from '../services/employees.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateEmployeeDto, UpdateEmployeeDto, GetEmployeesFilterDto, AddDocumentDto, VerifyDocumentDto, ChangeManagerDto, TransitionLifecycleDto } from '../dto/employees.dto';
+import {
+  CreateEmployeeDto,
+  UpdateEmployeeDto,
+  GetEmployeesFilterDto,
+  AddDocumentDto,
+  VerifyDocumentDto,
+  ChangeManagerDto,
+  TransitionLifecycleDto,
+} from '../dto/employees.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { extname } from 'path';
@@ -30,7 +38,7 @@ import { extname } from 'path';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) { }
+  constructor(private readonly employeesService: EmployeesService) {}
 
   private getCompanyId(req: any): number {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;
@@ -49,8 +57,6 @@ export class EmployeesController {
       type: req.user.type || null,
     };
   }
-
-
 
   @Post()
   @RequirePermission('employees:create')
@@ -77,7 +83,12 @@ export class EmployeesController {
     @Query('limit') limit?: string,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.employeesService.getEmployeesForOptions(companyId, search, page, limit);
+    return this.employeesService.getEmployeesForOptions(
+      companyId,
+      search,
+      page,
+      limit,
+    );
   }
 
   @Get('org-chart/full')
@@ -97,7 +108,11 @@ export class EmployeesController {
 
   @Put(':id')
   @RequirePermission('employees:update')
-  updateEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEmployeeDto, @Request() req) {
+  updateEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateEmployeeDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.employeesService.updateEmployee(id, companyId, dto, actor);
@@ -115,52 +130,111 @@ export class EmployeesController {
 
   @Post(':id/start-onboarding')
   @RequirePermission('employee_lifecycle:manage')
-  startOnboarding(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  startOnboarding(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'ONBOARDING', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'ONBOARDING',
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/start-probation')
   @RequirePermission('employee_lifecycle:manage')
-  startProbation(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  startProbation(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'PROBATION', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'PROBATION',
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/confirm')
   @RequirePermission('employee_lifecycle:manage')
-  confirmEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  confirmEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'CONFIRMED', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'CONFIRMED',
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/resign')
   @RequirePermission('employee_lifecycle:manage')
-  resignEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  resignEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'RESIGNED', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'RESIGNED',
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/start-notice-period')
   @RequirePermission('employee_lifecycle:manage')
-  startNoticePeriod(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  startNoticePeriod(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'NOTICE_PERIOD', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'NOTICE_PERIOD',
+      dto,
+      actor,
+    );
   }
 
   @Put(':id/terminate')
   @RequirePermission('employee_lifecycle:manage')
-  terminateEmployee(@Param('id', ParseIntPipe) id: number, @Body() dto: TransitionLifecycleDto, @Request() req) {
+  terminateEmployee(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: TransitionLifecycleDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.transitionLifecycle(id, companyId, 'TERMINATED', dto, actor);
+    return this.employeesService.transitionLifecycle(
+      id,
+      companyId,
+      'TERMINATED',
+      dto,
+      actor,
+    );
   }
-
 
   // --- Organization Hierarchy ---
 
@@ -187,7 +261,11 @@ export class EmployeesController {
 
   @Put(':id/change-manager')
   @RequirePermission('employee_hierarchy:change_manager')
-  changeManager(@Param('id', ParseIntPipe) id: number, @Body() dto: ChangeManagerDto, @Request() req) {
+  changeManager(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ChangeManagerDto,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
     return this.employeesService.changeManager(id, companyId, dto, actor);
@@ -203,7 +281,7 @@ export class EmployeesController {
     @Param('employeeId', ParseIntPipe) employeeId: number,
     @Body() dto: AddDocumentDto,
     @UploadedFile() file: Express.Multer.File,
-    @Request() req
+    @Request() req,
   ) {
     if (!file) {
       throw new BadRequestException('File is required');
@@ -218,7 +296,9 @@ export class EmployeesController {
     ];
 
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException(`File type ${file.mimetype} is not allowed. Allowed types: pdf, jpg, jpeg, png, docx.`);
+      throw new BadRequestException(
+        `File type ${file.mimetype} is not allowed. Allowed types: pdf, jpg, jpeg, png, docx.`,
+      );
     }
 
     const ext = extname(file.originalname).toLowerCase();
@@ -235,16 +315,23 @@ export class EmployeesController {
 
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.addDocument(employeeId, companyId, dto, file, actor);
+    return this.employeesService.addDocument(
+      employeeId,
+      companyId,
+      dto,
+      file,
+      actor,
+    );
   }
 
   @Get(':employeeId/documents')
   @RequirePermission('employee_documents:read')
-  async getDocuments(@Param('employeeId', ParseIntPipe) employeeId: number, @Request() req) {
+  async getDocuments(
+    @Param('employeeId', ParseIntPipe) employeeId: number,
+    @Request() req,
+  ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-
-
 
     return this.employeesService.getDocuments(employeeId, companyId, actor);
   }
@@ -255,14 +342,17 @@ export class EmployeesController {
     @Param('employeeId', ParseIntPipe) employeeId: number,
     @Param('documentId', ParseIntPipe) documentId: number,
     @Request() req,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
 
-
-
-    const absolutePath = await this.employeesService.downloadDocument(employeeId, documentId, companyId, actor);
+    const absolutePath = await this.employeesService.downloadDocument(
+      employeeId,
+      documentId,
+      companyId,
+      actor,
+    );
     return res.sendFile(absolutePath);
   }
 
@@ -272,11 +362,17 @@ export class EmployeesController {
     @Param('employeeId', ParseIntPipe) employeeId: number,
     @Param('documentId', ParseIntPipe) documentId: number,
     @Body() dto: VerifyDocumentDto,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.verifyDocument(employeeId, documentId, companyId, dto, actor);
+    return this.employeesService.verifyDocument(
+      employeeId,
+      documentId,
+      companyId,
+      dto,
+      actor,
+    );
   }
 
   @Delete(':employeeId/documents/:documentId')
@@ -284,10 +380,15 @@ export class EmployeesController {
   deleteDocument(
     @Param('employeeId', ParseIntPipe) employeeId: number,
     @Param('documentId', ParseIntPipe) documentId: number,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.employeesService.deleteDocument(employeeId, documentId, companyId, actor);
+    return this.employeesService.deleteDocument(
+      employeeId,
+      documentId,
+      companyId,
+      actor,
+    );
   }
 }

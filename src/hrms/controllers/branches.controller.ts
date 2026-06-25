@@ -18,7 +18,11 @@ import { BranchesService } from '../services/branches.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateBranchDto, UpdateBranchDto, GetBranchesFilterDto } from '../dto/branches.dto';
+import {
+  CreateBranchDto,
+  UpdateBranchDto,
+  GetBranchesFilterDto,
+} from '../dto/branches.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('branches')
@@ -68,7 +72,12 @@ export class BranchesController {
     @Query('limit') limit?: string,
   ) {
     const companyId = this.getCompanyId(req);
-    return this.branchesService.getBranchesForOptions(companyId, search, page, limit);
+    return this.branchesService.getBranchesForOptions(
+      companyId,
+      search,
+      page,
+      limit,
+    );
   }
 
   @Get(':id')
@@ -83,7 +92,7 @@ export class BranchesController {
   updateBranch(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateBranchDto,
-    @Request() req
+    @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);

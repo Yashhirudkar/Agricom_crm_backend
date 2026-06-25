@@ -1,4 +1,15 @@
-import { IsString, IsOptional, IsBoolean, MaxLength, IsNotEmpty, IsEmail, ValidateNested, IsArray, IsInt, ArrayMaxSize } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  IsNotEmpty,
+  IsEmail,
+  ValidateNested,
+  IsArray,
+  IsInt,
+  ArrayMaxSize,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePartnerContactDto {

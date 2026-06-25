@@ -23,13 +23,10 @@ import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
-
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/categories')
 export class CategoryController {
-  constructor(
-    private readonly categoryService: CategoryService,
-  ) {}
+  constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
   @RequirePermission('category:create')
@@ -43,9 +40,7 @@ export class CategoryController {
   @RequirePermission('category:view')
   async findAll(@Query() query: QueryCategoryDto) {
     const result = await this.categoryService.findAll(query);
-    
-    
-    
+
     return result;
   }
 
@@ -53,9 +48,7 @@ export class CategoryController {
   @RequirePermission('category:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const category = await this.categoryService.findOne(id);
-    
-    
-    
+
     return category;
   }
 
@@ -72,10 +65,7 @@ export class CategoryController {
   @Patch(':id/restore')
   @RequirePermission('category:update')
   @AuditLog({ entityType: 'Category', action: 'RESTORE' })
-  restore(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: any,
-  ) {
+  restore(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.categoryService.restore(id, req.user);
   }
 

@@ -17,7 +17,15 @@ import { ClientsAccessController } from '../controllers/clients-access.controlle
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Client, Company, User, ClientFolderAccess, ClientItemAccess, ClientModuleAccess, ClientActionAccess]),
+    SequelizeModule.forFeature([
+      Client,
+      Company,
+      User,
+      ClientFolderAccess,
+      ClientItemAccess,
+      ClientModuleAccess,
+      ClientActionAccess,
+    ]),
     RbacModule,
     AuditModule,
     SystemModule,

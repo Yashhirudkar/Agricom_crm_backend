@@ -22,12 +22,29 @@ import { AuditModule } from '../../audit/modules/audit.module';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Role, RoleActionPermission, AppModuleModel, ModuleResource, ResourceAction, UserRole, User, Company, Client, UserCompany, ClientActionAccess]),
+    SequelizeModule.forFeature([
+      Role,
+      RoleActionPermission,
+      AppModuleModel,
+      ModuleResource,
+      ResourceAction,
+      UserRole,
+      User,
+      Company,
+      Client,
+      UserCompany,
+      ClientActionAccess,
+    ]),
     DiscoveryModule,
     forwardRef(() => AuditModule),
   ],
   controllers: [RbacController],
-  providers: [RbacService, RbacSeederService, PermissionDiscoveryService, PermissionsGuard],
+  providers: [
+    RbacService,
+    RbacSeederService,
+    PermissionDiscoveryService,
+    PermissionsGuard,
+  ],
   exports: [RbacService, PermissionsGuard, SequelizeModule],
 })
 export class RbacModule {}

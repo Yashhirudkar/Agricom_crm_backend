@@ -1,4 +1,17 @@
-import { Index, Table, Column, Model, DataType, ForeignKey, BelongsTo, PrimaryKey, AutoIncrement, Unique, AllowNull, Default } from 'sequelize-typescript';
+import {
+  Index,
+  Table,
+  Column,
+  Model,
+  DataType,
+  ForeignKey,
+  BelongsTo,
+  PrimaryKey,
+  AutoIncrement,
+  Unique,
+  AllowNull,
+  Default,
+} from 'sequelize-typescript';
 import { User } from './user.model';
 
 @Table({

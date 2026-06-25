@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsNumber, IsBoolean, IsArray, IsOptional, Matches } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  IsOptional,
+  Matches,
+} from 'class-validator';
 
 export class CreateShiftDto {
   @IsString()

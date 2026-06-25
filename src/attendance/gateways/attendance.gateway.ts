@@ -15,11 +15,13 @@ import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
-    origin: "http://localhost:3000",
-    credentials: true
-  }
+    origin: 'http://localhost:3000',
+    credentials: true,
+  },
 })
-export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class AttendanceGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -48,14 +50,20 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
       totalHours: record.totalHours,
       overtimeHours: record.overtimeHours,
       timestamp: new Date(),
-      employee: record.employee ? (record.employee.toJSON ? record.employee.toJSON() : record.employee) : undefined,
+      employee: record.employee
+        ? record.employee.toJSON
+          ? record.employee.toJSON()
+          : record.employee
+        : undefined,
     };
   }
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth?.token || client.handshake.query?.token;
-      const companyIdStr = client.handshake.auth?.companyId || client.handshake.query?.companyId;
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
+      const companyIdStr =
+        client.handshake.auth?.companyId || client.handshake.query?.companyId;
 
       if (!token) {
         client.disconnect(true);
@@ -88,17 +96,23 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
           // Join rooms statelessly
           client.join(`employee-${employee.id}`);
           client.join(`company-${companyId}`);
-          
+
           (client as any).employeeId = employee.id;
           (client as any).companyId = companyId;
-          this.logger.log(`Socket authenticated: Employee ${employee.id} joined rooms for Company ${companyId}`);
+          this.logger.log(
+            `Socket authenticated: Employee ${employee.id} joined rooms for Company ${companyId}`,
+          );
         } else {
-          this.logger.warn(`Socket connection rejected: User ${payload.userId} is not an employee in company ${companyId}`);
+          this.logger.warn(
+            `Socket connection rejected: User ${payload.userId} is not an employee in company ${companyId}`,
+          );
           client.disconnect(true);
           return;
         }
       } else {
-        this.logger.log(`Socket authenticated user ${payload.userId} (waiting for company selection)`);
+        this.logger.log(
+          `Socket authenticated user ${payload.userId} (waiting for company selection)`,
+        );
       }
     } catch (err) {
       this.logger.error(`Socket connection auth error: ${err.message}`);
@@ -116,7 +130,10 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
     @MessageBody() data: { token?: string; companyId: number },
   ) {
     try {
-      const token = data.token || client.handshake.auth?.token || client.handshake.query?.token;
+      const token =
+        data.token ||
+        client.handshake.auth?.token ||
+        client.handshake.query?.token;
       if (!token) {
         return { error: 'No authentication token provided.' };
       }
@@ -138,11 +155,13 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
       // Join rooms statelessly
       client.join(`employee-${employee.id}`);
       client.join(`company-${companyId}`);
-      
+
       (client as any).employeeId = employee.id;
       (client as any).companyId = companyId;
 
-      this.logger.log(`Socket client joined rooms: employee-${employee.id}, company-${companyId}`);
+      this.logger.log(
+        `Socket client joined rooms: employee-${employee.id}, company-${companyId}`,
+      );
       return { status: 'joined', employeeId: employee.id, companyId };
     } catch (err) {
       return { error: `Authentication failed: ${err.message}` };
@@ -151,27 +170,43 @@ export class AttendanceGateway implements OnGatewayConnection, OnGatewayDisconne
 
   emitCheckedIn(record: any) {
     const payload = this.serializePayload(record, 'checked_in');
-    this.server.to(`company-${record.companyId}`).emit('attendance-checkin', payload);
-    this.server.to(`employee-${record.employeeId}`).emit('attendance-checkin', payload);
+    this.server
+      .to(`company-${record.companyId}`)
+      .emit('attendance-checkin', payload);
+    this.server
+      .to(`employee-${record.employeeId}`)
+      .emit('attendance-checkin', payload);
   }
 
   emitCheckedOut(record: any) {
     const payload = this.serializePayload(record, 'checked_out');
-    this.server.to(`company-${record.companyId}`).emit('attendance-checkout', payload);
-    this.server.to(`employee-${record.employeeId}`).emit('attendance-checkout', payload);
+    this.server
+      .to(`company-${record.companyId}`)
+      .emit('attendance-checkout', payload);
+    this.server
+      .to(`employee-${record.employeeId}`)
+      .emit('attendance-checkout', payload);
   }
 
   emitAttendanceUpdate(action: string, record: any) {
-    console.log("socket emit event name", 'attendance-update');
-    console.log("payload data", record);
+    console.log('socket emit event name', 'attendance-update');
+    console.log('payload data', record);
     const payload = this.serializePayload(record, action);
-    console.log("serialized payload", payload);
-    this.server.to(`company-${record.companyId}`).emit('attendance-update', payload);
-    this.server.to(`employee-${record.employeeId}`).emit('attendance-update', payload);
+    console.log('serialized payload', payload);
+    this.server
+      .to(`company-${record.companyId}`)
+      .emit('attendance-update', payload);
+    this.server
+      .to(`employee-${record.employeeId}`)
+      .emit('attendance-update', payload);
   }
 
   emitBatchUpdate(records: any[], companyId: number) {
-    const serializedRecords = records.map(record => this.serializePayload(record, 'batch_update'));
-    this.server.to(`company-${companyId}`).emit('attendance-batch-update', serializedRecords);
+    const serializedRecords = records.map((record) =>
+      this.serializePayload(record, 'batch_update'),
+    );
+    this.server
+      .to(`company-${companyId}`)
+      .emit('attendance-batch-update', serializedRecords);
   }
 }

@@ -1,4 +1,19 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, Unique, Index, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  Unique,
+  Index,
+  ForeignKey,
+  BelongsTo,
+} from 'sequelize-typescript';
 import { Category } from '../category/category.model';
 import { Country } from '../country/country.model';
 import { HSCode } from '../hs-code/hs-code.model';
@@ -12,7 +27,7 @@ import { HSCode } from '../hs-code/hs-code.model';
     { fields: ['country_id'] },
     { fields: ['hs_code_id'] },
     { fields: ['is_active'] },
-  ]
+  ],
 })
 export class Product extends Model<Product> {
   @PrimaryKey

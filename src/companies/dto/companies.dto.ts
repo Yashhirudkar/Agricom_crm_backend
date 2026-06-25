@@ -15,7 +15,6 @@ import {
 // ─── Create ──────────────────────────────────────────────────────────────────
 
 export class CreateCompanyDto {
-
   // Basic (required)
   @IsString()
   @MaxLength(255)
@@ -39,7 +38,9 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsString()
   @MaxLength(20)
-  @Matches(/^[A-Z0-9]+$/, { message: 'companyCode must be uppercase alphanumeric only (e.g. TNT001)' })
+  @Matches(/^[A-Z0-9]+$/, {
+    message: 'companyCode must be uppercase alphanumeric only (e.g. TNT001)',
+  })
   companyCode?: string;
 
   @IsOptional()
@@ -128,7 +129,9 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsInt({ message: 'establishedYear must be an integer' })
   @Min(1800, { message: 'establishedYear must be 1800 or later' })
-  @Max(new Date().getFullYear(), { message: `establishedYear cannot be in the future` })
+  @Max(new Date().getFullYear(), {
+    message: `establishedYear cannot be in the future`,
+  })
   establishedYear?: number;
 
   // Flags
@@ -156,7 +159,9 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   @MaxLength(20)
-  @Matches(/^[A-Z0-9]+$/, { message: 'companyCode must be uppercase alphanumeric only (e.g. TNT001)' })
+  @Matches(/^[A-Z0-9]+$/, {
+    message: 'companyCode must be uppercase alphanumeric only (e.g. TNT001)',
+  })
   companyCode?: string;
 
   @IsOptional()
@@ -243,7 +248,9 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsInt({ message: 'establishedYear must be an integer' })
   @Min(1800, { message: 'establishedYear must be 1800 or later' })
-  @Max(new Date().getFullYear(), { message: `establishedYear cannot be in the future` })
+  @Max(new Date().getFullYear(), {
+    message: `establishedYear cannot be in the future`,
+  })
   establishedYear?: number;
 
   @IsOptional()

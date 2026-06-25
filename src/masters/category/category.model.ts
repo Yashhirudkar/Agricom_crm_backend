@@ -1,9 +1,21 @@
-import { Table, Column, Model, DataType, PrimaryKey, AutoIncrement, AllowNull, Default, CreatedAt, UpdatedAt, Unique } from 'sequelize-typescript';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  PrimaryKey,
+  AutoIncrement,
+  AllowNull,
+  Default,
+  CreatedAt,
+  UpdatedAt,
+  Unique,
+} from 'sequelize-typescript';
 
 @Table({
   tableName: 'categories',
   timestamps: true,
-  indexes: [{ fields: ['is_active'] }]
+  indexes: [{ fields: ['is_active'] }],
 })
 export class Category extends Model<Category> {
   @PrimaryKey

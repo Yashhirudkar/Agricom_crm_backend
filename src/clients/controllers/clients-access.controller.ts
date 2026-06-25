@@ -15,8 +15,18 @@ export class ClientsAccessController {
   async updateAccessConfig(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() dto: { folder_ids: number[]; item_ids: number[]; module_ids: number[]; action_ids: number[] }
+    @Body()
+    dto: {
+      folder_ids: number[];
+      item_ids: number[];
+      module_ids: number[];
+      action_ids: number[];
+    },
   ) {
-    return this.clientsAccessService.updateAccessConfig(req.user.id, parseInt(id, 10), dto);
+    return this.clientsAccessService.updateAccessConfig(
+      req.user.id,
+      parseInt(id, 10),
+      dto,
+    );
   }
 }

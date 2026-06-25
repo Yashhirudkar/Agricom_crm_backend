@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, Length, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  Length,
+  IsNotEmpty,
+} from 'class-validator';
 
 export class CreateCountryDto {
   @IsString()

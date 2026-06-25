@@ -23,36 +23,68 @@ export class ClientsAccessService {
     private readonly systemAuditService: SystemAuditService,
   ) {}
 
-  async updateAccessConfig(userId: number | null, clientId: number, dto: {
-    folder_ids: number[];
-    item_ids: number[];
-    module_ids: number[];
-    action_ids: number[];
-  }) {
+  async updateAccessConfig(
+    userId: number | null,
+    clientId: number,
+    dto: {
+      folder_ids: number[];
+      item_ids: number[];
+      module_ids: number[];
+      action_ids: number[];
+    },
+  ) {
     const client = await this.clientModel.findByPk(clientId);
     if (!client) throw new NotFoundException('Client not found');
 
     // Start by clearing old mappings
-    await this.clientFolderAccessModel.destroy({ where: { client_id: clientId } });
-    await this.clientItemAccessModel.destroy({ where: { client_id: clientId } });
-    await this.clientModuleAccessModel.destroy({ where: { client_id: clientId } });
-    await this.clientActionAccessModel.destroy({ where: { client_id: clientId } });
+    await this.clientFolderAccessModel.destroy({
+      where: { client_id: clientId },
+    });
+    await this.clientItemAccessModel.destroy({
+      where: { client_id: clientId },
+    });
+    await this.clientModuleAccessModel.destroy({
+      where: { client_id: clientId },
+    });
+    await this.clientActionAccessModel.destroy({
+      where: { client_id: clientId },
+    });
 
     // Insert new mappings
     if (dto.folder_ids && dto.folder_ids.length > 0) {
-      await this.clientFolderAccessModel.bulkCreate(dto.folder_ids.map(id => ({ client_id: clientId, folder_id: id }) as any));
+      await this.clientFolderAccessModel.bulkCreate(
+        dto.folder_ids.map(
+          (id) => ({ client_id: clientId, folder_id: id }) as any,
+        ),
+      );
     }
     if (dto.item_ids && dto.item_ids.length > 0) {
-      await this.clientItemAccessModel.bulkCreate(dto.item_ids.map(id => ({ client_id: clientId, item_id: id }) as any));
+      await this.clientItemAccessModel.bulkCreate(
+        dto.item_ids.map((id) => ({ client_id: clientId, item_id: id }) as any),
+      );
     }
     if (dto.module_ids && dto.module_ids.length > 0) {
-      await this.clientModuleAccessModel.bulkCreate(dto.module_ids.map(id => ({ client_id: clientId, module_id: id }) as any));
+      await this.clientModuleAccessModel.bulkCreate(
+        dto.module_ids.map(
+          (id) => ({ client_id: clientId, module_id: id }) as any,
+        ),
+      );
     }
     if (dto.action_ids && dto.action_ids.length > 0) {
-      await this.clientActionAccessModel.bulkCreate(dto.action_ids.map(id => ({ client_id: clientId, resource_action_id: id }) as any));
+      await this.clientActionAccessModel.bulkCreate(
+        dto.action_ids.map(
+          (id) => ({ client_id: clientId, resource_action_id: id }) as any,
+        ),
+      );
     }
 
-    await this.systemAuditService.logAction(userId, 'CLIENT_ACCESS_UPDATE', { clientId, dto });
-    return { success: true, message: 'Client access config updated successfully' };
+    await this.systemAuditService.logAction(userId, 'CLIENT_ACCESS_UPDATE', {
+      clientId,
+      dto,
+    });
+    return {
+      success: true,
+      message: 'Client access config updated successfully',
+    };
   }
 }

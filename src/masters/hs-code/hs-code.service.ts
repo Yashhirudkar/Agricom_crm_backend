@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { HSCode } from './hs-code.model';
@@ -19,13 +23,15 @@ export class HSCodeService {
 
   async create(dto: CreateHSCodeDto): Promise<HSCode> {
     const normalizedCode = dto.code.trim().toUpperCase();
-    
+
     const existing = await this.hsCodeModel.findOne({
       where: { code: normalizedCode },
     });
-    
+
     if (existing) {
-      throw new BadRequestException(`HS Code '${normalizedCode}' already exists`);
+      throw new BadRequestException(
+        `HS Code '${normalizedCode}' already exists`,
+      );
     }
 
     return this.hsCodeModel.create({
@@ -39,14 +45,14 @@ export class HSCodeService {
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
-    
+
     if (search) {
       whereClause[Op.or] = [
         { code: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
+        { description: { [Op.iLike]: `%${search}%` } },
       ];
     }
-    
+
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
     }
@@ -68,7 +74,9 @@ export class HSCodeService {
   }
 
   async findOne(id: number): Promise<HSCode> {
-    const hsCode = await this.hsCodeModel.findOne({ where: { id, isActive: true } });
+    const hsCode = await this.hsCodeModel.findOne({
+      where: { id, isActive: true },
+    });
     if (!hsCode) {
       throw new NotFoundException('HS Code not found');
     }
@@ -89,21 +97,23 @@ export class HSCodeService {
 
   async update(id: number, dto: UpdateHSCodeDto): Promise<HSCode> {
     const hsCode = await this.findOneActive(id);
-    
+
     if (dto.code) {
       const normalizedCode = dto.code.trim().toUpperCase();
-      
+
       const existing = await this.hsCodeModel.findOne({
-        where: { 
+        where: {
           code: normalizedCode,
-          id: { [Op.ne]: id }
-        }
+          id: { [Op.ne]: id },
+        },
       });
-      
+
       if (existing) {
-        throw new BadRequestException(`HS Code '${normalizedCode}' already exists`);
+        throw new BadRequestException(
+          `HS Code '${normalizedCode}' already exists`,
+        );
       }
-      
+
       dto.code = normalizedCode;
     }
 
@@ -146,9 +156,9 @@ export class HSCodeService {
           isActive: true,
           deletedAt: new Date(),
           deletedBy: user.userId,
-          deleteReason: reason || 'Deactivated'
+          deleteReason: reason || 'Deactivated',
         },
-        newValue: { isActive: false }
+        newValue: { isActive: false },
       });
     }
 
@@ -163,7 +173,7 @@ export class HSCodeService {
       ...hsCode.toJSON(),
       deletedAt: new Date(),
       deletedBy: user.userId,
-      deleteReason: reason || 'No reason provided'
+      deleteReason: reason || 'No reason provided',
     };
 
     await hsCode.destroy();
