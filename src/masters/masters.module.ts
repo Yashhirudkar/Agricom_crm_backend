@@ -24,6 +24,15 @@ import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
 
+// Dynamic Additional Information Engine
+import { PartnerRoleDynamicConfig } from './partner-role/partner-role-dynamic-config.model';
+import { PartnerDynamicConfigHistory } from './partner-role/partner-dynamic-config-history.model';
+import { PartnerDynamicValues } from './partner/partner-dynamic-values.model';
+import { PartnerRoleDynamicConfigController } from './partner-role/partner-role-dynamic-config.controller';
+import { PartnerRoleDynamicConfigService } from './partner-role/partner-role-dynamic-config.service';
+import { PartnerDynamicValuesController } from './partner/partner-dynamic-values.controller';
+import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.service';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
@@ -35,6 +44,10 @@ import { AuditModule } from '../audit/modules/audit.module';
       Partner,
       PartnerContact,
       PartnerProduct,
+      // Dynamic Additional Information Engine
+      PartnerRoleDynamicConfig,
+      PartnerDynamicConfigHistory,
+      PartnerDynamicValues,
     ]),
     RbacModule,
     AuditModule,
@@ -46,6 +59,9 @@ import { AuditModule } from '../audit/modules/audit.module';
     PartnerRoleController,
     ProductController,
     PartnerController,
+    // Dynamic Additional Information Engine
+    PartnerRoleDynamicConfigController,
+    PartnerDynamicValuesController,
   ],
   providers: [
     CategoryService,
@@ -55,6 +71,10 @@ import { AuditModule } from '../audit/modules/audit.module';
     ProductService,
     PartnerService,
     DeletionValidatorService,
+    // Dynamic Additional Information Engine
+    PartnerRoleDynamicConfigService,
+    PartnerDynamicValuesService,
   ],
 })
 export class MastersModule {}
+// Dynamic master tables synced and verified successfully

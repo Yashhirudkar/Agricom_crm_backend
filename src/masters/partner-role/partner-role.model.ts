@@ -11,7 +11,9 @@ import {
   UpdatedAt,
   Unique,
   Index,
+  HasMany,
 } from 'sequelize-typescript';
+import { PartnerRoleDynamicConfig } from './partner-role-dynamic-config.model';
 
 @Table({
   tableName: 'partner_roles',
@@ -38,6 +40,9 @@ export class PartnerRole extends Model<PartnerRole> {
   @AllowNull(false)
   @Column({ field: 'is_active', type: DataType.BOOLEAN })
   declare isActive: boolean;
+
+  @HasMany(() => PartnerRoleDynamicConfig, { onDelete: 'CASCADE', hooks: true })
+  declare dynamicConfigs: PartnerRoleDynamicConfig[];
 
   @CreatedAt
   @Column({ field: 'created_at' })

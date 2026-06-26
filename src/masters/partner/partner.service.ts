@@ -12,6 +12,7 @@ import { PartnerProduct } from './partner-product.model';
 import { PartnerRole } from '../partner-role/partner-role.model';
 import { Country } from '../country/country.model';
 import { Product } from '../product/product.model';
+import { PartnerRoleDynamicConfig } from '../partner-role/partner-role-dynamic-config.model';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
 import { QueryPartnerDto } from './dto/query-partner.dto';
@@ -69,6 +70,8 @@ export class PartnerService {
     private readonly countryModel: typeof Country,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
+    @InjectModel(PartnerRoleDynamicConfig)
+    private readonly dynamicConfigModel: typeof PartnerRoleDynamicConfig,
     private sequelize: Sequelize,
     private readonly deletionValidator: DeletionValidatorService,
     private readonly auditService: AuditService,
@@ -117,6 +120,19 @@ export class PartnerService {
       dto.productIds,
     );
 
+    // Business Rule: A dynamic schema must be configured for the selected partner role
+    // before a partner of that role can be created.
+    // Super Admin must define the schema first via POST /masters/partner-roles/:roleId/dynamic-config
+    const activeConfig = await this.dynamicConfigModel.findOne({
+      where: { partnerRoleId: dto.partnerRoleId, isActive: true },
+    });
+    if (!activeConfig) {
+      throw new BadRequestException(
+        'Dynamic configuration not defined for selected partner role. ' +
+          'A Super Admin must configure the Additional Information schema before partners of this role can be created.',
+      );
+    }
+
     return await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...partnerData } = dto;
       const partner = await this.partnerModel.create(
@@ -126,6 +142,7 @@ export class PartnerService {
         },
         { transaction },
       );
+
 
       if (dto.contacts && dto.contacts.length > 0) {
         const contactsPayload = dto.contacts.map((c) => ({
