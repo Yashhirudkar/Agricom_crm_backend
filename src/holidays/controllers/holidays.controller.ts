@@ -52,7 +52,11 @@ export class HolidaysController {
   @HttpCode(HttpStatus.CREATED)
   createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
-    return this.holidaysService.createHoliday(actor.clientId, dto, actor);
+    const clientId = req.user.type === 'super_admin' ? dto.clientId : actor.clientId;
+    if (!clientId) {
+      throw new BadRequestException('clientId is required');
+    }
+    return this.holidaysService.createHoliday(clientId, dto, actor);
   }
 
   @Post('recurring')
@@ -82,11 +86,10 @@ export class HolidaysController {
   @RequirePermission('holidays:read')
   getHolidays(@Query() query: GetHolidaysFilterDto, @Request() req) {
     const actor = this.getActor(req);
-    // If not super admin/client admin, force company filter
-    // Assuming UI sends companyId filter if needed, else we enforce based on roles
-    // For simplicity, we just pass the query. If company filter is strictly needed, we inject it.
-    // The requirement says Employee only views calendar. Company filter: "All Companies (Admin only)".
-    // We will apply the companyId filter if provided.
+    const companyId = this.getCompanyId(req);
+    if (companyId && !query.companyId) {
+      query.companyId = companyId;
+    }
     return this.holidaysService.getHolidays(actor.clientId, query);
   }
 

@@ -18,6 +18,7 @@ import { Designation } from '../models/designation.model';
 import { Branch } from '../models/branch.model';
 import { User } from '../../users/models/user.model';
 import { UserCompany } from '../../users/models/user-company.model';
+import { Company } from '../../companies/models/company.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { UsersService } from '../../users/services/users.service';
 import { StorageService } from './storage.service';
@@ -40,6 +41,8 @@ export class EmployeesService {
     private readonly departmentModel: typeof Department,
     @InjectModel(Designation)
     private readonly designationModel: typeof Designation,
+    @InjectModel(Company)
+    private readonly companyModel: typeof Company,
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
     private readonly storageService: StorageService,

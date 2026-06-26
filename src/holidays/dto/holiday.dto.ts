@@ -59,6 +59,10 @@ export class CreateHolidayDto {
   @IsNumber({}, { each: true })
   @IsOptional()
   companyIds?: number[];
+
+  @IsNumber()
+  @IsOptional()
+  clientId?: number;
 }
 
 export class UpdateHolidayDto {

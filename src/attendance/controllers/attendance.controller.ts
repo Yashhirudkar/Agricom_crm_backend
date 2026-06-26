@@ -45,10 +45,12 @@ export class AttendanceController {
     return parseInt(companyId, 10);
   }
 
-  private async getEmployeeId(req: any): Promise<number> {
-    console.log('GET EMPLOYEE ID CALLED', req.user);
+  private async getEmployeeId(req: any): Promise<number | null> {
     if (req.user.employeeId) {
       return req.user.employeeId;
+    }
+    if (req.user.type === 'super_admin') {
+      return null;
     }
     const employeeId = req.user.employeeId;
     if (!employeeId) {
@@ -178,11 +180,6 @@ export class AttendanceController {
     @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
-    console.log('APPROVE REQUEST USER', {
-      userId: req.user.userId,
-      email: req.user.email,
-      employeeId: req.user.employeeId,
-    });
     const approverEmployeeId = req.user.employeeId;
     return this.attendanceService.approveCorrection(
       id,

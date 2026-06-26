@@ -259,9 +259,14 @@ export class PermissionsGuard implements CanActivate {
     });
 
     if (!hasAll) {
-      throw new ForbiddenException(
-        `Insufficient permissions. Required: ${requiredPermissions.join(', ')}`,
-      );
+      throw new ForbiddenException({
+        message: `Insufficient permissions. Required: ${requiredPermissions.join(', ')}`,
+        debug: {
+          roleIds,
+          grantedSet: Array.from(grantedSet),
+          requiredPermissions
+        }
+      });
     }
 
     return true;

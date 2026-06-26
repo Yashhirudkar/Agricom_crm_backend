@@ -44,8 +44,7 @@ export class TasksController {
     description: 'Required to prevent duplicate task creation',
   })
   async create(@Req() req: any, @Body() createTaskDto: CreateTaskDto) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
     const idempotencyKey = req.headers['idempotency-key'];
 
@@ -71,8 +70,7 @@ export class TasksController {
   async findAll(@Req() req: any, @Query() query: TaskQueryDto) {
     // Inject current user ID for presets like "assigned_by_me" or "my_tasks"
     const userId = req.user?.id || 1;
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const result = await this.tasksService.findAll(clientId, userId, query);
     return { success: true, data: result.data, meta: result.meta };
   }
@@ -82,8 +80,7 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get available task statuses' })
   async getStatuses(@Req() req: any) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const statuses = await this.tasksService.getStatuses(clientId);
     return { success: true, data: statuses };
   }
@@ -93,8 +90,7 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get available task priorities' })
   async getPriorities(@Req() req: any) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const priorities = await this.tasksService.getPriorities(clientId);
     return { success: true, data: priorities };
   }
@@ -104,8 +100,7 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get deeply hydrated task details' })
   async findOne(@Req() req: any, @Param('id') id: string) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const task = await this.tasksService.findOne(+id, clientId);
     return { success: true, data: task };
   }
@@ -121,8 +116,7 @@ export class TasksController {
     @Param('id') id: string,
     @Body() updateTaskDto: UpdateTaskDto,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
     const task = await this.tasksService.update(
       +id,
@@ -142,8 +136,7 @@ export class TasksController {
     @Param('id') id: string,
     @Body() archiveTaskDto: ArchiveTaskDto,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
     const task = await this.tasksService.archive(
       +id,
@@ -165,8 +158,7 @@ export class TasksController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Restore a soft-deleted task' })
   async restore(@Req() req: any, @Param('id') id: string) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
     await this.tasksService.restore(+id, clientId, userId);
     return { success: true, message: 'Task restored successfully' };
@@ -181,8 +173,7 @@ export class TasksController {
     @Param('id') id: string,
     @Body() body: { statusId: number; version: number },
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
 
     // Get current task to check fromStatusId
@@ -218,8 +209,7 @@ export class TasksController {
     summary: 'Get all configured status transition rules for this tenant',
   })
   async getTransitions(@Req() req: any) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const rules = await this.transitionRepo.findAllByClient(clientId);
     return { success: true, data: rules };
   }
@@ -229,8 +219,7 @@ export class TasksController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Soft delete a task' })
   async remove(@Req() req: any, @Param('id') id: string) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = req.user?.clientId || 1;
     const userId = req.user?.id || 1;
     await this.tasksService.delete(+id, clientId, userId);
     return { success: true, message: 'Task deleted successfully' };
