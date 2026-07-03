@@ -20,6 +20,7 @@ import { Country } from '../country/country.model';
 import { PartnerContact } from './partner-contact.model';
 import { Product } from '../product/product.model';
 import { PartnerProduct } from './partner-product.model';
+import { PartnerFollowUp } from './partner-followup.model';
 
 @Table({
   tableName: 'partners',
@@ -59,6 +60,9 @@ export class Partner extends Model<Partner> {
 
   @HasMany(() => PartnerContact, { onDelete: 'CASCADE', hooks: true })
   declare contacts: PartnerContact[];
+
+  @HasMany(() => PartnerFollowUp, { onDelete: 'CASCADE', hooks: true })
+  declare followUps: PartnerFollowUp[];
 
   @BelongsToMany(() => Product, {
     through: () => PartnerProduct,

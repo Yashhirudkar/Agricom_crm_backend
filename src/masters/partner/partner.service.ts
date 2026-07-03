@@ -9,6 +9,7 @@ import { Op } from 'sequelize';
 import { Partner } from './partner.model';
 import { PartnerContact } from './partner-contact.model';
 import { PartnerProduct } from './partner-product.model';
+import { PartnerFollowUp } from './partner-followup.model';
 import { PartnerRole } from '../partner-role/partner-role.model';
 import { Country } from '../country/country.model';
 import { Product } from '../product/product.model';
@@ -52,6 +53,12 @@ const INCLUDE_RELATIONS = [
     attributes: ['id', 'name'],
     where: { isActive: true },
     required: false,
+  },
+  {
+    model: PartnerFollowUp,
+    where: { isActive: true },
+    required: false,
+    attributes: ['id', 'followupDate', 'nextFollowupDate', 'status', 'communicationType'],
   },
 ];
 

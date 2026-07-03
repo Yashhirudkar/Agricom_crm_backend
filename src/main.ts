@@ -5,6 +5,7 @@ import { join } from 'path';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { PartnerFollowUp } from './masters/partner/partner-followup.model';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -54,6 +55,10 @@ async function bootstrap() {
     ],
     credentials: true,
   });
+
+  console.log('Force syncing partner_followups table...');
+  await PartnerFollowUp.sync({ alter: true });
+  console.log('Table synced!');
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api`);

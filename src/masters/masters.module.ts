@@ -18,8 +18,11 @@ import { ProductService } from './product/product.service';
 import { Partner } from './partner/partner.model';
 import { PartnerContact } from './partner/partner-contact.model';
 import { PartnerProduct } from './partner/partner-product.model';
+import { PartnerFollowUp } from './partner/partner-followup.model';
 import { PartnerController } from './partner/partner.controller';
+import { PartnerFollowUpController } from './partner/partner-followup.controller';
 import { PartnerService } from './partner/partner.service';
+import { PartnerFollowUpService } from './partner/partner-followup.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
@@ -44,6 +47,7 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
       Partner,
       PartnerContact,
       PartnerProduct,
+      PartnerFollowUp,
       // Dynamic Additional Information Engine
       PartnerRoleDynamicConfig,
       PartnerDynamicConfigHistory,
@@ -59,6 +63,7 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
     PartnerRoleController,
     ProductController,
     PartnerController,
+    PartnerFollowUpController,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigController,
     PartnerDynamicValuesController,
@@ -70,6 +75,7 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
     PartnerRoleService,
     ProductService,
     PartnerService,
+    PartnerFollowUpService,
     DeletionValidatorService,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigService,
