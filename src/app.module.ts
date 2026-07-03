@@ -14,7 +14,6 @@ import { Client } from './clients/models/client.model';
 import { User } from './users/models/user.model';
 import { UserSession } from './users/models/user-session.model';
 import { Role } from './rbac/models/role.model';
-
 import { UserRole } from './rbac/models/user-role.model';
 import { Company } from './companies/models/company.model';
 import { UserCompany } from './users/models/user-company.model';
