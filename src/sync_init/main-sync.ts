@@ -5,6 +5,7 @@ import { syncSystem } from './sync-system';
 import { syncHrms } from './sync-hrms';
 import { syncAttendance } from './sync-attendance';
 import { syncAuditLogsAndExtra } from './sync-audit-logs';
+import { syncBags } from './sync-bags';
 
 async function main() {
   try {
@@ -21,6 +22,7 @@ async function main() {
     await syncSystem();
     await syncHrms();
     await syncAttendance();
+    await syncBags();
     await syncAuditLogsAndExtra();
 
     console.log('All tables synced successfully!');

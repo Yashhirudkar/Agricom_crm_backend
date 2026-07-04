@@ -47,6 +47,13 @@ import { ClientModuleAccess } from '../clients/models/client-module-access.model
 import { ClientActionAccess } from '../clients/models/client-action-access.model';
 
 import { Category } from '../masters/category/category.model';
+import { Country } from '../masters/country/country.model';
+import { HSCode } from '../masters/hs-code/hs-code.model';
+import { Product } from '../masters/product/product.model';
+import { BagType } from '../masters/bag-specs/models/bag-type.model';
+import { PackingType } from '../masters/bag-specs/models/packing-type.model';
+import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
+import { ProductBagAssignment } from '../masters/bag-specs/models/product-bag-assignment.model';
 import {
   Task,
   TaskSequence,
@@ -115,6 +122,13 @@ export const sequelize = new Sequelize(
       ClientModuleAccess,
       ClientActionAccess,
       Category,
+      Country,
+      HSCode,
+      Product,
+      BagType,
+      PackingType,
+      BagSpecification,
+      ProductBagAssignment,
       Task,
       TaskSequence,
       TaskStatus,

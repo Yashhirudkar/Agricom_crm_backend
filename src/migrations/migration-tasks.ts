@@ -825,3 +825,110 @@ export async function runCompanyEnumRemovalMigration(
     '[Migration] companies Phase 3 (Enum removal & Enterprise fields) completed successfully.',
   );
 }
+
+export async function runBagSpecsMigrations(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log(
+    '[Migration] Safely setting up Bag Specifications (Dynamic Packaging) tables...',
+  );
+
+  // 1. bag_types — master for bag type names
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "bag_types" (
+      "id" SERIAL PRIMARY KEY,
+      "name" VARCHAR(100) NOT NULL,
+      "is_active" BOOLEAN NOT NULL DEFAULT true,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT "bag_types_name_key" UNIQUE ("name")
+    );
+  `,
+    { transaction },
+  );
+
+  // 2. packing_types — master for packing sizes
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "packing_types" (
+      "id" SERIAL PRIMARY KEY,
+      "name" VARCHAR(100) NOT NULL,
+      "is_active" BOOLEAN NOT NULL DEFAULT true,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT "packing_types_name_key" UNIQUE ("name")
+    );
+  `,
+    { transaction },
+  );
+
+  // 3. bag_specifications — the combination records
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "bag_specifications" (
+      "id" SERIAL PRIMARY KEY,
+      "bag_type_id" INTEGER NOT NULL REFERENCES "bag_types"("id") ON DELETE RESTRICT,
+      "packing_type_id" INTEGER REFERENCES "packing_types"("id") ON DELETE RESTRICT,
+      "width" DECIMAL(10,2),
+      "length" DECIMAL(10,2),
+      "empty_bag_weight" DECIMAL(10,2),
+      "cost" DECIMAL(10,2),
+      "is_active" BOOLEAN NOT NULL DEFAULT true,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+  `,
+    { transaction },
+  );
+
+  await sequelize.query(
+    `
+    CREATE INDEX IF NOT EXISTS "bag_specs_bag_type_idx" ON "bag_specifications" ("bag_type_id");
+    CREATE INDEX IF NOT EXISTS "bag_specs_packing_type_idx" ON "bag_specifications" ("packing_type_id");
+    CREATE INDEX IF NOT EXISTS "bag_specs_is_active_idx" ON "bag_specifications" ("is_active");
+  `,
+    { transaction },
+  );
+
+  // 4. product_bag_assignments — M:M junction
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "product_bag_assignments" (
+      "id" SERIAL PRIMARY KEY,
+      "product_id" INTEGER NOT NULL REFERENCES "products"("id") ON DELETE CASCADE,
+      "bag_specification_id" INTEGER NOT NULL REFERENCES "bag_specifications"("id") ON DELETE CASCADE,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT "product_bag_assignments_unique" UNIQUE ("product_id", "bag_specification_id")
+    );
+  `,
+    { transaction },
+  );
+
+  await sequelize.query(
+    `
+    CREATE INDEX IF NOT EXISTS "pba_product_idx" ON "product_bag_assignments" ("product_id");
+    CREATE INDEX IF NOT EXISTS "pba_bag_spec_idx" ON "product_bag_assignments" ("bag_specification_id");
+  `,
+    { transaction },
+  );
+
+  // 5. Sidebar item — idempotent (ON CONFLICT DO NOTHING)
+  await sequelize.query(
+    `
+    INSERT INTO "sidebar_items" ("name", "route", "icon_name", "folder_id", "sort_order", "is_active", "permission_link", "createdAt", "updatedAt")
+    SELECT 'Bag Specifications', '/masters/bag-specifications', 'Package2',
+           sf.id, 55, true, 'bagspec:view', NOW(), NOW()
+    FROM "sidebar_folders" sf
+    WHERE sf."name" = 'Masters'
+    ON CONFLICT DO NOTHING;
+  `,
+    { transaction },
+  );
+
+  console.log(
+    '[Migration] Bag Specifications tables and sidebar entry created successfully.',
+  );
+}

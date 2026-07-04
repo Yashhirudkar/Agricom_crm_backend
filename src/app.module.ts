@@ -68,6 +68,21 @@ import { ClientModuleAccess } from './clients/models/client-module-access.model'
 import { ClientActionAccess } from './clients/models/client-action-access.model';
 import { MastersModule } from './masters/masters.module';
 import { Category } from './masters/category/category.model';
+import { Country } from './masters/country/country.model';
+import { HSCode } from './masters/hs-code/hs-code.model';
+import { PartnerRole } from './masters/partner-role/partner-role.model';
+import { Product } from './masters/product/product.model';
+import { Partner } from './masters/partner/partner.model';
+import { PartnerContact } from './masters/partner/partner-contact.model';
+import { PartnerProduct } from './masters/partner/partner-product.model';
+import { PartnerFollowUp } from './masters/partner/partner-followup.model';
+import { PartnerRoleDynamicConfig } from './masters/partner-role/partner-role-dynamic-config.model';
+import { PartnerDynamicConfigHistory } from './masters/partner-role/partner-dynamic-config-history.model';
+import { PartnerDynamicValues } from './masters/partner/partner-dynamic-values.model';
+import { BagType } from './masters/bag-specs/models/bag-type.model';
+import { PackingType } from './masters/bag-specs/models/packing-type.model';
+import { BagSpecification } from './masters/bag-specs/models/bag-specification.model';
+import { ProductBagAssignment } from './masters/bag-specs/models/product-bag-assignment.model';
 
 import { TasksModule } from './tasks/tasks.module';
 import {
@@ -157,6 +172,21 @@ import {
             ClientModuleAccess,
             ClientActionAccess,
             Category,
+            Country,
+            HSCode,
+            PartnerRole,
+            Product,
+            Partner,
+            PartnerContact,
+            PartnerProduct,
+            PartnerFollowUp,
+            PartnerRoleDynamicConfig,
+            PartnerDynamicConfigHistory,
+            PartnerDynamicValues,
+            BagType,
+            PackingType,
+            BagSpecification,
+            ProductBagAssignment,
             Task,
             TaskSequence,
             TaskStatus,

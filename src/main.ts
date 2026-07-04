@@ -56,9 +56,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  console.log('Force syncing partner_followups table...');
-  await PartnerFollowUp.sync({ alter: true });
-  console.log('Table synced!');
+  // console.log('Force syncing partner_followups table...');
+  //await PartnerFollowUp.sync({ alter: true });
+  // console.log('Table synced!');
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api`);

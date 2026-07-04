@@ -36,6 +36,14 @@ import { PartnerRoleDynamicConfigService } from './partner-role/partner-role-dyn
 import { PartnerDynamicValuesController } from './partner/partner-dynamic-values.controller';
 import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.service';
 
+// Bag Specifications — Dynamic Packaging System
+import { BagType } from './bag-specs/models/bag-type.model';
+import { PackingType } from './bag-specs/models/packing-type.model';
+import { BagSpecification } from './bag-specs/models/bag-specification.model';
+import { ProductBagAssignment } from './bag-specs/models/product-bag-assignment.model';
+import { BagSpecsController } from './bag-specs/controllers/bag-specs.controller';
+import { BagSpecsService } from './bag-specs/services/bag-specs.service';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
@@ -52,6 +60,11 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
       PartnerRoleDynamicConfig,
       PartnerDynamicConfigHistory,
       PartnerDynamicValues,
+      // Bag Specifications — Dynamic Packaging System
+      BagType,
+      PackingType,
+      BagSpecification,
+      ProductBagAssignment,
     ]),
     RbacModule,
     AuditModule,
@@ -67,6 +80,8 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigController,
     PartnerDynamicValuesController,
+    // Bag Specifications — Dynamic Packaging System
+    BagSpecsController,
   ],
   providers: [
     CategoryService,
@@ -80,6 +95,8 @@ import { PartnerDynamicValuesService } from './partner/partner-dynamic-values.se
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigService,
     PartnerDynamicValuesService,
+    // Bag Specifications — Dynamic Packaging System
+    BagSpecsService,
   ],
 })
 export class MastersModule {}

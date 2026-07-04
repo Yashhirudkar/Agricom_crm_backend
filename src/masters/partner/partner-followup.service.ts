@@ -30,7 +30,7 @@ export class PartnerFollowUpService {
   async findAll(partnerId: number): Promise<PartnerFollowUp[]> {
     return this.partnerFollowUpModel.findAll({
       where: { partnerId, isActive: true },
-      order: [['followupDate', 'DESC'], ['createdAt', 'DESC']],
+      order: [['createdAt', 'ASC']],
     });
   }
 
