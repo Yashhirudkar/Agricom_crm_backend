@@ -69,3 +69,5 @@ bootstrap();
 // Trigger DB sync for Sales Contracts
 // Trigger restart for SEED_DB
 // Trigger restart for admin fallback fix
+// Trigger DB sync for Enquiries
+// Revert DB sync to false

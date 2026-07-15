@@ -95,8 +95,10 @@ import { SalesContractShipment } from './sales-contracts/models/sales-contract-s
 import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
 import { Attachment } from './attachments/models/attachment.model';
+import { Enquiry } from './enquiries/models/enquiry.model';
 
 import { TasksModule } from './tasks/tasks.module';
+import { EnquiriesModule } from './enquiries/enquiries.module';
 import {
   Task,
   TaskSequence,
@@ -210,6 +212,7 @@ import {
             SalesContractDocument,
             SalesContractDocumentFile,
             Attachment,
+            Enquiry,
             Task,
             TaskSequence,
             TaskStatus,
@@ -245,6 +248,7 @@ import {
     MastersModule,
     TasksModule,
     SalesContractsModule,
+    EnquiriesModule,
   ],
   providers: [
     {

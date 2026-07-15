@@ -30,4 +30,9 @@ export class CreatePartnerFollowUpDto {
   @IsOptional()
   @IsString()
   status?: string; // Pending, Waiting Response, Confirmed, Closed, Deal Finalized
+
+  @IsOptional()
+  @IsString()
+  enquiryId?: string;
 }
+

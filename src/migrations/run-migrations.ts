@@ -15,6 +15,7 @@ import {
   runBagSpecsMigrations,
   runAttachmentsMigration,
 } from './migration-tasks';
+import { runEnquiriesMigration } from './05-enquiries';
 
 /**
  * Enterprise Safe Migration Runner
@@ -88,6 +89,7 @@ async function run() {
       await runCompanyEnumRemovalMigration(sequelize, transaction);
       await runBagSpecsMigrations(sequelize, transaction);
       await runAttachmentsMigration(sequelize, transaction);
+      await runEnquiriesMigration();
     });
 
     console.log('[Migration] All migration tasks executed successfully.');
