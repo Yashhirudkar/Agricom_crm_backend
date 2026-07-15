@@ -14,7 +14,7 @@ async function bootstrap() {
 
   // Serve static assets (like uploaded profile images)
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
+    prefix: '/api/uploads/',
   });
 
   // Set global API prefix
@@ -44,7 +44,7 @@ async function bootstrap() {
 
   // Enable CORS for frontend
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.1.106:3000'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
@@ -60,10 +60,12 @@ async function bootstrap() {
   //await PartnerFollowUp.sync({ alter: true });
   // console.log('Table synced!');
 
-  await app.listen(port);
+
+  await app.listen(port, '0.0.0.0');
   console.log(`Application is running on: http://localhost:${port}/api`);
   // console.log(`Swagger UI is available at: http://localhost:${port}/api/docs`);
 }
 bootstrap();
+// Trigger DB sync for Sales Contracts
 // Trigger restart for SEED_DB
 // Trigger restart for admin fallback fix

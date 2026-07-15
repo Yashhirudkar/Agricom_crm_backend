@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SalesContractsModule } from './sales-contracts/sales-contracts.module';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -83,6 +84,15 @@ import { BagType } from './masters/bag-specs/models/bag-type.model';
 import { PackingType } from './masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from './masters/bag-specs/models/bag-specification.model';
 import { ProductBagAssignment } from './masters/bag-specs/models/product-bag-assignment.model';
+import { FinancialYear } from './masters/financial-year/financial-year.model';
+
+import { ShipmentType } from './masters/shipment-type/shipment-type.model';
+import { PaymentTerm } from './masters/payment-term/payment-term.model';
+import { TradeDocument } from './masters/trade-document/trade-document.model';
+import { SalesContract } from './sales-contracts/models/sales-contract.model';
+import { SalesContractItem } from './sales-contracts/models/sales-contract-item.model';
+import { SalesContractShipment } from './sales-contracts/models/sales-contract-shipment.model';
+import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
 
 import { TasksModule } from './tasks/tasks.module';
 import {
@@ -187,6 +197,15 @@ import {
             PackingType,
             BagSpecification,
             ProductBagAssignment,
+            FinancialYear,
+
+            ShipmentType,
+            PaymentTerm,
+            TradeDocument,
+            SalesContract,
+            SalesContractItem,
+            SalesContractShipment,
+            SalesContractDocument,
             Task,
             TaskSequence,
             TaskStatus,
@@ -221,6 +240,7 @@ import {
     AttendanceModule,
     MastersModule,
     TasksModule,
+    SalesContractsModule,
   ],
   providers: [
     {

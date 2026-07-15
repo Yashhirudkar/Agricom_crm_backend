@@ -45,7 +45,7 @@ export class BagSpecsService {
     private readonly assignmentModel: typeof ProductBagAssignment,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
-  ) {}
+  ) { }
 
   // ─── BAG TYPES ────────────────────────────────────────────────────────────
 

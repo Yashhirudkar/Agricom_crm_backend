@@ -1,5 +1,18 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { FinancialYear } from './financial-year/financial-year.model';
+import { FinancialYearController } from './financial-year/financial-year.controller';
+import { FinancialYearService } from './financial-year/financial-year.service';
+
+import { ShipmentType } from './shipment-type/shipment-type.model';
+import { ShipmentTypeController } from './shipment-type/shipment-type.controller';
+import { ShipmentTypeService } from './shipment-type/shipment-type.service';
+import { PaymentTerm } from './payment-term/payment-term.model';
+import { PaymentTermController } from './payment-term/payment-term.controller';
+import { PaymentTermService } from './payment-term/payment-term.service';
+import { TradeDocument } from './trade-document/trade-document.model';
+import { TradeDocumentController } from './trade-document/trade-document.controller';
+import { TradeDocumentService } from './trade-document/trade-document.service';
 import { Category } from './category/category.model';
 import { CategoryController } from './category/category.controller';
 import { CategoryService } from './category/category.service';
@@ -65,6 +78,11 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       PackingType,
       BagSpecification,
       ProductBagAssignment,
+      FinancialYear,
+
+      ShipmentType,
+      PaymentTerm,
+      TradeDocument,
     ]),
     RbacModule,
     AuditModule,
@@ -82,6 +100,11 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     PartnerDynamicValuesController,
     // Bag Specifications — Dynamic Packaging System
     BagSpecsController,
+    FinancialYearController,
+
+    ShipmentTypeController,
+    PaymentTermController,
+    TradeDocumentController,
   ],
   providers: [
     CategoryService,
@@ -97,6 +120,11 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     PartnerDynamicValuesService,
     // Bag Specifications — Dynamic Packaging System
     BagSpecsService,
+    FinancialYearService,
+
+    ShipmentTypeService,
+    PaymentTermService,
+    TradeDocumentService,
   ],
 })
 export class MastersModule {}

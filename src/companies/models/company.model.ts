@@ -105,7 +105,7 @@ export class Company extends Model<Company> {
   })
   declare companySize: string | null;
 
-  // ── Branding ───────────────────────────────────────────────────────────────
+  // ── Branding ──────────────────────────────────────────────────────────────
 
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
