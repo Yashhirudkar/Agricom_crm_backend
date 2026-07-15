@@ -932,3 +932,54 @@ export async function runBagSpecsMigrations(
     '[Migration] Bag Specifications tables and sidebar entry created successfully.',
   );
 }
+
+export async function runAttachmentsMigration(
+  sequelize: Sequelize,
+  transaction: Transaction,
+): Promise<void> {
+  console.log('[Migration] Safely setting up attachments tables...');
+
+  // 1. Create attachments table
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "attachments" (
+      "id" SERIAL PRIMARY KEY,
+      "original_name" VARCHAR(255) NOT NULL,
+      "stored_name" VARCHAR(255) NOT NULL,
+      "extension" VARCHAR(10) NOT NULL,
+      "mime_type" VARCHAR(100) NOT NULL,
+      "file_size" INTEGER NOT NULL,
+      "storage_path" VARCHAR(500) NOT NULL,
+      "storage_disk" VARCHAR(50) NOT NULL,
+      "uploaded_by" INTEGER,
+      "company_id" INTEGER,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "deleted_at" TIMESTAMP WITH TIME ZONE
+    );
+  `,
+    { transaction },
+  );
+
+  // 2. Create sales_contract_document_files mapping table
+  await sequelize.query(
+    `
+    CREATE TABLE IF NOT EXISTS "sales_contract_document_files" (
+      "id" SERIAL PRIMARY KEY,
+      "sales_contract_id" INTEGER NOT NULL REFERENCES "sales_contracts"("id") ON DELETE CASCADE,
+      "trade_document_id" INTEGER NOT NULL REFERENCES "trade_documents"("id") ON DELETE CASCADE,
+      "attachment_id" INTEGER NOT NULL REFERENCES "attachments"("id") ON DELETE CASCADE,
+      "uploaded_by" INTEGER,
+      "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT "unique_sales_contract_trade_document" UNIQUE ("sales_contract_id", "trade_document_id")
+    );
+  `,
+    { transaction },
+  );
+
+  console.log(
+    '[Migration] Attachments and mappings tables created successfully.',
+  );
+}
+

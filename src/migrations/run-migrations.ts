@@ -13,6 +13,7 @@ import {
   runCompaniesPhase2Migration,
   runCompanyEnumRemovalMigration,
   runBagSpecsMigrations,
+  runAttachmentsMigration,
 } from './migration-tasks';
 
 /**
@@ -86,6 +87,7 @@ async function run() {
       await runCompaniesPhase2Migration(sequelize, transaction);
       await runCompanyEnumRemovalMigration(sequelize, transaction);
       await runBagSpecsMigrations(sequelize, transaction);
+      await runAttachmentsMigration(sequelize, transaction);
     });
 
     console.log('[Migration] All migration tasks executed successfully.');

@@ -23,6 +23,7 @@ import { Country } from '../../masters/country/country.model';
 import { SalesContractItem } from './sales-contract-item.model';
 import { SalesContractShipment } from './sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contract-document.model';
+import { SalesContractDocumentFile } from './sales-contract-document-file.model';
 
 @Table({
   tableName: 'sales_contracts',
@@ -160,4 +161,7 @@ export class SalesContract extends Model<SalesContract> {
 
   @HasMany(() => SalesContractDocument)
   declare documents: SalesContractDocument[];
+
+  @HasMany(() => SalesContractDocumentFile)
+  declare documentFiles: SalesContractDocumentFile[];
 }

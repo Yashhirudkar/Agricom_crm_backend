@@ -9,6 +9,8 @@ import { SalesContractService } from './sales-contract.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { FinancialYear } from '../masters/financial-year/financial-year.model';
+import { SalesContractDocumentFile } from './models/sales-contract-document-file.model';
+import { AttachmentsModule } from '../attachments/modules/attachments.module';
 
 @Module({
   imports: [
@@ -17,10 +19,12 @@ import { FinancialYear } from '../masters/financial-year/financial-year.model';
       SalesContractItem,
       SalesContractShipment,
       SalesContractDocument,
+      SalesContractDocumentFile,
       FinancialYear, // Needed for sequence generation querying
     ]),
     RbacModule,
     AuditModule,
+    AttachmentsModule,
   ],
   controllers: [SalesContractController],
   providers: [SalesContractService],

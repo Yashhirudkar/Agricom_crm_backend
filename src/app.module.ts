@@ -93,6 +93,8 @@ import { SalesContract } from './sales-contracts/models/sales-contract.model';
 import { SalesContractItem } from './sales-contracts/models/sales-contract-item.model';
 import { SalesContractShipment } from './sales-contracts/models/sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
+import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
+import { Attachment } from './attachments/models/attachment.model';
 
 import { TasksModule } from './tasks/tasks.module';
 import {
@@ -206,6 +208,8 @@ import {
             SalesContractItem,
             SalesContractShipment,
             SalesContractDocument,
+            SalesContractDocumentFile,
+            Attachment,
             Task,
             TaskSequence,
             TaskStatus,

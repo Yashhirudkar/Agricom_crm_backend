@@ -12,7 +12,12 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { getAttachmentMulterConfig } from '../attachments/config/multer.config';
 import { SalesContractService } from './sales-contract.service';
 import { CreateSalesContractDto } from './dto/create-sales-contract.dto';
 import { UpdateSalesContractDto, UpdateSalesContractStatusDto } from './dto/update-sales-contract.dto';
@@ -74,5 +79,39 @@ export class SalesContractController {
   @AuditLog({ entityType: 'SalesContract', action: 'DELETE' })
   remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return this.service.remove(id, req.user);
+  }
+
+  @Get(':id/documents')
+  @RequirePermission('sales-contract:view')
+  async getDocuments(@Param('id', ParseIntPipe) id: number) {
+    return await this.service.getDocuments(id);
+  }
+
+  @Post(':id/documents/:tradeDocumentId/upload')
+  @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
+  @RequirePermission('sales-contract:update')
+  @AuditLog({ entityType: 'SalesContractDocumentFile', action: 'UPLOAD' })
+  async uploadDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('tradeDocumentId', ParseIntPipe) tradeDocumentId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : null;
+    if (!companyId) {
+      throw new BadRequestException('x-company-id header is required');
+    }
+    return await this.service.uploadDocument(id, tradeDocumentId, file, req.user, companyId);
+  }
+
+  @Delete(':id/documents/:tradeDocumentId')
+  @RequirePermission('sales-contract:update')
+  @AuditLog({ entityType: 'SalesContractDocumentFile', action: 'DELETE' })
+  async deleteDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('tradeDocumentId', ParseIntPipe) tradeDocumentId: number,
+  ) {
+    return await this.service.deleteDocument(id, tradeDocumentId);
   }
 }
