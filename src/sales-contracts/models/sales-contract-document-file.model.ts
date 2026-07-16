@@ -20,6 +20,7 @@ import { Attachment } from '../../attachments/models/attachment.model';
   timestamps: true,
   indexes: [
     {
+      name: 'idx_sales_contract_trade_doc',
       unique: true,
       fields: ['sales_contract_id', 'trade_document_id'],
     },

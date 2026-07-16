@@ -34,5 +34,13 @@ export class CreatePartnerFollowUpDto {
   @IsOptional()
   @IsString()
   enquiryId?: string;
+
+  @IsOptional()
+  @IsString()
+  entityType?: string;
+
+  @IsOptional()
+  @IsInt()
+  entityId?: number;
 }
 

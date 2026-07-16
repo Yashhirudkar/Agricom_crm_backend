@@ -34,6 +34,14 @@ export class PartnerFollowUp extends Model<PartnerFollowUp> {
   declare partner: Partner;
 
   @AllowNull(true)
+  @Column({ field: 'entity_type', type: DataType.STRING(50) })
+  declare entityType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'entity_id', type: DataType.INTEGER })
+  declare entityId: number;
+
+  @AllowNull(true)
   @Column({ field: 'workspace_id', type: DataType.INTEGER })
   declare workspaceId: number;
 

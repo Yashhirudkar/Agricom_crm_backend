@@ -61,9 +61,9 @@ async function bootstrap() {
   // console.log('Table synced!');
 
 
-  await app.listen(port, '0.0.0.0');
-  console.log(`Application is running on: http://localhost:${port}/api`);
-  // console.log(`Swagger UI is available at: http://localhost:${port}/api/docs`);
+  await app.listen(port);
+  console.log(`Application is running on: ${await app.getUrl()}/api`);
+
 }
 bootstrap();
 // Trigger DB sync for Sales Contracts

@@ -37,7 +37,7 @@ export class PartnerFollowUpService {
 
   async create(dto: CreatePartnerFollowUpDto, user: any): Promise<PartnerFollowUp> {
     const payload: any = { ...dto };
-    const enquiryId = payload.enquiryId;
+    const enquiryId = payload.enquiryId || (payload.entityType === 'enquiry' ? payload.entityId : null);
     delete payload.enquiryId;
 
     if (payload.followupDate) payload.followupDate = new Date(payload.followupDate);
@@ -56,9 +56,13 @@ export class PartnerFollowUpService {
     return followUp;
   }
 
-  async findAll(partnerId: number): Promise<PartnerFollowUp[]> {
+  async findAll(partnerId: number, entityType?: string, entityId?: number): Promise<PartnerFollowUp[]> {
+    const where: any = { partnerId, isActive: true };
+    if (entityType) where.entityType = entityType;
+    if (entityId) where.entityId = entityId;
+
     return this.partnerFollowUpModel.findAll({
-      where: { partnerId, isActive: true },
+      where,
       order: [['createdAt', 'ASC']],
     });
   }
@@ -75,7 +79,7 @@ export class PartnerFollowUpService {
     const followUp = await this.findOne(id);
     
     const payload: any = { ...dto };
-    const enquiryId = payload.enquiryId;
+    const enquiryId = payload.enquiryId || (payload.entityType === 'enquiry' ? payload.entityId : null);
     delete payload.enquiryId;
 
     if (payload.followupDate) payload.followupDate = new Date(payload.followupDate);

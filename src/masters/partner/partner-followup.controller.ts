@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { PartnerFollowUpService } from './partner-followup.service';
 import { CreatePartnerFollowUpDto } from './dto/create-partner-followup.dto';
@@ -34,8 +35,12 @@ export class PartnerFollowUpController {
 
   @Get()
   @RequirePermission('partner:view')
-  findAll(@Param('partnerId') partnerId: string) {
-    return this.partnerFollowUpService.findAll(+partnerId);
+  findAll(
+    @Param('partnerId') partnerId: string,
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
+  ) {
+    return this.partnerFollowUpService.findAll(+partnerId, entityType, entityId ? +entityId : undefined);
   }
 
   @Get(':id')
