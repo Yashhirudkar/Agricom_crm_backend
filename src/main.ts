@@ -43,8 +43,10 @@ async function bootstrap() {
   const port = configService.get<number>('PORT') || 5000;
 
   // Enable CORS for frontend
+  // NOTE: origin: true reflects the request origin dynamically (valid with credentials: true)
+  // origin: '*' is INVALID with credentials: true — browsers will reject it
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.1.106:3000'],
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
