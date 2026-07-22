@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { FinancialYear } from './financial-year/financial-year.model';
-import { FinancialYearController } from './financial-year/financial-year.controller';
-import { FinancialYearService } from './financial-year/financial-year.service';
+
+import { Currency } from './currency/currency.model';
+import { CurrencyController } from './currency/currency.controller';
+import { CurrencyService } from './currency/currency.service';
 
 import { ShipmentType } from './shipment-type/shipment-type.model';
 import { ShipmentTypeController } from './shipment-type/shipment-type.controller';
@@ -62,6 +63,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     SequelizeModule.forFeature([
       Category,
       Country,
+      Currency,
       HSCode,
       PartnerRole,
       Product,
@@ -78,7 +80,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       PackingType,
       BagSpecification,
       ProductBagAssignment,
-      FinancialYear,
 
       ShipmentType,
       PaymentTerm,
@@ -90,6 +91,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
   controllers: [
     CategoryController,
     CountryController,
+    CurrencyController,
     HSCodeController,
     PartnerRoleController,
     ProductController,
@@ -100,7 +102,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     PartnerDynamicValuesController,
     // Bag Specifications — Dynamic Packaging System
     BagSpecsController,
-    FinancialYearController,
 
     ShipmentTypeController,
     PaymentTermController,
@@ -109,6 +110,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
   providers: [
     CategoryService,
     CountryService,
+    CurrencyService,
     HSCodeService,
     PartnerRoleService,
     ProductService,
@@ -120,7 +122,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     PartnerDynamicValuesService,
     // Bag Specifications — Dynamic Packaging System
     BagSpecsService,
-    FinancialYearService,
 
     ShipmentTypeService,
     PaymentTermService,

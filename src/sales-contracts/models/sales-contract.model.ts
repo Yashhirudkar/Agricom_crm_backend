@@ -14,7 +14,6 @@ import {
   HasMany,
   Unique,
 } from 'sequelize-typescript';
-import { FinancialYear } from '../../masters/financial-year/financial-year.model';
 import { Partner } from '../../masters/partner/partner.model';
 
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
@@ -29,10 +28,10 @@ import { SalesContractDocumentFile } from './sales-contract-document-file.model'
   tableName: 'sales_contracts',
   timestamps: true,
   indexes: [
-    { fields: ['status'] }, 
+    { fields: ['status'] },
     { fields: ['contract_number'] },
     { fields: ['buyer_id'] },
-    { fields: ['financial_year_id'] }
+    { fields: ['financial_year'] },
   ],
 })
 export class SalesContract extends Model<SalesContract> {
@@ -46,13 +45,9 @@ export class SalesContract extends Model<SalesContract> {
   @Column({ field: 'contract_number', type: DataType.STRING(50) })
   declare contractNumber: string;
 
-  @ForeignKey(() => FinancialYear)
   @AllowNull(false)
-  @Column({ field: 'financial_year_id', type: DataType.INTEGER })
-  declare financialYearId: number;
-
-  @BelongsTo(() => FinancialYear)
-  declare financialYear: FinancialYear;
+  @Column({ field: 'financial_year', type: DataType.STRING(20) })
+  declare financialYear: string;
 
   @AllowNull(false)
   @Column({ field: 'contract_date', type: DataType.DATEONLY })
@@ -131,6 +126,11 @@ export class SalesContract extends Model<SalesContract> {
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare remarks: string;
+
+  @AllowNull(true)
+  @Default([])
+  @Column({ type: DataType.JSONB })
+  declare terms: string[];
 
   @Default('Draft')
   @AllowNull(false)

@@ -21,7 +21,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "permission:sync": "ts-node -r tsconfig-paths/register src/scripts/sync-permissions.ts",
     "sync": "ts-node src/sync_init/main-sync.ts",
-    "migrate": "ts-node -r tsconfig-paths/register src/migrations/run-migrations.ts"
+    "migrate": "ts-node -r tsconfig-paths/register src/migrations/run-migrations.ts",
+    "migrate:07": "ts-node -r tsconfig-paths/register src/migrations/07-sales-contract-fy-refactor.ts",
+    "migrate:08": "ts-node -r tsconfig-paths/register src/migrations/08-sales-contract-terms.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

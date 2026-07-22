@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { SalesContract } from './models/sales-contract.model';
 import { SalesContractItem } from './models/sales-contract-item.model';
@@ -13,7 +13,6 @@ import { SalesContractDocument } from './models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './models/sales-contract-document-file.model';
 import { AttachmentsService } from '../attachments/services/attachments.service';
 import { Attachment } from '../attachments/models/attachment.model';
-import { FinancialYear } from '../masters/financial-year/financial-year.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 
@@ -42,8 +41,6 @@ export class SalesContractService {
     @InjectModel(SalesContractDocumentFile)
     private readonly documentFileModel: typeof SalesContractDocumentFile,
     private readonly attachmentsService: AttachmentsService,
-    @InjectModel(FinancialYear)
-    private readonly fyModel: typeof FinancialYear,
     private readonly sequelize: Sequelize,
   ) {}
 
@@ -114,7 +111,7 @@ export class SalesContractService {
   }
 
   async findAll(query: QuerySalesContractDto) {
-    const { search, status, buyerId, financialYearId, page = 1, limit = 10 } = query;
+    const { search, status, buyerId, financialYear, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
@@ -123,7 +120,7 @@ export class SalesContractService {
     }
     if (status) whereClause.status = status;
     if (buyerId) whereClause.buyerId = buyerId;
-    if (financialYearId) whereClause.financialYearId = financialYearId;
+    if (financialYear) whereClause.financialYear = financialYear;
 
     const { rows, count } = await this.model.findAndCountAll({
       where: whereClause,
@@ -150,7 +147,6 @@ export class SalesContractService {
   async findOne(id: number): Promise<SalesContract> {
     const item = await this.model.findByPk(id, {
       include: [
-        { model: FinancialYear },
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'broker' },
         { model: ShipmentType },
@@ -177,10 +173,6 @@ export class SalesContractService {
 
   async update(id: number, dto: UpdateSalesContractDto, user: any): Promise<SalesContract> {
     const contract = await this.findOne(id);
-    // Allowed updates for any status for now, as requested.
-    // if (contract.status !== 'Draft') {
-    //   throw new BadRequestException('Only Draft contracts can be fully updated');
-    // }
 
     await this.sequelize.transaction(async (t) => {
       // Enforce Data Integrity: Recalculate Totals
@@ -197,11 +189,11 @@ export class SalesContractService {
       }
 
       // 1. Update Header
-      const updateData: any = { 
-        ...dto, 
+      const updateData: any = {
+        ...dto,
         totalQuantity: calculatedTotalQty,
         totalAmount: calculatedTotalAmt,
-        updatedBy: user?.userId 
+        updatedBy: user?.userId
       };
       if (dto.contractDate) {
         updateData.contractDate = new Date(dto.contractDate);
@@ -245,14 +237,14 @@ export class SalesContractService {
 
   async updateStatus(id: number, dto: UpdateSalesContractStatusDto, user: any): Promise<SalesContract> {
     const contract = await this.findOne(id);
-    
+
     if (dto.status === 'Active') {
       const mandatoryDocs = contract.documents.filter(doc => doc.isMandatory);
       if (mandatoryDocs.length > 0) {
         const uploadedFiles = await this.documentFileModel.findAll({
           where: { salesContractId: id }
         });
-        
+
         const missingDocs = [];
         for (const doc of mandatoryDocs) {
           const hasFile = uploadedFiles.some(f => f.tradeDocumentId === doc.tradeDocumentId);
@@ -260,7 +252,7 @@ export class SalesContractService {
             missingDocs.push(doc.tradeDocument.name);
           }
         }
-        
+
         if (missingDocs.length > 0) {
           throw new BadRequestException(`Cannot activate contract.\nMissing Documents:\n- ${missingDocs.join('\n- ')}`);
         }
@@ -271,9 +263,17 @@ export class SalesContractService {
     return contract.reload();
   }
 
+  async getDistinctFinancialYears(): Promise<string[]> {
+    const results = await this.sequelize.query<{ financial_year: string }>(
+      `SELECT DISTINCT financial_year FROM sales_contracts WHERE financial_year IS NOT NULL ORDER BY financial_year DESC`,
+      { type: QueryTypes.SELECT },
+    );
+    return results.map((r) => r.financial_year);
+  }
+
   async getDocuments(id: number) {
     const contract = await this.findOne(id);
-    
+
     const mappingFiles = await this.documentFileModel.findAll({
       where: { salesContractId: id },
       include: [Attachment, TradeDocument],
@@ -303,7 +303,7 @@ export class SalesContractService {
       }
     }
 
-    // 2. Add any mappings that aren't in contract.documents yet (e.g. uploaded during edit but contract not saved yet)
+    // 2. Add any mappings that aren't in contract.documents yet
     for (const mapping of mappingFiles) {
       if (!docMap.has(mapping.tradeDocumentId) && mapping.tradeDocument) {
         docMap.set(mapping.tradeDocumentId, {
@@ -330,7 +330,7 @@ export class SalesContractService {
   async uploadDocument(id: number, tradeDocumentId: number, file: Express.Multer.File, user: any, companyId: number) {
     // 1. Create attachment via central engine
     const attachment = await this.attachmentsService.createAttachment(file, user?.userId, companyId);
-    
+
     // 2. Check if mapping already exists
     const existingMapping = await this.documentFileModel.findOne({
       where: { salesContractId: id, tradeDocumentId },
@@ -339,7 +339,7 @@ export class SalesContractService {
     if (existingMapping) {
       // 3. Re-upload flow: delete old attachment (engine handles file + generic row)
       await this.attachmentsService.deleteAttachment(existingMapping.attachmentId);
-      
+
       // 4. Update mapping
       await existingMapping.update({
         attachmentId: attachment.id,
@@ -361,17 +361,17 @@ export class SalesContractService {
     const existingMapping = await this.documentFileModel.findOne({
       where: { salesContractId: id, tradeDocumentId },
     });
-    
+
     if (!existingMapping) {
       throw new NotFoundException('Document mapping not found');
     }
 
     // 1. Delete attachment via central engine
     await this.attachmentsService.deleteAttachment(existingMapping.attachmentId);
-    
+
     // 2. Delete mapping row
     await existingMapping.destroy();
-    
+
     return { success: true };
   }
 

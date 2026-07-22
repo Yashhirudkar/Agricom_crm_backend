@@ -46,6 +46,12 @@ export class SalesContractController {
     return await this.service.findAll(query);
   }
 
+  @Get('financial-years')
+  @RequirePermission('sales-contract:view')
+  async getDistinctFinancialYears() {
+    return await this.service.getDistinctFinancialYears();
+  }
+
   @Get(':id')
   @RequirePermission('sales-contract:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {

@@ -9,6 +9,7 @@ import {
   ValidateNested,
   IsArray,
   IsBoolean,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -80,8 +81,9 @@ export class CreateSalesContractDocumentDto {
 
 export class CreateSalesContractDto {
   @IsNotEmpty()
-  @IsInt()
-  financialYearId: number;
+  @IsString()
+  @Matches(/^\d{4}-\d{4}$/, { message: 'financialYear must be in YYYY-YYYY format' })
+  financialYear: string;
 
   @IsNotEmpty()
   @IsString()
@@ -140,6 +142,11 @@ export class CreateSalesContractDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  terms?: string[];
 
   @IsOptional()
   @IsString()

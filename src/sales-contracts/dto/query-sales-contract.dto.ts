@@ -16,9 +16,8 @@ export class QuerySalesContractDto {
   buyerId?: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  financialYearId?: number;
+  @IsString()
+  financialYear?: string;
 
   @IsOptional()
   @Type(() => Number)

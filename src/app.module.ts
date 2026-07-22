@@ -84,7 +84,7 @@ import { BagType } from './masters/bag-specs/models/bag-type.model';
 import { PackingType } from './masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from './masters/bag-specs/models/bag-specification.model';
 import { ProductBagAssignment } from './masters/bag-specs/models/product-bag-assignment.model';
-import { FinancialYear } from './masters/financial-year/financial-year.model';
+import { Currency } from './masters/currency/currency.model';
 
 import { ShipmentType } from './masters/shipment-type/shipment-type.model';
 import { PaymentTerm } from './masters/payment-term/payment-term.model';
@@ -201,7 +201,7 @@ import {
             PackingType,
             BagSpecification,
             ProductBagAssignment,
-            FinancialYear,
+            Currency,
 
             ShipmentType,
             PaymentTerm,
