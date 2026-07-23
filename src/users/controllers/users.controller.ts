@@ -245,10 +245,28 @@ export class UsersController {
       }
     }
 
+    const actor = {
+      userId: req.user.userId || req.user.sub || null,
+      clientId: req.user.clientId || null,
+      type: req.user.type || null,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    if (isSuper && targetUser.clientId !== null && targetUser.clientId !== company.clientId) {
+      return this.usersService.transferUserToCompany(
+        dto.userId,
+        dto.companyId,
+        dto.roleId,
+        actor,
+      );
+    }
+
     return this.usersService.addUserToCompany(
       dto.userId,
       dto.companyId,
       dto.roleId,
+      actor,
     );
   }
 
@@ -271,7 +289,15 @@ export class UsersController {
       }
     }
 
-    await this.usersService.removeUserFromCompany(dto.userId, dto.companyId);
+    const actor = {
+      userId: req.user.userId || req.user.sub || null,
+      clientId: req.user.clientId || null,
+      type: req.user.type || null,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    await this.usersService.removeUserFromCompany(dto.userId, dto.companyId, actor);
     return { success: true, message: 'User removed from company workspace' };
   }
 

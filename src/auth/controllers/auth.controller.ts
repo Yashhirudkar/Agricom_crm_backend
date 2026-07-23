@@ -295,15 +295,33 @@ export class AuthController {
       roles: profile.roles || [],
     });
 
-    const filterItem = (item: any) => {
-      if (!item.permission_link) return true;
+    // Items always visible to ALL logged-in users regardless of role/permissions
+    // These are the exact names from sidebar_items DB table
+    const ALWAYS_VISIBLE_ITEMS = [
+      'Dashboard',   // Workspace folder (id=4)
+      'Profile',     // Workspace folder (id=27)
+      'Holidays',    // Workspace folder (id=25) - Calendar view
+    ];
+
+    const filterItem = (item: any, folderName?: string) => {
       if (isSuperAdmin || isClientAdmin) return true;
+      // Special flag for always-visible items
+      if (item.permission_link === 'always:allow') return true;
+      // Always-visible item names (Dashboard, Profile, Calendar)
+      if (ALWAYS_VISIBLE_ITEMS.includes(item.name)) return true;
+      // Workspace folder items are always visible (fallback safety)
+      if (!item.permission_link && folderName === 'Workspace') return true;
+      // Items without permission_link are hidden for regular users
+      if (!item.permission_link) return false;
+      // Check actual permission
       return userPermissions.includes(item.permission_link);
     };
 
     const folders = menuData.folders
       .map((f) => {
-        const items = (f.items || []).filter(filterItem);
+        const items = (f.items || []).filter((item) =>
+          filterItem(item, f.name),
+        );
         return {
           id: `folder-${f.id}`,
           title: f.name,
@@ -330,7 +348,7 @@ export class AuthController {
       .filter((f) => f.items.length > 0 || isSuperAdmin);
 
     const standaloneItems = menuData.standaloneItems
-      .filter(filterItem)
+      .filter((item) => filterItem(item))
       .map((i: any) => ({
         id: i.id,
         title: i.name,

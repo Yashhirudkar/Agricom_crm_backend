@@ -41,14 +41,14 @@ export class ShiftsController {
   }
 
   @Get()
-  @RequirePermission('attendance_shifts:read')
+  @RequirePermission('attendance_activity:read')
   findAll(@Request() req) {
     const companyId = this.getCompanyId(req);
     return this.shiftsService.getShifts(companyId);
   }
 
   @Get(':id')
-  @RequirePermission('attendance_shifts:read')
+  @RequirePermission('attendance_activity:read')
   findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.shiftsService.getShiftById(id, companyId);

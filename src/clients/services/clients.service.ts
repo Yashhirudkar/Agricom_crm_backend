@@ -144,9 +144,7 @@ export class ClientsService {
       limit,
       offset,
       attributes: { exclude: ['password'] },
-      include: ['folderAccess', 'itemAccess', 'moduleAccess', 'actionAccess'],
       order: [['createdAt', 'DESC']],
-      distinct: true,
     });
 
     return {

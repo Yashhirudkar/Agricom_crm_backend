@@ -94,4 +94,13 @@ export class ClientsAccessService {
       message: 'Client access config updated successfully',
     };
   }
+
+  async getAccessConfig(clientId: number): Promise<Client> {
+    const client = await this.clientModel.findByPk(clientId, {
+      attributes: { exclude: ['password'] },
+      include: ['folderAccess', 'itemAccess', 'moduleAccess', 'actionAccess'],
+    });
+    if (!client) throw new NotFoundException('Client not found');
+    return client;
+  }
 }

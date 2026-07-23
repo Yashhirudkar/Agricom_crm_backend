@@ -28,7 +28,7 @@ import {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('holidays')
 export class HolidaysController {
-  constructor(private readonly holidaysService: HolidaysService) {}
+  constructor(private readonly holidaysService: HolidaysService) { }
 
   private getCompanyId(req: any): number | null {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;
@@ -75,7 +75,6 @@ export class HolidaysController {
   }
 
   @Get('upcoming')
-  @RequirePermission('holidays:read')
   getUpcomingHolidays(@Request() req) {
     const actor = this.getActor(req);
     const companyId = this.getCompanyId(req);
@@ -83,7 +82,6 @@ export class HolidaysController {
   }
 
   @Get()
-  @RequirePermission('holidays:read')
   getHolidays(@Query() query: GetHolidaysFilterDto, @Request() req) {
     const actor = this.getActor(req);
     const companyId = this.getCompanyId(req);

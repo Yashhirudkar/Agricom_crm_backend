@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { ClientsAccessService } from '../services/clients-access.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -8,6 +8,12 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @Controller('clients')
 export class ClientsAccessController {
   constructor(private readonly clientsAccessService: ClientsAccessService) {}
+
+  @Get(':id/access-config')
+  @RequirePermission('system:manage_clients') // Only Super Admin should have this
+  async getAccessConfig(@Param('id') id: string) {
+    return this.clientsAccessService.getAccessConfig(parseInt(id, 10));
+  }
 
   @Post(':id/access-config')
   @RequirePermission('system:manage_clients') // Only Super Admin should have this

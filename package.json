@@ -20,15 +20,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "permission:sync": "ts-node -r tsconfig-paths/register src/scripts/sync-permissions.ts",
-    "sync": "ts-node src/sync_init/main-sync.ts",
-    "migrate": "ts-node -r tsconfig-paths/register src/migrations/run-migrations.ts",
-    "migrate:07": "ts-node -r tsconfig-paths/register src/migrations/07-sales-contract-fy-refactor.ts",
-    "migrate:08": "ts-node -r tsconfig-paths/register src/migrations/08-sales-contract-terms.ts",
-    "migrate:09": "ts-node -r tsconfig-paths/register src/migrations/09-sales-contract-transport-mode.ts",
-    "migrate:10": "ts-node -r tsconfig-paths/register src/migrations/10-multi-modal-transport.ts",
-    "migrate:11": "ts-node -r tsconfig-paths/register src/migrations/11-enterprise-contract-sections.ts",
-    "migrate:12": "ts-node -r tsconfig-paths/register src/migrations/12-add-seller-id-to-sales-contracts.ts",
-    "temp-refactor": "node \"C:\\Users\\Admin\\.gemini\\antigravity-ide\\brain\\1a3d7d4f-f3ec-41c9-8925-578ce1633c74\\scratch\\refactor_decorators.js\""
+    "sync": "ts-node src/sync_init/main-sync.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

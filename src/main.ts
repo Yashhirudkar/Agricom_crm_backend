@@ -63,8 +63,11 @@ async function bootstrap() {
   // console.log('Table synced!');
 
 
+  // await app.listen(port);
+  // console.log(`Application is running on: ${await app.getUrl()}/api`);
   await app.listen(port);
-  console.log(`Application is running on: ${await app.getUrl()}/api`);
+
+  console.log(`Application is running on: http://localhost:${port}/api`);
 
 }
 bootstrap();

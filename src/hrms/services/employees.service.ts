@@ -422,41 +422,66 @@ export class EmployeesService {
         }
       }
 
-      if (data.createLogin && data.password && !employee.userId) {
+      // Resolve the password to use: newPassword takes priority, then password
+      const resolvedPassword = data.newPassword || data.password || null;
+
+      if (data.createLogin && resolvedPassword && !employee.userId) {
+        // Case 1: Employee has no linked user yet
         const name =
           `${data.firstName || employee.firstName} ${data.lastName || employee.lastName}`.trim();
-        const email = data.email || employee.email;
+        const email = (data.email || employee.email).toLowerCase().trim();
 
-        const createdUser = await this.usersService.createUser(
-          {
-            name,
-            email: email,
-            password: data.password,
-            clientId: actor?.clientId || null,
-            status: [
-              'ACTIVE',
-              'PROBATION',
-              'NOTICE_PERIOD',
-              'CONFIRMED',
-            ].includes(data.status || employee.status || 'DRAFT')
-              ? 'Active'
-              : 'Inactive',
-            isActive: [
-              'ACTIVE',
-              'PROBATION',
-              'NOTICE_PERIOD',
-              'CONFIRMED',
-            ].includes(data.status || employee.status || 'DRAFT'),
-            companies: [{ companyId, roleId: data.roleId }],
-          },
-          actor,
-          t,
-        );
+        // Check if user with this email already exists (e.g. from a previous failed attempt)
+        const existingUserByEmail = await this.usersService.findByEmail(email);
 
-        updatedUserId = createdUser.id;
+        if (existingUserByEmail) {
+          // User already exists — link them to this employee and update password/role
+          await this.usersService.updateUser(
+            existingUserByEmail.id,
+            { password: resolvedPassword },
+            actor,
+            t,
+          );
+          await this.usersService.addUserToCompany(
+            existingUserByEmail.id,
+            companyId,
+            data.roleId || undefined,
+            actor,
+          );
+          updatedUserId = existingUserByEmail.id;
+        } else {
+          // No existing user — create a brand-new login account
+          const createdUser = await this.usersService.createUser(
+            {
+              name,
+              email,
+              password: resolvedPassword,
+              clientId: actor?.clientId || null,
+              status: [
+                'ACTIVE',
+                'PROBATION',
+                'NOTICE_PERIOD',
+                'CONFIRMED',
+              ].includes(data.status || employee.status || 'DRAFT')
+                ? 'Active'
+                : 'Inactive',
+              isActive: [
+                'ACTIVE',
+                'PROBATION',
+                'NOTICE_PERIOD',
+                'CONFIRMED',
+              ].includes(data.status || employee.status || 'DRAFT'),
+              companies: [{ companyId, roleId: data.roleId }],
+            },
+            actor,
+            t,
+          );
+          updatedUserId = createdUser.id;
+        }
       } else if (updatedUserId) {
+        // Case 2: Employee already has a linked user — update their account
         const userUpdate: any = {};
-        if (data.newPassword) userUpdate.password = data.newPassword;
+        if (resolvedPassword) userUpdate.password = resolvedPassword;
         if (data.status) {
           const isActiveStatus = [
             'ACTIVE',

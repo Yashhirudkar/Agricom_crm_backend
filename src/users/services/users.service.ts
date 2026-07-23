@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../models/user.model';
@@ -65,6 +66,10 @@ export class UsersService {
   async findByIdWithRoles(id: number): Promise<User | null> {
     return this.userModel.findByPk(id, {
       include: [
+        {
+          model: Client,
+          attributes: ['id', 'name'],
+        },
         {
           model: Role,
           through: { attributes: [] },
@@ -456,6 +461,7 @@ export class UsersService {
     userId: number,
     companyId: number,
     roleId?: number,
+    actor?: any,
   ): Promise<UserCompany> {
     const user = await this.userModel.findByPk(userId);
     if (!user) throw new NotFoundException('User not found');
@@ -488,31 +494,195 @@ export class UsersService {
     const existing = await this.userCompanyModel.findOne({
       where: { userId, companyId },
     });
-    if (existing) {
-      if (roleId !== undefined) {
-        existing.roleId = roleId;
-        await existing.save();
+
+    const t = await this.userModel.sequelize.transaction();
+    try {
+      if (user.clientId === null) {
+        user.clientId = company.clientId;
+        user.lastCompanyId = company.id;
+        await user.save({ transaction: t });
       }
-      return existing;
+
+      let mapping: UserCompany;
+      if (existing) {
+        if (roleId !== undefined) {
+          existing.roleId = roleId;
+          await existing.save({ transaction: t });
+        }
+        mapping = existing;
+      } else {
+        mapping = await this.userCompanyModel.create({
+          userId,
+          companyId,
+          roleId: roleId || null,
+          status: 'Active',
+        }, { transaction: t });
+      }
+
+      if (actor) {
+        await this.auditService.writeLog({
+          clientId: company.clientId,
+          companyId: company.id,
+          userId: actor.userId,
+          entityType: 'UserCompany',
+          entityId: mapping.id,
+          action: 'CREATE',
+          newValue: {
+            userId: mapping.userId,
+            companyId: mapping.companyId,
+            roleId: mapping.roleId,
+            status: mapping.status,
+          },
+          ipAddress: actor.ipAddress,
+          userAgent: actor.userAgent,
+        });
+      }
+
+      await t.commit();
+      return mapping;
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+  }
+
+  async transferUserToCompany(
+    userId: number,
+    companyId: number,
+    roleId?: number,
+    actor?: any,
+  ): Promise<UserCompany> {
+    if (!actor || actor.type !== 'super_admin') {
+      throw new ForbiddenException('Only Super Admin can execute transferUserToCompany()');
     }
 
-    return this.userCompanyModel.create({
-      userId,
-      companyId,
-      roleId: roleId || null,
-      status: 'Active',
-    });
+    const t = await this.userModel.sequelize.transaction();
+    try {
+      const user = await this.userModel.findByPk(userId, { transaction: t });
+      if (!user) throw new NotFoundException('User not found');
+
+      const company = await this.companyModel.findByPk(companyId, { transaction: t });
+      if (!company) throw new NotFoundException('Company not found');
+
+      const oldClientId = user.clientId;
+
+      // Fetch names for audit logging
+      const oldClient = oldClientId ? await Client.findByPk(oldClientId, { transaction: t }) : null;
+      const newClient = await Client.findByPk(company.clientId, { transaction: t });
+      
+      const existingMappings = await this.userCompanyModel.findAll({
+        where: { userId },
+        include: [{ model: Company, attributes: ['id', 'name'] }],
+        transaction: t,
+      });
+
+      const oldWorkspaceNames = existingMappings.map(m => m.company?.name || `Workspace #${m.companyId}`);
+
+      // Remove all existing workspace mappings
+      await this.userCompanyModel.destroy({
+        where: { userId },
+        transaction: t,
+      });
+
+      // Update user client ID
+      user.clientId = company.clientId;
+      user.lastCompanyId = company.id;
+      await user.save({ transaction: t });
+
+      // Create new mapping
+      const mapping = await this.userCompanyModel.create({
+        userId,
+        companyId,
+        roleId: roleId || null,
+        status: 'Active',
+      }, { transaction: t });
+
+      // Write structured audit log
+      await this.auditService.writeLog({
+        clientId: company.clientId,
+        companyId: company.id,
+        userId: actor.userId,
+        entityType: 'User',
+        entityId: user.id,
+        action: 'TRANSFER_CLIENT',
+        oldValue: {
+          clientId: oldClientId,
+          clientName: oldClient?.name || 'N/A',
+          workspaces: oldWorkspaceNames,
+        },
+        newValue: {
+          clientId: company.clientId,
+          clientName: newClient?.name || 'N/A',
+          workspaceId: company.id,
+          workspaceName: company.name,
+          roleId: roleId || null,
+        },
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
+      });
+
+      await t.commit();
+      return mapping;
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   }
 
   async removeUserFromCompany(
     userId: number,
     companyId: number,
+    actor?: any,
   ): Promise<void> {
+    const user = await this.userModel.findByPk(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const company = await this.companyModel.findByPk(companyId);
+    if (!company) throw new NotFoundException('Company not found');
+
     const mapping = await this.userCompanyModel.findOne({
       where: { userId, companyId },
     });
+
     if (mapping) {
-      await mapping.destroy();
+      const oldRecord = mapping.toJSON();
+
+      const t = await this.userModel.sequelize.transaction();
+      try {
+        await mapping.destroy({ transaction: t });
+
+        // Option B: Clear lastCompanyId but keep user scoped to client organization
+        if (user.lastCompanyId === companyId) {
+          user.lastCompanyId = null;
+          await user.save({ transaction: t });
+        }
+
+        if (actor) {
+          await this.auditService.writeLog({
+            clientId: user.clientId,
+            companyId: companyId,
+            userId: actor.userId,
+            entityType: 'UserCompany',
+            entityId: mapping.id,
+            action: 'DELETE',
+            oldValue: {
+              userId: oldRecord.userId,
+              companyId: oldRecord.companyId,
+              companyName: company.name,
+              roleId: oldRecord.roleId,
+              status: oldRecord.status,
+            },
+            newValue: null,
+            ipAddress: actor.ipAddress,
+            userAgent: actor.userAgent,
+          });
+        }
+
+        await t.commit();
+      } catch (err) {
+        await t.rollback();
+        throw err;
+      }
     }
   }
 
