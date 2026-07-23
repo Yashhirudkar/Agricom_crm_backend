@@ -37,15 +37,15 @@ export class LeaveApprovalStep extends Model<LeaveApprovalStep> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare leaveRequestId: number;
 
-  @BelongsTo(() => LeaveRequest)
+  @BelongsTo(() => LeaveRequest, { onDelete: 'CASCADE' })
   declare leaveRequest: LeaveRequest;
 
   @ForeignKey(() => Employee)
   @AllowNull(false)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare approverId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare approver: Employee;
 
   @AllowNull(false)

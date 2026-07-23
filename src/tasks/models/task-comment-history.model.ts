@@ -31,7 +31,7 @@ export class TaskCommentHistory extends Model<TaskCommentHistory> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => TaskComment)
@@ -40,7 +40,7 @@ export class TaskCommentHistory extends Model<TaskCommentHistory> {
   @Column({ type: DataType.INTEGER })
   declare commentId: number;
 
-  @BelongsTo(() => TaskComment)
+  @BelongsTo(() => TaskComment, { onDelete: 'CASCADE' })
   declare comment: TaskComment;
 
   @AllowNull(false)
@@ -52,7 +52,7 @@ export class TaskCommentHistory extends Model<TaskCommentHistory> {
   @Column({ type: DataType.INTEGER })
   declare editedByUserId: number | null;
 
-  @BelongsTo(() => User, 'editedByUserId')
+  @BelongsTo(() => User, { foreignKey: 'editedByUserId', onDelete: 'CASCADE' })
   declare editedBy: User;
 
   @CreatedAt

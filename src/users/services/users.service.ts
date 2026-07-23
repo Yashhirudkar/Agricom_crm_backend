@@ -29,7 +29,7 @@ export class UsersService {
     @InjectModel(Role)
     private roleModel: typeof Role,
     private readonly auditService: AuditService,
-  ) {}
+  ) { }
 
   async create(
     name: string,

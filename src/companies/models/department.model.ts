@@ -35,7 +35,7 @@ export class Department extends Model<Department> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @AllowNull(false)
@@ -48,14 +48,13 @@ export class Department extends Model<Department> {
 
   @ForeignKey(() => Department)
   @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare parentDepartmentId: number;
 
-  @BelongsTo(() => Department, 'parentDepartmentId')
+  @BelongsTo(() => Department, { foreignKey: 'parentDepartmentId', onDelete: 'CASCADE' })
   declare parentDepartment: Department;
 
-  @HasMany(() => Department, 'parentDepartmentId')
-  declare subDepartments: Department[];
+
 
   @ForeignKey(() => Employee)
   @AllowNull(true)
@@ -87,7 +86,7 @@ export class Department extends Model<Department> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -95,7 +94,7 @@ export class Department extends Model<Department> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt
@@ -104,9 +103,12 @@ export class Department extends Model<Department> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @HasMany(() => Designation)
+  @HasMany(() => Department, { foreignKey: 'parentDepartmentId', onDelete: 'CASCADE', hooks: true })
+  declare subDepartments: Department[];
+
+  @HasMany(() => Designation, { onDelete: 'CASCADE', hooks: true })
   declare designations: Designation[];
 
-  @HasMany(() => Employee)
+  @HasMany(() => Employee, { onDelete: 'CASCADE', hooks: true })
   declare employees: Employee[];
 }

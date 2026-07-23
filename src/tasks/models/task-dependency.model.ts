@@ -30,7 +30,7 @@ export class TaskDependency extends Model<TaskDependency> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -39,7 +39,7 @@ export class TaskDependency extends Model<TaskDependency> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task, 'taskId')
+  @BelongsTo(() => Task, { foreignKey: 'taskId', onDelete: 'CASCADE' })
   declare task: Task;
 
   @ForeignKey(() => Task)
@@ -48,7 +48,7 @@ export class TaskDependency extends Model<TaskDependency> {
   @Column({ type: DataType.INTEGER })
   declare dependsOnTaskId: number;
 
-  @BelongsTo(() => Task, 'dependsOnTaskId')
+  @BelongsTo(() => Task, { foreignKey: 'dependsOnTaskId', onDelete: 'CASCADE' })
   declare dependsOnTask: Task;
 
   @AllowNull(false)

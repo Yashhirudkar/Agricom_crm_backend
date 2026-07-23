@@ -27,7 +27,7 @@ export class ClientFolderAccess extends Model<ClientFolderAccess> {
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare client_id: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => SidebarFolder)

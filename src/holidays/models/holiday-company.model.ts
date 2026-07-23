@@ -34,7 +34,7 @@ export class HolidayCompany extends Model<HolidayCompany> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare holidayId: number;
 
-  @BelongsTo(() => Holiday)
+  @BelongsTo(() => Holiday, { onDelete: 'CASCADE' })
   declare holiday: Holiday;
 
   @ForeignKey(() => Company)
@@ -43,6 +43,6 @@ export class HolidayCompany extends Model<HolidayCompany> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 }

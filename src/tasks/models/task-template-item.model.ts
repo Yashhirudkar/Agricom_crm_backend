@@ -31,7 +31,7 @@ export class TaskTemplateItem extends Model<TaskTemplateItem> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => TaskTemplate)

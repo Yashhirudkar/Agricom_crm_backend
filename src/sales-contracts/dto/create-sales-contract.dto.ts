@@ -10,6 +10,7 @@ import {
   IsArray,
   IsBoolean,
   Matches,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -99,6 +100,10 @@ export class CreateSalesContractDto {
 
   @IsOptional()
   @IsInt()
+  sellerId?: number;
+
+  @IsOptional()
+  @IsInt()
   brokerId?: number;
 
   @IsNotEmpty()
@@ -139,6 +144,23 @@ export class CreateSalesContractDto {
   @IsString()
   portOfDischarge?: string;
 
+  // Multi-Modal Transport Routing
+  @IsOptional()
+  @IsString()
+  originTransportMode?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationTransportMode?: string;
+
+  @IsOptional()
+  @IsString()
+  originLocationName?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationLocationName?: string;
+
   @IsOptional()
   @IsString()
   remarks?: string;
@@ -147,6 +169,50 @@ export class CreateSalesContractDto {
   @IsArray()
   @IsString({ each: true })
   terms?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  otherConditions?: string[];
+
+  @IsOptional()
+  disputeResolution?: any;
+
+  @IsOptional()
+  forceMajeure?: any;
+
+  // Contract Acceptance
+  @IsOptional()
+  @IsString()
+  sellerCompanyName?: string;
+
+  @IsOptional()
+  @IsString()
+  sellerAuthorizedSignatory?: string;
+
+  @IsOptional()
+  @IsString()
+  sellerSignature?: string;
+
+  @IsOptional()
+  @IsString()
+  sellerCompanySeal?: string;
+
+  @IsOptional()
+  @IsString()
+  buyerCompanyName?: string;
+
+  @IsOptional()
+  @IsString()
+  buyerAuthorizedSignatory?: string;
+
+  @IsOptional()
+  @IsString()
+  buyerSignature?: string;
+
+  @IsOptional()
+  @IsString()
+  buyerCompanySeal?: string;
 
   @IsOptional()
   @IsString()

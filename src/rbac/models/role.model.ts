@@ -55,7 +55,7 @@ export class Role extends Model<Role> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @Default(false)
@@ -78,6 +78,6 @@ export class Role extends Model<Role> {
   @BelongsToMany(() => User, () => UserRole)
   declare users: User[];
 
-  @HasMany(() => RoleActionPermission)
+  @HasMany(() => RoleActionPermission, { onDelete: 'CASCADE', hooks: true })
   declare roleActionPermissions: RoleActionPermission[];
 }

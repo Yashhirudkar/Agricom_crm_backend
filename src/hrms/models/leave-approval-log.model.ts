@@ -38,7 +38,7 @@ export class LeaveApprovalLog extends Model<LeaveApprovalLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare leaveRequestId: number;
 
-  @BelongsTo(() => LeaveRequest)
+  @BelongsTo(() => LeaveRequest, { onDelete: 'CASCADE' })
   declare leaveRequest: LeaveRequest;
 
   @AllowNull(false)
@@ -58,7 +58,7 @@ export class LeaveApprovalLog extends Model<LeaveApprovalLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare performedBy: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { foreignKey: 'performedBy', onDelete: 'SET NULL' })
   declare performer: User;
 
   @AllowNull(true)

@@ -63,6 +63,14 @@ export class SalesContract extends Model<SalesContract> {
 
   @ForeignKey(() => Partner)
   @AllowNull(true)
+  @Column({ field: 'seller_id', type: DataType.INTEGER })
+  declare sellerId: number;
+
+  @BelongsTo(() => Partner, 'sellerId')
+  declare seller: Partner;
+
+  @ForeignKey(() => Partner)
+  @AllowNull(true)
   @Column({ field: 'broker_id', type: DataType.INTEGER })
   declare brokerId: number;
 
@@ -123,14 +131,91 @@ export class SalesContract extends Model<SalesContract> {
   @Column({ field: 'port_of_discharge', type: DataType.STRING(255) })
   declare portOfDischarge: string;
 
+  // Transport Mode Routing fields (Multi-Modal)
+  // Replaces portOfLoading/portOfDischarge for new contracts.
+
+  @AllowNull(true)
+  @Column({ field: 'origin_location_name', type: DataType.STRING(255) })
+  declare originLocationName: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_location_name', type: DataType.STRING(255) })
+  declare destinationLocationName: string;
+
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare remarks: string;
+
+  // ----------------------------------------------------
+  // MULTI-MODAL LOGISTICS (Added 2026-07)
+  // ----------------------------------------------------
+
+  @Column({
+    field: 'origin_transport_mode',
+    type: DataType.STRING(30),
+    allowNull: true,
+    defaultValue: 'sea',
+  })
+  declare originTransportMode: string;
+
+  @Column({
+    field: 'destination_transport_mode',
+    type: DataType.STRING(30),
+    allowNull: true,
+    defaultValue: 'sea',
+  })
+  declare destinationTransportMode: string;
 
   @AllowNull(true)
   @Default([])
   @Column({ type: DataType.JSONB })
   declare terms: string[];
+
+  @AllowNull(true)
+  @Default([])
+  @Column({ field: 'other_conditions', type: DataType.JSONB })
+  declare otherConditions: string[];
+
+  @AllowNull(true)
+  @Column({ field: 'dispute_resolution', type: DataType.JSONB })
+  declare disputeResolution: any;
+
+  @AllowNull(true)
+  @Column({ field: 'force_majeure', type: DataType.JSONB })
+  declare forceMajeure: any;
+
+  // Contract Acceptance Fields
+  @AllowNull(true)
+  @Column({ field: 'seller_company_name', type: DataType.STRING(255) })
+  declare sellerCompanyName: string;
+
+  @AllowNull(true)
+  @Column({ field: 'seller_authorized_signatory', type: DataType.STRING(255) })
+  declare sellerAuthorizedSignatory: string;
+
+  @AllowNull(true)
+  @Column({ field: 'seller_signature', type: DataType.TEXT })
+  declare sellerSignature: string;
+
+  @AllowNull(true)
+  @Column({ field: 'seller_company_seal', type: DataType.TEXT })
+  declare sellerCompanySeal: string;
+
+  @AllowNull(true)
+  @Column({ field: 'buyer_company_name', type: DataType.STRING(255) })
+  declare buyerCompanyName: string;
+
+  @AllowNull(true)
+  @Column({ field: 'buyer_authorized_signatory', type: DataType.STRING(255) })
+  declare buyerAuthorizedSignatory: string;
+
+  @AllowNull(true)
+  @Column({ field: 'buyer_signature', type: DataType.TEXT })
+  declare buyerSignature: string;
+
+  @AllowNull(true)
+  @Column({ field: 'buyer_company_seal', type: DataType.TEXT })
+  declare buyerCompanySeal: string;
 
   @Default('Draft')
   @AllowNull(false)

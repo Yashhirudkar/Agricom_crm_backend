@@ -75,21 +75,21 @@ export class Client extends Model<Client> {
   })
   declare allowedUsers: number;
 
-  @HasMany(() => Company)
+  @HasMany(() => Company, { onDelete: 'CASCADE', hooks: true })
   declare companies: Company[];
 
-  @HasMany(() => Role)
+  @HasMany(() => Role, { onDelete: 'CASCADE', hooks: true })
   declare roles: Role[];
 
-  @HasMany(() => ClientFolderAccess)
+  @HasMany(() => ClientFolderAccess, { onDelete: 'CASCADE', hooks: true })
   declare folderAccess: ClientFolderAccess[];
 
-  @HasMany(() => ClientItemAccess)
+  @HasMany(() => ClientItemAccess, { onDelete: 'CASCADE', hooks: true })
   declare itemAccess: ClientItemAccess[];
 
-  @HasMany(() => ClientModuleAccess)
+  @HasMany(() => ClientModuleAccess, { onDelete: 'CASCADE', hooks: true })
   declare moduleAccess: ClientModuleAccess[];
 
-  @HasMany(() => ClientActionAccess)
+  @HasMany(() => ClientActionAccess, { onDelete: 'CASCADE', hooks: true })
   declare actionAccess: ClientActionAccess[];
 }

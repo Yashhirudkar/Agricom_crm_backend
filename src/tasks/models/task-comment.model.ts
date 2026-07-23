@@ -31,7 +31,7 @@ export class TaskComment extends Model<TaskComment> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -40,7 +40,7 @@ export class TaskComment extends Model<TaskComment> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   // Support for nested replies/threaded discussions
@@ -49,7 +49,7 @@ export class TaskComment extends Model<TaskComment> {
   @Column({ type: DataType.INTEGER })
   declare parentCommentId: number | null;
 
-  @BelongsTo(() => TaskComment)
+  @BelongsTo(() => TaskComment, { onDelete: 'CASCADE' })
   declare parentComment: TaskComment;
 
   @ForeignKey(() => User)
@@ -57,7 +57,7 @@ export class TaskComment extends Model<TaskComment> {
   @Column({ type: DataType.INTEGER })
   declare userId: number;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'CASCADE' })
   declare user: User;
 
   @AllowNull(false)
@@ -81,7 +81,7 @@ export class TaskComment extends Model<TaskComment> {
   @Column({ type: DataType.INTEGER })
   declare deletedByUserId: number | null;
 
-  @BelongsTo(() => User, 'deletedByUserId')
+  @BelongsTo(() => User, { foreignKey: 'deletedByUserId', onDelete: 'CASCADE' })
   declare deletedBy: User;
 
   @CreatedAt

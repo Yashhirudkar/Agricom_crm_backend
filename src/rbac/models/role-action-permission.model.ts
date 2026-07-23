@@ -28,7 +28,7 @@ export class RoleActionPermission extends Model<RoleActionPermission> {
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare role_id: number;
 
-  @BelongsTo(() => Role)
+  @BelongsTo(() => Role, { onDelete: 'CASCADE' })
   declare role: Role;
 
   @ForeignKey(() => ResourceAction)

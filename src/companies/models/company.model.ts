@@ -17,6 +17,7 @@ import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
 import { Role } from '../../rbac/models/role.model';
 import { UserCompany } from '../../users/models/user-company.model';
+import { Department } from './department.model';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 // Enums removed in favor of constants file (src/constants/company-options.ts)
@@ -42,7 +43,7 @@ export class Company extends Model<Company> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   // ── Basic Info ─────────────────────────────────────────────────────────────
@@ -185,6 +186,9 @@ export class Company extends Model<Company> {
   @BelongsToMany(() => User, () => UserCompany)
   declare users: User[];
 
-  @HasMany(() => UserCompany)
+  @HasMany(() => UserCompany, { onDelete: 'CASCADE', hooks: true })
   declare userCompanies: UserCompany[];
+
+  @HasMany(() => Department, { onDelete: 'CASCADE', hooks: true })
+  declare departments: Department[];
 }

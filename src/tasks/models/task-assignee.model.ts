@@ -31,7 +31,7 @@ export class TaskAssignee extends Model<TaskAssignee> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -40,7 +40,7 @@ export class TaskAssignee extends Model<TaskAssignee> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   @ForeignKey(() => User)
@@ -49,7 +49,7 @@ export class TaskAssignee extends Model<TaskAssignee> {
   @Column({ type: DataType.INTEGER })
   declare userId: number;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'CASCADE' })
   declare user: User;
 
   @ForeignKey(() => User)
@@ -57,7 +57,7 @@ export class TaskAssignee extends Model<TaskAssignee> {
   @Column({ type: DataType.INTEGER })
   declare assignedById: number | null;
 
-  @BelongsTo(() => User, 'assignedById')
+  @BelongsTo(() => User, { foreignKey: 'assignedById', onDelete: 'CASCADE' })
   declare assignedBy: User;
 
   @CreatedAt

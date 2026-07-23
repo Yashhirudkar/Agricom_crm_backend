@@ -70,7 +70,7 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @ForeignKey(() => User)
@@ -79,7 +79,7 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare userId: number;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'SET NULL' })
   declare user: User;
 
   // ─── Personal Information ─────────────────────────────────────────
@@ -180,26 +180,26 @@ export class Employee extends Model<Employee> {
 
   @ForeignKey(() => Department)
   @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare departmentId: number;
 
-  @BelongsTo(() => Department)
+  @BelongsTo(() => Department, { onDelete: 'SET NULL' })
   declare department: Department;
 
   @ForeignKey(() => Designation)
   @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare designationId: number;
 
-  @BelongsTo(() => Designation)
+  @BelongsTo(() => Designation, { onDelete: 'SET NULL' })
   declare designation: Designation;
 
   @ForeignKey(() => Branch)
   @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare branchId: number;
 
-  @BelongsTo(() => Branch, 'branchId')
+  @BelongsTo(() => Branch, { foreignKey: 'branchId', onDelete: 'SET NULL' })
   declare branch: Branch;
 
   @ForeignKey(() => Employee)
@@ -208,7 +208,7 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare managerId: number;
 
-  @BelongsTo(() => Employee, 'managerId')
+  @BelongsTo(() => Employee, { foreignKey: 'managerId', onDelete: 'SET NULL' })
   declare manager: Employee;
 
   @AllowNull(true)
@@ -266,7 +266,7 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -274,7 +274,7 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt
@@ -288,12 +288,12 @@ export class Employee extends Model<Employee> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare shiftId: number;
 
-  @BelongsTo(() => Shift)
+  @BelongsTo(() => Shift, { onDelete: 'SET NULL' })
   declare shift: Shift;
 
-  @HasMany(() => EmployeeDocument)
+  @HasMany(() => EmployeeDocument, { onDelete: 'CASCADE', hooks: true })
   declare documents: EmployeeDocument[];
 
-  @HasMany(() => EmployeeLifecycleLog)
+  @HasMany(() => EmployeeLifecycleLog, { onDelete: 'CASCADE', hooks: true })
   declare lifecycleLogs: EmployeeLifecycleLog[];
 }

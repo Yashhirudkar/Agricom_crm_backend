@@ -29,7 +29,7 @@ export class TaskPriority extends Model<TaskPriority> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @AllowNull(false)

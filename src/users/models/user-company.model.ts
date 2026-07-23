@@ -52,7 +52,7 @@ export class UserCompany extends Model<UserCompany> {
 
   @Index
   @ForeignKey(() => Role)
-  @Column({ type: DataType.INTEGER, allowNull: true, onDelete: 'SET NULL' })
+  @Column({ type: DataType.INTEGER, allowNull: true, onDelete: 'CASCADE' })
   declare roleId: number;
 
   @Column({
@@ -68,12 +68,12 @@ export class UserCompany extends Model<UserCompany> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
-  @BelongsTo(() => Role)
+  @BelongsTo(() => Role, { onDelete: 'CASCADE' })
   declare role: Role;
 }

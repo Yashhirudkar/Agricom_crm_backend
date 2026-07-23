@@ -31,10 +31,10 @@ export class ProfileActivityLog extends Model<ProfileActivityLog> {
 
   @Index
   @ForeignKey(() => User)
-  @Column({ type: DataType.INTEGER, allowNull: false })
+  @Column({ type: DataType.INTEGER, allowNull: true })
   declare userId: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'SET NULL' })
   declare user: User;
 
   @Column({ type: DataType.STRING(100), allowNull: false })

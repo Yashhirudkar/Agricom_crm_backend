@@ -251,80 +251,17 @@ export class ClientsService {
 
   async delete(id: number, actor?: any): Promise<void> {
     const client = await this.clientModel.findByPk(id);
-    if (!client) throw new NotFoundException('Client not found');
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
 
     const oldRecord = client.toJSON();
 
-    const sequelize = this.clientModel.sequelize;
-    if (sequelize) {
-      const t = await sequelize.transaction();
-      try {
-        // 1. Delete user_companies memberships for users of this client
-        await sequelize.query(
-          'DELETE FROM "user_companies" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 2. Delete user_roles for users of this client
-        await sequelize.query(
-          'DELETE FROM "user_roles" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 3. Delete user_sessions for users of this client
-        await sequelize.query(
-          'DELETE FROM "user_sessions" WHERE "userId" IN (SELECT id FROM "users" WHERE "clientId" = :clientId)',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 4. Delete role_action_permissions for roles of this client (updated from legacy role_permissions)
-        await sequelize.query(
-          'DELETE FROM "role_action_permissions" WHERE "role_id" IN (SELECT id FROM "roles" WHERE "clientId" = :clientId)',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // Clean up client access boundaries
-        await sequelize.query(
-          'DELETE FROM "client_folder_access" WHERE "client_id" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        await sequelize.query(
-          'DELETE FROM "client_item_access" WHERE "client_id" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        await sequelize.query(
-          'DELETE FROM "client_module_access" WHERE "client_id" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        await sequelize.query(
-          'DELETE FROM "client_action_access" WHERE "client_id" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 5. Delete roles of this client
-        await sequelize.query(
-          'DELETE FROM "roles" WHERE "clientId" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 6. Delete companies belonging to this client
-        await sequelize.query(
-          'DELETE FROM "companies" WHERE "clientId" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-        // 7. Delete users belonging to this client
-        await sequelize.query(
-          'DELETE FROM "users" WHERE "clientId" = :clientId',
-          { replacements: { clientId: id }, transaction: t },
-        );
-
-        await client.destroy({ transaction: t });
-        await t.commit();
-      } catch (err) {
-        await t.rollback();
-        throw err;
-      }
-    } else {
-      await client.destroy();
-    }
+    await client.destroy();
 
     if (actor) {
       await this.auditService.writeDiffLog({
-        clientId: id,
+        clientId: null,
         companyId: null,
         userId: actor.userId,
         entityType: 'Client',

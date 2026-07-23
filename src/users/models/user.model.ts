@@ -60,7 +60,7 @@ export class User extends Model<User> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @Default('Active')
@@ -86,7 +86,7 @@ export class User extends Model<User> {
   @Column({ type: DataType.INTEGER })
   declare companyId: number;
 
-  @HasMany(() => UserSession)
+  @HasMany(() => UserSession, { onDelete: 'CASCADE', hooks: true })
   declare sessions: UserSession[];
 
   @HasMany(() => TaskAssignee, 'userId')
@@ -96,7 +96,7 @@ export class User extends Model<User> {
   @BelongsToMany(() => Company, () => UserCompany)
   declare companies: Company[];
 
-  @HasMany(() => UserCompany)
+  @HasMany(() => UserCompany, { onDelete: 'CASCADE', hooks: true })
   declare userCompanies: UserCompany[];
 
   // Many-to-many with Role through UserRole

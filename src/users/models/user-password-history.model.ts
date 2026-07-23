@@ -28,7 +28,7 @@ export class UserPasswordHistory extends Model<UserPasswordHistory> {
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare userId: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @Column({ type: DataType.STRING(255), allowNull: false })

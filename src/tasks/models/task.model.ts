@@ -49,7 +49,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   // ── Basic Info ─────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare statusId: number | null;
 
-  @BelongsTo(() => TaskStatus)
+  @BelongsTo(() => TaskStatus, { onDelete: 'CASCADE' })
   declare status: TaskStatus;
 
   @ForeignKey(() => TaskPriority)
@@ -82,7 +82,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare priorityId: number | null;
 
-  @BelongsTo(() => TaskPriority)
+  @BelongsTo(() => TaskPriority, { onDelete: 'CASCADE' })
   declare priority: TaskPriority;
 
   // ── Hierarchy ──────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare parentTaskId: number | null;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { foreignKey: 'parentTaskId', onDelete: 'CASCADE' })
   declare parentTask: Task;
 
   @AllowNull(false)
@@ -151,7 +151,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare createdById: number;
 
-  @BelongsTo(() => User, 'createdById')
+  @BelongsTo(() => User, { foreignKey: 'createdById', onDelete: 'CASCADE' })
   declare createdBy: User;
 
   @ForeignKey(() => User)
@@ -159,19 +159,19 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare ownerId: number | null;
 
-  @BelongsTo(() => User, 'ownerId')
+  @BelongsTo(() => User, { foreignKey: 'ownerId', onDelete: 'CASCADE' })
   declare owner: User;
 
-  @HasMany(() => TaskAssignee)
+  @HasMany(() => TaskAssignee, { onDelete: 'CASCADE', hooks: true })
   declare assignees: TaskAssignee[];
 
-  @HasMany(() => TaskComment)
+  @HasMany(() => TaskComment, { onDelete: 'CASCADE', hooks: true })
   declare comments: TaskComment[];
 
-  @HasMany(() => TaskAttachment)
+  @HasMany(() => TaskAttachment, { onDelete: 'CASCADE', hooks: true })
   declare attachments: TaskAttachment[];
 
-  @HasMany(() => TaskLabelMap)
+  @HasMany(() => TaskLabelMap, { onDelete: 'CASCADE', hooks: true })
   declare labels: TaskLabelMap[];
 
   // ── Archive Support ────────────────────────────────────────────────────────
@@ -190,7 +190,7 @@ export class Task extends Model<Task> {
   @Column({ type: DataType.INTEGER })
   declare archivedById: number | null;
 
-  @BelongsTo(() => User, 'archivedById')
+  @BelongsTo(() => User, { foreignKey: 'archivedById', onDelete: 'CASCADE' })
   declare archivedBy: User;
 
   @AllowNull(false)

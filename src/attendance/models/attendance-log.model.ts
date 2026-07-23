@@ -45,7 +45,7 @@ export class AttendanceLog extends Model<AttendanceLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @ForeignKey(() => AttendanceRecord)
@@ -53,7 +53,7 @@ export class AttendanceLog extends Model<AttendanceLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare attendanceRecordId: number;
 
-  @BelongsTo(() => AttendanceRecord)
+  @BelongsTo(() => AttendanceRecord, { onDelete: 'SET NULL' })
   declare attendanceRecord: AttendanceRecord;
 
   @AllowNull(false)

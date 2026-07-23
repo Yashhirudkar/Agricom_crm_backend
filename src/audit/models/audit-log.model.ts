@@ -32,7 +32,7 @@ export class AuditLog extends Model<AuditLog> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'SET NULL' })
   declare client: Client;
 
   @ForeignKey(() => Company)
@@ -41,7 +41,7 @@ export class AuditLog extends Model<AuditLog> {
   @Column({ type: DataType.INTEGER })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'SET NULL' })
   declare company: Company;
 
   @ForeignKey(() => User)
@@ -50,7 +50,7 @@ export class AuditLog extends Model<AuditLog> {
   @Column({ type: DataType.INTEGER })
   declare userId: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'SET NULL' })
   declare user: User;
 
   @AllowNull(false)

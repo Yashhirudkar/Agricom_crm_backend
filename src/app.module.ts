@@ -99,6 +99,7 @@ import { Enquiry } from './enquiries/models/enquiry.model';
 
 import { TasksModule } from './tasks/tasks.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
+import { LocationsModule } from './locations/locations.module';
 import {
   Task,
   TaskSequence,
@@ -249,6 +250,7 @@ import {
     TasksModule,
     SalesContractsModule,
     EnquiriesModule,
+    LocationsModule,
   ],
   providers: [
     {

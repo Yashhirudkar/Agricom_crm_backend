@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes } from 'sequelize';
@@ -28,7 +29,7 @@ import { UpdateSalesContractDto, UpdateSalesContractStatusDto } from './dto/upda
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 
 @Injectable()
-export class SalesContractService {
+export class SalesContractService implements OnModuleInit {
   constructor(
     @InjectModel(SalesContract)
     private readonly model: typeof SalesContract,
@@ -43,6 +44,24 @@ export class SalesContractService {
     private readonly attachmentsService: AttachmentsService,
     private readonly sequelize: Sequelize,
   ) {}
+
+  async onModuleInit() {
+    try {
+      const textCols = [
+        'seller_signature',
+        'seller_company_seal',
+        'buyer_signature',
+        'buyer_company_seal',
+      ];
+      for (const col of textCols) {
+        await this.sequelize.query(
+          `ALTER TABLE "sales_contracts" ALTER COLUMN "${col}" TYPE TEXT;`
+        );
+      }
+    } catch (err) {
+      console.warn('[SalesContractService] Column alteration warning:', err?.message || err);
+    }
+  }
 
 
 
@@ -148,6 +167,7 @@ export class SalesContractService {
     const item = await this.model.findByPk(id, {
       include: [
         { model: Partner, as: 'buyer' },
+        { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
         { model: ShipmentType },
         { model: PaymentTerm },

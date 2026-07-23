@@ -51,7 +51,7 @@ export class UserInvitation extends Model<UserInvitation> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Role)
@@ -60,7 +60,7 @@ export class UserInvitation extends Model<UserInvitation> {
   @Column({ type: DataType.INTEGER })
   declare roleId: number;
 
-  @BelongsTo(() => Role)
+  @BelongsTo(() => Role, { onDelete: 'CASCADE' })
   declare role: Role;
 
   @Column({ type: DataType.JSONB, allowNull: true })
@@ -71,7 +71,7 @@ export class UserInvitation extends Model<UserInvitation> {
   @Column({ type: DataType.INTEGER })
   declare createdBy: number;
 
-  @BelongsTo(() => User, { foreignKey: 'createdBy' })
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'SET NULL' })
   declare creator: User;
 
   @AllowNull(false)

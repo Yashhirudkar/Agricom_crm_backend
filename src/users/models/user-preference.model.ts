@@ -29,7 +29,7 @@ export class UserPreference extends Model<UserPreference> {
   @Column({ type: DataType.INTEGER, allowNull: false, unique: true })
   declare userId: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @Default(false)

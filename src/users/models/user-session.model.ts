@@ -42,7 +42,7 @@ export class UserSession extends Model<UserSession> {
   })
   declare userId: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @ForeignKey(() => require('../../clients/models/client.model').Client)
@@ -53,7 +53,7 @@ export class UserSession extends Model<UserSession> {
   })
   declare clientId: number;
 
-  @BelongsTo(() => require('../../clients/models/client.model').Client)
+  @BelongsTo(() => require('../../clients/models/client.model').Client, { onDelete: 'CASCADE' })
   declare client: any;
 
   @Unique

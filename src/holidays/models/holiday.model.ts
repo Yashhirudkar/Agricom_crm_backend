@@ -34,7 +34,7 @@ export class Holiday extends Model<Holiday> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @AllowNull(false)
@@ -86,7 +86,7 @@ export class Holiday extends Model<Holiday> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -94,7 +94,7 @@ export class Holiday extends Model<Holiday> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt

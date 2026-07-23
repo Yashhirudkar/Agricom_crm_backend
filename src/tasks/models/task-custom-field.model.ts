@@ -38,7 +38,7 @@ export class TaskCustomField extends Model<TaskCustomField> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @AllowNull(false)

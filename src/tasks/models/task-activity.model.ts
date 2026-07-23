@@ -32,7 +32,7 @@ export class TaskActivity extends Model<TaskActivity> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -41,7 +41,7 @@ export class TaskActivity extends Model<TaskActivity> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   @ForeignKey(() => User)
@@ -49,7 +49,7 @@ export class TaskActivity extends Model<TaskActivity> {
   @Column({ type: DataType.INTEGER })
   declare userId: number | null;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   // Uses VARCHAR instead of ENUM for extensibility (e.g., 'created', 'status_changed')

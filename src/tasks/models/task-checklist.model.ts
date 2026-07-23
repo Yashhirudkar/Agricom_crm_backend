@@ -32,7 +32,7 @@ export class TaskChecklist extends Model<TaskChecklist> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -41,7 +41,7 @@ export class TaskChecklist extends Model<TaskChecklist> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   @AllowNull(false)
@@ -63,7 +63,7 @@ export class TaskChecklist extends Model<TaskChecklist> {
   @Column({ type: DataType.INTEGER })
   declare completedByUserId: number | null;
 
-  @BelongsTo(() => User, 'completedByUserId')
+  @BelongsTo(() => User, { foreignKey: 'completedByUserId', onDelete: 'CASCADE' })
   declare completedBy: User;
 
   @AllowNull(true)

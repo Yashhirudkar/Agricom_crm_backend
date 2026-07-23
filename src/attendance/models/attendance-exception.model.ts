@@ -49,7 +49,7 @@ export class AttendanceException extends Model<AttendanceException> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee, 'employeeId')
+  @BelongsTo(() => Employee, { foreignKey: 'employeeId', onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @ForeignKey(() => AttendanceRecord)
@@ -57,7 +57,7 @@ export class AttendanceException extends Model<AttendanceException> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare attendanceRecordId: number;
 
-  @BelongsTo(() => AttendanceRecord)
+  @BelongsTo(() => AttendanceRecord, { onDelete: 'SET NULL' })
   declare attendanceRecord: AttendanceRecord;
 
   @AllowNull(false)
@@ -87,7 +87,7 @@ export class AttendanceException extends Model<AttendanceException> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare approvedBy: number;
 
-  @BelongsTo(() => Employee, 'approvedBy')
+  @BelongsTo(() => Employee, { foreignKey: 'approvedBy', onDelete: 'SET NULL' })
   declare approver: Employee;
 
   @AllowNull(true)

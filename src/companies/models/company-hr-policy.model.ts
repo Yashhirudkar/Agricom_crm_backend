@@ -32,7 +32,7 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE', unique: true })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @Default(8)
@@ -136,7 +136,7 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'SET NULL' })
   declare updater: User;
 
   @CreatedAt

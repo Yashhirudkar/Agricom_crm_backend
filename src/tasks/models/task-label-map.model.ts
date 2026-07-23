@@ -31,7 +31,7 @@ export class TaskLabelMap extends Model<TaskLabelMap> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -40,7 +40,7 @@ export class TaskLabelMap extends Model<TaskLabelMap> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   @ForeignKey(() => TaskLabel)

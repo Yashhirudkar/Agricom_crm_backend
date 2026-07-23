@@ -38,7 +38,7 @@ export class LeaveType extends Model<LeaveType> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @AllowNull(false)
@@ -120,7 +120,7 @@ export class LeaveType extends Model<LeaveType> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'SET NULL' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -128,7 +128,7 @@ export class LeaveType extends Model<LeaveType> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'SET NULL' })
   declare updater: User;
 
   @CreatedAt

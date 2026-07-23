@@ -27,7 +27,7 @@ export class ClientActionAccess extends Model<ClientActionAccess> {
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare client_id: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => ResourceAction)

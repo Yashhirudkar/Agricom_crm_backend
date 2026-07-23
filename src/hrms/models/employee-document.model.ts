@@ -47,7 +47,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @ForeignKey(() => Company)
@@ -56,7 +56,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @AllowNull(false)
@@ -136,7 +136,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare uploadedBy: number;
 
-  @BelongsTo(() => User, 'uploadedBy')
+  @BelongsTo(() => User, { foreignKey: 'uploadedBy', onDelete: 'CASCADE' })
   declare uploader: User;
 
   @ForeignKey(() => User)
@@ -144,7 +144,7 @@ export class EmployeeDocument extends Model<EmployeeDocument> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare verifiedBy: number;
 
-  @BelongsTo(() => User, 'verifiedBy')
+  @BelongsTo(() => User, { foreignKey: 'verifiedBy', onDelete: 'CASCADE' })
   declare verifier: User;
 
   @AllowNull(true)

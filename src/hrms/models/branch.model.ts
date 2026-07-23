@@ -44,7 +44,7 @@ export class Branch extends Model<Branch> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @AllowNull(false)
@@ -94,7 +94,7 @@ export class Branch extends Model<Branch> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare managerId: number;
 
-  @BelongsTo(() => Employee, 'managerId')
+  @BelongsTo(() => Employee, { foreignKey: 'managerId', onDelete: 'SET NULL' })
   declare manager: Employee;
 
   @Default(false)
@@ -132,7 +132,7 @@ export class Branch extends Model<Branch> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -140,7 +140,7 @@ export class Branch extends Model<Branch> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt

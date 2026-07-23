@@ -31,7 +31,7 @@ export class EmployeeLifecycleLog extends Model<EmployeeLifecycleLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @AllowNull(false)
@@ -47,7 +47,7 @@ export class EmployeeLifecycleLog extends Model<EmployeeLifecycleLog> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare changedBy: number;
 
-  @BelongsTo(() => User, 'changedBy')
+  @BelongsTo(() => User, { foreignKey: 'changedBy', onDelete: 'CASCADE' })
   declare changedByUser: User;
 
   @AllowNull(true)

@@ -128,7 +128,7 @@ export class Enquiry extends Model<Enquiry> {
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -136,7 +136,7 @@ export class Enquiry extends Model<Enquiry> {
   @Column({ field: 'updated_by', type: DataType.INTEGER })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt

@@ -30,7 +30,7 @@ export class TaskSequence extends Model<TaskSequence> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @Index('task_sequences_client_prefix')

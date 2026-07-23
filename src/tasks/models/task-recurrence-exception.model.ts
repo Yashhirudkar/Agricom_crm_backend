@@ -30,7 +30,7 @@ export class TaskRecurrenceException extends Model<TaskRecurrenceException> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => TaskRecurrence)
@@ -39,7 +39,7 @@ export class TaskRecurrenceException extends Model<TaskRecurrenceException> {
   @Column({ type: DataType.INTEGER })
   declare recurrenceId: number;
 
-  @BelongsTo(() => TaskRecurrence)
+  @BelongsTo(() => TaskRecurrence, { onDelete: 'CASCADE' })
   declare recurrence: TaskRecurrence;
 
   @AllowNull(false)

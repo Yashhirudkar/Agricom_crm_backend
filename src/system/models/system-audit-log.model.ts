@@ -28,7 +28,7 @@ export class SystemAuditLog extends Model<SystemAuditLog> {
   @Column({ type: DataType.INTEGER })
   declare user_id: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @AllowNull(false)

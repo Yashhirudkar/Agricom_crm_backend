@@ -68,7 +68,7 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @ForeignKey(() => Company)
@@ -77,7 +77,7 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @AllowNull(false)
@@ -156,7 +156,7 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare shiftId: number;
 
-  @BelongsTo(() => Shift)
+  @BelongsTo(() => Shift, { onDelete: 'SET NULL' })
   declare shift: Shift;
 
   @HasMany(() => AttendanceLog)

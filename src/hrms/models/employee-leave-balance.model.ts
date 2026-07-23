@@ -39,7 +39,7 @@ export class EmployeeLeaveBalance extends Model<EmployeeLeaveBalance> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @ForeignKey(() => Employee)
@@ -48,15 +48,15 @@ export class EmployeeLeaveBalance extends Model<EmployeeLeaveBalance> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare employeeId: number;
 
-  @BelongsTo(() => Employee)
+  @BelongsTo(() => Employee, { onDelete: 'CASCADE' })
   declare employee: Employee;
 
   @ForeignKey(() => LeaveType)
   @AllowNull(false)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare leaveTypeId: number;
 
-  @BelongsTo(() => LeaveType)
+  @BelongsTo(() => LeaveType, { onDelete: 'CASCADE' })
   declare leaveType: LeaveType;
 
   @AllowNull(false)

@@ -32,7 +32,7 @@ export class TaskTimeLog extends Model<TaskTimeLog> {
   @Column({ type: DataType.INTEGER })
   declare clientId: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => Task)
@@ -41,7 +41,7 @@ export class TaskTimeLog extends Model<TaskTimeLog> {
   @Column({ type: DataType.INTEGER })
   declare taskId: number;
 
-  @BelongsTo(() => Task)
+  @BelongsTo(() => Task, { onDelete: 'CASCADE' })
   declare task: Task;
 
   @ForeignKey(() => User)
@@ -50,7 +50,7 @@ export class TaskTimeLog extends Model<TaskTimeLog> {
   @Column({ type: DataType.INTEGER })
   declare userId: number;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'CASCADE' })
   declare user: User;
 
   @AllowNull(false)

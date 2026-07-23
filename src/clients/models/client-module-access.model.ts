@@ -27,7 +27,7 @@ export class ClientModuleAccess extends Model<ClientModuleAccess> {
   @Column({ type: DataType.INTEGER, allowNull: false })
   declare client_id: number;
 
-  @BelongsTo(() => Client)
+  @BelongsTo(() => Client, { onDelete: 'CASCADE' })
   declare client: Client;
 
   @ForeignKey(() => AppModule)

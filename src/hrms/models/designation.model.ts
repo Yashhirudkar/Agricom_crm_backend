@@ -35,15 +35,15 @@ export class Designation extends Model<Designation> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare companyId: number;
 
-  @BelongsTo(() => Company)
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
   declare company: Company;
 
   @ForeignKey(() => Department)
   @AllowNull(false)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare departmentId: number;
 
-  @BelongsTo(() => Department)
+  @BelongsTo(() => Department, { onDelete: 'CASCADE' })
   declare department: Department;
 
   @AllowNull(false)
@@ -60,14 +60,13 @@ export class Designation extends Model<Designation> {
 
   @ForeignKey(() => Designation)
   @AllowNull(true)
-  @Column({ type: DataType.INTEGER, onDelete: 'RESTRICT' })
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare parentDesignationId: number;
 
-  @BelongsTo(() => Designation, 'parentDesignationId')
+  @BelongsTo(() => Designation, { foreignKey: 'parentDesignationId', onDelete: 'CASCADE' })
   declare parentDesignation: Designation;
 
-  @HasMany(() => Designation, 'parentDesignationId')
-  declare subDesignations: Designation[];
+
 
   @AllowNull(true)
   @Column({ type: DataType.DECIMAL(10, 2) })
@@ -96,7 +95,7 @@ export class Designation extends Model<Designation> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare createdBy: number;
 
-  @BelongsTo(() => User, 'createdBy')
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'CASCADE' })
   declare creator: User;
 
   @ForeignKey(() => User)
@@ -104,7 +103,7 @@ export class Designation extends Model<Designation> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare updatedBy: number;
 
-  @BelongsTo(() => User, 'updatedBy')
+  @BelongsTo(() => User, { foreignKey: 'updatedBy', onDelete: 'CASCADE' })
   declare updater: User;
 
   @CreatedAt
@@ -113,6 +112,9 @@ export class Designation extends Model<Designation> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @HasMany(() => Employee)
+  @HasMany(() => Designation, { foreignKey: 'parentDesignationId', onDelete: 'CASCADE', hooks: true })
+  declare subDesignations: Designation[];
+
+  @HasMany(() => Employee, { onDelete: 'CASCADE', hooks: true })
   declare employees: Employee[];
 }

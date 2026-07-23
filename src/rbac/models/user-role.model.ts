@@ -40,9 +40,9 @@ export class UserRole extends Model<UserRole> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
-  @BelongsTo(() => Role)
+  @BelongsTo(() => Role, { onDelete: 'CASCADE' })
   declare role: Role;
 }
