@@ -217,6 +217,10 @@ export class SalesContract extends Model<SalesContract> {
   @Column({ field: 'buyer_company_seal', type: DataType.TEXT })
   declare buyerCompanySeal: string;
 
+  @AllowNull(true)
+  @Column({ field: 'print_overrides', type: DataType.JSONB })
+  declare printOverrides: any;
+
   @Default('Draft')
   @AllowNull(false)
   @Column({ type: DataType.STRING(20) })

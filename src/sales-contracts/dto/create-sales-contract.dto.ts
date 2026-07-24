@@ -218,6 +218,10 @@ export class CreateSalesContractDto {
   @IsString()
   status?: string;
 
+  @IsOptional()
+  @IsObject()
+  printOverrides?: any;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateSalesContractItemDto)

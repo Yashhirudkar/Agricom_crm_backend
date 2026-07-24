@@ -58,6 +58,11 @@ export class SalesContractService implements OnModuleInit {
           `ALTER TABLE "sales_contracts" ALTER COLUMN "${col}" TYPE TEXT;`
         );
       }
+      
+      // Auto-migrate: Add print_overrides JSONB column if not exists
+      await this.sequelize.query(
+        `ALTER TABLE "sales_contracts" ADD COLUMN IF NOT EXISTS "print_overrides" JSONB;`
+      );
     } catch (err) {
       console.warn('[SalesContractService] Column alteration warning:', err?.message || err);
     }
