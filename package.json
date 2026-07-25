@@ -20,7 +20,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "permission:sync": "ts-node -r tsconfig-paths/register src/scripts/sync-permissions.ts",
-    "sync": "ts-node src/sync_init/main-sync.ts"
+    "sync": "ts-node src/sync_init/main-sync.ts",
+    "migrate": "ts-node -r tsconfig-paths/register src/migrations/runner.ts",
+    "migrate:phase": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --phase",
+    "migrate:status": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --status",
+    "migrate:fresh": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --fresh"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

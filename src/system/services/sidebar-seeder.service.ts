@@ -44,6 +44,33 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: null,
         },
+        {
+          name: 'Profile',
+          route: '/profile',
+          icon_name: 'User',
+          folder_id: workspaceFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: null,
+        },
+        {
+          name: 'Holidays',
+          route: '/holidays',
+          icon_name: 'Calendar',
+          folder_id: workspaceFolder.id,
+          sort_order: 30,
+          is_active: true,
+          permission_link: null,
+        },
+        {
+          name: 'Tasks',
+          route: '/tasks',
+          icon_name: 'CheckSquare',
+          folder_id: workspaceFolder.id,
+          sort_order: 40,
+          is_active: true,
+          permission_link: null,
+        },
       ] as any[]);
 
       // 2. HR Management
@@ -206,6 +233,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
       await this.sidebarItemModel.bulkCreate([
         {
+          name: 'Clients',
+          route: '/clients',
+          icon_name: 'Globe',
+          folder_id: adminFolder.id,
+          sort_order: 5,
+          is_active: true,
+          permission_link: 'clients:read',
+        },
+        {
           name: 'Companies',
           route: '/companies',
           icon_name: 'Building',
@@ -231,6 +267,165 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 30,
           is_active: true,
           permission_link: 'roles:read',
+        },
+        {
+          name: 'Sidebar Builder',
+          route: '/sidebar-builder',
+          icon_name: 'Layout',
+          folder_id: adminFolder.id,
+          sort_order: 40,
+          is_active: true,
+          permission_link: 'sidebar_builder:read',
+        },
+        {
+          name: 'Matrix Builder',
+          route: '/matrix-builder',
+          icon_name: 'Grid',
+          folder_id: adminFolder.id,
+          sort_order: 50,
+          is_active: true,
+          permission_link: 'matrix_builder:read',
+        },
+      ] as any[]);
+
+      // 6. Masters
+      const mastersFolder = await this.sidebarFolderModel.create({
+        name: 'Masters',
+        icon_name: 'Database',
+        sort_order: 60,
+        is_active: true,
+      });
+
+      await this.sidebarItemModel.bulkCreate([
+        {
+          name: 'Countries',
+          route: '/masters/countries',
+          icon_name: 'Globe',
+          folder_id: mastersFolder.id,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'countries:read',
+        },
+        {
+          name: 'Categories',
+          route: '/masters/categories',
+          icon_name: 'Tag',
+          folder_id: mastersFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: 'categories:read',
+        },
+        {
+          name: 'Products',
+          route: '/masters/products',
+          icon_name: 'Package',
+          folder_id: mastersFolder.id,
+          sort_order: 30,
+          is_active: true,
+          permission_link: 'products:read',
+        },
+        {
+          name: 'Partner Roles',
+          route: '/masters/partner-roles',
+          icon_name: 'Users',
+          folder_id: mastersFolder.id,
+          sort_order: 40,
+          is_active: true,
+          permission_link: 'partner_roles:read',
+        },
+        {
+          name: 'Bag Specifications',
+          route: '/masters/bag-specifications',
+          icon_name: 'ShoppingBag',
+          folder_id: mastersFolder.id,
+          sort_order: 50,
+          is_active: true,
+          permission_link: 'bag_specifications:read',
+        },
+        {
+          name: 'HS Codes',
+          route: '/masters/hs-codes',
+          icon_name: 'Hash',
+          folder_id: mastersFolder.id,
+          sort_order: 60,
+          is_active: true,
+          permission_link: 'hs_codes:read',
+        },
+        {
+          name: 'Bag Master',
+          route: '/masters/bag-specifications',
+          icon_name: 'ShoppingBag',
+          folder_id: mastersFolder.id,
+          sort_order: 70,
+          is_active: true,
+          permission_link: 'bag_specifications:read',
+        },
+        {
+          name: 'Sales Masters',
+          route: '/masters/sales',
+          icon_name: 'TrendingUp',
+          folder_id: mastersFolder.id,
+          sort_order: 80,
+          is_active: true,
+          permission_link: 'sales_masters:read',
+        },
+        {
+          name: 'Partners Master',
+          route: '/masters/partners',
+          icon_name: 'Contact',
+          folder_id: mastersFolder.id,
+          sort_order: 90,
+          is_active: true,
+          permission_link: 'partners:read',
+        },
+      ] as any[]);
+
+      // 7. Enquiries
+      const enquiriesFolder = await this.sidebarFolderModel.create({
+        name: 'Enquiries',
+        icon_name: 'HelpCircle',
+        sort_order: 70,
+        is_active: true,
+      });
+
+      await this.sidebarItemModel.bulkCreate([
+        {
+          name: 'Enquiries',
+          route: '/enquiries',
+          icon_name: 'MessageSquareCode',
+          folder_id: enquiriesFolder.id,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'enquiries:read',
+        },
+        {
+          name: 'Orders',
+          route: '/enquiries/view-orders',
+          icon_name: 'FileSpreadsheet',
+          folder_id: enquiriesFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: 'orders:read',
+        },
+      ] as any[]);
+
+      // 8. Sales
+      const salesFolder = await this.sidebarFolderModel.create({
+        name: 'Sales',
+        icon_name: 'LineChart',
+        sort_order: 80,
+        is_active: true,
+      });
+
+      await this.sidebarItemModel.bulkCreate([
+        {
+          name: 'Sales Contracts',
+          route: '/sales-contracts',
+          icon_name: 'FileCheck2',
+          folder_id: salesFolder.id,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'sales_contracts:read',
         },
       ] as any[]);
 
