@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { Op } from 'sequelize';
 import { Product } from './product.model';
 import { Category } from '../category/category.model';
-import { Country } from '../country/country.model';
 import { HSCode } from '../hs-code/hs-code.model';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -26,12 +27,6 @@ const INCLUDE_RELATIONS = [
     required: false,
   },
   {
-    model: Country,
-    attributes: ['id', 'name', 'iso2Code'],
-    where: { isActive: true },
-    required: false,
-  },
-  {
     model: HSCode,
     attributes: ['id', 'code', 'description'],
     where: { isActive: true },
@@ -40,23 +35,31 @@ const INCLUDE_RELATIONS = [
 ];
 
 @Injectable()
-export class ProductService {
+export class ProductService implements OnModuleInit {
   constructor(
     @InjectModel(Product)
     private readonly productModel: typeof Product,
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
-    @InjectModel(Country)
-    private readonly countryModel: typeof Country,
     @InjectModel(HSCode)
     private readonly hsCodeModel: typeof HSCode,
     private readonly deletionValidator: DeletionValidatorService,
     private readonly auditService: AuditService,
+    private readonly sequelize: Sequelize,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.sequelize.query(
+        `ALTER TABLE "products" ALTER COLUMN "hs_code_id" DROP NOT NULL;`
+      );
+    } catch (err) {
+      console.warn('[ProductService] Column alteration warning:', err?.message || err);
+    }
+  }
 
   private async validateForeignKeys(
     categoryId?: number,
-    countryId?: number,
     hsCodeId?: number,
   ) {
     if (categoryId) {
@@ -65,13 +68,6 @@ export class ProductService {
       });
       if (!category)
         throw new BadRequestException('Category not found or inactive');
-    }
-    if (countryId) {
-      const country = await this.countryModel.findOne({
-        where: { id: countryId, isActive: true },
-      });
-      if (!country)
-        throw new BadRequestException('Country not found or inactive');
     }
     if (hsCodeId) {
       const hsCode = await this.hsCodeModel.findOne({
@@ -92,7 +88,7 @@ export class ProductService {
       dto.specification = dto.specification.trim();
     }
 
-    await this.validateForeignKeys(dto.categoryId, dto.countryId, dto.hsCodeId);
+    await this.validateForeignKeys(dto.categoryId, dto.hsCodeId);
 
     return this.productModel.create({
       ...dto,
@@ -101,7 +97,7 @@ export class ProductService {
   }
 
   async findAll(query: QueryProductDto) {
-    const { search, isActive, categoryId, countryId, hsCodeId, page, limit } =
+    const { search, isActive, categoryId, country, hsCodeId, page, limit } =
       query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
@@ -115,8 +111,8 @@ export class ProductService {
     if (categoryId) {
       whereClause.categoryId = categoryId;
     }
-    if (countryId) {
-      whereClause.countryId = countryId;
+    if (country) {
+      whereClause.country = { [Op.iLike]: `%${country}%` };
     }
     if (hsCodeId) {
       whereClause.hsCodeId = hsCodeId;
@@ -174,10 +170,9 @@ export class ProductService {
       dto.specification = dto.specification.trim();
     }
 
-    if (dto.categoryId || dto.countryId || dto.hsCodeId) {
+    if (dto.categoryId || dto.hsCodeId) {
       await this.validateForeignKeys(
         dto.categoryId,
-        dto.countryId,
         dto.hsCodeId,
       );
     }

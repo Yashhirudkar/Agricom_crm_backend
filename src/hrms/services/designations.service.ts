@@ -403,11 +403,17 @@ export class DesignationsService {
     search?: string,
     page: string = '1',
     limit: string = '10',
+    departmentId?: number,
   ) {
     const where: any = { companyId, isActive: true, status: 'Active' };
 
     if (search) {
       where.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    // Filter by department if provided
+    if (departmentId) {
+      where.departmentId = departmentId;
     }
 
     const parsedPage = parseInt(page, 10) || 1;

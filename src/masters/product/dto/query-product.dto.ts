@@ -19,9 +19,8 @@ export class QueryProductDto {
   categoryId?: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  countryId?: number;
+  @IsString()
+  country?: string;
 
   @IsOptional()
   @Type(() => Number)

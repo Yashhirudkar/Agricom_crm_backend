@@ -16,7 +16,6 @@ import { PartnerRole } from '../../masters/partner-role/partner-role.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { Product } from '../../masters/product/product.model';
 import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
-import { Country } from '../../masters/country/country.model';
 import { User } from '../../users/models/user.model';
 import { EnquiryStatus } from '../enquiry.constants';
 
@@ -70,13 +69,9 @@ export class Enquiry extends Model<Enquiry> {
   @BelongsTo(() => Product)
   declare product: Product;
 
-  @ForeignKey(() => Country)
   @AllowNull(true)
-  @Column({ field: 'origin_country_id', type: DataType.INTEGER })
-  declare originCountryId: number;
-
-  @BelongsTo(() => Country)
-  declare originCountry: Country;
+  @Column({ field: 'origin_country', type: DataType.STRING(150) })
+  declare originCountry: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(50) })

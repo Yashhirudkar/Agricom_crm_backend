@@ -16,7 +16,6 @@ import {
   BelongsToMany,
 } from 'sequelize-typescript';
 import { PartnerRole } from '../partner-role/partner-role.model';
-import { Country } from '../country/country.model';
 import { PartnerContact } from './partner-contact.model';
 import { Product } from '../product/product.model';
 import { PartnerProduct } from './partner-product.model';
@@ -28,7 +27,7 @@ import { PartnerFollowUp } from './partner-followup.model';
   indexes: [
     { fields: ['entity_name'] },
     { fields: ['partner_role_id'] },
-    { fields: ['country_id'] },
+    { fields: ['country'] },
     { fields: ['is_active'] },
   ],
 })
@@ -50,13 +49,9 @@ export class Partner extends Model<Partner> {
   @BelongsTo(() => PartnerRole)
   declare partnerRole: PartnerRole;
 
-  @ForeignKey(() => Country)
   @AllowNull(false)
-  @Column({ field: 'country_id', type: DataType.INTEGER })
-  declare countryId: number;
-
-  @BelongsTo(() => Country)
-  declare country: Country;
+  @Column({ field: 'country', type: DataType.STRING(150) })
+  declare country: string;
 
   @HasMany(() => PartnerContact, { onDelete: 'CASCADE', hooks: true })
   declare contacts: PartnerContact[];

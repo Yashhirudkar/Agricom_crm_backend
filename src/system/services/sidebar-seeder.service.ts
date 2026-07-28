@@ -219,7 +219,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: leaveFolder.id,
           sort_order: 40,
           is_active: true,
-          permission_link: 'leave:read',
+          permission_link: 'leave:create',
         },
       ] as any[]);
 
@@ -297,15 +297,6 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       });
 
       await this.sidebarItemModel.bulkCreate([
-        {
-          name: 'Countries',
-          route: '/masters/countries',
-          icon_name: 'Globe',
-          folder_id: mastersFolder.id,
-          sort_order: 10,
-          is_active: true,
-          permission_link: 'countries:read',
-        },
         {
           name: 'Categories',
           route: '/masters/categories',

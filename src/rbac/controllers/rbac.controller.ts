@@ -37,12 +37,12 @@ export class RbacController {
     if (isSuper) return;
     const role = await this.rbacService.getRoleById(roleId);
     if (isModification) {
-      if (role.clientId !== reqUser.clientId) {
+      // Block if role belongs to a DIFFERENT client (not a system role with null clientId)
+      if (role.clientId !== null && role.clientId !== reqUser.clientId) {
         throw new ForbiddenException('Access denied to modify this role');
       }
-      if (role.isSystemRole) {
-        throw new ForbiddenException('Cannot modify system roles');
-      }
+      // System roles (clientId = null) can be modified by client admins
+      // BUT only to the extent of their client's allowed permissions (enforced in service)
     } else {
       if (role.clientId !== null && role.clientId !== reqUser.clientId) {
         throw new ForbiddenException('Access denied to this role');

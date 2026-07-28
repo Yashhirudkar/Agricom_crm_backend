@@ -28,7 +28,7 @@ export class LeaveBalancesController {
   }
 
   @Get('employee/:employeeId')
-  @RequirePermission('leave:read')
+  @RequirePermission('leave:create')
   async getBalancesForEmployee(
     @Param('employeeId') employeeIdParam: string,
     @Query('year') yearParam: string,
@@ -41,13 +41,13 @@ export class LeaveBalancesController {
     };
 
     let employeeId: number;
+    const resolvedId = req.user.employeeId;
 
     if (
       employeeIdParam === 'undefined' ||
       employeeIdParam === 'null' ||
       employeeIdParam === 'me'
     ) {
-      const resolvedId = req.user.employeeId;
       if (!resolvedId) {
         return []; // Admin with no profile has no balances
       }
@@ -61,7 +61,15 @@ export class LeaveBalancesController {
       }
     }
 
-    // Dynamic Auth Check: Allow if user is checking their own balance or has leave:read permission
+    // Dynamic Auth Check: Allow if user is checking their own balance or has leave:read/leave:approve permission
+    if (employeeId !== resolvedId) {
+      const isSuper = req.user.type === 'super_admin';
+      const hasRead = req.userPermissions?.has('leave:read');
+      const hasApprove = req.userPermissions?.has('leave:approve');
+      if (!isSuper && !hasRead && !hasApprove) {
+        throw new ForbiddenException('Access denied to view other employee balances');
+      }
+    }
 
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
     return this.leaveBalancesService.getBalancesForEmployee(

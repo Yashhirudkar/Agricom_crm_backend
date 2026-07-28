@@ -19,9 +19,8 @@ export class QueryPartnerDto {
   partnerRoleId?: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  countryId?: number;
+  @IsString()
+  country?: string;
 
   @IsOptional()
   @Transform(({ value }) => {

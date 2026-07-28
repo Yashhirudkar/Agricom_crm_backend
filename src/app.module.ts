@@ -69,7 +69,6 @@ import { ClientModuleAccess } from './clients/models/client-module-access.model'
 import { ClientActionAccess } from './clients/models/client-action-access.model';
 import { MastersModule } from './masters/masters.module';
 import { Category } from './masters/category/category.model';
-import { Country } from './masters/country/country.model';
 import { HSCode } from './masters/hs-code/hs-code.model';
 import { PartnerRole } from './masters/partner-role/partner-role.model';
 import { Product } from './masters/product/product.model';
@@ -187,7 +186,6 @@ import {
             ClientModuleAccess,
             ClientActionAccess,
             Category,
-            Country,
             HSCode,
             PartnerRole,
             Product,

@@ -58,10 +58,10 @@ export class UpdatePartnerDto {
   partnerRoleId?: number;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
+  @IsString()
   @IsNotEmpty()
-  countryId?: number;
+  @MaxLength(150)
+  country?: string;
 
   @IsOptional()
   @IsString()

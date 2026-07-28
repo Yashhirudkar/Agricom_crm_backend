@@ -11,7 +11,6 @@ import { PartnerRole } from '../masters/partner-role/partner-role.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
-import { Country } from '../masters/country/country.model';
 
 @Module({
   imports: [
@@ -21,7 +20,6 @@ import { Country } from '../masters/country/country.model';
       Partner,
       Product,
       PackingType,
-      Country,
     ]),
     MastersModule,
     AuditModule,

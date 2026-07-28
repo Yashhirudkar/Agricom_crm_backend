@@ -14,7 +14,6 @@ import { PartnerRole } from '../masters/partner-role/partner-role.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
-import { Country } from '../masters/country/country.model';
 import { buildPagination } from '../masters/common/pagination.helper';
 import { buildSearchQuery } from '../masters/common/search.helper';
 import { buildPaginatedResponse } from '../masters/common/response.helper';
@@ -37,11 +36,6 @@ const INCLUDE_RELATIONS = [
     required: false,
   },
   {
-    model: Country,
-    attributes: ['id', 'name', 'iso2Code'],
-    required: false,
-  },
-  {
     model: PackingType,
     attributes: ['id', 'name'],
     required: false,
@@ -61,8 +55,6 @@ export class EnquiriesService {
     private readonly productModel: typeof Product,
     @InjectModel(PackingType)
     private readonly packingTypeModel: typeof PackingType,
-    @InjectModel(Country)
-    private readonly countryModel: typeof Country,
     private sequelize: Sequelize,
     private readonly auditService: AuditService,
   ) {}
@@ -86,7 +78,6 @@ export class EnquiriesService {
     partnerId?: number,
     productId?: number,
     packingTypeId?: number,
-    originCountryId?: number,
   ) {
     if (partnerRoleId) {
       const role = await this.partnerRoleModel.findOne({
@@ -112,12 +103,6 @@ export class EnquiriesService {
       });
       if (!packing) throw new BadRequestException('Packing Type not found or inactive');
     }
-    if (originCountryId) {
-      const country = await this.countryModel.findOne({
-        where: { id: originCountryId, isActive: true },
-      });
-      if (!country) throw new BadRequestException('Country not found or inactive');
-    }
   }
 
   async create(dto: CreateEnquiryDto, user: any): Promise<Enquiry> {
@@ -126,7 +111,6 @@ export class EnquiriesService {
       dto.partnerId,
       dto.productId,
       dto.packingTypeId,
-      dto.originCountryId,
     );
 
     return await this.sequelize.transaction(async (transaction) => {
@@ -232,7 +216,7 @@ export class EnquiriesService {
       partnerId: row.partnerId,
       partnerName: row.partner?.entityName,
       productName: row.product?.name,
-      originCountryName: row.originCountry?.name,
+      originCountryName: row.originCountry,
       purity: row.purity,
       packingName: row.packingType?.name,
       podName: row.podPort,
@@ -264,15 +248,13 @@ export class EnquiriesService {
       dto.partnerRoleId ||
       dto.partnerId ||
       dto.productId ||
-      dto.packingTypeId ||
-      dto.originCountryId
+      dto.packingTypeId
     ) {
       await this.validateForeignKeys(
         dto.partnerRoleId,
         dto.partnerId,
         dto.productId,
         dto.packingTypeId,
-        dto.originCountryId,
       );
     }
 

@@ -17,7 +17,6 @@ import { Attachment } from '../attachments/models/attachment.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 
-import { Country } from '../masters/country/country.model';
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
 import { PaymentTerm } from '../masters/payment-term/payment-term.model';
@@ -176,8 +175,6 @@ export class SalesContractService implements OnModuleInit {
         { model: Partner, as: 'broker' },
         { model: ShipmentType },
         { model: PaymentTerm },
-        { model: Country, as: 'originCountry' },
-        { model: Country, as: 'destinationCountry' },
         {
           model: SalesContractItem,
           include: [Product, BagType, PackingType, BagSpecification],

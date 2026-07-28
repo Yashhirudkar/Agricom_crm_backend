@@ -120,7 +120,7 @@ export class LeaveRequestsController {
   }
 
   @Get('dashboard/summary')
-  @RequirePermission('leave:read')
+  @RequirePermission('leave:create')
   async getDashboardSummary(@Request() req) {
     const companyId = this.getCompanyId(req);
     const employeeId = req.user.employeeId;

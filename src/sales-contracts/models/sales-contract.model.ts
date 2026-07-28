@@ -18,7 +18,6 @@ import { Partner } from '../../masters/partner/partner.model';
 
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
-import { Country } from '../../masters/country/country.model';
 import { SalesContractItem } from './sales-contract-item.model';
 import { SalesContractShipment } from './sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contract-document.model';
@@ -107,21 +106,13 @@ export class SalesContract extends Model<SalesContract> {
   @BelongsTo(() => PaymentTerm)
   declare paymentTerm: PaymentTerm;
 
-  @ForeignKey(() => Country)
   @AllowNull(false)
-  @Column({ field: 'origin_country_id', type: DataType.INTEGER })
-  declare originCountryId: number;
+  @Column({ field: 'origin_country', type: DataType.STRING(150) })
+  declare originCountry: string;
 
-  @BelongsTo(() => Country, 'originCountryId')
-  declare originCountry: Country;
-
-  @ForeignKey(() => Country)
   @AllowNull(false)
-  @Column({ field: 'destination_country_id', type: DataType.INTEGER })
-  declare destinationCountryId: number;
-
-  @BelongsTo(() => Country, 'destinationCountryId')
-  declare destinationCountry: Country;
+  @Column({ field: 'destination_country', type: DataType.STRING(150) })
+  declare destinationCountry: string;
 
   @AllowNull(true)
   @Column({ field: 'port_of_loading', type: DataType.STRING(255) })

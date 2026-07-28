@@ -321,22 +321,17 @@ export class AuthController {
     });
 
     // Items always visible to ALL logged-in users regardless of role/permissions
-    // These are the exact names from sidebar_items DB table
-    const ALWAYS_VISIBLE_ITEMS = [
-      'Dashboard',   // Workspace folder (id=4)
-      'Profile',     // Workspace folder (id=27)
-      'Holidays',    // Workspace folder (id=25) - Calendar view
-    ];
-
+    // Only items WITHOUT a permission_link inside the "Workspace" folder are always visible.
+    // NOTE: We do NOT match by name alone because other folders (e.g. Attendance)
+    // can have items with the same name (e.g. "Dashboard") that ARE permission-guarded.
     const filterItem = (item: any, folderName?: string) => {
       if (isSuperAdmin || isClientAdmin) return true;
       // Special flag for always-visible items
       if (item.permission_link === 'always:allow') return true;
-      // Always-visible item names (Dashboard, Profile, Calendar)
-      if (ALWAYS_VISIBLE_ITEMS.includes(item.name)) return true;
-      // Workspace folder items are always visible (fallback safety)
+      // Workspace folder items with no permission_link are always visible
+      // (covers Workspace > Dashboard, Profile, Holidays, Tasks)
       if (!item.permission_link && folderName === 'Workspace') return true;
-      // Items without permission_link are hidden for regular users
+      // Items without permission_link in other folders are hidden for regular users
       if (!item.permission_link) return false;
       // Check actual permission
       return userPermissions.includes(item.permission_link);

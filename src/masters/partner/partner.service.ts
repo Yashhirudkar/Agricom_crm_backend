@@ -11,7 +11,6 @@ import { PartnerContact } from './partner-contact.model';
 import { PartnerProduct } from './partner-product.model';
 import { PartnerFollowUp } from './partner-followup.model';
 import { PartnerRole } from '../partner-role/partner-role.model';
-import { Country } from '../country/country.model';
 import { Product } from '../product/product.model';
 import { PartnerRoleDynamicConfig } from '../partner-role/partner-role-dynamic-config.model';
 import { CreatePartnerDto } from './dto/create-partner.dto';
@@ -27,12 +26,6 @@ const INCLUDE_RELATIONS = [
   {
     model: PartnerRole,
     attributes: ['id', 'name'],
-    where: { isActive: true },
-    required: false,
-  },
-  {
-    model: Country,
-    attributes: ['id', 'name', 'iso2Code'],
     where: { isActive: true },
     required: false,
   },
@@ -73,8 +66,6 @@ export class PartnerService {
     private readonly partnerProductModel: typeof PartnerProduct,
     @InjectModel(PartnerRole)
     private readonly partnerRoleModel: typeof PartnerRole,
-    @InjectModel(Country)
-    private readonly countryModel: typeof Country,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
     @InjectModel(PartnerRoleDynamicConfig)
@@ -86,7 +77,6 @@ export class PartnerService {
 
   private async validateForeignKeys(
     partnerRoleId?: number,
-    countryId?: number,
     productIds?: number[],
   ) {
     if (partnerRoleId) {
@@ -95,13 +85,6 @@ export class PartnerService {
       });
       if (!role)
         throw new BadRequestException('Partner Role not found or inactive');
-    }
-    if (countryId) {
-      const country = await this.countryModel.findOne({
-        where: { id: countryId, isActive: true },
-      });
-      if (!country)
-        throw new BadRequestException('Country not found or inactive');
     }
     if (productIds && productIds.length > 0) {
       const products = await this.productModel.findAll({
@@ -123,7 +106,6 @@ export class PartnerService {
 
     await this.validateForeignKeys(
       dto.partnerRoleId,
-      dto.countryId,
       dto.productIds,
     );
 
@@ -177,7 +159,7 @@ export class PartnerService {
   }
 
   async findAll(query: QueryPartnerDto) {
-    const { search, isActive, partnerRoleId, countryId, page, limit } = query;
+    const { search, isActive, partnerRoleId, country, page, limit } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
@@ -190,8 +172,8 @@ export class PartnerService {
     if (partnerRoleId) {
       whereClause.partnerRoleId = partnerRoleId;
     }
-    if (countryId) {
-      whereClause.countryId = countryId;
+    if (country) {
+      whereClause.country = { [Op.iLike]: `%${country}%` };
     }
 
     const { rows, count } = await this.partnerModel.findAndCountAll({
@@ -245,10 +227,9 @@ export class PartnerService {
       dto.city = dto.city.trim();
     }
 
-    if (dto.partnerRoleId || dto.countryId || dto.productIds) {
+    if (dto.partnerRoleId || dto.productIds) {
       await this.validateForeignKeys(
         dto.partnerRoleId,
-        dto.countryId,
         dto.productIds,
       );
     }

@@ -251,6 +251,7 @@ export class PermissionsGuard implements CanActivate {
         return standardizePermission(rawPerm).name;
       }),
     );
+    request.userPermissions = grantedSet;
 
     // Check every required permission
     const hasAll = requiredPermissions.every((perm) => {

@@ -26,24 +26,6 @@ export class DeletionValidatorService {
     }
   }
 
-  async validateCountryDelete(countryId: number): Promise<void> {
-    const partnerCount = await this.partnerModel.count({
-      where: { countryId },
-    });
-    if (partnerCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete country as it is linked to one or more partners',
-      );
-    }
-    const productCount = await this.productModel.count({
-      where: { countryId },
-    });
-    if (productCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete country as it is linked to one or more products',
-      );
-    }
-  }
 
   async validateHSCodeDelete(hsCodeId: number): Promise<void> {
     const productCount = await this.productModel.count({ where: { hsCodeId } });

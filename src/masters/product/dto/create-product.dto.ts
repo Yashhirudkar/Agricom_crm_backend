@@ -21,15 +21,15 @@ export class CreateProductDto {
   @IsNotEmpty()
   categoryId: number;
 
-  @IsInt()
-  @Type(() => Number)
+  @IsString()
   @IsNotEmpty()
-  countryId: number;
+  @MaxLength(150)
+  country: string;
 
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
-  @IsNotEmpty()
-  hsCodeId: number;
+  hsCodeId?: number;
 
   @IsOptional()
   @IsString()

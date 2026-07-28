@@ -38,7 +38,7 @@ export class RbacService {
     private readonly userModel: typeof User,
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
-  ) {}
+  ) { }
 
   // ─── Roles ─────────────────────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ export class RbacService {
     const where: any = {};
     const clientId = query?.clientId;
     if (clientId !== undefined && clientId !== null) {
-      where[Op.or] = [{ clientId: null, isSystemRole: true }, { clientId }];
+      where[Op.or] = [{ clientId: null }, { clientId }];
     }
     if (query?.search) {
       where.name = { [Op.iLike]: `%${query.search}%` };
@@ -198,7 +198,7 @@ export class RbacService {
   ) {
     const where: any = { isActive: true };
     if (clientId !== null) {
-      where[Op.or] = [{ clientId: null, isSystemRole: true }, { clientId }];
+      where[Op.or] = [{ clientId: null }, { clientId }];
     }
 
     if (search) {

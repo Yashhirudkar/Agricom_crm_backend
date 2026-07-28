@@ -52,6 +52,17 @@ export class LeaveTypesController {
     return this.leaveTypesService.createLeaveType(companyId, dto, actor);
   }
 
+  // Accessible by employees (leave:create) to fill the Apply Leave dropdown
+  @Get('for-apply')
+  @RequirePermission('leave:create')
+  getLeaveTypesForEmployee(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.leaveTypesService.getLeaveTypes(companyId, {
+      page: 1,
+      limit: 200,
+    });
+  }
+
   @Get()
   @RequirePermission('leave_types:read')
   getLeaveTypes(

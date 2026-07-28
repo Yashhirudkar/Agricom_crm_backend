@@ -129,12 +129,12 @@ export class CreateSalesContractDto {
   paymentTermId: number;
 
   @IsNotEmpty()
-  @IsInt()
-  originCountryId: number;
+  @IsString()
+  originCountry: string;
 
   @IsNotEmpty()
-  @IsInt()
-  destinationCountryId: number;
+  @IsString()
+  destinationCountry: string;
 
   @IsOptional()
   @IsString()

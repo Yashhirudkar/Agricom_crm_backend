@@ -66,11 +66,11 @@ async function bootstrap() {
   // console.log('Table synced!');
 
 
-  // await app.listen(port);
-  // console.log(`Application is running on: ${await app.getUrl()}/api`);
-  await app.listen(port);
+  // Bind to all interfaces so LAN devices can access via 192.168.1.222
+  await app.listen(port, '0.0.0.0');
 
   console.log(`Application is running on: http://localhost:${port}/api`);
+  console.log(`LAN access: http://192.168.1.222:${port}/api`);
 
 }
 bootstrap();

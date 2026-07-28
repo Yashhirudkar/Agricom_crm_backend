@@ -72,13 +72,16 @@ export class DesignationsController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('departmentId') departmentId?: string,
   ) {
     const companyId = this.getCompanyId(req);
+    const deptId = departmentId ? parseInt(departmentId, 10) : undefined;
     return this.designationsService.getDesignationsForOptions(
       companyId,
       search,
       page,
       limit,
+      deptId,
     );
   }
 
