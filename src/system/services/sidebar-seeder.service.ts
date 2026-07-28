@@ -136,7 +136,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: attFolder.id,
           sort_order: 10,
           is_active: true,
-          permission_link: 'attendance:read',
+          permission_link: 'attendance_dashboard:read',
         },
         {
           name: 'My Attendance',
@@ -145,7 +145,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: attFolder.id,
           sort_order: 20,
           is_active: true,
-          permission_link: 'attendance:read',
+          permission_link: 'attendance_activity:read',
         },
         {
           name: 'Shifts',
@@ -154,7 +154,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: attFolder.id,
           sort_order: 30,
           is_active: true,
-          permission_link: 'shifts:read',
+          permission_link: 'attendance_shifts:assign_shift',
         },
         {
           name: 'Corrections',
@@ -163,7 +163,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: attFolder.id,
           sort_order: 40,
           is_active: true,
-          permission_link: 'attendance:approve_correction',
+          permission_link: 'attendance_regularization:read',
         },
         {
           name: 'Reports',
@@ -172,7 +172,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: attFolder.id,
           sort_order: 50,
           is_active: true,
-          permission_link: 'attendance_reports:read',
+          permission_link: 'attendance_summary:read',
         },
       ] as any[]);
 
