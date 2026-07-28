@@ -115,7 +115,7 @@ export class ProfileService {
       return [];
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });
-    if (!employee) throw new NotFoundException('Employee not found');
+    if (!employee) return [];
 
     return this.leaveBalanceModel.findAll({
       where: { employeeId: employee.id },
@@ -127,7 +127,7 @@ export class ProfileService {
       return [];
     }
     const employee = await this.employeeModel.findOne({ where: { userId } });
-    if (!employee) throw new NotFoundException('Employee not found');
+    if (!employee) return [];
 
     return this.documentModel.findAll({
       where: { employeeId: employee.id },
@@ -137,6 +137,15 @@ export class ProfileService {
 
   async getAttendanceSummary(userId: number, userType: string) {
     if (userType === 'super_admin' || userType === 'client_admin') {
+      return {
+        attendancePercentage: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateEntries: 0,
+      };
+    }
+    const employee = await this.employeeModel.findOne({ where: { userId } });
+    if (!employee) {
       return {
         attendancePercentage: 0,
         presentDays: 0,

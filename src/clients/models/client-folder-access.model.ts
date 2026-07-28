@@ -15,7 +15,9 @@ import { SidebarFolder } from '../../system/models/sidebar-folder.model';
 
 @Table({
   tableName: 'client_folder_access',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
 })
 export class ClientFolderAccess extends Model<ClientFolderAccess> {
   @PrimaryKey

@@ -312,17 +312,21 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
+        unique: true,
         field: 'userId',
         references: { model: 'users', key: 'id' },
         onDelete: 'CASCADE',
       },
-      preferenceKey: { type: DataTypes.STRING(100), allowNull: false, field: 'preferenceKey' },
-      preferenceValue: { type: DataTypes.TEXT, allowNull: true, field: 'preferenceValue' },
+      twoFactorEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'twoFactorEnabled' },
+      emailNotifications: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'emailNotifications' },
+      pushNotifications: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'pushNotifications' },
+      theme: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'system', field: 'theme' },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
     { ifNotExists: true } as any,
   );
+
 
   // ─═o═────═o═────═o═──────── 10. user_sessions ─═o═────═o═────═o═──────═o═────═o═────═o═──────═o═────═o═────═o═────────
   await queryInterface.createTable(

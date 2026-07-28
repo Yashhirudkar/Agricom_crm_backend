@@ -583,8 +583,8 @@ export class EmployeesService {
       designationId,
       page = 1,
       limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC',
+      sortBy = 'id',
+      sortOrder = 'ASC',
     } = query;
 
     const whereClause: any = { companyId };
@@ -625,6 +625,10 @@ export class EmployeesService {
 
     return {
       data: rows,
+      total: count,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(count / limit),
       meta: {
         total: count,
         page: Number(page),

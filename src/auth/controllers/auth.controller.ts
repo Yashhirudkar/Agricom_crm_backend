@@ -136,10 +136,12 @@ export class AuthController {
 
     // Determine type
     let type: 'super_admin' | 'client_admin' | 'user' = 'user';
-    const hasSuperAdminRole = user.roles?.some((r) => r.name === 'Admin');
-    const hasClientAdminRole = user.roles?.some(
-      (r) => r.name === 'Client Admin',
-    );
+    const hasSuperAdminRole =
+      user.roles?.some((r) => r.name === 'Admin') ||
+      user.userCompanies?.some((uc) => uc.role?.name === 'Admin');
+    const hasClientAdminRole =
+      user.roles?.some((r) => r.name === 'Client Admin') ||
+      user.userCompanies?.some((uc) => uc.role?.name === 'Client Admin');
 
     if (
       hasSuperAdminRole ||
@@ -175,6 +177,29 @@ export class AuthController {
         role: { id: 0, name: 'Client Admin' },
         status: c.status || 'Active',
       }));
+
+      // Fetch global roles permissions
+      const roleIds = (user.roles || []).map((r) => r.id);
+      if (roleIds.length > 0) {
+        const perms = (await this.userCompanyModel.sequelize.query(
+          `
+          SELECT m.name AS resource_name, a.name AS action_name
+          FROM role_action_permissions rap
+          JOIN resource_actions a ON a.id = rap.resource_action_id
+          JOIN module_resources m ON m.id = a.resource_id
+          WHERE rap.role_id IN (:roleIds)
+        `,
+          {
+            replacements: { roleIds },
+            type: 'SELECT',
+          },
+        )) as any[];
+
+        permissions = perms.map(
+          (p) =>
+            `${p.resource_name.toLowerCase()}:${p.action_name.toLowerCase()}`,
+        );
+      }
     } else {
       workspaces = await Promise.all(
         (user.userCompanies || []).map(async (uc) => {
@@ -345,7 +370,7 @@ export class AuthController {
           })),
         };
       })
-      .filter((f) => f.items.length > 0 || isSuperAdmin);
+      .filter((f) => f.items.length > 0 || isSuperAdmin || isClientAdmin);
 
     const standaloneItems = menuData.standaloneItems
       .filter((item) => filterItem(item))

@@ -15,7 +15,9 @@ import { ResourceAction } from '../../system/models/resource-action.model';
 
 @Table({
   tableName: 'client_action_access',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
 })
 export class ClientActionAccess extends Model<ClientActionAccess> {
   @PrimaryKey

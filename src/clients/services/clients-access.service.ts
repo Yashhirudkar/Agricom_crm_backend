@@ -55,15 +55,17 @@ export class ClientsAccessService {
     if (validFolderIds.length > 0) {
       await this.clientFolderAccessModel.bulkCreate(
         validFolderIds.map(
-          (id) => ({ client_id: clientId, folder_id: id }) as any,
+          (id) => ({ client_id: clientId, folder_id: id, created_at: new Date() }) as any,
         ),
+        { fields: ['client_id', 'folder_id', 'created_at'] },
       );
     }
     
     const validItemIds = (dto.item_ids || []).filter((id) => id > 0);
     if (validItemIds.length > 0) {
       await this.clientItemAccessModel.bulkCreate(
-        validItemIds.map((id) => ({ client_id: clientId, item_id: id }) as any),
+        validItemIds.map((id) => ({ client_id: clientId, item_id: id, created_at: new Date() }) as any),
+        { fields: ['client_id', 'item_id', 'created_at'] },
       );
     }
     
@@ -71,8 +73,9 @@ export class ClientsAccessService {
     if (validModuleIds.length > 0) {
       await this.clientModuleAccessModel.bulkCreate(
         validModuleIds.map(
-          (id) => ({ client_id: clientId, module_id: id }) as any,
+          (id) => ({ client_id: clientId, module_id: id, created_at: new Date() }) as any,
         ),
+        { fields: ['client_id', 'module_id', 'created_at'] },
       );
     }
     
@@ -80,8 +83,9 @@ export class ClientsAccessService {
     if (validActionIds.length > 0) {
       await this.clientActionAccessModel.bulkCreate(
         validActionIds.map(
-          (id) => ({ client_id: clientId, resource_action_id: id }) as any,
+          (id) => ({ client_id: clientId, resource_action_id: id, created_at: new Date() }) as any,
         ),
+        { fields: ['client_id', 'resource_action_id', 'created_at'] },
       );
     }
 

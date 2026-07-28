@@ -15,7 +15,9 @@ import { SidebarItem } from '../../system/models/sidebar-item.model';
 
 @Table({
   tableName: 'client_item_access',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
 })
 export class ClientItemAccess extends Model<ClientItemAccess> {
   @PrimaryKey

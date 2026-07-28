@@ -19,8 +19,8 @@ export class SystemService {
   ) {}
 
   async getSidebar(user: any) {
-    // Check if Super Admin using user.type
-    const isSuperAdmin = user.type === 'super_admin';
+    // Check if Super Admin or Client Admin (both bypass client-level access filtering)
+    const isSuperAdmin = user.type === 'super_admin' || user.type === 'client_admin';
 
     const folders = await this.sidebarFolderModel.findAll({
       where: { is_active: true },

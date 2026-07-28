@@ -15,7 +15,9 @@ import { AppModule } from '../../system/models/app-module.model';
 
 @Table({
   tableName: 'client_module_access',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false,
 })
 export class ClientModuleAccess extends Model<ClientModuleAccess> {
   @PrimaryKey

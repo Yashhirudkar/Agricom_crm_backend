@@ -107,12 +107,18 @@ export class AuthService {
         );
       }
 
+      // Load user workspaces and full details
+      const fullUser = await this.usersService.findByIdWithRoles(user.id);
+      if (!fullUser) throw new UnauthorizedException('User details not found');
+
       // Determine type
       let type: 'super_admin' | 'client_admin' | 'user' = 'user';
-      const hasSuperAdminRole = user.roles?.some((r) => r.name === 'Admin');
-      const hasClientAdminRole = user.roles?.some(
-        (r) => r.name === 'Client Admin',
-      );
+      const hasSuperAdminRole =
+        fullUser.roles?.some((r) => r.name === 'Admin') ||
+        fullUser.userCompanies?.some((uc) => uc.role?.name === 'Admin');
+      const hasClientAdminRole =
+        fullUser.roles?.some((r) => r.name === 'Client Admin') ||
+        fullUser.userCompanies?.some((uc) => uc.role?.name === 'Client Admin');
 
       if (
         hasSuperAdminRole ||
@@ -131,9 +137,6 @@ export class AuthService {
         ipAddress,
         userAgent,
       );
-
-      // Load user workspaces
-      const fullUser = await this.usersService.findByIdWithRoles(user.id);
       let workspaces = [];
 
       if (type === 'client_admin') {
@@ -362,15 +365,20 @@ export class AuthService {
           throw new UnauthorizedException('User not found or inactive');
         }
         email = user.email;
-        if (user.clientId === null) {
+        const hasSuperAdminRole =
+          user.roles?.some((r) => r.name === 'Admin') ||
+          user.userCompanies?.some((uc) => uc.role?.name === 'Admin');
+        const hasClientAdminRole =
+          user.roles?.some((r) => r.name === 'Client Admin') ||
+          user.userCompanies?.some((uc) => uc.role?.name === 'Client Admin');
+
+        if (
+          hasSuperAdminRole ||
+          (user.clientId === null && user.email === 'admin@agricom.com')
+        ) {
           type = 'super_admin';
-        } else {
-          const hasClientAdminRole = user.roles?.some(
-            (r) => r.name === 'Client Admin',
-          );
-          if (hasClientAdminRole) {
-            type = 'client_admin';
-          }
+        } else if (hasClientAdminRole) {
+          type = 'client_admin';
         }
       } else if (session.clientId) {
         // Fallback for legacy client admin sessions

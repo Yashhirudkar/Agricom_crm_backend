@@ -19,7 +19,6 @@ export class MatrixBuilderController {
   constructor(private readonly matrixBuilderService: MatrixBuilderService) {}
 
   @Get('registry')
-  @RequirePermission('system:manage_matrix')
   async getRegistry() {
     return this.matrixBuilderService.getRegistry();
   }

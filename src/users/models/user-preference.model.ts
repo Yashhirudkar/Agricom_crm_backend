@@ -17,6 +17,7 @@ import { User } from './user.model';
 @Table({
   tableName: 'user_preferences',
   timestamps: true,
+  // DB columns are camelCase (no underscoreAll mapping needed)
 })
 export class UserPreference extends Model<UserPreference> {
   @PrimaryKey
