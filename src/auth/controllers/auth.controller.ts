@@ -485,7 +485,7 @@ export class AuthController {
     };
   }
 
-  @UseGuards(JwtAuthGuard, RateLimit(5, 15))
+  @UseGuards(JwtAuthGuard, RateLimit(10, 15))
   @Put('change-password')
   async changePassword(@Request() req, @Body() body: ChangePasswordDto) {
     const userId = req.user.userId || req.user.sub;
