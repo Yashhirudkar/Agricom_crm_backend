@@ -58,9 +58,8 @@ export class PartnerFollowUpService {
 
   async findAll(partnerId: number, entityType?: string, entityId?: number): Promise<PartnerFollowUp[]> {
     const where: any = { partnerId, isActive: true };
-    if (entityType) where.entityType = entityType;
-    if (entityId) where.entityId = entityId;
-
+    // Omit entityType and entityId filters to unify the conversation history under one partner
+    
     return this.partnerFollowUpModel.findAll({
       where,
       order: [['createdAt', 'ASC']],
