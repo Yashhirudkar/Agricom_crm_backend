@@ -36,6 +36,15 @@ export class PartnerRoleController {
     return this.partnerRoleService.create(createPartnerRoleDto);
   }
 
+  // Lightweight options endpoint — accessible to anyone with partner:read
+  // (used for dropdowns in partner forms where full partnerrole:view isn't needed)
+  @Get('options')
+  @RequirePermission('partner:read')
+  async findOptions(@Query('limit') limit?: string) {
+    const result = await this.partnerRoleService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
+    return result;
+  }
+
   @Get()
   @RequirePermission('partnerrole:view')
   async findAll(@Query() query: QueryPartnerRoleDto) {

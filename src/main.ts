@@ -67,11 +67,11 @@ async function bootstrap() {
 
 
   // Bind to localhost
-  // await app.listen(port, '0.0.0.0');
-  await app.listen(port, 'localhost');
+   await app.listen(port, '0.0.0.0');
+  //await app.listen(port, 'localhost');
 
-  console.log(`Application is running on: http://localhost:${port}/api`);
-  // console.log(`LAN access: http://192.168.1.222:${port}/api`);
+ // console.log(`Application is running on: http://localhost:${port}/api`);
+   console.log(`LAN access: http://192.168.1.222:${port}/api`);
 
 }
 bootstrap();

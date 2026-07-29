@@ -396,7 +396,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: enquiriesFolder.id,
           sort_order: 20,
           is_active: true,
-          permission_link: 'orders:read',
+          permission_link: 'enquiries:read',
         },
       ] as any[]);
 

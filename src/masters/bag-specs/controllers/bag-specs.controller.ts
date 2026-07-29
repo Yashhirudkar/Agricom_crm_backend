@@ -66,6 +66,13 @@ export class BagSpecsController {
 
   // ─── PACKING TYPES ────────────────────────────────────────────────────────
 
+  // Lightweight options endpoint — accessible to anyone who can create/view enquiries
+  @Get('packing-types/options')
+  @RequirePermission('enquiry:read')
+  findPackingTypeOptions() {
+    return this.bagSpecsService.findAllPackingTypes(true);
+  }
+
   @Get('packing-types')
   @RequirePermission('bagspec:view')
   findAllPackingTypes(@Query('isActive') isActive?: string) {

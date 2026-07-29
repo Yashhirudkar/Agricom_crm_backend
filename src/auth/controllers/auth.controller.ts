@@ -320,6 +320,48 @@ export class AuthController {
       roles: profile.roles || [],
     });
 
+    const cleanStr = (s: string) => s.toLowerCase().replace(/[-_]/g, '');
+
+    const stripPluralSuffix = (w: string) => {
+      if (w.endsWith('ies')) return w.slice(0, -3) + 'y';
+      if (w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
+      return w;
+    };
+
+    const isResourceMatch = (reqRes: string, userRes: string) => {
+      const c1 = stripPluralSuffix(cleanStr(reqRes));
+      const c2 = stripPluralSuffix(cleanStr(userRes));
+
+      if (c1 === 'salesmaster' && ['shipmenttype', 'paymentterm', 'tradedocument', 'currency'].includes(c2)) {
+        return true;
+      }
+
+      // Prevent greedy matching where 'partner' matches 'partnerrole' or 'partnerdynamicschema'
+      if (c1 === 'partner' && c2 !== 'partner' && c2.startsWith('partner')) return false;
+      if (c2 === 'partner' && c1 !== 'partner' && c1.startsWith('partner')) return false;
+
+      return c1 === c2 || c1.startsWith(c2) || c2.startsWith(c1);
+    };
+
+    const hasSidebarPermission = (requiredLink: string, userPerms: string[]): boolean => {
+      const [reqResource, reqAction] = requiredLink.split(':');
+      if (!reqResource || !reqAction) return false;
+
+      return userPerms.some((userPerm) => {
+        const [userResource, userAction] = userPerm.split(':');
+        if (!userResource || !userAction) return false;
+
+        // Action match: read and view are equivalent
+        const isActionMatch =
+          reqAction === userAction ||
+          (['read', 'view'].includes(reqAction) && ['read', 'view'].includes(userAction));
+
+        if (!isActionMatch) return false;
+
+        return isResourceMatch(reqResource, userResource);
+      });
+    };
+
     // Items always visible to ALL logged-in users regardless of role/permissions
     // Only items WITHOUT a permission_link inside the "Workspace" folder are always visible.
     // NOTE: We do NOT match by name alone because other folders (e.g. Attendance)
@@ -333,8 +375,8 @@ export class AuthController {
       if (!item.permission_link && folderName === 'Workspace') return true;
       // Items without permission_link in other folders are hidden for regular users
       if (!item.permission_link) return false;
-      // Check actual permission
-      return userPermissions.includes(item.permission_link);
+      // Check actual permission dynamically
+      return hasSidebarPermission(item.permission_link, userPermissions);
     };
 
     const folders = menuData.folders

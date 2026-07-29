@@ -35,6 +35,13 @@ export class ShipmentTypeController {
     return this.service.create(dto, req.user);
   }
 
+  // Lightweight options endpoint — accessible to anyone who can create/view enquiries
+  @Get('options')
+  @RequirePermission('enquiry:read')
+  async findOptions() {
+    return this.service.findAll({ status: 'Active', limit: 100, page: 1 } as any);
+  }
+
   @Get()
   @RequirePermission('shipment-type:view')
   async findAll(@Query() query: QueryShipmentTypeDto) {
