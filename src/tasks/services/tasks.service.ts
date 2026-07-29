@@ -96,17 +96,46 @@ export class TasksService {
   }
 
   async getStatuses(clientId: number) {
-    return this.statusModel.findAll({
+    let statuses = await this.statusModel.findAll({
       where: { clientId },
       order: [['order', 'ASC']],
     });
+
+    if (statuses.length === 0) {
+      await this.statusModel.bulkCreate([
+        { clientId, name: 'Open', order: 0, isCompleted: false, color: '#3b82f6' },
+        { clientId, name: 'In Progress', order: 1, isCompleted: false, color: '#eab308' },
+        { clientId, name: 'On Hold', order: 2, isCompleted: false, color: '#6b7280' },
+        { clientId, name: 'Completed', order: 3, isCompleted: true, color: '#22c55e' },
+      ]);
+      statuses = await this.statusModel.findAll({
+        where: { clientId },
+        order: [['order', 'ASC']],
+      });
+    }
+
+    return statuses;
   }
 
   async getPriorities(clientId: number) {
-    return this.priorityModel.findAll({
+    let priorities = await this.priorityModel.findAll({
       where: { clientId },
       order: [['order', 'ASC']],
     } as any);
+
+    if (priorities.length === 0) {
+      await this.priorityModel.bulkCreate([
+        { clientId, name: 'Low', order: 0, color: '#22c55e' },
+        { clientId, name: 'Medium', order: 1, color: '#eab308' },
+        { clientId, name: 'High', order: 2, color: '#ef4444' },
+      ]);
+      priorities = await this.priorityModel.findAll({
+        where: { clientId },
+        order: [['order', 'ASC']],
+      } as any);
+    }
+
+    return priorities;
   }
 
   async create(clientId: number, userId: number, dto: CreateTaskDto) {

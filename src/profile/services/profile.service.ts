@@ -240,6 +240,12 @@ export class ProfileService {
       country: dto.country,
     });
 
+    // Synchronize User name
+    const updatedName = `${dto.firstName} ${dto.lastName || ''}`.trim();
+    if (user.name !== updatedName) {
+      await user.update({ name: updatedName });
+    }
+
     // Log changes
     const ipAddress = req.ip || req.connection?.remoteAddress;
     const userAgent = req.headers['user-agent'];

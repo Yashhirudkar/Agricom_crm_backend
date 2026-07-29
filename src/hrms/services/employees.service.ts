@@ -493,6 +493,12 @@ export class EmployeesService {
           userUpdate.isActive = isActiveStatus;
         }
 
+        if (data.firstName !== undefined || data.lastName !== undefined) {
+          const updatedFirstName = data.firstName !== undefined ? data.firstName : employee.firstName;
+          const updatedLastName = data.lastName !== undefined ? data.lastName : employee.lastName;
+          userUpdate.name = `${updatedFirstName} ${updatedLastName || ''}`.trim();
+        }
+
         if (Object.keys(userUpdate).length > 0) {
           await this.usersService.updateUser(
             updatedUserId,
