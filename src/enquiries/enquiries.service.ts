@@ -216,7 +216,7 @@ export class EnquiriesService {
       partnerId: row.partnerId,
       partnerName: row.partner?.entityName,
       productName: row.product?.name,
-      originCountryName: row.originCountry,
+      originCountryId: row.originCountryId,
       purity: row.purity,
       packingName: row.packingType?.name,
       podName: row.podPort,

@@ -70,8 +70,8 @@ export class Enquiry extends Model<Enquiry> {
   declare product: Product;
 
   @AllowNull(true)
-  @Column({ field: 'origin_country', type: DataType.STRING(150) })
-  declare originCountry: string;
+  @Column({ field: 'origin_country_id', type: DataType.INTEGER })
+  declare originCountryId: number;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(50) })

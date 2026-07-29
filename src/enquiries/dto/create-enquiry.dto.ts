@@ -26,8 +26,8 @@ export class CreateEnquiryDto {
   enquiryDate: Date;
 
   @IsOptional()
-  @IsString()
-  originCountry?: string;
+  @IsInt()
+  originCountryId?: number;
 
   @IsOptional()
   @IsEnum(EnquiryPurity)
