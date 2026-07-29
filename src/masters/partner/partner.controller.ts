@@ -44,6 +44,13 @@ export class PartnerController {
     return result;
   }
 
+  @Get('countries')
+  @RequirePermission('partner:view')
+  async getCountries() {
+    const countries = await this.partnerService.getDistinctCountries();
+    return { success: true, data: countries };
+  }
+
   @Get(':id')
   @RequirePermission('partner:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {

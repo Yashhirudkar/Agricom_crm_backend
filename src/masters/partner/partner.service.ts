@@ -199,6 +199,17 @@ export class PartnerService {
     return partner;
   }
 
+  async getDistinctCountries(): Promise<string[]> {
+    const results = await this.partnerModel.findAll({
+      attributes: [
+        [Sequelize.fn('DISTINCT', Sequelize.col('country')), 'country']
+      ],
+      where: { isActive: true },
+      raw: true,
+    });
+    return results.map((r: any) => r.country).filter(Boolean).sort();
+  }
+
   async findOneActive(id: number): Promise<Partner> {
     return this.findOne(id);
   }
