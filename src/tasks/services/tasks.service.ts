@@ -244,10 +244,7 @@ export class TasksService {
       }
       if (dto.ownerId) {
         const ownerUser = await this.userModel.findOne({
-          where: { 
-            id: dto.ownerId,
-            [Op.or]: [{ clientId }, { clientId: null }] 
-          },
+          where: { id: dto.ownerId },
           transaction,
         });
         if (!ownerUser) throw new NotFoundException('Owner not found or invalid');
@@ -255,10 +252,7 @@ export class TasksService {
 
       if (dto.assigneeIds?.length) {
         const count = await this.userModel.count({
-          where: { 
-            id: { [Op.in]: dto.assigneeIds }, 
-            [Op.or]: [{ clientId }, { clientId: null }] 
-          },
+          where: { id: { [Op.in]: dto.assigneeIds } },
         });
         if (count !== dto.assigneeIds.length)
           throw new NotFoundException('One or more assignees invalid');

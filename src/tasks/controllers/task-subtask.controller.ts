@@ -24,6 +24,15 @@ import { CreateTaskDto } from '../dto';
 export class TaskSubtaskController {
   constructor(private readonly subtaskService: TaskSubtaskService) {}
 
+  private getClientId(req: any): number {
+    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
+    const headerCompanyId = req.headers['x-company-id']
+      ? parseInt(req.headers['x-company-id'], 10)
+      : null;
+    const isSuperAdmin = req.user?.type === 'super_admin';
+    return (isSuperAdmin && headerCompanyId) ? headerCompanyId : (jwtClientId || headerCompanyId || 1);
+  }
+
   @Get()
   @RequirePermission('task:view')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
@@ -32,8 +41,7 @@ export class TaskSubtaskController {
     @Req() req: any,
     @Param('id', ParseIntPipe) taskId: number,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = this.getClientId(req);
     const subtasks = await this.subtaskService.findAllSubtasks(
       taskId,
       clientId,
@@ -50,8 +58,7 @@ export class TaskSubtaskController {
     @Param('id', ParseIntPipe) taskId: number,
     @Body() dto: CreateTaskDto,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = this.getClientId(req);
     const userId = req.user?.id || 1;
     const subtask = await this.subtaskService.createSubtask(
       taskId,
@@ -71,8 +78,7 @@ export class TaskSubtaskController {
     @Param('id', ParseIntPipe) taskId: number,
     @Body('subtaskIds') subtaskIds: number[],
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = this.getClientId(req);
     await this.subtaskService.reorderSubtasks(taskId, clientId, subtaskIds);
     return { success: true, message: 'Subtasks reordered' };
   }
@@ -87,8 +93,7 @@ export class TaskSubtaskController {
     @Param('subtaskId', ParseIntPipe) subtaskId: number,
     @Body() dto: any,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = this.getClientId(req);
     const userId = req.user?.id || 1;
     const subtask = await this.subtaskService.updateSubtask(
       taskId,
@@ -109,8 +114,7 @@ export class TaskSubtaskController {
     @Param('id', ParseIntPipe) taskId: number,
     @Param('subtaskId', ParseIntPipe) subtaskId: number,
   ) {
-    const headerCompanyId = req.headers['x-company-id'];
-    const clientId = headerCompanyId ? parseInt(headerCompanyId, 10) : req.user?.clientId;
+    const clientId = this.getClientId(req);
     const userId = req.user?.id || 1;
     await this.subtaskService.deleteSubtask(
       taskId,

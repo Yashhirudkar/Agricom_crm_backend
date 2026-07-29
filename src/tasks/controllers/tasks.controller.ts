@@ -44,12 +44,18 @@ export class TasksController {
     description: 'Required to prevent duplicate task creation',
   })
   async create(@Req() req: any, @Body() createTaskDto: CreateTaskDto) {
-    const clientId = req.user?.clientId || 1;
+    // JWT clientId is authoritative (validated by auth); header only used for super admin context switching
+    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
+    const headerCompanyId = req.headers['x-company-id']
+      ? parseInt(req.headers['x-company-id'], 10)
+      : null;
+    const isSuperAdmin = req.user?.type === 'super_admin';
+    const clientId = (isSuperAdmin && headerCompanyId) ? headerCompanyId : (jwtClientId || headerCompanyId || 1);
+
     const userId = req.user?.id || 1;
     const idempotencyKey = req.headers['idempotency-key'];
 
     if (!idempotencyKey) {
-      // In a real implementation this would be caught by a Guard or Interceptor
       throw new Error('Idempotency-Key header is required');
     }
 

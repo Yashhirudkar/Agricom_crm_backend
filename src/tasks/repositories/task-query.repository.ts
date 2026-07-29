@@ -49,10 +49,10 @@ export class TaskQueryRepository {
     const where: any = { clientId };
 
     // Strict boolean handling
-    if (isArchived !== undefined) {
-      where.isArchived = isArchived;
-    } else if (query.preset === 'archived_tasks') {
+    if (query.preset === 'archived_tasks') {
       where.isArchived = true;
+    } else if (isArchived !== undefined) {
+      where.isArchived = isArchived;
     } else {
       where.isArchived = false; // Default to non-archived
     }
