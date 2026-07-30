@@ -19,6 +19,9 @@ import {
   UpdateTaskDto,
   ArchiveTaskDto,
   TaskQueryDto,
+  BulkArchiveDto,
+  BulkStatusDto,
+  BulkActionDto,
 } from '../dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -86,7 +89,13 @@ export class TasksController {
     (query as any).hasViewAll = hasViewAll;
 
     const result = await this.tasksService.findAll(clientId, userId, query);
-    return { success: true, data: result.data, meta: result.meta };
+    return {
+      success: true,
+      items: result.items,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+      meta: result.meta,
+    };
   }
 
   @Get('all-tasks')
@@ -102,7 +111,55 @@ export class TasksController {
     (query as any).hasViewAll = true;
     query.preset = 'all_tasks';
     const result = await this.tasksService.findAll(clientId, userId, query);
-    return { success: true, data: result.data, meta: result.meta };
+    return {
+      success: true,
+      items: result.items,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+      meta: result.meta,
+    };
+  }
+
+  @Post('bulk-archive')
+  @RequirePermission('task:update')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Bulk archive or unarchive tasks matching filters' })
+  async bulkArchive(@Req() req: any, @Body() dto: BulkArchiveDto) {
+    const userId = req.user?.id || req.user?.userId || 1;
+    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
+    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
+    const clientId = jwtClientId || headerCompanyId || 1;
+
+    const result = await this.tasksService.bulkArchive(clientId, userId, dto);
+    return { success: true, ...result };
+  }
+
+  @Post('bulk-status')
+  @RequirePermission('task:update')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Bulk change status for tasks matching filters' })
+  async bulkChangeStatus(@Req() req: any, @Body() dto: BulkStatusDto) {
+    const userId = req.user?.id || req.user?.userId || 1;
+    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
+    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
+    const clientId = jwtClientId || headerCompanyId || 1;
+
+    const result = await this.tasksService.bulkChangeStatus(clientId, userId, dto);
+    return { success: true, ...result };
+  }
+
+  @Post('bulk-delete')
+  @RequirePermission('task:delete')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Bulk delete tasks matching filters' })
+  async bulkDelete(@Req() req: any, @Body() dto: BulkActionDto) {
+    const userId = req.user?.id || req.user?.userId || 1;
+    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
+    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
+    const clientId = jwtClientId || headerCompanyId || 1;
+
+    const result = await this.tasksService.bulkDelete(clientId, userId, dto);
+    return { success: true, ...result };
   }
 
   @Get('meta/statuses')

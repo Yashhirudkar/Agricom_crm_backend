@@ -21,13 +21,27 @@ export class TaskQueryRepository {
     private readonly taskModel: typeof Task,
   ) { }
 
-  async findAndCountAll(clientId: number, query: TaskQueryDto) {
+  encodeCursor(task: Task, sortBy: string): string {
+    const val = task[sortBy];
+    const payload = {
+      id: task.id,
+      val: val instanceof Date ? val.toISOString() : val
+    };
+    return Buffer.from(JSON.stringify(payload)).toString('base64');
+  }
+
+  decodeCursor(cursorStr: string): { id: number; val: any } | null {
+    try {
+      const json = Buffer.from(cursorStr, 'base64').toString('utf-8');
+      return JSON.parse(json);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  buildWhereClause(clientId: number, query: TaskQueryDto): { where: any; filterCompleted: boolean | undefined } {
     const {
-      page = 1,
-      limit = 10,
       search,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC',
       statusIds,
       priorityIds,
       assigneeIds,
@@ -45,7 +59,6 @@ export class TaskQueryRepository {
       createdAtEnd,
     } = query;
 
-    const offset = (page - 1) * limit;
     const where: any = { clientId };
 
     // Strict boolean handling
@@ -108,10 +121,13 @@ export class TaskQueryRepository {
       ];
 
       if (where[Op.or]) {
-        where[Op.and] = [
-          { [Op.or]: where[Op.or] },
-          { [Op.or]: userCondition }
-        ];
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push({
+          [Op.and]: [
+            { [Op.or]: where[Op.or] },
+            { [Op.or]: userCondition }
+          ]
+        });
         delete where[Op.or];
       } else {
         where[Op.or] = userCondition;
@@ -141,10 +157,13 @@ export class TaskQueryRepository {
         { description: { [Op.iLike]: `%${search}%` } },
       ];
       if (where[Op.or]) {
-        where[Op.and] = [
-          { [Op.or]: where[Op.or] },
-          { [Op.or]: searchConditions }
-        ];
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push({
+          [Op.and]: [
+            { [Op.or]: where[Op.or] },
+            { [Op.or]: searchConditions }
+          ]
+        });
         delete where[Op.or];
       } else {
         where[Op.or] = searchConditions;
@@ -166,6 +185,45 @@ export class TaskQueryRepository {
 
     if (isOverdue) {
       where.dueDate = { [Op.lt]: now };
+    }
+
+    return { where, filterCompleted };
+  }
+
+  async findAndCountAll(clientId: number, query: TaskQueryDto) {
+    const {
+      limit = 30,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+      assigneeIds,
+      cursor,
+    } = query;
+
+    const { where, filterCompleted } = this.buildWhereClause(clientId, query);
+
+    // Apply cursor condition if provided
+    if (cursor) {
+      const decoded = this.decodeCursor(cursor);
+      if (decoded) {
+        const { id, val } = decoded;
+        const isDesc = String(sortOrder).toUpperCase() === 'DESC';
+        const op = isDesc ? Op.lt : Op.gt;
+
+        where[Op.and] = where[Op.and] || [];
+        if (val === null || val === undefined) {
+          where[Op.and].push({
+            id: { [isDesc ? Op.lt : Op.gt]: id }
+          });
+        } else {
+          const compareVal = sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'dueDate' ? new Date(val) : val;
+          where[Op.and].push({
+            [Op.or]: [
+              { [sortBy]: { [op]: compareVal } },
+              { [sortBy]: compareVal, id: { [isDesc ? Op.lt : Op.gt]: id } }
+            ]
+          });
+        }
+      }
     }
 
     // Dynamic Includes
@@ -243,44 +301,77 @@ export class TaskQueryRepository {
       });
     }
 
-    const { rows, count } = await this.taskModel.findAndCountAll({
+    // Select only required columns (avoid SELECT * and N+1)
+    const rows = await this.taskModel.findAll({
       where,
-      attributes: {
-        include: [
-          [
-            this.taskModel.sequelize.literal(`(
-              SELECT COALESCE(COUNT(*), 0)
-              FROM "task_comments" AS "comments"
-              WHERE "comments"."taskId" = "Task"."id" AND "comments"."isDeleted" = false
-            )`),
-            'commentsCount',
-          ],
-          [
-            this.taskModel.sequelize.literal(`(
-              SELECT COALESCE(COUNT(*), 0)
-              FROM "task_attachments" AS "attachments"
-              WHERE "attachments"."taskId" = "Task"."id"
-            )`),
-            'attachmentsCount',
-          ],
+      attributes: [
+        'id',
+        'clientId',
+        'taskCode',
+        'title',
+        'description',
+        'statusId',
+        'priorityId',
+        'parentTaskId',
+        'displayOrder',
+        'entityModule',
+        'entityTable',
+        'entityId',
+        'estimatedMinutes',
+        'actualMinutes',
+        'completionPercentage',
+        'startDate',
+        'dueDate',
+        'completedAt',
+        'createdById',
+        'ownerId',
+        'isArchived',
+        'archivedAt',
+        'archivedById',
+        'isDeleted',
+        'deletedBy',
+        'createdAt',
+        'updatedAt',
+        'deletedAt',
+        'version',
+        [
+          this.taskModel.sequelize.literal(`(
+            SELECT COALESCE(COUNT(*), 0)
+            FROM "task_comments" AS "comments"
+            WHERE "comments"."taskId" = "Task"."id" AND "comments"."isDeleted" = false
+          )`),
+          'commentsCount',
         ],
-      },
+        [
+          this.taskModel.sequelize.literal(`(
+            SELECT COALESCE(COUNT(*), 0)
+            FROM "task_attachments" AS "attachments"
+            WHERE "attachments"."taskId" = "Task"."id"
+          )`),
+          'attachmentsCount',
+        ],
+      ],
       include,
-      limit,
-      offset,
-      order: [[sortBy, sortOrder]],
-      distinct: true, // Essential for count with includes
+      limit: limit + 1, // Fetch limit + 1 to check hasMore without COUNT(*)
+      order: [
+        [sortBy, sortOrder],
+        ['id', sortOrder],
+      ],
     });
 
+    const hasMore = rows.length > limit;
+    const paginatedRows = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = paginatedRows.length > 0 ? this.encodeCursor(paginatedRows[paginatedRows.length - 1], sortBy) : null;
+
     return {
-      data: rows,
+      items: paginatedRows,
+      data: paginatedRows,
+      nextCursor,
+      hasMore,
       meta: {
-        totalCount: count,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
+        nextCursor,
+        hasMore,
         limit,
-        hasNextPage: page * limit < count,
-        hasPreviousPage: page > 1,
       },
     };
   }

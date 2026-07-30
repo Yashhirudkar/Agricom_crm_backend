@@ -795,6 +795,8 @@ export class EmployeesService {
       status: {
         [Op.notIn]: [EmployeeStatus.TERMINATED, EmployeeStatus.RESIGNED],
       },
+      departmentId: { [Op.ne]: null },
+      designationId: { [Op.ne]: null },
     };
 
     if (search) {

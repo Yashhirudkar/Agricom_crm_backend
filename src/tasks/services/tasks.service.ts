@@ -19,6 +19,9 @@ import {
   UpdateTaskDto,
   ArchiveTaskDto,
   TaskQueryDto,
+  BulkArchiveDto,
+  BulkStatusDto,
+  BulkActionDto,
 } from '../dto';
 import { TaskSequence, TaskStatus, TaskPriority, Task, TaskAssignee } from '../models';
 import { User } from '../../users/models/user.model';
@@ -76,7 +79,13 @@ export class TasksService {
       };
     });
 
-    return { ...result, data: enrichedData };
+    return {
+      items: enrichedData,
+      data: enrichedData,
+      nextCursor: (result as any).nextCursor,
+      hasMore: (result as any).hasMore,
+      meta: result.meta,
+    };
   }
 
   async findOne(id: number, clientId: number) {
@@ -674,6 +683,200 @@ export class TasksService {
       console.log(`[triggerTaskNotification] notificationsService.createNotification call completed successfully.`);
     } catch (err) {
       console.error(`[triggerTaskNotification] Error triggering notification: ${err.message}`, err);
+    }
+  }
+
+  private buildBulkWhere(clientId: number, dto: any): any {
+    if (dto.selectAll) {
+      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, dto.filters);
+      
+      if (dto.excludedIds && dto.excludedIds.length > 0) {
+        where.id = { [Op.notIn]: dto.excludedIds };
+      }
+
+      if (filterCompleted !== undefined) {
+        where[Op.and] = where[Op.and] || [];
+        if (filterCompleted === false) {
+          where[Op.and].push(
+            this.sequelize.literal(`("Task"."statusId" IS NULL OR EXISTS (
+              SELECT 1 FROM "task_statuses" AS "status"
+              WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = false
+            ))`)
+          );
+        } else {
+          where[Op.and].push(
+            this.sequelize.literal(`EXISTS (
+              SELECT 1 FROM "task_statuses" AS "status"
+              WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = true
+            )`)
+          );
+        }
+      }
+
+      if (dto.filters?.assigneeIds && dto.filters.assigneeIds.length > 0) {
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push(
+          this.sequelize.literal(`EXISTS (
+            SELECT 1 FROM "task_assignees" AS "assignees"
+            WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" IN (${dto.filters.assigneeIds.join(',')})
+          )`)
+        );
+      }
+      return where;
+    } else {
+      return {
+        clientId,
+        id: { [Op.in]: dto.ids || [] }
+      };
+    }
+  }
+
+  async bulkArchive(clientId: number, userId: number, dto: BulkArchiveDto) {
+    const transaction = await this.sequelize.transaction();
+    try {
+      const where = this.buildBulkWhere(clientId, dto);
+      
+      const tasks = await this.taskModel.findAll({
+        where,
+        attributes: ['id', 'isArchived'],
+        transaction,
+      });
+
+      const matchedIds = tasks.map(t => t.id);
+      if (matchedIds.length === 0) {
+        await transaction.commit();
+        return { success: true, count: 0 };
+      }
+
+      const isArchived = dto.isArchived ?? true;
+      await this.taskModel.update(
+        {
+          isArchived,
+          archivedAt: isArchived ? new Date() : null,
+          archivedById: isArchived ? userId : null,
+        },
+        {
+          where: { id: { [Op.in]: matchedIds }, clientId },
+          transaction,
+        }
+      );
+
+      for (const id of matchedIds) {
+        await this.activityService.logEvent(
+          id,
+          clientId,
+          userId,
+          isArchived ? 'archived' : 'unarchived',
+          transaction,
+        );
+      }
+
+      await transaction.commit();
+      return { success: true, count: matchedIds.length };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async bulkChangeStatus(clientId: number, userId: number, dto: BulkStatusDto) {
+    const transaction = await this.sequelize.transaction();
+    try {
+      const where = this.buildBulkWhere(clientId, dto);
+      
+      const tasks = await this.taskModel.findAll({
+        where,
+        attributes: ['id', 'statusId', 'version'],
+        transaction,
+      });
+
+      const matchedIds = tasks.map(t => t.id);
+      if (matchedIds.length === 0) {
+        await transaction.commit();
+        return { success: true, count: 0 };
+      }
+
+      if (dto.version !== undefined) {
+        const outOfSync = tasks.some(t => t.version !== dto.version);
+        if (outOfSync) {
+          throw new ConflictException(
+            'Some tasks were modified by another user. Please refresh and try again.',
+          );
+        }
+      }
+
+      const status = await this.statusModel.findOne({
+        where: { id: dto.statusId, clientId },
+        transaction,
+      });
+      if (!status) throw new NotFoundException('Status not found');
+
+      await this.taskModel.update(
+        {
+          statusId: dto.statusId,
+          version: Sequelize.literal('"version" + 1'),
+        },
+        {
+          where: { id: { [Op.in]: matchedIds }, clientId },
+          transaction,
+        }
+      );
+
+      for (const id of matchedIds) {
+        await this.activityService.logEvent(
+          id,
+          clientId,
+          userId,
+          'status_changed',
+          transaction,
+        );
+      }
+
+      await transaction.commit();
+      return { success: true, count: matchedIds.length };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async bulkDelete(clientId: number, userId: number, dto: BulkActionDto) {
+    const transaction = await this.sequelize.transaction();
+    try {
+      const where = this.buildBulkWhere(clientId, dto);
+      
+      const tasks = await this.taskModel.findAll({
+        where,
+        attributes: ['id', 'ownerId', 'createdById'],
+        transaction,
+      });
+
+      const matchedIds = tasks.map(t => t.id);
+      if (matchedIds.length === 0) {
+        await transaction.commit();
+        return { success: true, count: 0 };
+      }
+
+      await this.taskModel.destroy({
+        where: { id: { [Op.in]: matchedIds }, clientId },
+        transaction,
+      });
+
+      for (const id of matchedIds) {
+        await this.activityService.logEvent(
+          id,
+          clientId,
+          userId,
+          'deleted',
+          transaction,
+        );
+      }
+
+      await transaction.commit();
+      return { success: true, count: matchedIds.length };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
   }
 }

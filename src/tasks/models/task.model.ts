@@ -34,6 +34,10 @@ import { HasMany } from 'sequelize-typescript';
     { fields: ['clientId', 'createdById'], name: 'tasks_client_created_by' },
     { fields: ['clientId', 'priorityId'], name: 'tasks_client_priority' },
     { fields: ['clientId', 'updatedAt'], name: 'tasks_client_updated' },
+    { fields: ['clientId', 'createdAt', 'id'], name: 'tasks_client_created_at_composite' },
+    { fields: ['clientId', 'statusId', 'createdAt'], name: 'tasks_client_status_created_at' },
+    { fields: ['clientId', 'ownerId'], name: 'tasks_client_owner' },
+    { fields: ['clientId', 'dueDate'], name: 'tasks_client_due_date' },
   ],
 })
 export class Task extends Model<Task> {

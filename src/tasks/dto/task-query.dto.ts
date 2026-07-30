@@ -184,4 +184,9 @@ export class TaskQueryDto {
   @IsOptional()
   @IsDateString()
   createdAtEnd?: string;
+
+  @ApiPropertyOptional({ description: 'Cursor for pagination (encoded as base64)' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }
