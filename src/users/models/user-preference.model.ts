@@ -45,6 +45,10 @@ export class UserPreference extends Model<UserPreference> {
   @Column({ type: DataType.BOOLEAN, allowNull: false })
   declare pushNotifications: boolean;
 
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, allowNull: false })
+  declare copyTenantNotifications: boolean;
+
   @Default('system')
   @Column({ type: DataType.STRING(50), allowNull: false })
   declare theme: string;

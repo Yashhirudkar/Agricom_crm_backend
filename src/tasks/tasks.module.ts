@@ -80,6 +80,7 @@ import { TaskActivityController } from './controllers/task-activity.controller';
 import { TaskSubtaskController } from './controllers/task-subtask.controller';
 
 import { RbacModule } from '../rbac/modules/rbac.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -111,6 +112,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       User,
     ]),
     RbacModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: 'IStorageProvider', useClass: LocalStorageProvider },

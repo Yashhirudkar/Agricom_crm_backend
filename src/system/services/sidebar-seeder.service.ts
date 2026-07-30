@@ -360,6 +360,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: 'partners:read',
         },
+        {
+          name: 'Notification Master',
+          route: '/masters/notifications',
+          icon_name: 'BellRing',
+          folder_id: mastersFolder.id,
+          sort_order: 100,
+          is_active: true,
+          permission_link: 'notification:manage',
+        },
       ] as any[]);
 
       // 7. Enquiries

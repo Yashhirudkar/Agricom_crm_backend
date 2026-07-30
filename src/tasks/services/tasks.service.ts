@@ -23,6 +23,7 @@ import {
 import { TaskSequence, TaskStatus, TaskPriority, Task, TaskAssignee } from '../models';
 import { User } from '../../users/models/user.model';
 import { Op } from 'sequelize';
+import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class TasksService {
@@ -48,6 +49,7 @@ export class TasksService {
     private readonly taskModel: typeof Task,
     @InjectModel(TaskAssignee)
     private readonly taskAssigneeModel: typeof TaskAssignee,
+    private readonly notificationsService: NotificationsService,
   ) { }
 
   async findAll(clientId: number, userId: number, query: TaskQueryDto) {
@@ -325,6 +327,10 @@ export class TasksService {
 
       await transaction.commit();
 
+      this.triggerTaskNotification(task.id, clientId, 'Task Assigned', userId).catch((err) => {
+        console.error(`Failed to trigger task created notification: ${err.message}`);
+      });
+
       this.eventEmitter.emit('task.created', {
         taskId: task.id,
         clientId,
@@ -450,6 +456,25 @@ export class TasksService {
       }
 
       await transaction.commit();
+
+      const targetStatusId = dto.statusId !== undefined ? dto.statusId : oldTask.statusId;
+      if (targetStatusId) {
+        this.statusModel.findOne({
+          where: { id: targetStatusId, clientId },
+        }).then((statusObj) => {
+          const isCompleted = statusObj?.isCompleted || false;
+          const notificationTitle = isCompleted ? 'Task Completed' : 'Task Updated';
+          this.triggerTaskNotification(id, clientId, notificationTitle, userId).catch((err) => {
+            console.error(`Failed to trigger task updated notification: ${err.message}`);
+          });
+        }).catch((err) => {
+          console.error(`Failed to query status model for notification: ${err.message}`);
+        });
+      } else {
+        this.triggerTaskNotification(id, clientId, 'Task Updated', userId).catch((err) => {
+          console.error(`Failed to trigger task updated notification: ${err.message}`);
+        });
+      }
 
       // ── CASCADE: If parent task is now completed, cascade to all subtasks ──
       // Only run if this is a parent task (parentTaskId IS NULL) and status changed
@@ -595,6 +620,60 @@ export class TasksService {
     } catch (error) {
       await transaction.rollback();
       throw error;
+    }
+  }
+
+  private async triggerTaskNotification(
+    taskId: number,
+    clientId: number,
+    title: string,
+    actorId: number,
+  ) {
+    try {
+      console.log(`[triggerTaskNotification] Starting trigger for task: ${taskId}, title: ${title}, actorId: ${actorId}`);
+      const task = await this.taskModel.findOne({
+        where: { id: taskId, clientId },
+        include: [
+          { model: TaskStatus, as: 'status' },
+          { model: TaskAssignee, as: 'assignees' },
+        ],
+      });
+
+      if (!task) {
+        console.warn(`[triggerTaskNotification] Task not found with ID ${taskId} and clientID ${clientId}`);
+        return;
+      }
+
+      const ownerId = task.ownerId;
+      const assigneeIds = task.assignees?.map((a) => a.userId) || [];
+      const recipients = [ownerId, ...assigneeIds].filter((id): id is number => !!id);
+      
+      console.log(`[triggerTaskNotification] Task title: "${task.title}". Owner ID: ${ownerId}. Assignee IDs:`, assigneeIds);
+      console.log(`[triggerTaskNotification] Combined recipients list:`, recipients);
+
+      const statusName = task.status?.name || 'Open';
+
+      console.log(`[triggerTaskNotification] Calling notificationsService.createNotification with payload...`);
+      await this.notificationsService.createNotification(
+        {
+          recipients,
+          type: NotificationType.TASK,
+          referenceType: 'task',
+          referenceId: taskId,
+          title,
+          payload: {
+            taskId,
+            taskName: task.title,
+            status: statusName,
+            url: `/tasks/${taskId}`,
+            icon: 'task',
+          },
+        },
+        actorId,
+      );
+      console.log(`[triggerTaskNotification] notificationsService.createNotification call completed successfully.`);
+    } catch (err) {
+      console.error(`[triggerTaskNotification] Error triggering notification: ${err.message}`, err);
     }
   }
 }

@@ -98,6 +98,8 @@ import { Enquiry } from './enquiries/models/enquiry.model';
 import { TasksModule } from './tasks/tasks.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
 import { LocationsModule } from './locations/locations.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { Notification } from './notifications/models/notification.model';
 import {
   Task,
   TaskSequence,
@@ -221,6 +223,7 @@ import {
             TaskAttachment,
             TaskLabel,
             TaskLabelMap,
+            Notification,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -247,6 +250,7 @@ import {
     SalesContractsModule,
     EnquiriesModule,
     LocationsModule,
+    NotificationsModule,
   ],
   providers: [
     {
