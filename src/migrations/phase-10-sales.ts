@@ -85,9 +85,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     },
     { ifNotExists: true } as any,
   );
-  await queryInterface.addIndex('sales_contracts', ['status'], { name: 'sales_contracts_status' }).catch(() => {});
-  await queryInterface.addIndex('sales_contracts', ['buyer_id'], { name: 'sales_contracts_buyer_id' }).catch(() => {});
-  await queryInterface.addIndex('sales_contracts', ['financial_year'], { name: 'sales_contracts_financial_year' }).catch(() => {});
+  await queryInterface.addIndex('sales_contracts', ['status'], { name: 'sales_contracts_status' }).catch(() => { });
+  await queryInterface.addIndex('sales_contracts', ['buyer_id'], { name: 'sales_contracts_buyer_id' }).catch(() => { });
+  await queryInterface.addIndex('sales_contracts', ['financial_year'], { name: 'sales_contracts_financial_year' }).catch(() => { });
 
   // ─── 2. sales_contract_items ─────────────────────────────────────────────────
   await queryInterface.createTable(
@@ -213,11 +213,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('sales_contract_document_files').catch(() => {});
-  await queryInterface.dropTable('sales_contract_documents').catch(() => {});
-  await queryInterface.dropTable('sales_contract_shipments').catch(() => {});
-  await queryInterface.dropTable('sales_contract_items').catch(() => {});
-  await queryInterface.dropTable('sales_contracts').catch(() => {});
+  await queryInterface.dropTable('sales_contract_document_files').catch(() => { });
+  await queryInterface.dropTable('sales_contract_documents').catch(() => { });
+  await queryInterface.dropTable('sales_contract_shipments').catch(() => { });
+  await queryInterface.dropTable('sales_contract_items').catch(() => { });
+  await queryInterface.dropTable('sales_contracts').catch(() => { });
   console.log('✅ Phase 10 - Sales contracts tables dropped');
 }
 

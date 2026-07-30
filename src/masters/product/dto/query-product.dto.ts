@@ -23,9 +23,8 @@ export class QueryProductDto {
   country?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  hsCodeId?: number;
+  @IsString()
+  hsCode?: string;
 
   @IsOptional()
   @Transform(({ value }) => {

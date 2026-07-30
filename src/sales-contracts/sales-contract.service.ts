@@ -42,7 +42,7 @@ export class SalesContractService implements OnModuleInit {
     private readonly documentFileModel: typeof SalesContractDocumentFile,
     private readonly attachmentsService: AttachmentsService,
     private readonly sequelize: Sequelize,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     try {
@@ -57,7 +57,7 @@ export class SalesContractService implements OnModuleInit {
           `ALTER TABLE "sales_contracts" ALTER COLUMN "${col}" TYPE TEXT;`
         );
       }
-      
+
       // Auto-migrate: Add print_overrides JSONB column if not exists
       await this.sequelize.query(
         `ALTER TABLE "sales_contracts" ADD COLUMN IF NOT EXISTS "print_overrides" JSONB;`

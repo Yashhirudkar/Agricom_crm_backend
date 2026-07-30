@@ -15,7 +15,6 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { Category } from '../category/category.model';
-import { HSCode } from '../hs-code/hs-code.model';
 
 @Table({
   tableName: 'products',
@@ -24,7 +23,7 @@ import { HSCode } from '../hs-code/hs-code.model';
     { fields: ['name'] },
     { fields: ['category_id'] },
     { fields: ['country'] },
-    { fields: ['hs_code_id'] },
+    { fields: ['hs_code'] },
     { fields: ['is_active'] },
   ],
 })
@@ -50,13 +49,9 @@ export class Product extends Model<Product> {
   @Column({ field: 'country', type: DataType.STRING(150) })
   declare country: string;
 
-  @ForeignKey(() => HSCode)
   @AllowNull(true)
-  @Column({ field: 'hs_code_id', type: DataType.INTEGER })
-  declare hsCodeId: number;
-
-  @BelongsTo(() => HSCode)
-  declare hsCode: HSCode;
+  @Column({ field: 'hs_code', type: DataType.STRING(100) })
+  declare hsCode: string;
 
   @AllowNull(true)
   @Column({ field: 'quality_sub_type', type: DataType.STRING(100) })

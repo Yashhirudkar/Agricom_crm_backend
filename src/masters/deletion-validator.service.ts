@@ -27,15 +27,6 @@ export class DeletionValidatorService {
   }
 
 
-  async validateHSCodeDelete(hsCodeId: number): Promise<void> {
-    const productCount = await this.productModel.count({ where: { hsCodeId } });
-    if (productCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete HS Code as it is linked to one or more products',
-      );
-    }
-  }
-
   async validatePartnerRoleDelete(partnerRoleId: number): Promise<void> {
     const partnerCount = await this.partnerModel.count({
       where: { partnerRoleId },

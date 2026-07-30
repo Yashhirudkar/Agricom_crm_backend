@@ -394,19 +394,6 @@ export class ProfileService {
       throw new BadRequestException('Incorrect old password');
     }
 
-    // Check history
-    const histories = await this.passwordHistoryModel.findAll({
-      where: { userId },
-      order: [['createdAt', 'DESC']],
-    });
-
-    for (const h of histories) {
-      const reuse = await bcrypt.compare(dto.newPassword, h.passwordHash);
-      if (reuse) {
-        throw new BadRequestException('Cannot reuse an old password');
-      }
-    }
-
     const hashedNew = await bcrypt.hash(dto.newPassword, 10);
     await user.update({ password: hashedNew });
 

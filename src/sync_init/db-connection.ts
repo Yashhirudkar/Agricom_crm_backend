@@ -47,7 +47,6 @@ import { ClientModuleAccess } from '../clients/models/client-module-access.model
 import { ClientActionAccess } from '../clients/models/client-action-access.model';
 
 import { Category } from '../masters/category/category.model';
-import { HSCode } from '../masters/hs-code/hs-code.model';
 import { Product } from '../masters/product/product.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
@@ -121,7 +120,6 @@ export const sequelize = new Sequelize(
       ClientModuleAccess,
       ClientActionAccess,
       Category,
-      HSCode,
       Product,
       BagType,
       PackingType,

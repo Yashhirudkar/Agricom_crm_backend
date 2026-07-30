@@ -30,10 +30,9 @@ export class UpdateProductDto {
   country?: string;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  @IsNotEmpty()
-  hsCodeId?: number;
+  @IsString()
+  @MaxLength(100)
+  hsCode?: string;
 
   @IsOptional()
   @IsString()

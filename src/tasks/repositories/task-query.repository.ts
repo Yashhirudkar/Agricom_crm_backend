@@ -58,34 +58,63 @@ export class TaskQueryRepository {
     }
 
     const now = new Date();
-    let filterCompleted = isCompleted;
+    // Preset takes priority over query-level isCompleted param
+    let filterCompleted: boolean | undefined = isCompleted;
+
+    const hasViewAll = query['hasViewAll'] === true;
+    const userId = Number(query['userId']);
 
     // Handle Query Presets
     if (query.preset) {
       switch (query.preset) {
         case 'my_tasks':
+          // Show ALL tasks belonging to user (active + completed, non-archived)
+          // Preset overrides any isCompleted query param
+          filterCompleted = undefined;
           where[Op.or] = [
-            { ownerId: query['userId'] },
-            { createdById: query['userId'] },
+            { ownerId: userId },
+            { createdById: userId },
             this.taskModel.sequelize.literal(`EXISTS (
               SELECT 1 FROM "task_assignees" AS "assignees"
-              WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${Number(query['userId'])}
+              WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
             )`)
           ];
           break;
         case 'overdue_tasks':
           where.dueDate = { [Op.lt]: now };
-          filterCompleted = false;
+          filterCompleted = false; // Overdue = not yet completed
           break;
         case 'completed_tasks':
-          filterCompleted = true;
+          filterCompleted = true; // Only completed tasks
           break;
         case 'all_tasks':
-          filterCompleted = undefined;
+          filterCompleted = undefined; // No completion filter
           break;
         case 'archived_tasks':
         default:
           break;
+      }
+    }
+
+    // If user does NOT have task:view_all permission, scope ALL views to user's own tasks
+    if (!hasViewAll && userId) {
+      const userCondition = [
+        { ownerId: userId },
+        { createdById: userId },
+        this.taskModel.sequelize.literal(`EXISTS (
+          SELECT 1 FROM "task_assignees" AS "assignees"
+          WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
+        )`)
+      ];
+
+      if (where[Op.or]) {
+        where[Op.and] = [
+          { [Op.or]: where[Op.or] },
+          { [Op.or]: userCondition }
+        ];
+        delete where[Op.or];
+      } else {
+        where[Op.or] = userCondition;
       }
     }
 

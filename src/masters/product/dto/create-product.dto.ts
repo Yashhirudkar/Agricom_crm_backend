@@ -27,9 +27,9 @@ export class CreateProductDto {
   country: string;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  hsCodeId?: number;
+  @IsString()
+  @MaxLength(100)
+  hsCode?: string;
 
   @IsOptional()
   @IsString()

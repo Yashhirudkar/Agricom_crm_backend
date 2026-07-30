@@ -146,12 +146,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('tasks', ['clientId', 'isArchived'], { name: 'tasks_client_archived' }).catch(() => {});
-  await queryInterface.addIndex('tasks', ['clientId', 'deletedAt'], { name: 'tasks_client_deleted' }).catch(() => {});
-  await queryInterface.addIndex('tasks', ['clientId', 'createdById'], { name: 'tasks_client_created_by' }).catch(() => {});
-  await queryInterface.addIndex('tasks', ['clientId', 'priorityId'], { name: 'tasks_client_priority' }).catch(() => {});
-  await queryInterface.addIndex('tasks', ['entityModule', 'entityTable', 'entityId'], { name: 'tasks_polymorphic_link' }).catch(() => {});
-  await queryInterface.addIndex('tasks', ['taskCode'], { name: 'tasks_client_task_code' }).catch(() => {});
+  await queryInterface.addIndex('tasks', ['clientId', 'isArchived'], { name: 'tasks_client_archived' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'deletedAt'], { name: 'tasks_client_deleted' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'createdById'], { name: 'tasks_client_created_by' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'priorityId'], { name: 'tasks_client_priority' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['entityModule', 'entityTable', 'entityId'], { name: 'tasks_polymorphic_link' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['taskCode'], { name: 'tasks_client_task_code' }).catch(() => { });
 
   // ─── 5. task_assignees ───────────────────────────────────────────────────────
   await queryInterface.createTable(
@@ -658,29 +658,29 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('task_activities').catch(() => {});
-  await queryInterface.dropTable('task_template_items').catch(() => {});
-  await queryInterface.dropTable('task_templates').catch(() => {});
-  await queryInterface.dropTable('task_recurrence_exceptions').catch(() => {});
-  await queryInterface.dropTable('task_recurrences').catch(() => {});
-  await queryInterface.dropTable('task_status_transitions').catch(() => {});
-  await queryInterface.dropTable('task_sla_rules').catch(() => {});
-  await queryInterface.dropTable('task_sequences').catch(() => {});
-  await queryInterface.dropTable('task_custom_field_values').catch(() => {});
-  await queryInterface.dropTable('task_custom_fields').catch(() => {});
-  await queryInterface.dropTable('task_dependencies').catch(() => {});
-  await queryInterface.dropTable('task_time_logs').catch(() => {});
-  await queryInterface.dropTable('task_label_maps').catch(() => {});
-  await queryInterface.dropTable('task_attachments').catch(() => {});
-  await queryInterface.dropTable('task_checklists').catch(() => {});
-  await queryInterface.dropTable('task_comment_mentions').catch(() => {});
-  await queryInterface.dropTable('task_comment_histories').catch(() => {});
-  await queryInterface.dropTable('task_comments').catch(() => {});
-  await queryInterface.dropTable('task_assignees').catch(() => {});
-  await queryInterface.dropTable('tasks').catch(() => {});
-  await queryInterface.dropTable('task_labels').catch(() => {});
-  await queryInterface.dropTable('task_priorities').catch(() => {});
-  await queryInterface.dropTable('task_statuses').catch(() => {});
+  await queryInterface.dropTable('task_activities').catch(() => { });
+  await queryInterface.dropTable('task_template_items').catch(() => { });
+  await queryInterface.dropTable('task_templates').catch(() => { });
+  await queryInterface.dropTable('task_recurrence_exceptions').catch(() => { });
+  await queryInterface.dropTable('task_recurrences').catch(() => { });
+  await queryInterface.dropTable('task_status_transitions').catch(() => { });
+  await queryInterface.dropTable('task_sla_rules').catch(() => { });
+  await queryInterface.dropTable('task_sequences').catch(() => { });
+  await queryInterface.dropTable('task_custom_field_values').catch(() => { });
+  await queryInterface.dropTable('task_custom_fields').catch(() => { });
+  await queryInterface.dropTable('task_dependencies').catch(() => { });
+  await queryInterface.dropTable('task_time_logs').catch(() => { });
+  await queryInterface.dropTable('task_label_maps').catch(() => { });
+  await queryInterface.dropTable('task_attachments').catch(() => { });
+  await queryInterface.dropTable('task_checklists').catch(() => { });
+  await queryInterface.dropTable('task_comment_mentions').catch(() => { });
+  await queryInterface.dropTable('task_comment_histories').catch(() => { });
+  await queryInterface.dropTable('task_comments').catch(() => { });
+  await queryInterface.dropTable('task_assignees').catch(() => { });
+  await queryInterface.dropTable('tasks').catch(() => { });
+  await queryInterface.dropTable('task_labels').catch(() => { });
+  await queryInterface.dropTable('task_priorities').catch(() => { });
+  await queryInterface.dropTable('task_statuses').catch(() => { });
   console.log('✅ Phase 11 - Tasks tables dropped');
 }
 

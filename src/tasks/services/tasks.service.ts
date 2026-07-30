@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -19,7 +20,7 @@ import {
   ArchiveTaskDto,
   TaskQueryDto,
 } from '../dto';
-import { TaskSequence, TaskStatus, TaskPriority, Task } from '../models';
+import { TaskSequence, TaskStatus, TaskPriority, Task, TaskAssignee } from '../models';
 import { User } from '../../users/models/user.model';
 import { Op } from 'sequelize';
 
@@ -45,7 +46,9 @@ export class TasksService {
     private readonly userModel: typeof User,
     @InjectModel(Task)
     private readonly taskModel: typeof Task,
-  ) {}
+    @InjectModel(TaskAssignee)
+    private readonly taskAssigneeModel: typeof TaskAssignee,
+  ) { }
 
   async findAll(clientId: number, userId: number, query: TaskQueryDto) {
     // Inject userId into query for presets that need it
@@ -101,17 +104,26 @@ export class TasksService {
       order: [['order', 'ASC']],
     });
 
-    if (statuses.length === 0) {
-      await this.statusModel.bulkCreate([
-        { clientId, name: 'Open', order: 0, isCompleted: false, color: '#3b82f6' },
-        { clientId, name: 'In Progress', order: 1, isCompleted: false, color: '#eab308' },
-        { clientId, name: 'On Hold', order: 2, isCompleted: false, color: '#6b7280' },
-        { clientId, name: 'Completed', order: 3, isCompleted: true, color: '#22c55e' },
-      ]);
-      statuses = await this.statusModel.findAll({
-        where: { clientId },
-        order: [['order', 'ASC']],
-      });
+    const defaultStatuses = [
+      { name: 'Open', order: 0, isCompleted: false, color: '#3b82f6' },
+      { name: 'In Progress', order: 1, isCompleted: false, color: '#eab308' },
+      { name: 'On Hold', order: 2, isCompleted: false, color: '#6b7280' },
+      { name: 'Completed', order: 3, isCompleted: true, color: '#22c55e' },
+    ];
+
+    if (statuses.length < defaultStatuses.length) {
+      const existingNames = statuses.map((s) => s.name);
+      const missingStatuses = defaultStatuses
+        .filter((s) => !existingNames.includes(s.name))
+        .map((s) => ({ ...s, clientId }));
+
+      if (missingStatuses.length > 0) {
+        await this.statusModel.bulkCreate(missingStatuses);
+        statuses = await this.statusModel.findAll({
+          where: { clientId },
+          order: [['order', 'ASC']],
+        });
+      }
     }
 
     return statuses;
@@ -123,16 +135,25 @@ export class TasksService {
       order: [['order', 'ASC']],
     } as any);
 
-    if (priorities.length === 0) {
-      await this.priorityModel.bulkCreate([
-        { clientId, name: 'Low', order: 0, color: '#22c55e' },
-        { clientId, name: 'Medium', order: 1, color: '#eab308' },
-        { clientId, name: 'High', order: 2, color: '#ef4444' },
-      ]);
-      priorities = await this.priorityModel.findAll({
-        where: { clientId },
-        order: [['order', 'ASC']],
-      } as any);
+    const defaultPriorities = [
+      { name: 'Low', order: 0, color: '#22c55e' },
+      { name: 'Medium', order: 1, color: '#eab308' },
+      { name: 'High', order: 2, color: '#ef4444' },
+    ];
+
+    if (priorities.length < defaultPriorities.length) {
+      const existingNames = priorities.map((p) => p.name);
+      const missingPriorities = defaultPriorities
+        .filter((p) => !existingNames.includes(p.name))
+        .map((p) => ({ ...p, clientId }));
+
+      if (missingPriorities.length > 0) {
+        await this.priorityModel.bulkCreate(missingPriorities);
+        priorities = await this.priorityModel.findAll({
+          where: { clientId },
+          order: [['order', 'ASC']],
+        } as any);
+      }
     }
 
     return priorities;
@@ -266,6 +287,8 @@ export class TasksService {
         taskCode,
         clientId,
         createdById: userId,
+        // Auto-assign current user as owner if not explicitly provided
+        ownerId: dto.ownerId || userId,
         completionPercentage: 0,
       };
       if (dto.startDate) taskPayload.startDate = new Date(dto.startDate);
@@ -329,11 +352,26 @@ export class TasksService {
       );
       if (!oldTask) throw new NotFoundException('Task not found');
 
+      // Status Restriction Check: If the task has assignees and the current user is the owner, they cannot change the status.
+      if (dto.statusId !== undefined && dto.statusId !== oldTask.statusId) {
+        if (oldTask.ownerId === userId) {
+          const assigneeCount = await this.taskAssigneeModel.count({
+            where: { taskId: id, clientId },
+            transaction,
+          });
+          if (assigneeCount > 0) {
+            throw new ForbiddenException(
+              'The task owner is not allowed to change the status of an assigned task.',
+            );
+          }
+        }
+      }
+
       if (dto.priorityId && dto.priorityId !== oldTask.priorityId) {
         const priority = await this.priorityModel.findOne({
-          where: { 
-            id: dto.priorityId, 
-            [Op.or]: [{ clientId }, { clientId: null }] 
+          where: {
+            id: dto.priorityId,
+            [Op.or]: [{ clientId }, { clientId: null }]
           },
         });
         if (!priority) throw new NotFoundException('Priority not found');
@@ -349,9 +387,9 @@ export class TasksService {
       // Validate status/priority if provided
       if (dto.statusId && dto.statusId !== oldTask.statusId) {
         const status = await this.statusModel.findOne({
-          where: { 
-            id: dto.statusId, 
-            [Op.or]: [{ clientId }, { clientId: null }] 
+          where: {
+            id: dto.statusId,
+            [Op.or]: [{ clientId }, { clientId: null }]
           },
         });
         if (!status) throw new NotFoundException('Status not found');
@@ -359,9 +397,9 @@ export class TasksService {
 
       if (dto.ownerId && dto.ownerId !== oldTask.ownerId) {
         const ownerUser = await this.userModel.findOne({
-          where: { 
-            id: dto.ownerId, 
-            [Op.or]: [{ clientId }, { clientId: null }] 
+          where: {
+            id: dto.ownerId,
+            [Op.or]: [{ clientId }, { clientId: null }]
           },
           transaction,
         });
@@ -370,9 +408,9 @@ export class TasksService {
 
       if (dto.assigneeIds?.length) {
         const count = await this.userModel.count({
-          where: { 
-            id: { [Op.in]: dto.assigneeIds }, 
-            [Op.or]: [{ clientId }, { clientId: null }] 
+          where: {
+            id: { [Op.in]: dto.assigneeIds },
+            [Op.or]: [{ clientId }, { clientId: null }]
           },
         });
         if (count !== dto.assigneeIds.length)
@@ -498,6 +536,12 @@ export class TasksService {
         transaction,
       );
       if (!task) throw new NotFoundException('Task not found');
+
+      // Deletion Restriction Check: Only the task owner (or creator if no owner is assigned) can delete the task.
+      const isOwner = task.ownerId ? task.ownerId === userId : task.createdById === userId;
+      if (!isOwner) {
+        throw new ForbiddenException('Only the task owner is allowed to delete this task.');
+      }
 
       await this.taskRepo.softDelete(id, clientId, transaction);
       await this.activityService.logEvent(

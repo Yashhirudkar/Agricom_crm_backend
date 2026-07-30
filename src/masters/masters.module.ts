@@ -17,9 +17,6 @@ import { TradeDocumentService } from './trade-document/trade-document.service';
 import { Category } from './category/category.model';
 import { CategoryController } from './category/category.controller';
 import { CategoryService } from './category/category.service';
-import { HSCode } from './hs-code/hs-code.model';
-import { HSCodeController } from './hs-code/hs-code.controller';
-import { HSCodeService } from './hs-code/hs-code.service';
 import { PartnerRole } from './partner-role/partner-role.model';
 import { PartnerRoleController } from './partner-role/partner-role.controller';
 import { PartnerRoleService } from './partner-role/partner-role.service';
@@ -60,7 +57,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     SequelizeModule.forFeature([
       Category,
       Currency,
-      HSCode,
       PartnerRole,
       Product,
       Partner,
@@ -87,7 +83,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
   controllers: [
     CategoryController,
     CurrencyController,
-    HSCodeController,
     PartnerRoleController,
     ProductController,
     PartnerController,
@@ -105,7 +100,6 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
   providers: [
     CategoryService,
     CurrencyService,
-    HSCodeService,
     PartnerRoleService,
     ProductService,
     PartnerService,

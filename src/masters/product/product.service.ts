@@ -9,7 +9,6 @@ import { Sequelize } from 'sequelize-typescript';
 import { Op } from 'sequelize';
 import { Product } from './product.model';
 import { Category } from '../category/category.model';
-import { HSCode } from '../hs-code/hs-code.model';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
@@ -26,12 +25,6 @@ const INCLUDE_RELATIONS = [
     where: { isActive: true },
     required: false,
   },
-  {
-    model: HSCode,
-    attributes: ['id', 'code', 'description'],
-    where: { isActive: true },
-    required: false,
-  },
 ];
 
 @Injectable()
@@ -41,8 +34,6 @@ export class ProductService implements OnModuleInit {
     private readonly productModel: typeof Product,
     @InjectModel(Category)
     private readonly categoryModel: typeof Category,
-    @InjectModel(HSCode)
-    private readonly hsCodeModel: typeof HSCode,
     private readonly deletionValidator: DeletionValidatorService,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
@@ -51,30 +42,20 @@ export class ProductService implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.sequelize.query(
-        `ALTER TABLE "products" ALTER COLUMN "hs_code_id" DROP NOT NULL;`
+        `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "hs_code" VARCHAR(100);`
       );
     } catch (err) {
       console.warn('[ProductService] Column alteration warning:', err?.message || err);
     }
   }
 
-  private async validateForeignKeys(
-    categoryId?: number,
-    hsCodeId?: number,
-  ) {
+  private async validateForeignKeys(categoryId?: number) {
     if (categoryId) {
       const category = await this.categoryModel.findOne({
         where: { id: categoryId, isActive: true },
       });
       if (!category)
         throw new BadRequestException('Category not found or inactive');
-    }
-    if (hsCodeId) {
-      const hsCode = await this.hsCodeModel.findOne({
-        where: { id: hsCodeId, isActive: true },
-      });
-      if (!hsCode)
-        throw new BadRequestException('HS Code not found or inactive');
     }
   }
 
@@ -87,8 +68,11 @@ export class ProductService implements OnModuleInit {
     if (dto.specification) {
       dto.specification = dto.specification.trim();
     }
+    if (dto.hsCode) {
+      dto.hsCode = dto.hsCode.trim();
+    }
 
-    await this.validateForeignKeys(dto.categoryId, dto.hsCodeId);
+    await this.validateForeignKeys(dto.categoryId);
 
     return this.productModel.create({
       ...dto,
@@ -97,12 +81,12 @@ export class ProductService implements OnModuleInit {
   }
 
   async findAll(query: QueryProductDto) {
-    const { search, isActive, categoryId, country, hsCodeId, page, limit } =
+    const { search, isActive, categoryId, country, hsCode, page, limit } =
       query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
-      ...buildSearchQuery(search, ['name']),
+      ...buildSearchQuery(search, ['name', 'hsCode']),
     };
 
     if (isActive !== undefined) {
@@ -114,8 +98,8 @@ export class ProductService implements OnModuleInit {
     if (country) {
       whereClause.country = { [Op.iLike]: `%${country}%` };
     }
-    if (hsCodeId) {
-      whereClause.hsCodeId = hsCodeId;
+    if (hsCode) {
+      whereClause.hsCode = { [Op.iLike]: `%${hsCode}%` };
     }
 
     const { rows, count } = await this.productModel.findAndCountAll({
@@ -162,19 +146,18 @@ export class ProductService implements OnModuleInit {
       const normalizedName = dto.name.trim().toUpperCase();
       dto.name = normalizedName;
     }
-
     if (dto.qualitySubType) {
       dto.qualitySubType = dto.qualitySubType.trim();
     }
     if (dto.specification) {
       dto.specification = dto.specification.trim();
     }
+    if (dto.hsCode !== undefined) {
+      dto.hsCode = dto.hsCode ? dto.hsCode.trim() : null;
+    }
 
-    if (dto.categoryId || dto.hsCodeId) {
-      await this.validateForeignKeys(
-        dto.categoryId,
-        dto.hsCodeId,
-      );
+    if (dto.categoryId) {
+      await this.validateForeignKeys(dto.categoryId);
     }
 
     await product.update(dto);

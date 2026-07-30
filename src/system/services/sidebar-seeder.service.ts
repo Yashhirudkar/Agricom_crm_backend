@@ -334,15 +334,6 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           permission_link: 'bag_specifications:read',
         },
         {
-          name: 'HS Codes',
-          route: '/masters/hs-codes',
-          icon_name: 'Hash',
-          folder_id: mastersFolder.id,
-          sort_order: 60,
-          is_active: true,
-          permission_link: 'hs_codes:read',
-        },
-        {
           name: 'Bag Master',
           route: '/masters/bag-specifications',
           icon_name: 'ShoppingBag',

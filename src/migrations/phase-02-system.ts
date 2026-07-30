@@ -119,6 +119,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
+  // Ensure created_at column exists in case table was created earlier without it
+  const auditLogTableInfo: any = await queryInterface.describeTable('system_audit_logs').catch(() => null);
+  if (auditLogTableInfo && !auditLogTableInfo.created_at) {
+    await queryInterface.addColumn('system_audit_logs', 'created_at', {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    });
+  }
+
   console.log('✅ Phase 02 - System tables created successfully');
 }
 

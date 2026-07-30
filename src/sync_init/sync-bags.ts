@@ -1,5 +1,4 @@
 import { Category } from '../masters/category/category.model';
-import { HSCode } from '../masters/hs-code/hs-code.model';
 import { Product } from '../masters/product/product.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
@@ -9,7 +8,6 @@ import { ProductBagAssignment } from '../masters/bag-specs/models/product-bag-as
 export const syncBags = async () => {
   console.log('--- Syncing Bag Specifications & Masters Models ---');
   await Category.sync({ alter: true });
-  await HSCode.sync({ alter: true });
   await Product.sync({ alter: true });
   await BagType.sync({ alter: true });
   await PackingType.sync({ alter: true });
