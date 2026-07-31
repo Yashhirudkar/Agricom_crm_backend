@@ -6,12 +6,15 @@ import {
 import { InjectModel } from '@nestjs/sequelize';
 import { Shift } from '../models/shift.model';
 import { CreateShiftDto, UpdateShiftDto } from '../dto/shift.dto';
+import { Employee } from '../../hrms/models/employee.model';
 
 @Injectable()
 export class ShiftsService {
   constructor(
     @InjectModel(Shift)
     private readonly shiftModel: typeof Shift,
+    @InjectModel(Employee)
+    private readonly employeeModel: typeof Employee,
   ) {}
 
   async createShift(companyId: number, dto: CreateShiftDto): Promise<Shift> {
@@ -93,6 +96,17 @@ export class ShiftsService {
     companyId: number,
   ): Promise<{ message: string }> {
     const shift = await this.getShiftById(id, companyId);
+
+    const assignedEmployee = await this.employeeModel.findOne({
+      where: { shiftId: id, companyId },
+    });
+
+    if (assignedEmployee) {
+      throw new ConflictException(
+        `Cannot delete shift "${shift.name}" because it is currently assigned to one or more employees.`,
+      );
+    }
+
     await shift.destroy();
     return { message: `Shift "${shift.name}" deleted successfully` };
   }

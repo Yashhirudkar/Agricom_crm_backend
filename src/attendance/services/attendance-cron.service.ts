@@ -55,11 +55,11 @@ export class AttendanceCronService {
       const utcDate = new Date(
         now.toLocaleString('en-US', { timeZone: 'UTC' }),
       );
-      // Offset = UTC - TZ (positive for east of UTC like IST +05:30)
-      return utcDate.getTime() - tzDate.getTime();
+      // Offset = TZ - UTC (positive for east of UTC like IST +05:30)
+      return tzDate.getTime() - utcDate.getTime();
     } catch {
-      // Fallback to IST (+05:30 = -19800000ms from UTC perspective of getTimezoneOffset)
-      return -19800000;
+      // Fallback to IST (+05:30 = 19800000ms from UTC perspective)
+      return 19800000;
     }
   }
 
@@ -70,10 +70,92 @@ export class AttendanceCronService {
     const mutatedRecords: AttendanceRecord[] = [];
 
     try {
-      // Run for the last 3 days to catch night crossover shifts resiliently
+      // Batch prefetch entities to prevent N+1 query cascades
+      const shifts = await this.shiftModel.findAll();
+      const shiftsMap = new Map(shifts.map((s) => [s.id, s]));
+
+      const policies = await this.policyModel.findAll();
+      const policiesMap = new Map(policies.map((p) => [p.companyId, p]));
+
+      const targetDateStrs: string[] = [];
+      const targetDates: Date[] = [];
       for (let i = 1; i <= 3; i++) {
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() - i);
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        targetDates.push(d);
+        targetDateStrs.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+      }
+
+      const sortedStrs = [...targetDateStrs].sort();
+      const minDateStr = sortedStrs[0];
+      const maxDateStr = sortedStrs[sortedStrs.length - 1];
+
+      const holidays = await this.holidayModel.findAll({
+        where: {
+          holidayDate: { [Op.in]: targetDateStrs },
+          isActive: true,
+        },
+        include: [HolidayCompany],
+      });
+
+      const holidaySet = new Set<string>();
+      for (const h of holidays) {
+        const holidayCompanies = (h as any).holidayCompanies || [];
+        for (const hc of holidayCompanies) {
+          holidaySet.add(`${h.holidayDate}_${hc.companyId}`);
+        }
+      }
+
+      const leaves = await this.leaveRequestModel.findAll({
+        where: {
+          status: LeaveRequestStatus.APPROVED,
+          fromDate: { [Op.lte]: maxDateStr },
+          toDate: { [Op.gte]: minDateStr },
+        },
+      });
+
+      const toDateOnlyStr = (val: any): string => {
+        if (!val) return '';
+        if (typeof val === 'string') return val.split('T')[0];
+        return new Date(val).toISOString().split('T')[0];
+      };
+
+      const findApprovedLeave = (employeeId: number, dateStr: string) => {
+        return leaves.find(
+          (l) =>
+            l.employeeId === employeeId &&
+            toDateOnlyStr(l.fromDate) <= dateStr &&
+            toDateOnlyStr(l.toDate) >= dateStr,
+        );
+      };
+
+      const existingRecords = await this.recordModel.findAll({
+        where: {
+          date: { [Op.in]: targetDateStrs },
+        },
+      });
+
+      const recordMap = new Map<string, AttendanceRecord>();
+      for (const r of existingRecords) {
+        recordMap.set(`${r.employeeId}_${r.date}`, r);
+      }
+
+      const activeEmployees = await this.employeeModel.findAll({
+        where: {
+          status: {
+            [Op.in]: [
+              EmployeeStatus.ACTIVE,
+              EmployeeStatus.CONFIRMED,
+              EmployeeStatus.PROBATION,
+              EmployeeStatus.NOTICE_PERIOD,
+              EmployeeStatus.ONBOARDING,
+            ],
+          },
+        },
+        include: [Branch],
+      });
+
+      for (const targetDate of targetDates) {
         const targetDateStr = targetDate.toLocaleDateString('en-CA', {
           timeZone: 'Asia/Kolkata',
         });
@@ -81,22 +163,6 @@ export class AttendanceCronService {
         this.logger.log(
           `Processing absentee records for date: ${targetDateStr}`,
         );
-
-        // Fetch all active employees
-        const activeEmployees = await this.employeeModel.findAll({
-          where: {
-            status: {
-              [Op.in]: [
-                EmployeeStatus.ACTIVE,
-                EmployeeStatus.CONFIRMED,
-                EmployeeStatus.PROBATION,
-                EmployeeStatus.NOTICE_PERIOD,
-                EmployeeStatus.ONBOARDING,
-              ],
-            },
-          },
-          include: [Branch],
-        });
 
         for (const employee of activeEmployees) {
           const timezone = employee.branch?.timezone || 'Asia/Kolkata';
@@ -117,10 +183,8 @@ export class AttendanceCronService {
           ];
           const jsDay = weekdayNames.indexOf(dayOfWeekStr);
 
-          // Check if a record already exists
-          const record = await this.recordModel.findOne({
-            where: { employeeId: employee.id, date: targetDateStr },
-          });
+          const recordKey = `${employee.id}_${targetDateStr}`;
+          const record = recordMap.get(recordKey);
 
           if (record) {
             // If check-in exists but no check-out, perform auto checkout
@@ -137,15 +201,11 @@ export class AttendanceCronService {
               }
 
               let shiftEndTime = '18:00';
-              if (record.shiftId) {
-                const shift = await this.shiftModel.findByPk(record.shiftId);
-                if (shift) {
-                  shiftEndTime = shift.endTime;
-                }
+              const shift = record.shiftId ? shiftsMap.get(record.shiftId) : null;
+              if (shift) {
+                shiftEndTime = shift.endTime;
               } else {
-                const policy = await this.policyModel.findOne({
-                  where: { companyId: employee.companyId },
-                });
+                const policy = policiesMap.get(employee.companyId);
                 if (policy) {
                   shiftEndTime = policy.defaultShiftEndTime || '18:00';
                 }
@@ -160,9 +220,6 @@ export class AttendanceCronService {
               }
 
               const checkInTime = new Date(record.checkInTime);
-              // Construct target date's checkout time using shiftEndTime
-              // Use explicit UTC offset (+05:30 for Asia/Kolkata) to avoid server timezone dependency
-              const timezone = employee.branch?.timezone || 'Asia/Kolkata';
               const tzOffsetMs = this.getTzOffsetMs(timezone);
               const checkOutTimeVal = new Date(
                 new Date(`${targetDateStr}T${shiftEndTime}:00Z`).getTime() -
@@ -227,9 +284,7 @@ export class AttendanceCronService {
                 status = AttendanceStatus.LATE;
               }
 
-              const policy = await this.policyModel.findOne({
-                where: { companyId: employee.companyId },
-              });
+              const policy = policiesMap.get(employee.companyId);
               if (policy) {
                 if (totalHours < policy.minHoursForHalfDay) {
                   status = AttendanceStatus.ABSENT;
@@ -239,14 +294,7 @@ export class AttendanceCronService {
               }
 
               // Check if employee is on approved leave to prevent ABSENT override
-              const leave = await this.leaveRequestModel.findOne({
-                where: {
-                  employeeId: employee.id,
-                  status: LeaveRequestStatus.APPROVED,
-                  fromDate: { [Op.lte]: targetDateStr },
-                  toDate: { [Op.gte]: targetDateStr },
-                },
-              });
+              const leave = findApprovedLeave(employee.id, targetDateStr);
 
               if (leave) {
                 if (!leave.isHalfDay) {
@@ -271,40 +319,24 @@ export class AttendanceCronService {
           }
 
           // Check if target date was a company holiday
-          const holiday = await this.holidayModel.findOne({
-            where: { holidayDate: targetDateStr, isActive: true },
-            include: [
-              {
-                model: HolidayCompany,
-                where: { companyId: employee.companyId },
-                required: true,
-              },
-            ],
-          });
+          const isHoliday = holidaySet.has(`${targetDateStr}_${employee.companyId}`);
 
-          if (holiday) {
+          if (isHoliday) {
             // Skip marking absent on public/company holidays
             continue;
           }
 
           // Check if employee is on approved leave
-          const leave = await this.leaveRequestModel.findOne({
-            where: {
-              employeeId: employee.id,
-              status: LeaveRequestStatus.APPROVED,
-              fromDate: { [Op.lte]: targetDateStr },
-              toDate: { [Op.gte]: targetDateStr },
-            },
-          });
+          const leave = findApprovedLeave(employee.id, targetDateStr);
 
           try {
             if (leave) {
-              // Create an ON_LEAVE record
+              const status = leave.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
               const rec = await this.recordModel.create({
                 employeeId: employee.id,
                 companyId: employee.companyId,
                 date: targetDateStr,
-                attendanceStatus: AttendanceStatus.ON_LEAVE,
+                attendanceStatus: status,
                 totalHours: 0,
                 overtimeHours: 0,
                 lateMinutes: 0,
@@ -312,22 +344,18 @@ export class AttendanceCronService {
               });
               mutatedRecords.push(rec);
               this.logger.log(
-                `Employee ID ${employee.id} is on approved leave. Marked as ON_LEAVE.`,
+                `Employee ID ${employee.id} is on approved ${leave.isHalfDay ? 'half-day' : 'full-day'} leave. Marked as ${status}.`,
               );
               continue;
             }
 
             // Get weekly off days configuration
             let weeklyOffDays = [0, 6];
-            if (employee.shiftId) {
-              const shift = await this.shiftModel.findByPk(employee.shiftId);
-              if (shift) {
-                weeklyOffDays = shift.weeklyOffDays;
-              }
+            const shift = employee.shiftId ? shiftsMap.get(employee.shiftId) : null;
+            if (shift) {
+              weeklyOffDays = shift.weeklyOffDays;
             } else {
-              const policy = await this.policyModel.findOne({
-                where: { companyId: employee.companyId },
-              });
+              const policy = policiesMap.get(employee.companyId);
               if (policy) {
                 weeklyOffDays = policy.weeklyOffDays;
               }

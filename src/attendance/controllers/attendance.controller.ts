@@ -227,24 +227,30 @@ export class AttendanceController {
     @Query('month', ParseIntPipe) month: number,
     @Query('year', ParseIntPipe) year: number,
     @Query('employeeId') employeeId: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
     @Request() req,
   ) {
     const companyId = this.getCompanyId(req);
     let targetEmployeeId = employeeId ? parseInt(employeeId, 10) : undefined;
-    if (!targetEmployeeId || isNaN(targetEmployeeId)) {
-      targetEmployeeId = req.user.employeeId;
-      if (!targetEmployeeId) {
-        return []; // Admin with no profile viewing their own report gets empty array
-      }
+    if (employeeId === 'all') {
+      targetEmployeeId = undefined; // View all
     }
 
-    const isSelf =
-      req.user.employeeId && req.user.employeeId === targetEmployeeId;
+    const isAdmin = req.user.type === 'super_admin' || req.user.type === 'client_admin';
+    if (!isAdmin && (!targetEmployeeId || isNaN(targetEmployeeId))) {
+      targetEmployeeId = req.user.employeeId;
+      if (!targetEmployeeId) {
+        return []; // Non-admin with no profile gets empty array
+      }
+    }
 
     return this.attendanceService.getMonthlyReport(companyId, {
       month,
       year,
       employeeId: targetEmployeeId,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 

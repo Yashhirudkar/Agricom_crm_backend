@@ -148,6 +148,10 @@ export class AttendanceAdminService {
             ? new Date(record.checkOutTime)
             : null;
 
+      if (finalCheckIn && finalCheckOut && finalCheckOut <= finalCheckIn) {
+        throw new BadRequestException('Check-out time must be after check-in time');
+      }
+
       if (finalCheckOut) {
         updateData.attendanceState = AttendanceState.CHECKED_OUT;
       } else if (finalCheckIn) {
@@ -388,6 +392,10 @@ export class AttendanceAdminService {
       const finalCheckOut = dto.checkOutTime
         ? new Date(dto.checkOutTime)
         : null;
+
+      if (finalCheckIn && finalCheckOut && finalCheckOut <= finalCheckIn) {
+        throw new BadRequestException('Check-out time must be after check-in time');
+      }
 
       let totalHours = 0;
       if (finalCheckIn && finalCheckOut) {

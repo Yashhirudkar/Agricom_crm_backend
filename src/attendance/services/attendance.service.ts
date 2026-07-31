@@ -129,7 +129,7 @@ export class AttendanceService {
       },
     });
 
-    if (activeLeave) {
+    if (activeLeave && !activeLeave.isHalfDay) {
       throw new ConflictException(
         `Check-in blocked: You have an approved leave for today. Please cancel your leave if you intend to work.`,
       );
@@ -353,7 +353,7 @@ export class AttendanceService {
           log.actionType === AttendanceActionType.BREAK_END &&
           breakStart
         ) {
-          breakDurationMs += log.timestamp.getTime() - breakStart.getTime();
+          breakDurationMs += new Date(log.timestamp).getTime() - breakStart.getTime();
           breakStart = null;
         }
       }
@@ -374,9 +374,9 @@ export class AttendanceService {
           },
           { transaction: t },
         );
-        // Deduct current ongoing break from total work time (since lastIn tracks check-in)
-        totalWorkMs -= checkOutTime.getTime() - breakStart.getTime();
       }
+
+      totalWorkMs -= breakDurationMs;
 
       const totalHours = Math.max(
         0,
@@ -608,7 +608,7 @@ export class AttendanceService {
   // 10. Monthly Attendance Report
   async getMonthlyReport(
     companyId: number,
-    query: { month: number; year: number; employeeId?: number },
+    query: { month: number; year: number; employeeId?: number; page?: number; limit?: number },
   ): Promise<any> {
     return this.reportService.getMonthlyReport(companyId, query);
   }

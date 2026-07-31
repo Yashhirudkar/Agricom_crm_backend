@@ -87,29 +87,39 @@ export class AttendanceGateway
         return;
       }
 
-      // 2. Lookup employee associated with the active company workspace
+      const isProductAdmin = payload.type === 'super_admin' || payload.type === 'client_admin';
+
+      // 2. Lookup employee associated with the active company workspace (or bypass for admins)
       if (companyIdStr) {
         const companyId = parseInt(companyIdStr, 10);
-        const employee = await this.employeeModel.findOne({
-          where: { userId: payload.userId, companyId },
-        });
-
-        if (employee) {
-          // Join rooms statelessly
-          client.join(`employee-${employee.id}`);
+        if (isProductAdmin) {
           client.join(`company-${companyId}`);
-
-          (client as any).employeeId = employee.id;
           (client as any).companyId = companyId;
           this.logger.log(
-            `Socket authenticated: Employee ${employee.id} joined rooms for Company ${companyId}`,
+            `Socket authenticated Admin ${payload.userId}: joined rooms for Company ${companyId}`,
           );
         } else {
-          this.logger.warn(
-            `Socket connection rejected: User ${payload.userId} is not an employee in company ${companyId}`,
-          );
-          client.disconnect(true);
-          return;
+          const employee = await this.employeeModel.findOne({
+            where: { userId: payload.userId, companyId },
+          });
+
+          if (employee) {
+            // Join rooms statelessly
+            client.join(`employee-${employee.id}`);
+            client.join(`company-${companyId}`);
+
+            (client as any).employeeId = employee.id;
+            (client as any).companyId = companyId;
+            this.logger.log(
+              `Socket authenticated: Employee ${employee.id} joined rooms for Company ${companyId}`,
+            );
+          } else {
+            this.logger.warn(
+              `Socket connection rejected: User ${payload.userId} is not an employee in company ${companyId}`,
+            );
+            client.disconnect(true);
+            return;
+          }
         }
       } else {
         this.logger.log(
@@ -146,6 +156,17 @@ export class AttendanceGateway
       }
 
       const companyId = parseInt(data.companyId as any, 10);
+      const isProductAdmin = payload.type === 'super_admin' || payload.type === 'client_admin';
+
+      if (isProductAdmin) {
+        client.join(`company-${companyId}`);
+        (client as any).companyId = companyId;
+        this.logger.log(
+          `Socket client joined rooms as Admin: company-${companyId}`,
+        );
+        return { status: 'joined', companyId };
+      }
+
       const employee = await this.employeeModel.findOne({
         where: { userId: payload.userId, companyId },
       });

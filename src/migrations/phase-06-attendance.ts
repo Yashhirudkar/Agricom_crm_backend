@@ -53,11 +53,28 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       date: { type: DataTypes.DATEONLY, allowNull: false },
       checkInTime: { type: DataTypes.DATE, allowNull: true, field: 'checkInTime' },
       checkOutTime: { type: DataTypes.DATE, allowNull: true, field: 'checkOutTime' },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'PRESENT' },
-      totalHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, field: 'totalHours' },
-      overtimeHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, field: 'overtimeHours' },
+      totalHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0, field: 'totalHours' },
+      overtimeHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0, field: 'overtimeHours' },
       lateMinutes: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0, field: 'lateMinutes' },
-      earlyLeaveMinutes: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0, field: 'earlyLeaveMinutes' },
+      attendanceState: {
+        type: DataTypes.ENUM('NOT_CHECKED_IN', 'WORKING', 'ON_BREAK', 'CHECKED_OUT'),
+        allowNull: false,
+        defaultValue: 'NOT_CHECKED_IN',
+        field: 'attendanceState'
+      },
+      attendanceStatus: {
+        type: DataTypes.ENUM('PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'WEEK_OFF', 'ON_LEAVE', 'HOLIDAY', 'UPCOMING'),
+        allowNull: true,
+        field: 'attendanceStatus'
+      },
+      attendanceSource: {
+        type: DataTypes.ENUM('SELF_PUNCH', 'ADMIN_MARKED', 'REGULARIZATION_APPROVED', 'AUTO_BREAK_SYSTEM', 'BIOMETRIC', 'API_IMPORT'),
+        allowNull: false,
+        defaultValue: 'SELF_PUNCH',
+        field: 'attendanceSource'
+      },
+      locationLat: { type: DataTypes.DECIMAL(10, 8), allowNull: true, field: 'locationLat' },
+      locationLng: { type: DataTypes.DECIMAL(11, 8), allowNull: true, field: 'locationLng' },
       shiftId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -65,15 +82,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'shifts', key: 'id' },
         onDelete: 'SET NULL',
       },
-      notes: { type: DataTypes.TEXT, allowNull: true },
-      isManualEntry: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isManualEntry' },
-      approvedBy: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        field: 'approvedBy',
-        references: { model: 'users', key: 'id' },
-        onDelete: 'SET NULL',
-      },
+      isPayrollLocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isPayrollLocked' },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
@@ -106,15 +115,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'attendance_records', key: 'id' },
         onDelete: 'SET NULL',
       },
-      punchTime: { type: DataTypes.DATE, allowNull: false, field: 'punchTime' },
-      punchType: { type: DataTypes.STRING(50), allowNull: false, field: 'punchType' }, // CHECK_IN, CHECK_OUT, BREAK_START, BREAK_END
-      source: { type: DataTypes.STRING(50), allowNull: true }, // MOBILE, WEB, BIOMETRIC
-      latitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
-      longitude: { type: DataTypes.DECIMAL(10, 7), allowNull: true },
-      deviceInfo: { type: DataTypes.TEXT, allowNull: true, field: 'deviceInfo' },
-      notes: { type: DataTypes.TEXT, allowNull: true },
+      timestamp: { type: DataTypes.DATE, allowNull: false, field: 'timestamp' },
+      actionType: {
+        type: DataTypes.ENUM('CHECK_IN', 'CHECK_OUT', 'BREAK_START', 'BREAK_END', 'AUTO_CORRECTION', 'REGULARIZATION_APPROVED', 'ADMIN_MARKED'),
+        allowNull: false,
+        field: 'actionType'
+      },
+      metadata: { type: DataTypes.JSON, allowNull: true, field: 'metadata' },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
-      updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
     { ifNotExists: true } as any,
   );
@@ -131,7 +139,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'employees', key: 'id' },
         onDelete: 'CASCADE',
       },
-      date: { type: DataTypes.DATEONLY, allowNull: false },
+      attendanceRecordId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: 'attendanceRecordId',
+        references: { model: 'attendance_records', key: 'id' },
+        onDelete: 'SET NULL',
+      },
       type: {
         type: DataTypes.ENUM('MISSED_PUNCH', 'MANUAL_ENTRY', 'REGULARIZATION', 'OVERRIDE'),
         allowNull: false,

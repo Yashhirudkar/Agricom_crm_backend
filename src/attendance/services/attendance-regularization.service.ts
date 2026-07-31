@@ -100,12 +100,13 @@ export class AttendanceRegularizationService {
     const todayDate = new Date(todayDateStr);
     const requestDate = new Date(dto.date);
 
-    if (
-      requestDate.getFullYear() !== todayDate.getFullYear() ||
-      requestDate.getMonth() !== todayDate.getMonth()
-    ) {
+    const maxDays = policy.maxCorrectionDays ?? 3;
+    const diffTime = Math.abs(todayDate.getTime() - requestDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > maxDays) {
       throw new BadRequestException(
-        `Correction requests are only allowed for dates within the current month (Requested date: ${dto.date}, Current month: ${todayDateStr.substring(0, 7)}).`,
+        `Correction requests are only allowed within ${maxDays} days of the target date (Requested date: ${dto.date}, Current date: ${todayDateStr}, Difference: ${diffDays} days).`,
       );
     }
 
@@ -185,12 +186,6 @@ export class AttendanceRegularizationService {
       );
     }
 
-    if (exception.status !== AttendanceExceptionStatus.PENDING) {
-      throw new BadRequestException(
-        `Correction request is already resolved (Status: ${exception.status})`,
-      );
-    }
-
     if (exception.employeeId === approverEmployeeId) {
       throw new ForbiddenException(
         'You cannot approve or reject your own correction request',
@@ -223,6 +218,24 @@ export class AttendanceRegularizationService {
     const t = await this.recordModel.sequelize.transaction();
 
     try {
+      // 1. Lock the exception record inside the transaction
+      const lockedException = await this.exceptionModel.findByPk(exceptionId, {
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+
+      if (!lockedException) {
+        throw new NotFoundException(
+          `Correction request with ID ${exceptionId} not found`,
+        );
+      }
+
+      if (lockedException.status !== AttendanceExceptionStatus.PENDING) {
+        throw new BadRequestException(
+          `Correction request is already resolved (Status: ${lockedException.status})`,
+        );
+      }
+
       console.log('BEFORE record fetch');
       let record = await this.recordModel.findOne({
         where: { employeeId: employee.id, date: requestDateStr },
@@ -299,6 +312,7 @@ export class AttendanceRegularizationService {
       if (finalCheckIn && finalCheckOut) {
         // Calculate actual break duration from logs instead of shift default
         let breakDurationMs = 0;
+        let breakLogsExist = false;
         if (record && record.id) {
           const logs = await this.logModel.findAll({
             where: { attendanceRecordId: record.id },
@@ -309,17 +323,25 @@ export class AttendanceRegularizationService {
           for (const log of logs) {
             if (log.actionType === AttendanceActionType.BREAK_START) {
               breakStart = new Date(log.timestamp);
+              breakLogsExist = true;
             } else if (
               log.actionType === AttendanceActionType.BREAK_END &&
               breakStart
             ) {
-              breakDurationMs += log.timestamp.getTime() - breakStart.getTime();
+              breakDurationMs += new Date(log.timestamp).getTime() - breakStart.getTime();
               breakStart = null;
+              breakLogsExist = true;
             }
           }
           if (breakStart && finalCheckOut.getTime() > breakStart.getTime()) {
             breakDurationMs += finalCheckOut.getTime() - breakStart.getTime();
+            breakLogsExist = true;
           }
+        }
+
+        // If no break logs exist, deduct shift default breakMinutes
+        if (!breakLogsExist && shift) {
+          breakDurationMs = (shift.breakMinutes || 0) * 60 * 1000;
         }
 
         const breakMinutes = shift.breakMinutes || 0;
@@ -359,6 +381,17 @@ export class AttendanceRegularizationService {
         ? record.attendanceStatus
         : AttendanceStatus.PRESENT;
 
+      // Check if employee has an approved leave request for this date to prevent overwriting ON_LEAVE
+      const activeLeave = await this.leaveRequestModel.findOne({
+        where: {
+          employeeId: employee.id,
+          status: LeaveRequestStatus.APPROVED,
+          fromDate: { [Op.lte]: requestDateStr },
+          toDate: { [Op.gte]: requestDateStr },
+        },
+        transaction: t,
+      });
+
       if (finalCheckIn && !finalCheckOut) {
         finalStatus =
           lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
@@ -376,6 +409,14 @@ export class AttendanceRegularizationService {
         finalStatus = AttendanceStatus.ABSENT;
       }
 
+      if (activeLeave) {
+        if (!activeLeave.isHalfDay) {
+          finalStatus = AttendanceStatus.ON_LEAVE;
+        } else if (finalStatus === AttendanceStatus.ABSENT) {
+          finalStatus = AttendanceStatus.HALF_DAY;
+        }
+      }
+
       const stateToSet = finalCheckOut
         ? AttendanceState.CHECKED_OUT
         : finalCheckIn
@@ -383,6 +424,7 @@ export class AttendanceRegularizationService {
           : AttendanceState.NOT_CHECKED_IN;
 
       if (!record) {
+        console.log('BEFORE record.create');
         record = await this.recordModel.create(
           {
             employeeId: employee.id,
@@ -395,6 +437,7 @@ export class AttendanceRegularizationService {
             lateMinutes,
             attendanceStatus: finalStatus,
             attendanceState: stateToSet,
+            attendanceSource: AttendanceSource.REGULARIZATION_APPROVED,
             shiftId: shift.id,
           },
           { transaction: t },
@@ -422,7 +465,7 @@ export class AttendanceRegularizationService {
       }
 
       // Update Exception status
-      await exception.update(
+      await lockedException.update(
         {
           status: AttendanceExceptionStatus.APPROVED,
           approvedBy: approverEmployeeId,
@@ -496,71 +539,83 @@ export class AttendanceRegularizationService {
     approverType: string,
     dto: ResolveCorrectionDto,
   ): Promise<AttendanceException> {
-    const exception = await this.exceptionModel.findByPk(exceptionId, {
-      include: [{ model: Employee, as: 'employee' }],
-    });
+    const t = await this.recordModel.sequelize.transaction();
+    try {
+      const lockedException = await this.exceptionModel.findByPk(exceptionId, {
+        include: [{ model: Employee, as: 'employee' }],
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
 
-    if (!exception) {
-      throw new NotFoundException(
-        `Correction request with ID ${exceptionId} not found`,
-      );
-    }
-
-    if (exception.status !== AttendanceExceptionStatus.PENDING) {
-      throw new BadRequestException(
-        `Correction request is already resolved (Status: ${exception.status})`,
-      );
-    }
-
-    if (exception.employeeId === approverEmployeeId) {
-      throw new ForbiddenException(
-        'You cannot approve or reject your own correction request',
-      );
-    }
-
-    const employee = exception.employee;
-
-    if (approverType !== 'super_admin' && approverType !== 'client_admin') {
-      if (employee.managerId !== approverEmployeeId) {
-        throw new ForbiddenException(
-          'Only the designated manager or an admin can reject this correction request',
+      if (!lockedException) {
+        throw new NotFoundException(
+          `Correction request with ID ${exceptionId} not found`,
         );
       }
-    }
 
-    if (exception.attendanceRecordId) {
-      const record = await this.recordModel.findByPk(
-        exception.attendanceRecordId,
-      );
-      if (record && record.isPayrollLocked) {
-        throw new ForbiddenException(
-          'Attendance locked after payroll processing',
+      if (lockedException.status !== AttendanceExceptionStatus.PENDING) {
+        throw new BadRequestException(
+          `Correction request is already resolved (Status: ${lockedException.status})`,
         );
       }
-    }
 
-    await exception.update({
-      status: AttendanceExceptionStatus.REJECTED,
-      approvedBy: approverEmployeeId,
-      remarks: dto.remarks || 'Rejected by Manager/Admin',
-    });
+      if (lockedException.employeeId === approverEmployeeId) {
+        throw new ForbiddenException(
+          'You cannot approve or reject your own correction request',
+        );
+      }
 
-    if (exception.attendanceRecordId) {
-      const record = await this.recordModel.findByPk(
-        exception.attendanceRecordId,
-      );
-      if (record) {
-        try {
-          this.attendanceGateway.emitAttendanceUpdate(
-            'regularization_rejected',
-            record,
+      const employee = lockedException.employee;
+
+      if (approverType !== 'super_admin' && approverType !== 'client_admin') {
+        if (employee.managerId !== approverEmployeeId) {
+          throw new ForbiddenException(
+            'Only the designated manager or an admin can reject this correction request',
           );
-        } catch (err) {
-          console.error('Socket emit error in rejectCorrection:', err);
         }
       }
-    }
 
-    return exception;
+      if (lockedException.attendanceRecordId) {
+        const record = await this.recordModel.findByPk(
+          lockedException.attendanceRecordId,
+          { transaction: t }
+        );
+        if (record && record.isPayrollLocked) {
+          throw new ForbiddenException(
+            'Attendance locked after payroll processing',
+          );
+        }
+      }
+
+      await lockedException.update({
+        status: AttendanceExceptionStatus.REJECTED,
+        approvedBy: approverEmployeeId,
+        remarks: dto.remarks || 'Rejected by Manager/Admin',
+      }, { transaction: t });
+
+      await t.commit();
+
+      if (lockedException.attendanceRecordId) {
+        const record = await this.recordModel.findByPk(
+          lockedException.attendanceRecordId,
+        );
+        if (record) {
+          try {
+            this.attendanceGateway.emitAttendanceUpdate(
+              'regularization_rejected',
+              record,
+            );
+          } catch (err) {
+            console.error('Socket emit error in rejectCorrection:', err);
+          }
+        }
+      }
+
+      return lockedException;
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
   }
+
 }
