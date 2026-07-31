@@ -22,6 +22,8 @@ import { LeaveType } from '../../hrms/models/leave-type.model';
 import { Op } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
 
+import { AttendanceConflictService } from './attendance-conflict.service';
+
 @Injectable()
 export class AttendanceAdminService {
   constructor(
@@ -38,6 +40,7 @@ export class AttendanceAdminService {
     @InjectModel(LeaveType)
     private readonly leaveTypeModel: typeof LeaveType,
     private readonly attendanceGateway: AttendanceGateway,
+    private readonly conflictService: AttendanceConflictService,
   ) {}
 
   // 11. Assign Shift to Employee
@@ -185,6 +188,14 @@ export class AttendanceAdminService {
       }
 
       await record.update(updateData, { transaction: t });
+
+      await this.conflictService.checkAndCreateLeaveConflict(
+        record.employeeId,
+        companyId,
+        record.date,
+        record.id,
+        t,
+      );
 
       // Create manual override log
       await this.logModel.create(
@@ -436,6 +447,14 @@ export class AttendanceAdminService {
           { transaction: t },
         );
       }
+
+      await this.conflictService.checkAndCreateLeaveConflict(
+        dto.employeeId,
+        companyId,
+        dto.date,
+        record.id,
+        t,
+      );
 
       await this.logModel.create(
         {

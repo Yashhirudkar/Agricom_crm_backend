@@ -16,6 +16,7 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import { AttendanceService } from '../services/attendance.service';
+import { AttendanceConflictService } from '../services/attendance-conflict.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
@@ -35,7 +36,10 @@ import { AttendanceStatus } from '../models/attendance-record.model';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('attendance')
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    private readonly conflictService: AttendanceConflictService,
+  ) {}
 
   private getCompanyId(req: any): number {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;
@@ -293,4 +297,56 @@ export class AttendanceController {
       dto,
     );
   }
+
+  @Get('exceptions/conflicts')
+  @RequirePermission('attendance:view')
+  async getConflicts(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.conflictService.getConflicts(companyId);
+  }
+
+  @Put('exceptions/conflicts/:id/review')
+  @RequirePermission('attendance:view')
+  async startReview(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req,
+  ) {
+    const userId = req.user.userId || req.user.id;
+    return this.conflictService.startReview(id, userId);
+  }
+
+  @Post('exceptions/conflicts/:id/resolve')
+  @RequirePermission('attendance:view')
+  async resolveConflict(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { resolution: string; remarks: string },
+    @Request() req,
+  ) {
+    const companyId = this.getCompanyId(req);
+    const userId = req.user.userId || req.user.id;
+
+    // Validate permission for action (attendance_override or attendance_regularization_override or admin)
+    const canResolve =
+      req.user.type === 'super_admin' ||
+      req.user.type === 'client_admin' ||
+      req.userPermissions?.has('attendance_override:update') ||
+      req.userPermissions?.has('attendance_regularization_override:update');
+
+    if (!canResolve) {
+      throw new ForbiddenException('You do not have permission to resolve attendance conflicts.');
+    }
+
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'System';
+
+    return this.conflictService.resolveConflict(
+      id,
+      companyId,
+      userId,
+      dto,
+      ipAddress,
+      userAgent,
+    );
+  }
 }
+

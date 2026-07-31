@@ -18,6 +18,7 @@ import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model'
 import { AuditModule } from '../../audit/modules/audit.module';
 import { RbacModule } from '../../rbac/modules/rbac.module';
 import { UsersModule } from '../../users/modules/users.module';
+import { User } from '../../users/models/user.model';
 
 import { DepartmentsService } from '../services/departments.service';
 import { DepartmentsController } from '../controllers/departments.controller';
@@ -48,7 +49,9 @@ import { LeaveRequestsQueryService } from '../services/leave-requests-query.serv
 import { LeaveRequestsController } from '../controllers/leave-requests.controller';
 
 import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
+import { AttendanceException } from '../../attendance/models/attendance-exception.model';
 import { AttendanceModule } from '../../attendance/attendance.module';
+import { NotificationsModule } from '../../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -69,11 +72,14 @@ import { AttendanceModule } from '../../attendance/attendance.module';
       LeaveApprovalLog,
       CompanyHrPolicy,
       AttendanceRecord,
+      AttendanceException,
+      User,
     ]),
     AuditModule,
     RbacModule,
     UsersModule,
     AttendanceModule,
+    NotificationsModule,
   ],
   providers: [
     DepartmentsService,

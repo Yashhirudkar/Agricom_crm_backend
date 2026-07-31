@@ -14,11 +14,13 @@ import { Holiday } from '../holidays/models/holiday.model';
 import { HolidayCompany } from '../holidays/models/holiday-company.model';
 import { UserCompany } from '../users/models/user-company.model';
 import { UserRole } from '../rbac/models/user-role.model';
+import { User } from '../users/models/user.model';
 
 import { Company } from '../companies/models/company.model';
 import { LeaveRequest } from '../hrms/models/leave-request.model';
 import { EmployeeLeaveBalance } from '../hrms/models/employee-leave-balance.model';
 import { LeaveType } from '../hrms/models/leave-type.model';
+import { LeaveBalanceHistory } from '../hrms/models/leave-balance-history.model';
 
 import { AttendanceController } from './controllers/attendance.controller';
 import { ShiftsController } from './controllers/shifts.controller';
@@ -36,6 +38,9 @@ import { AttendanceGateway } from './gateways/attendance.gateway';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { SystemModule } from '../system/modules/system.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { AttendanceConflictService } from './services/attendance-conflict.service';
+import { AuditLog } from '../audit/models/audit-log.model';
 
 @Module({
   imports: [
@@ -51,14 +56,18 @@ import { SystemModule } from '../system/modules/system.module';
       HolidayCompany,
       UserCompany,
       UserRole,
+      User,
       Company,
       LeaveRequest,
       EmployeeLeaveBalance,
+      LeaveBalanceHistory,
       LeaveType,
+      AuditLog,
     ]),
     RbacModule,
     AuditModule,
     SystemModule,
+    NotificationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -83,6 +92,7 @@ import { SystemModule } from '../system/modules/system.module';
     AttendanceCronService,
     AttendanceBreakCronService,
     AttendanceGateway,
+    AttendanceConflictService,
   ],
   exports: [
     AttendanceService,
@@ -95,6 +105,8 @@ import { SystemModule } from '../system/modules/system.module';
     AttendanceCronService,
     AttendanceBreakCronService,
     AttendanceGateway,
+    AttendanceConflictService,
   ],
 })
 export class AttendanceModule {}
+

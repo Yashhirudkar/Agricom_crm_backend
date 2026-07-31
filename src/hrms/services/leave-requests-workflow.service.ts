@@ -29,6 +29,7 @@ import {
   AttendanceStatus,
 } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
+import { AttendanceConflictService } from '../../attendance/services/attendance-conflict.service';
 
 /** Safely convert a Sequelize DATEONLY value (string "YYYY-MM-DD" or Date) to "YYYY-MM-DD" string. */
 function toDateOnlyStr(value: Date | string | any): string {
@@ -56,6 +57,7 @@ export class LeaveRequestsWorkflowService {
     @InjectModel(AttendanceRecord)
     private readonly attendanceRecordModel: typeof AttendanceRecord,
     private readonly attendanceGateway: AttendanceGateway,
+    private readonly conflictService: AttendanceConflictService,
   ) {}
 
   async approveLeave(
@@ -159,16 +161,31 @@ export class LeaveRequestsWorkflowService {
               `Cannot approve leave because attendance for ${record.date} is already finalized/payroll locked.`,
             );
           }
-          if (!leaveRequest.isHalfDay) {
+          if (record.checkInTime) {
+            // Employee checked in! This is a conflict!
             await record.update(
-              { attendanceStatus: AttendanceStatus.ON_LEAVE },
+              { isConflict: true },
               { transaction: t },
             );
-          } else if (record.attendanceStatus === AttendanceStatus.ABSENT) {
-            await record.update(
-              { attendanceStatus: AttendanceStatus.HALF_DAY },
-              { transaction: t },
+            await this.conflictService.checkAndCreateLeaveConflict(
+              leaveRequest.employeeId,
+              companyId,
+              toDateOnlyStr(record.date),
+              record.id,
+              t,
             );
+          } else {
+            if (!leaveRequest.isHalfDay) {
+              await record.update(
+                { attendanceStatus: AttendanceStatus.ON_LEAVE },
+                { transaction: t },
+              );
+            } else if (record.attendanceStatus === AttendanceStatus.ABSENT) {
+              await record.update(
+                { attendanceStatus: AttendanceStatus.HALF_DAY },
+                { transaction: t },
+              );
+            }
           }
         }
 

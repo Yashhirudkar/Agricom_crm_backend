@@ -15,6 +15,9 @@ import {
 } from 'sequelize-typescript';
 import { Employee } from '../../hrms/models/employee.model';
 import { AttendanceRecord } from './attendance-record.model';
+import { Company } from '../../companies/models/company.model';
+import { LeaveRequest } from '../../hrms/models/leave-request.model';
+import { User } from '../../users/models/user.model';
 
 export enum AttendanceExceptionType {
   MISSED_PUNCH = 'MISSED_PUNCH',
@@ -27,7 +30,12 @@ export enum AttendanceExceptionStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
+  OPEN = 'OPEN',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  RESOLVED = 'RESOLVED',
+  CANCELLED = 'CANCELLED',
 }
+
 
 @Table({
   tableName: 'attendance_exceptions',
@@ -60,7 +68,7 @@ export class AttendanceException extends Model<AttendanceException> {
   @BelongsTo(() => AttendanceRecord, { onDelete: 'SET NULL' })
   declare attendanceRecord: AttendanceRecord;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({
     type: DataType.ENUM(
       'MISSED_PUNCH',
@@ -69,7 +77,7 @@ export class AttendanceException extends Model<AttendanceException> {
       'OVERRIDE',
     ),
   })
-  declare type: AttendanceExceptionType;
+  declare type: AttendanceExceptionType | null;
 
   @AllowNull(false)
   @Column({ type: DataType.TEXT })
@@ -78,7 +86,7 @@ export class AttendanceException extends Model<AttendanceException> {
   @Default(AttendanceExceptionStatus.PENDING)
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('PENDING', 'APPROVED', 'REJECTED'),
+    type: DataType.STRING(50),
   })
   declare status: AttendanceExceptionStatus;
 
@@ -89,6 +97,59 @@ export class AttendanceException extends Model<AttendanceException> {
 
   @BelongsTo(() => Employee, { foreignKey: 'approvedBy', onDelete: 'SET NULL' })
   declare approver: Employee;
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
+  declare companyId: number | null;
+
+  @BelongsTo(() => Company, { onDelete: 'CASCADE' })
+  declare company: Company;
+
+  @ForeignKey(() => AttendanceRecord)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare attendanceId: number | null;
+
+  @BelongsTo(() => AttendanceRecord, { foreignKey: 'attendanceId', onDelete: 'SET NULL' })
+  declare attendanceRecordRef: AttendanceRecord;
+
+  @ForeignKey(() => LeaveRequest)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare leaveId: number | null;
+
+  @BelongsTo(() => LeaveRequest, { onDelete: 'SET NULL' })
+  declare leaveRequest: LeaveRequest;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare exceptionType: string | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare resolution: string | null;
+
+  @ForeignKey(() => User)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare resolvedBy: number | null;
+
+  @BelongsTo(() => User, { foreignKey: 'resolvedBy', onDelete: 'SET NULL' })
+  declare resolver: User;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATE })
+  declare resolvedAt: Date | null;
+
+  @Default('MEDIUM')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING(20) })
+  declare priority: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(50), unique: true })
+  declare conflictRef: string | null;
 
   @AllowNull(true)
   @Column({ type: DataType.TEXT })

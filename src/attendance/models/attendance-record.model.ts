@@ -167,6 +167,16 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
   @Column({ type: DataType.BOOLEAN })
   declare isPayrollLocked: boolean;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isConflict: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isIgnored: boolean;
+
   @CreatedAt
   declare createdAt: Date;
 

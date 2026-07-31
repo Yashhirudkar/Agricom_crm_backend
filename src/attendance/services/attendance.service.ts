@@ -52,6 +52,8 @@ import { AttendanceExceptionsQueryService } from './attendance-exceptions-query.
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 
+import { AttendanceConflictService } from './attendance-conflict.service';
+
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -81,6 +83,7 @@ export class AttendanceService {
     private readonly adminService: AttendanceAdminService,
     private readonly regularizationService: AttendanceRegularizationService,
     private readonly exceptionsQueryService: AttendanceExceptionsQueryService,
+    private readonly conflictService: AttendanceConflictService,
   ) {}
 
   // 1. Employee Check In
@@ -116,22 +119,6 @@ export class AttendanceService {
     if (holiday) {
       throw new BadRequestException(
         `Check-in blocked: today (${todayDateStr}) is a company holiday: ${holiday.title}`,
-      );
-    }
-
-    // Leave Check
-    const activeLeave = await this.leaveRequestModel.findOne({
-      where: {
-        employeeId,
-        status: LeaveRequestStatus.APPROVED,
-        fromDate: { [Op.lte]: todayDateStr },
-        toDate: { [Op.gte]: todayDateStr },
-      },
-    });
-
-    if (activeLeave && !activeLeave.isHalfDay) {
-      throw new ConflictException(
-        `Check-in blocked: You have an approved leave for today. Please cancel your leave if you intend to work.`,
       );
     }
 
@@ -226,6 +213,15 @@ export class AttendanceService {
         );
         await record.reload({ transaction: t });
       }
+
+      // Check and raise leave conflict
+      await this.conflictService.checkAndCreateLeaveConflict(
+        employeeId,
+        companyId,
+        todayDateStr,
+        record.id,
+        t,
+      );
 
       // Create log
       await this.logModel.create(

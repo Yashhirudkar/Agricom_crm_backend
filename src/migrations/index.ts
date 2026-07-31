@@ -13,6 +13,7 @@ import * as phase12 from './phase-12-others';
 import * as phase13 from './phase-13-partner-followup';
 import * as phase14 from './phase-14-notifications';
 import * as phase15 from './phase-15-task-performance-indexes';
+import * as phase16 from './phase-16-attendance-leave-conflict';
 
 export interface MigrationPhase {
   phase: string;
@@ -41,7 +42,9 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase13,
   phase14,
   phase15,
+  phase16,
 ];
+
 
 
 
