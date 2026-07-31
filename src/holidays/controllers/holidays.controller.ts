@@ -50,9 +50,18 @@ export class HolidaysController {
   @Post()
   @RequirePermission('holidays:create')
   @HttpCode(HttpStatus.CREATED)
-  createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
+  async createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
-    const clientId = req.user.type === 'super_admin' ? dto.clientId : actor.clientId;
+    let clientId = req.user.type === 'super_admin' ? dto.clientId : actor.clientId;
+    if (!clientId) {
+      const companyId = this.getCompanyId(req);
+      if (companyId) {
+        const company = await this.holidaysService.getCompanyById(companyId).catch(() => null);
+        if (company) {
+          clientId = company.clientId;
+        }
+      }
+    }
     if (!clientId) {
       throw new BadRequestException('clientId is required');
     }
@@ -62,13 +71,26 @@ export class HolidaysController {
   @Post('recurring')
   @RequirePermission('holidays:create')
   @HttpCode(HttpStatus.CREATED)
-  createRecurringHolidays(
+  async createRecurringHolidays(
     @Body() dto: CreateRecurringHolidayDto,
     @Request() req,
   ) {
     const actor = this.getActor(req);
+    let clientId = req.user.type === 'super_admin' ? null : actor.clientId;
+    if (!clientId) {
+      const companyId = this.getCompanyId(req);
+      if (companyId) {
+        const company = await this.holidaysService.getCompanyById(companyId).catch(() => null);
+        if (company) {
+          clientId = company.clientId;
+        }
+      }
+    }
+    if (!clientId) {
+      throw new BadRequestException('clientId is required');
+    }
     return this.holidaysService.createRecurringHolidays(
-      actor.clientId,
+      clientId,
       dto,
       actor,
     );

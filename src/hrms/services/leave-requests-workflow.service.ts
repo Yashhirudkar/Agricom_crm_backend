@@ -30,6 +30,8 @@ import {
 } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
 import { AttendanceConflictService } from '../../attendance/services/attendance-conflict.service';
+import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import { Employee } from '../models/employee.model';
 
 /** Safely convert a Sequelize DATEONLY value (string "YYYY-MM-DD" or Date) to "YYYY-MM-DD" string. */
 function toDateOnlyStr(value: Date | string | any): string {
@@ -56,8 +58,11 @@ export class LeaveRequestsWorkflowService {
     private readonly employeeLeaveBalanceModel: typeof EmployeeLeaveBalance,
     @InjectModel(AttendanceRecord)
     private readonly attendanceRecordModel: typeof AttendanceRecord,
+    @InjectModel(Employee)
+    private readonly employeeModel: typeof Employee,
     private readonly attendanceGateway: AttendanceGateway,
     private readonly conflictService: AttendanceConflictService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async approveLeave(
@@ -220,6 +225,29 @@ export class LeaveRequestsWorkflowService {
 
       await t.commit();
 
+      // Trigger notification to employee on final approval
+      if ((leaveRequest.status as any) === LeaveRequestStatus.APPROVED) {
+        try {
+          const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+          if (emp && emp.userId) {
+            await this.notificationsService.createNotification({
+              recipients: [emp.userId],
+              type: NotificationType.HR,
+              referenceType: 'leave_approved',
+              referenceId: leaveRequest.id,
+              title: '✅ Leave Approved',
+              payload: {
+                message: `Your leave request from ${toDateOnlyStr(leaveRequest.fromDate)} to ${toDateOnlyStr(leaveRequest.toDate)} has been approved.`,
+                url: '/attendance/my-leaves',
+              },
+              category: 'LEAVE',
+            });
+          }
+        } catch (notifErr) {
+          console.error('[LeaveRequestsWorkflowService] Failed to send leave approval notification:', notifErr);
+        }
+      }
+
       // Emit updates
       if (affectedRecords && affectedRecords.length > 0) {
         for (const record of affectedRecords) {
@@ -346,6 +374,28 @@ export class LeaveRequestsWorkflowService {
       );
 
       await t.commit();
+
+      // Trigger notification to employee on rejection
+      try {
+        const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+        if (emp && emp.userId) {
+          await this.notificationsService.createNotification({
+            recipients: [emp.userId],
+            type: NotificationType.HR,
+            referenceType: 'leave_rejected',
+            referenceId: leaveRequest.id,
+            title: '❌ Leave Rejected',
+            payload: {
+              message: `Your leave request from ${toDateOnlyStr(leaveRequest.fromDate)} to ${toDateOnlyStr(leaveRequest.toDate)} has been rejected. Reason: ${dto.reason || 'None'}`,
+              url: '/attendance/my-leaves',
+            },
+            category: 'LEAVE',
+          });
+        }
+      } catch (notifErr) {
+        console.error('[LeaveRequestsWorkflowService] Failed to send leave rejection notification:', notifErr);
+      }
+
       return { message: 'Leave request rejected successfully' };
     } catch (err) {
       await t.rollback();
@@ -468,6 +518,118 @@ export class LeaveRequestsWorkflowService {
       );
 
       await t.commit();
+
+      // Trigger notification on cancellation
+      try {
+        const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+        if (emp) {
+          const recipients = new Set<number>();
+          if (emp.userId) recipients.add(emp.userId);
+
+          // Add manager
+          if (emp.managerId) {
+            const manager = await this.employeeModel.findByPk(emp.managerId);
+            if (manager && manager.userId) {
+              recipients.add(manager.userId);
+            }
+          }
+
+          // Add users holding leave:approve permission (HR & Admins)
+          try {
+            const resourceActions = await this.employeeModel.sequelize.models.ResourceAction.findAll({
+              include: [{
+                model: this.employeeModel.sequelize.models.ModuleResource,
+                required: true,
+                as: 'resource'
+              }]
+            });
+
+            const allowedActionIds = resourceActions
+              .filter((ra: any) => {
+                const resourceName = ra.resource?.name;
+                const actionName = ra.name?.toLowerCase();
+                if (!resourceName || !actionName) return false;
+                
+                let res = resourceName;
+                let act = actionName;
+                if (res === 'manager' && act === 'approve_leave') {
+                  res = 'leave';
+                  act = 'approve';
+                }
+                return `${res}:${act}` === 'leave:approve';
+              })
+              .map((ra: any) => ra.id);
+
+            if (allowedActionIds.length > 0) {
+              const rolePermissions = await this.employeeModel.sequelize.models.RoleActionPermission.findAll({
+                where: { resource_action_id: allowedActionIds },
+                attributes: ['role_id'],
+              });
+              const roleIds = rolePermissions.map((rp: any) => rp.role_id);
+
+              if (roleIds.length > 0) {
+                const companyMemberships = await this.employeeModel.sequelize.models.UserCompany.findAll({
+                  where: {
+                    companyId,
+                    roleId: roleIds,
+                    status: 'Active',
+                  },
+                  attributes: ['userId'],
+                });
+                companyMemberships.forEach((m: any) => recipients.add(m.userId));
+
+                const globalUserRoles = await this.employeeModel.sequelize.models.UserRole.findAll({
+                  where: { roleId: roleIds },
+                  attributes: ['userId'],
+                });
+                
+                const globalUserIds = globalUserRoles.map((ur: any) => ur.userId);
+                if (globalUserIds.length > 0) {
+                  const companyProfile = await this.employeeModel.sequelize.models.Company.findByPk(emp.companyId);
+                  const clientId = companyProfile ? (companyProfile as any).clientId : null;
+                  if (clientId) {
+                    const activeClientAdmins = await this.employeeModel.sequelize.models.User.findAll({
+                      where: {
+                        id: globalUserIds,
+                        clientId,
+                        isActive: true,
+                      },
+                      attributes: ['id'],
+                    });
+                    activeClientAdmins.forEach((u: any) => recipients.add((u as any).id));
+                  }
+                }
+              }
+            }
+          } catch (permErr) {
+            console.error('[LeaveRequestsWorkflowService] Error query leave:approve users for cancel notification:', permErr);
+          }
+
+          // Always add default super admin
+          const superAdmin = await this.employeeModel.sequelize.models.User.findOne({
+            where: { email: 'admin@agricom.com', isActive: true },
+            attributes: ['id'],
+          });
+          if (superAdmin) {
+            recipients.add((superAdmin as any).id);
+          }
+
+          await this.notificationsService.createNotification({
+            recipients: Array.from(recipients).filter(Boolean),
+            type: NotificationType.HR,
+            referenceType: 'leave_cancelled',
+            referenceId: leaveRequest.id,
+            title: '📄 Leave Cancelled',
+            payload: {
+              message: `Leave request for ${emp.firstName} ${emp.lastName} from ${toDateOnlyStr(leaveRequest.fromDate)} to ${toDateOnlyStr(leaveRequest.toDate)} has been cancelled.`,
+              url: '/attendance/leave-approvals',
+            },
+            category: 'LEAVE',
+          });
+        }
+      } catch (notifErr) {
+        console.error('[LeaveRequestsWorkflowService] Failed to send leave cancellation notification:', notifErr);
+      }
 
       // Emit updates
       if (affectedRecords && affectedRecords.length > 0) {

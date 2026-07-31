@@ -24,6 +24,7 @@ export interface CreateNotificationDto {
   referenceId: number;
   title: string;
   payload: any;
+  category?: string;
 }
 
 @Injectable()
@@ -105,14 +106,35 @@ export class NotificationsService {
       }
     }
 
-    // 3. Exclude muted users who disabled pushNotifications
+    // 3. Exclude muted users based on preferences and categories
     try {
       const preferences = await this.userPreferenceModel.findAll({
         where: { userId: validRecipients }
       });
-      const mutedUserIds = new Set(
-        preferences.filter(p => p.pushNotifications === false).map(p => p.userId)
-      );
+      const mutedUserIds = new Set<number>();
+      for (const p of preferences) {
+        if (p.pushNotifications === false) {
+          mutedUserIds.add(p.userId);
+          continue;
+        }
+
+        // Determine category dynamically
+        const category = dto.category || (
+          dto.referenceType?.startsWith('attendance_reminder') ? 'REMINDER' :
+          dto.referenceType === 'attendance_conflict' ? 'CONFLICT' :
+          dto.referenceType?.startsWith('leave_') ? 'LEAVE' :
+          dto.referenceType?.startsWith('holiday_') ? 'HOLIDAY' :
+          dto.type === NotificationType.TASK ? 'TASK' : 'SYSTEM'
+        );
+
+        if (category === 'REMINDER' && p.attendanceRemindersEnabled === false) {
+          mutedUserIds.add(p.userId);
+        } else if (category === 'LEAVE' && p.leaveNotificationsEnabled === false) {
+          mutedUserIds.add(p.userId);
+        } else if (category === 'HOLIDAY' && p.holidayNotificationsEnabled === false) {
+          mutedUserIds.add(p.userId);
+        }
+      }
       validRecipients = validRecipients.filter(id => !mutedUserIds.has(id));
     } catch (err) {
       console.error('[NotificationsService] Error loading user preferences:', err);
@@ -127,6 +149,14 @@ export class NotificationsService {
     // 4. Save and broadcast each notification
     for (const recipientId of validRecipients) {
       try {
+        const category = dto.category || (
+          dto.referenceType?.startsWith('attendance_reminder') ? 'REMINDER' :
+          dto.referenceType === 'attendance_conflict' ? 'CONFLICT' :
+          dto.referenceType?.startsWith('leave_') ? 'LEAVE' :
+          dto.referenceType?.startsWith('holiday_') ? 'HOLIDAY' :
+          dto.type === NotificationType.TASK ? 'TASK' : 'SYSTEM'
+        );
+
         const notif = await this.notificationModel.create({
           userId: recipientId,
           type: dto.type,
@@ -135,6 +165,7 @@ export class NotificationsService {
           title: dto.title,
           payload: dto.payload,
           isRead: false,
+          category,
         });
 
         createdNotifications.push(notif);

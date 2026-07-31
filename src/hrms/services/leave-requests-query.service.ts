@@ -13,6 +13,7 @@ import { LeaveApprovalLog } from '../models/leave-approval-log.model';
 import { EmployeeLeaveBalance } from '../models/employee-leave-balance.model';
 import { LeaveType } from '../models/leave-type.model';
 import { Employee } from '../models/employee.model';
+import { User } from '../../users/models/user.model';
 import { GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
 
 @Injectable()
@@ -29,7 +30,7 @@ export class LeaveRequestsQueryService {
   async getLeaveRequests(
     companyId: number,
     query: GetLeaveRequestsFilterDto,
-  ): Promise<{ data: LeaveRequest[]; meta: any }> {
+  ): Promise<{ data: any[]; meta: any }> {
     const where: any = { companyId };
     if (query.employeeId) where.employeeId = query.employeeId;
     if (query.status) where.status = query.status;
@@ -61,13 +62,61 @@ export class LeaveRequestsQueryService {
             },
           ],
         },
+        {
+          model: LeaveApprovalLog,
+          include: [
+            {
+              model: User,
+              as: 'performer',
+              attributes: ['id', 'name'],
+            },
+          ],
+        },
       ],
       order: [['createdAt', 'DESC']],
       distinct: true,
     });
 
+    const mappedRows = rows.map((row) => {
+      const plainRow = row.get({ plain: true });
+
+      let approverName = null;
+      let approverId = null;
+      let approvedAt = null;
+
+      if (
+        plainRow.status === LeaveRequestStatus.APPROVED ||
+        plainRow.status === LeaveRequestStatus.REJECTED
+      ) {
+        // Source of truth for WHO actually performed the action is the Audit Log
+        // because Super Admins might override a step assigned to an Employee.
+        const actionLog = plainRow.approvalLogs?.find(
+          (log: any) =>
+            log.action === 'APPROVED' ||
+            log.action === 'REJECTED',
+        );
+
+        if (actionLog) {
+          approverId = actionLog.performedBy;
+          approvedAt = actionLog.createdAt; // The time the log was created is the exact approval time
+          if (actionLog.performer) {
+            approverName = actionLog.performer.name;
+          } else {
+            approverName = 'Former User';
+          }
+        }
+      }
+
+      return {
+        ...plainRow,
+        approverId,
+        approverName,
+        approvedAt,
+      };
+    });
+
     return {
-      data: rows,
+      data: mappedRows,
       meta: {
         page: Number(page),
         limit: Number(limit),

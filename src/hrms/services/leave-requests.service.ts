@@ -42,6 +42,7 @@ import {
   AttendanceState,
 } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
+import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 import * as crypto from 'crypto';
 import * as path from 'path';
 
@@ -83,7 +84,98 @@ export class LeaveRequestsService {
     private readonly attendanceGateway: AttendanceGateway,
     private readonly workflowService: LeaveRequestsWorkflowService,
     private readonly queryService: LeaveRequestsQueryService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  async getLeaveApprovalRecipients(companyId: number, managerId?: number): Promise<number[]> {
+    const recipients = new Set<number>();
+
+    if (managerId) {
+      const manager = await this.employeeModel.findByPk(managerId);
+      if (manager && manager.userId) {
+        recipients.add(manager.userId);
+      }
+    }
+
+    try {
+      const resourceActions = await this.employeeModel.sequelize.models.ResourceAction.findAll({
+        include: [{
+          model: this.employeeModel.sequelize.models.ModuleResource,
+          required: true,
+          as: 'resource'
+        }]
+      });
+
+      const allowedActionIds = resourceActions
+        .filter((ra: any) => {
+          const resourceName = ra.resource?.name;
+          const actionName = ra.name?.toLowerCase();
+          if (!resourceName || !actionName) return false;
+          
+          let res = resourceName;
+          let act = actionName;
+          if (res === 'manager' && act === 'approve_leave') {
+            res = 'leave';
+            act = 'approve';
+          }
+          return `${res}:${act}` === 'leave:approve';
+        })
+        .map((ra: any) => ra.id);
+
+      if (allowedActionIds.length > 0) {
+        const rolePermissions = await this.employeeModel.sequelize.models.RoleActionPermission.findAll({
+          where: { resource_action_id: allowedActionIds },
+          attributes: ['role_id'],
+        });
+        const roleIds = rolePermissions.map((rp: any) => rp.role_id);
+
+        if (roleIds.length > 0) {
+          const companyMemberships = await this.employeeModel.sequelize.models.UserCompany.findAll({
+            where: {
+              companyId,
+              roleId: roleIds,
+              status: 'Active',
+            },
+            attributes: ['userId'],
+          });
+          companyMemberships.forEach((m: any) => recipients.add(m.userId));
+
+          const globalUserRoles = await this.employeeModel.sequelize.models.UserRole.findAll({
+            where: { roleId: roleIds },
+            attributes: ['userId'],
+          });
+          
+          const globalUserIds = globalUserRoles.map((ur: any) => ur.userId);
+          if (globalUserIds.length > 0) {
+            const companyProfile = await this.employeeModel.sequelize.models.Company.findByPk(companyId);
+            if (companyProfile) {
+              const activeClientAdmins = await this.employeeModel.sequelize.models.User.findAll({
+                where: {
+                  id: globalUserIds,
+                  clientId: (companyProfile as any).clientId,
+                  isActive: true,
+                },
+                attributes: ['id'],
+              });
+              activeClientAdmins.forEach((u: any) => recipients.add((u as any).id));
+            }
+          }
+        }
+      }
+
+      const superAdmin = await this.employeeModel.sequelize.models.User.findOne({
+        where: { email: 'admin@agricom.com', isActive: true },
+        attributes: ['id'],
+      });
+      if (superAdmin) {
+        recipients.add((superAdmin as any).id);
+      }
+    } catch (err) {
+      console.error('[LeaveRequestsService] Error finding permission-based recipients:', err);
+    }
+
+    return Array.from(recipients).filter(Boolean);
+  }
 
   async getFallbackEmployeeIdForAdmin(
     companyId: number,
@@ -433,6 +525,27 @@ export class LeaveRequestsService {
       );
 
       await t.commit();
+
+      try {
+        const recipients = await this.getLeaveApprovalRecipients(companyId, employee.managerId);
+        const fromDateStr = toDateOnlyStr(dto.fromDate);
+        const toDateStr = toDateOnlyStr(dto.toDate);
+        await this.notificationsService.createNotification({
+          recipients,
+          type: NotificationType.HR,
+          referenceType: 'leave_applied',
+          referenceId: leaveRequest.id,
+          title: '📄 New Leave Request',
+          payload: {
+            message: `New leave request submitted by ${employee.firstName} ${employee.lastName} (${leaveType.name}) from ${fromDateStr} to ${toDateStr}. Reason: ${dto.reason || 'None'}`,
+            url: '/attendance/leave-approvals',
+          },
+          category: 'LEAVE',
+        });
+      } catch (notifErr) {
+        console.error('[LeaveRequestsService] Failed to send leave request notification:', notifErr);
+      }
+
       return leaveRequest;
     } catch (err) {
       await t.rollback();

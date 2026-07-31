@@ -358,6 +358,22 @@ export class ProfileService {
         dto.pushNotifications !== undefined
           ? dto.pushNotifications
           : prefs.pushNotifications,
+      attendanceRemindersEnabled:
+        dto.attendanceRemindersEnabled !== undefined
+          ? dto.attendanceRemindersEnabled
+          : prefs.attendanceRemindersEnabled,
+      leaveNotificationsEnabled:
+        dto.leaveNotificationsEnabled !== undefined
+          ? dto.leaveNotificationsEnabled
+          : prefs.leaveNotificationsEnabled,
+      holidayNotificationsEnabled:
+        dto.holidayNotificationsEnabled !== undefined
+          ? dto.holidayNotificationsEnabled
+          : prefs.holidayNotificationsEnabled,
+      desktopNotificationsEnabled:
+        dto.desktopNotificationsEnabled !== undefined
+          ? dto.desktopNotificationsEnabled
+          : prefs.desktopNotificationsEnabled,
       theme: dto.theme !== undefined ? dto.theme : prefs.theme,
     });
 

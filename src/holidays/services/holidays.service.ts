@@ -490,4 +490,8 @@ export class HolidaysService {
       message: `Successfully created ${createdHolidays.length} recurring holidays.`,
     };
   }
+
+  async getCompanyById(companyId: number): Promise<any> {
+    return this.holidayModel.sequelize.models.Company.findByPk(companyId);
+  }
 }

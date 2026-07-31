@@ -18,6 +18,7 @@ import { Company } from './company.model';
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 import { Employee } from '../../hrms/models/employee.model';
+import { Shift } from '../../attendance/models/shift.model';
 
 @Table({
   tableName: 'departments',
@@ -80,6 +81,14 @@ export class Department extends Model<Department> {
   @AllowNull(false)
   @Column({ type: DataType.BOOLEAN })
   declare isActive: boolean;
+
+  @ForeignKey(() => Shift)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare shiftId: number;
+
+  @BelongsTo(() => Shift, { onDelete: 'SET NULL' })
+  declare shift: Shift;
 
   @ForeignKey(() => User)
   @AllowNull(true)

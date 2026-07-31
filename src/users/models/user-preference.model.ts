@@ -49,6 +49,22 @@ export class UserPreference extends Model<UserPreference> {
   @Column({ type: DataType.BOOLEAN, allowNull: false })
   declare copyTenantNotifications: boolean;
 
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, allowNull: false })
+  declare attendanceRemindersEnabled: boolean;
+
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, allowNull: false })
+  declare leaveNotificationsEnabled: boolean;
+
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, allowNull: false })
+  declare holidayNotificationsEnabled: boolean;
+
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, allowNull: false })
+  declare desktopNotificationsEnabled: boolean;
+
   @Default('system')
   @Column({ type: DataType.STRING(50), allowNull: false })
   declare theme: string;

@@ -14,6 +14,22 @@ export class UpdatePreferencesDto {
   pushNotifications?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  attendanceRemindersEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  leaveNotificationsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  holidayNotificationsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  desktopNotificationsEnabled?: boolean;
+
+  @IsOptional()
   @IsString()
   theme?: string;
 

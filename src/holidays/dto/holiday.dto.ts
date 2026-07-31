@@ -12,6 +12,7 @@ import { Type } from 'class-transformer';
 
 export enum HolidayType {
   PUBLIC = 'PUBLIC',
+  RESTRICTED = 'RESTRICTED',
   COMPANY = 'COMPANY',
   SHUTDOWN = 'SHUTDOWN',
   FESTIVAL = 'FESTIVAL',

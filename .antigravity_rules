@@ -1,0 +1,56 @@
+# AntiGravity Repository Rules
+
+## Primary Goal
+
+Implement code first.
+Documentation is optional.
+
+## Never Create Automatically
+
+- implementation_plan.md
+- walkthrough.md
+- task.md
+- production_report.md
+- qa_report.md
+- verification_report.md
+- changelog.md
+
+Unless the user explicitly requests them.
+
+## Workflow
+
+1. Understand request.
+2. Inspect existing code.
+3. Implement feature.
+4. Fix compile errors.
+5. Preserve architecture.
+6. Return concise summary.
+
+## Do Not
+
+- Generate unnecessary markdown files.
+- Rewrite unrelated code.
+- Change architecture without reason.
+- Perform environment diagnostics unless requested.
+- Troubleshoot Node/npm/PATH unless implementation is blocked.
+
+## Runtime Claims
+
+Never claim:
+- Build Passed
+- Runtime Verified
+- Production Ready
+
+unless actually executed and verified.
+
+## Output Format
+
+Only return:
+
+- Files modified
+- What changed
+- Anything developer must run
+- Known blockers (if any)
+
+Maximum summary:
+20 lines.

@@ -8,6 +8,7 @@ import { AttendanceRecord } from './models/attendance-record.model';
 import { AttendanceLog } from './models/attendance-log.model';
 import { AttendanceException } from './models/attendance-exception.model';
 import { CompanyBreakPolicy } from './models/company-break-policy.model';
+import { SentReminder } from './models/sent-reminder.model';
 import { Employee } from '../hrms/models/employee.model';
 import { CompanyHrPolicy } from '../companies/models/company-hr-policy.model';
 import { Holiday } from '../holidays/models/holiday.model';
@@ -33,6 +34,7 @@ import { AttendanceExceptionsQueryService } from './services/attendance-exceptio
 import { ShiftsService } from './services/shifts.service';
 import { AttendanceCronService } from './services/attendance-cron.service';
 import { AttendanceBreakCronService } from './services/attendance-break-cron.service';
+import { AttendanceReminderService } from './services/attendance-reminder.service';
 import { AttendanceGateway } from './gateways/attendance.gateway';
 
 import { RbacModule } from '../rbac/modules/rbac.module';
@@ -50,6 +52,7 @@ import { AuditLog } from '../audit/models/audit-log.model';
       AttendanceLog,
       AttendanceException,
       CompanyBreakPolicy,
+      SentReminder,
       Employee,
       CompanyHrPolicy,
       Holiday,
@@ -91,6 +94,7 @@ import { AuditLog } from '../audit/models/audit-log.model';
     ShiftsService,
     AttendanceCronService,
     AttendanceBreakCronService,
+    AttendanceReminderService,
     AttendanceGateway,
     AttendanceConflictService,
   ],
@@ -104,6 +108,7 @@ import { AuditLog } from '../audit/models/audit-log.model';
     ShiftsService,
     AttendanceCronService,
     AttendanceBreakCronService,
+    AttendanceReminderService,
     AttendanceGateway,
     AttendanceConflictService,
   ],
