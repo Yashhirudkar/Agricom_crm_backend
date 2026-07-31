@@ -39,12 +39,8 @@ export class NotificationsService {
   ) {}
 
   async createNotification(dto: CreateNotificationDto, currentUserId?: number) {
-    console.log('[NotificationsService] createNotification called with DTO:', JSON.stringify(dto));
-    console.log('[NotificationsService] currentUserId:', currentUserId);
-
     // 1. De-duplicate and validate recipients
     let validRecipients = Array.from(new Set(dto.recipients)).filter(Boolean);
-    console.log('[NotificationsService] validRecipients after deduplication:', validRecipients);
 
     // 2. Fetch recipient client associations to copy notifications to organization admins
     if (validRecipients.length > 0) {
@@ -102,7 +98,6 @@ export class NotificationsService {
           );
           const finalAdminIds = uniqueAdminIds.filter(id => !optedOutAdminIds.has(id));
 
-          console.log('[NotificationsService] Appending admin recipients for copy:', finalAdminIds);
           validRecipients = Array.from(new Set([...validRecipients, ...finalAdminIds]));
         }
       } catch (err) {
@@ -118,14 +113,12 @@ export class NotificationsService {
       const mutedUserIds = new Set(
         preferences.filter(p => p.pushNotifications === false).map(p => p.userId)
       );
-      console.log('[NotificationsService] Muted users excluded:', Array.from(mutedUserIds));
       validRecipients = validRecipients.filter(id => !mutedUserIds.has(id));
     } catch (err) {
       console.error('[NotificationsService] Error loading user preferences:', err);
     }
 
     if (validRecipients.length === 0) {
-      console.log('[NotificationsService] No valid recipients, returning early.');
       return [];
     }
 
@@ -134,7 +127,6 @@ export class NotificationsService {
     // 4. Save and broadcast each notification
     for (const recipientId of validRecipients) {
       try {
-        console.log(`[NotificationsService] Creating notification in DB for user ${recipientId}...`);
         const notif = await this.notificationModel.create({
           userId: recipientId,
           type: dto.type,
@@ -145,12 +137,10 @@ export class NotificationsService {
           isRead: false,
         });
 
-        console.log(`[NotificationsService] Notification created in DB with ID: ${notif.id}. Emitting socket event...`);
         createdNotifications.push(notif);
 
         // Emit to room user-${recipientId}
         this.gateway.emitToUser(recipientId, 'notification', notif.toJSON());
-        console.log(`[NotificationsService] Socket event emitted to user ${recipientId}`);
       } catch (err) {
         console.error(`[NotificationsService] Failed to create or emit notification for user ${recipientId}:`, err);
       }

@@ -639,7 +639,6 @@ export class TasksService {
     actorId: number,
   ) {
     try {
-      console.log(`[triggerTaskNotification] Starting trigger for task: ${taskId}, title: ${title}, actorId: ${actorId}`);
       const task = await this.taskModel.findOne({
         where: { id: taskId, clientId },
         include: [
@@ -657,12 +656,8 @@ export class TasksService {
       const assigneeIds = task.assignees?.map((a) => a.userId) || [];
       const recipients = [ownerId, ...assigneeIds].filter((id): id is number => !!id);
       
-      console.log(`[triggerTaskNotification] Task title: "${task.title}". Owner ID: ${ownerId}. Assignee IDs:`, assigneeIds);
-      console.log(`[triggerTaskNotification] Combined recipients list:`, recipients);
-
       const statusName = task.status?.name || 'Open';
 
-      console.log(`[triggerTaskNotification] Calling notificationsService.createNotification with payload...`);
       await this.notificationsService.createNotification(
         {
           recipients,
