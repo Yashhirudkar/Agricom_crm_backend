@@ -100,6 +100,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
 import { LocationsModule } from './locations/locations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { Notification } from './notifications/models/notification.model';
+import { FollowUpManagementModule } from './follow-up-management/follow-up-management.module';
 import {
   Task,
   TaskSequence,
@@ -251,6 +252,7 @@ import {
     EnquiriesModule,
     LocationsModule,
     NotificationsModule,
+    FollowUpManagementModule,
   ],
   providers: [
     {

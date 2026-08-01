@@ -27,6 +27,8 @@ import { ChangePasswordDto } from '../../profile/dto/change-password.dto';
 import { Put } from '@nestjs/common';
 import { SystemService } from '../../system/services/system.service';
 
+import { FollowUpNotificationService } from '../../follow-up-management/services/follow-up-notification.service';
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -37,6 +39,7 @@ export class AuthController {
     private readonly userCompanyModel: typeof UserCompany,
     private readonly profileService: ProfileService,
     private readonly systemService: SystemService,
+    private readonly followUpNotificationService: FollowUpNotificationService,
   ) {}
 
   @Post('login')
@@ -46,7 +49,15 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    return this.authService.login(loginDto, ip, userAgent);
+    const result = await this.authService.login(loginDto, ip, userAgent);
+    if (result && result.user && result.user.id) {
+      const companyId = result.user.lastCompanyId || result.workspaces?.[0]?.id;
+      if (companyId) {
+        this.followUpNotificationService.checkAndSendUserReminders(result.user.id, companyId)
+          .catch((err) => console.error('Failed to trigger login reminders:', err));
+      }
+    }
+    return result;
   }
 
   @Post('refresh')
@@ -478,6 +489,8 @@ export class AuthController {
       await this.usersService.updateUser(req.user.userId, {
         lastCompanyId: companyId,
       });
+      this.followUpNotificationService.checkAndSendUserReminders(req.user.userId, companyId)
+        .catch((err) => console.error('Failed to trigger workspace reminders:', err));
     }
 
     return {
