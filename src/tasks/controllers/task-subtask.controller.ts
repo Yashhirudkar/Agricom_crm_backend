@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -25,12 +26,11 @@ export class TaskSubtaskController {
   constructor(private readonly subtaskService: TaskSubtaskService) {}
 
   private getClientId(req: any): number {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id']
-      ? parseInt(req.headers['x-company-id'], 10)
-      : null;
     const isSuperAdmin = req.user?.type === 'super_admin';
-    return (isSuperAdmin && headerCompanyId) ? headerCompanyId : (jwtClientId || headerCompanyId || 1);
+    if (isSuperAdmin && !req.user?.clientId) {
+      throw new BadRequestException('Super admins must select a company context to perform this action');
+    }
+    return req.user?.clientId || 1;
   }
 
   @Get()

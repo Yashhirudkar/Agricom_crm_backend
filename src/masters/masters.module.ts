@@ -34,6 +34,7 @@ import { PartnerFollowUpService } from './partner/partner-followup.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
+import { FollowUpManagementModule } from '../follow-up-management/follow-up-management.module';
 
 // Dynamic Additional Information Engine
 import { PartnerRoleDynamicConfig } from './partner-role/partner-role-dynamic-config.model';
@@ -79,6 +80,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     ]),
     RbacModule,
     AuditModule,
+    FollowUpManagementModule,
   ],
   controllers: [
     CategoryController,

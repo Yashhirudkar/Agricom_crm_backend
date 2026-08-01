@@ -96,4 +96,19 @@ export class FollowUpNotificationService {
       this.logger.error(`Error in checkAndSendUserReminders for user ${userId}:`, err);
     }
   }
+
+  async deleteNotificationForFollowUp(followUpId: number): Promise<void> {
+    try {
+      await this.notificationModel.destroy({
+        where: {
+          type: 'FOLLOW_UP',
+          referenceType: 'partner_followup',
+          referenceId: followUpId,
+        },
+      });
+      this.logger.log(`Deleted existing notification(s) for followUpId ${followUpId}`);
+    } catch (err) {
+      this.logger.error(`Error deleting notification for followUpId ${followUpId}:`, err);
+    }
+  }
 }

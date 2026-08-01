@@ -48,12 +48,12 @@ export class TasksController {
   })
   async create(@Req() req: any, @Body() createTaskDto: CreateTaskDto) {
     // JWT clientId is authoritative (validated by auth); header only used for super admin context switching
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id']
-      ? parseInt(req.headers['x-company-id'], 10)
-      : null;
     const isSuperAdmin = req.user?.type === 'super_admin';
-    const clientId = (isSuperAdmin && headerCompanyId) ? headerCompanyId : (jwtClientId || headerCompanyId || 1);
+    if (isSuperAdmin && !req.user?.clientId) {
+      throw new BadRequestException('Super admins must select a company context to perform this action');
+    }
+    
+    const clientId = req.user?.clientId || 1;
 
     const userId = req.user?.id || 1;
     const idempotencyKey = req.headers['idempotency-key'];
@@ -107,7 +107,7 @@ export class TasksController {
     const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
     const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
     const clientId = jwtClientId || headerCompanyId || 1;
-    
+
     (query as any).hasViewAll = true;
     query.preset = 'all_tasks';
     const result = await this.tasksService.findAll(clientId, userId, query);

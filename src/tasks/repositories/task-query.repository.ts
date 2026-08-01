@@ -75,7 +75,9 @@ export class TaskQueryRepository {
     let filterCompleted: boolean | undefined = isCompleted;
 
     const hasViewAll = query['hasViewAll'] === true;
-    const userId = Number(query['userId']);
+    const rawUserId = query['userId'];
+    const parsedUserId = Number(rawUserId);
+    const userId = (!isNaN(parsedUserId) && rawUserId !== null && rawUserId !== undefined) ? parsedUserId : null;
 
     // Handle Query Presets
     if (query.preset) {
@@ -84,14 +86,16 @@ export class TaskQueryRepository {
           // Show ALL tasks belonging to user (active + completed, non-archived)
           // Preset overrides any isCompleted query param
           filterCompleted = undefined;
-          where[Op.or] = [
-            { ownerId: userId },
-            { createdById: userId },
-            this.taskModel.sequelize.literal(`EXISTS (
-              SELECT 1 FROM "task_assignees" AS "assignees"
-              WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
-            )`)
-          ];
+          if (userId !== null) {
+            where[Op.or] = [
+              { ownerId: userId },
+              { createdById: userId },
+              this.taskModel.sequelize.literal(`EXISTS (
+                SELECT 1 FROM "task_assignees" AS "assignees"
+                WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
+              )`)
+            ];
+          }
           break;
         case 'overdue_tasks':
           where.dueDate = { [Op.lt]: now };
@@ -110,7 +114,7 @@ export class TaskQueryRepository {
     }
 
     // If user does NOT have task:view_all permission, scope ALL views to user's own tasks
-    if (!hasViewAll && userId) {
+    if (!hasViewAll && userId !== null) {
       const userCondition = [
         { ownerId: userId },
         { createdById: userId },

@@ -681,9 +681,13 @@ export class TasksService {
     }
   }
 
-  private buildBulkWhere(clientId: number, dto: any): any {
+  private buildBulkWhere(clientId: number, dto: any, userId?: number): any {
     if (dto.selectAll) {
-      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, dto.filters);
+      const filters = { ...dto.filters };
+      if (userId && (filters.userId === undefined || filters.userId === null)) {
+        filters.userId = userId;
+      }
+      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, filters);
       
       if (dto.excludedIds && dto.excludedIds.length > 0) {
         where.id = { [Op.notIn]: dto.excludedIds };
@@ -729,7 +733,7 @@ export class TasksService {
   async bulkArchive(clientId: number, userId: number, dto: BulkArchiveDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto);
+      const where = this.buildBulkWhere(clientId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,
@@ -777,7 +781,7 @@ export class TasksService {
   async bulkChangeStatus(clientId: number, userId: number, dto: BulkStatusDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto);
+      const where = this.buildBulkWhere(clientId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,
@@ -838,7 +842,7 @@ export class TasksService {
   async bulkDelete(clientId: number, userId: number, dto: BulkActionDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto);
+      const where = this.buildBulkWhere(clientId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,

@@ -5,6 +5,7 @@ import { PartnerFollowUp } from './partner-followup.model';
 import { CreatePartnerFollowUpDto } from './dto/create-partner-followup.dto';
 import { UpdatePartnerFollowUpDto } from './dto/update-partner-followup.dto';
 import { AuditService } from '../../audit/services/audit.service';
+import { FollowUpNotificationService } from '../../follow-up-management/services/follow-up-notification.service';
 
 @Injectable()
 export class PartnerFollowUpService {
@@ -13,6 +14,7 @@ export class PartnerFollowUpService {
     private readonly partnerFollowUpModel: typeof PartnerFollowUp,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
+    private readonly followUpNotificationService: FollowUpNotificationService,
   ) {}
 
   private async syncEnquiryStatus(enquiryId: string, followUpStatus: string) {
@@ -53,6 +55,10 @@ export class PartnerFollowUpService {
       await this.syncEnquiryStatus(enquiryId, dto.status);
     }
 
+    if (followUp.workspaceId && followUp.createdBy) {
+      await this.followUpNotificationService.checkAndSendUserReminders(followUp.createdBy, followUp.workspaceId);
+    }
+
     return followUp;
   }
 
@@ -89,6 +95,13 @@ export class PartnerFollowUpService {
     if (enquiryId && dto.status) {
       await this.syncEnquiryStatus(enquiryId, dto.status);
     }
+
+    if (followUp.workspaceId && followUp.createdBy) {
+      // Delete any existing notification for this follow-up so it gets recreated with fresh details
+      await this.followUpNotificationService.deleteNotificationForFollowUp(followUp.id);
+      await this.followUpNotificationService.checkAndSendUserReminders(followUp.createdBy, followUp.workspaceId);
+    }
+
     return followUp;
   }
 

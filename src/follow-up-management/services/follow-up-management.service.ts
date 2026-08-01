@@ -337,6 +337,12 @@ export class FollowUpManagementService {
       await this.syncEnquiryStatus(enquiryId.toString(), 'Pending');
     }
 
+    // Delete any existing notification for this follow-up so it gets recreated with fresh details
+    await this.followUpNotificationService.deleteNotificationForFollowUp(followUp.id);
+
+    // Trigger reminder check to send notification immediately if scheduled for today
+    await this.followUpNotificationService.checkAndSendUserReminders(userId, companyId);
+
     return followUp;
   }
 

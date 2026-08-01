@@ -44,9 +44,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Session has been revoked or expired');
     }
 
+    const companyId = req.headers['x-company-id'];
+
     let employeeId: number | null = null;
     if (payload.userId) {
-      const companyId = req.headers['x-company-id'];
       let queryStr = `SELECT id FROM "employees" WHERE "userId" = :userId`;
       const replacements: any = { userId: payload.userId };
 
@@ -94,15 +95,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
+    let activeClientId = payload.clientId;
+    if (companyId && payload.type === 'super_admin') {
+      const company = (await this.userSessionModel.sequelize.query(
+        `SELECT "clientId" FROM "companies" WHERE id = :companyId LIMIT 1;`,
+        {
+          replacements: { companyId: parseInt(companyId, 10) },
+          type: 'SELECT',
+        }
+      )) as any[];
+      if (company && company.length > 0) {
+        activeClientId = company[0].clientId;
+      }
+    }
+
     return {
       id: payload.sub,
       sub: payload.sub,
       userId: payload.userId,
-      clientId: payload.clientId,
+      clientId: activeClientId,
       email: payload.email,
       type: payload.type,
       sessionId: payload.sessionId,
       employeeId,
+      companyId: companyId ? parseInt(companyId, 10) : null,
     };
   }
 }
