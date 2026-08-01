@@ -126,6 +126,16 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.INTEGER })
   declare defaultBreakMinutes: number;
 
+  @Default('13:00')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare defaultBreakStartTime: string;
+
+  @Default('13:30')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare defaultBreakEndTime: string;
+
   @Default(false)
   @AllowNull(false)
   @Column({ type: DataType.BOOLEAN })

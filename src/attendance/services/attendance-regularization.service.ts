@@ -431,10 +431,19 @@ export class AttendanceRegularizationService {
           }
         }
 
-        // If no break logs exist, deduct shift default breakMinutes or policy defaultBreakMinutes
+        // If no break logs exist, deduct shift default breakMinutes or policy defaultBreakMinutes ONLY if check-in was at/before break start
         if (!breakLogsExist) {
           const defaultBreakMins = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);
-          breakDurationMs = (defaultBreakMins || 0) * 60 * 1000;
+          const breakStartStr = policy?.defaultBreakStartTime || '13:00';
+          const checkInMins = finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
+          const [bH, bM] = breakStartStr.split(':').map((n) => parseInt(n, 10));
+          const breakStartMins = (bH || 13) * 60 + (bM || 0);
+
+          if (checkInMins <= breakStartMins) {
+            breakDurationMs = (defaultBreakMins || 0) * 60 * 1000;
+          } else {
+            breakDurationMs = 0;
+          }
         }
 
         const breakMinutes = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);

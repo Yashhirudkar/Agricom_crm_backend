@@ -16,6 +16,7 @@ import * as phase15 from './phase-15-task-performance-indexes';
 import * as phase16 from './phase-16-attendance-leave-conflict';
 import * as phase17 from './phase-17-attendance-reminder-preferences';
 import * as phase18 from './phase-18-company-hr-policy-break-minutes';
+import * as phase19 from './phase-19-company-hr-policy-break-start-end';
 
 export interface MigrationPhase {
   phase: string;
@@ -47,6 +48,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase16,
   phase17,
   phase18,
+  phase19,
 ];
 
 

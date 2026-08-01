@@ -91,4 +91,12 @@ export class UpsertCompanyHrPolicyDto {
   @Type(() => Number)
   @IsNumber()
   defaultBreakMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  defaultBreakStartTime?: string;
+
+  @IsOptional()
+  @IsString()
+  defaultBreakEndTime?: string;
 }

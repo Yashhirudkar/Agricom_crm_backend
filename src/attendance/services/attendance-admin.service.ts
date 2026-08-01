@@ -167,19 +167,34 @@ export class AttendanceAdminService {
       }
 
       if (finalCheckIn && finalCheckOut) {
-        let breakMinutes = 30;
+        let breakMinutes = 0;
+        let expectedBreakMins = 30;
+        let breakStartStr = '13:00';
+
         if (record.shiftId) {
           const shift = await this.shiftModel.findByPk(record.shiftId, {
             transaction: t,
           });
-          if (shift) breakMinutes = shift.breakMinutes;
+          if (shift) {
+            expectedBreakMins = shift.breakMinutes;
+          }
         } else {
           const policy = await this.policyModel.findOne({
             where: { companyId },
             transaction: t,
           });
-          breakMinutes = policy?.defaultBreakMinutes ?? 30;
+          expectedBreakMins = policy?.defaultBreakMinutes ?? 30;
+          breakStartStr = policy?.defaultBreakStartTime || '13:00';
         }
+
+        const checkInMins = finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
+        const [bH, bM] = breakStartStr.split(':').map((n) => parseInt(n, 10));
+        const breakStartMins = (bH || 13) * 60 + (bM || 0);
+
+        if (checkInMins <= breakStartMins) {
+          breakMinutes = expectedBreakMins;
+        }
+
         const totalDurationMs =
           finalCheckOut.getTime() - finalCheckIn.getTime();
         updateData.totalHours = Math.max(
