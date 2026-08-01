@@ -398,6 +398,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: 'enquiries:read',
         },
+        {
+          name: 'Follow-ups',
+          route: '/follow-ups',
+          icon_name: 'CalendarDays',
+          folder_id: enquiriesFolder.id,
+          sort_order: 30,
+          is_active: true,
+          permission_link: 'follow_up:read',
+        },
       ] as any[]);
 
       // 8. Sales
