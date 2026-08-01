@@ -16,6 +16,7 @@ import {
   AttendanceActionType,
 } from '../models/attendance-log.model';
 import { Shift } from '../models/shift.model';
+import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { EmployeeLeaveBalance } from '../../hrms/models/employee-leave-balance.model';
 import { LeaveType } from '../../hrms/models/leave-type.model';
@@ -33,6 +34,8 @@ export class AttendanceAdminService {
     private readonly logModel: typeof AttendanceLog,
     @InjectModel(Shift)
     private readonly shiftModel: typeof Shift,
+    @InjectModel(CompanyHrPolicy)
+    private readonly policyModel: typeof CompanyHrPolicy,
     @InjectModel(Employee)
     private readonly employeeModel: typeof Employee,
     @InjectModel(EmployeeLeaveBalance)
@@ -164,12 +167,18 @@ export class AttendanceAdminService {
       }
 
       if (finalCheckIn && finalCheckOut) {
-        let breakMinutes = 60;
+        let breakMinutes = 30;
         if (record.shiftId) {
           const shift = await this.shiftModel.findByPk(record.shiftId, {
             transaction: t,
           });
           if (shift) breakMinutes = shift.breakMinutes;
+        } else {
+          const policy = await this.policyModel.findOne({
+            where: { companyId },
+            transaction: t,
+          });
+          breakMinutes = policy?.defaultBreakMinutes ?? 30;
         }
         const totalDurationMs =
           finalCheckOut.getTime() - finalCheckIn.getTime();

@@ -232,4 +232,10 @@ export class AttendanceGateway
       .to(`company-${companyId}`)
       .emit('attendance-batch-update', serializedRecords);
   }
+
+  emitRegularizationUpdate(companyId: number, data: any) {
+    this.server
+      .to(`company-${companyId}`)
+      .emit('regularization-update', data);
+  }
 }

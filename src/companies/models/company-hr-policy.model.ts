@@ -101,7 +101,7 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.BOOLEAN })
   declare allowAttendanceCorrection: boolean;
 
-  @Default(3)
+  @Default(30)
   @AllowNull(false)
   @Column({ type: DataType.INTEGER })
   declare maxCorrectionDays: number;
@@ -120,6 +120,11 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @AllowNull(false)
   @Column({ type: DataType.STRING })
   declare defaultShiftEndTime: string;
+
+  @Default(30)
+  @AllowNull(false)
+  @Column({ type: DataType.INTEGER })
+  declare defaultBreakMinutes: number;
 
   @Default(false)
   @AllowNull(false)

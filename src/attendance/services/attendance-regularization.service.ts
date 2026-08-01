@@ -37,7 +37,9 @@ import { Op } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
 import { AttendanceHelperService } from './attendance-helper.service';
 import { User } from '../../users/models/user.model';
+import { UserCompany } from '../../users/models/user-company.model';
 import { Designation } from '../../hrms/models/designation.model';
+import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class AttendanceRegularizationService {
@@ -56,9 +58,46 @@ export class AttendanceRegularizationService {
     private readonly policyModel: typeof CompanyHrPolicy,
     @InjectModel(LeaveRequest)
     private readonly leaveRequestModel: typeof LeaveRequest,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
+    @InjectModel(UserCompany)
+    private readonly userCompanyModel: typeof UserCompany,
     private readonly attendanceGateway: AttendanceGateway,
     private readonly helperService: AttendanceHelperService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async getApproverUserIds(
+    companyId: number,
+    managerId?: number,
+    requesterUserId?: number,
+  ): Promise<number[]> {
+    const approverUserIds = new Set<number>();
+
+    // 1. Direct Manager's User ID
+    if (managerId) {
+      const managerEmployee = await this.employeeModel.findByPk(managerId, {
+        attributes: ['id', 'userId'],
+      });
+      if (managerEmployee?.userId && managerEmployee.userId !== requesterUserId) {
+        approverUserIds.add(managerEmployee.userId);
+      }
+    }
+
+    // 2. Admins / HR Users for this company via UserCompany
+    const userCompanies = await this.userCompanyModel.findAll({
+      where: { companyId, status: 'Active' },
+      attributes: ['userId'],
+    });
+
+    for (const uc of userCompanies) {
+      if (uc.userId && uc.userId !== requesterUserId) {
+        approverUserIds.add(uc.userId);
+      }
+    }
+
+    return Array.from(approverUserIds);
+  }
 
   // 5. Attendance Correction Request
   async requestCorrection(
@@ -100,7 +139,7 @@ export class AttendanceRegularizationService {
     const todayDate = new Date(todayDateStr);
     const requestDate = new Date(dto.date);
 
-    const maxDays = policy.maxCorrectionDays ?? 3;
+    const maxDays = policy.maxCorrectionDays && policy.maxCorrectionDays > 3 ? policy.maxCorrectionDays : 30;
     const diffTime = Math.abs(todayDate.getTime() - requestDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -154,7 +193,7 @@ export class AttendanceRegularizationService {
       );
     }
 
-    return this.exceptionModel.create({
+    const createdException = await this.exceptionModel.create({
       employeeId,
       attendanceRecordId: record ? record.id : null,
       type: dto.requestType,
@@ -166,6 +205,59 @@ export class AttendanceRegularizationService {
         date: dto.date,
       },
     });
+
+    try {
+      const fullEmployee = await this.employeeModel.findByPk(employeeId, {
+        include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+      });
+      const requesterUserId = fullEmployee?.userId || null;
+      const requesterName =
+        fullEmployee?.user?.name || `Employee #${employeeId}`;
+
+      const recipientIds = await this.getApproverUserIds(
+        companyId,
+        fullEmployee?.managerId,
+        requesterUserId,
+      );
+
+      if (recipientIds.length > 0) {
+        await this.notificationsService.createNotification({
+          recipients: recipientIds,
+          type: NotificationType.HR,
+          referenceType: 'regularization_request',
+          referenceId: createdException.id,
+          title: '📌 Attendance Regularization Request',
+          payload: {
+            exceptionId: createdException.id,
+            employeeId,
+            employeeName: requesterName,
+            date: dto.date,
+            reason: dto.reason,
+            url: '/attendance/corrections',
+            message: `${requesterName} requested attendance regularization for ${dto.date}.`,
+          },
+          category: 'ATTENDANCE',
+        });
+      }
+    } catch (notifErr) {
+      console.error(
+        '[AttendanceRegularizationService] Failed to send regularization request notification:',
+        notifErr,
+      );
+    }
+
+    try {
+      this.attendanceGateway.emitRegularizationUpdate(companyId, {
+        action: 'regularization_created',
+        exceptionId: createdException.id,
+        employeeId,
+        companyId,
+      });
+    } catch (socketErr) {
+      console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
+    }
+
+    return createdException;
   }
 
   // 6. Approve Correction Request
@@ -270,7 +362,7 @@ export class AttendanceRegularizationService {
         shift = {
           startTime: policy?.defaultShiftStartTime || '09:00',
           endTime: policy?.defaultShiftEndTime || '18:00',
-          breakMinutes: 60,
+          breakMinutes: policy?.defaultBreakMinutes ?? 30,
           gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
           weeklyOffDays: policy?.weeklyOffDays || [0, 6],
         };
@@ -339,12 +431,13 @@ export class AttendanceRegularizationService {
           }
         }
 
-        // If no break logs exist, deduct shift default breakMinutes
-        if (!breakLogsExist && shift) {
-          breakDurationMs = (shift.breakMinutes || 0) * 60 * 1000;
+        // If no break logs exist, deduct shift default breakMinutes or policy defaultBreakMinutes
+        if (!breakLogsExist) {
+          const defaultBreakMins = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);
+          breakDurationMs = (defaultBreakMins || 0) * 60 * 1000;
         }
 
-        const breakMinutes = shift.breakMinutes || 0;
+        const breakMinutes = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);
         const totalDurationMs =
           finalCheckOut.getTime() - finalCheckIn.getTime();
         totalHours = Math.max(
@@ -522,7 +615,49 @@ export class AttendanceRegularizationService {
         freshRecord,
       );
 
+      try {
+        this.attendanceGateway.emitRegularizationUpdate(companyId, {
+          action: 'regularization_approved',
+          exceptionId: exception.id,
+          employeeId: exception.employeeId,
+          companyId,
+        });
+      } catch (socketErr) {
+        console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
+      }
+
       exception.setDataValue('attendanceRecord', freshRecord);
+
+      try {
+        const empWithUser = await this.employeeModel.findByPk(
+          exception.employeeId,
+          {
+            include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+          },
+        );
+        if (empWithUser?.userId) {
+          await this.notificationsService.createNotification({
+            recipients: [empWithUser.userId],
+            type: NotificationType.HR,
+            referenceType: 'regularization_approved',
+            referenceId: exception.id,
+            title: '✅ Attendance Regularization Approved',
+            payload: {
+              exceptionId: exception.id,
+              date: requestDateStr,
+              remarks: dto.remarks || 'Approved by Manager/Admin',
+              url: '/attendance/my-attendance',
+              message: `Your regularization request for ${requestDateStr} has been approved.`,
+            },
+            category: 'ATTENDANCE',
+          });
+        }
+      } catch (notifErr) {
+        console.error(
+          '[AttendanceRegularizationService] Failed to send approval notification:',
+          notifErr,
+        );
+      }
 
       console.log('BEFORE return exception');
       return exception;
@@ -609,6 +744,50 @@ export class AttendanceRegularizationService {
             console.error('Socket emit error in rejectCorrection:', err);
           }
         }
+      }
+
+      try {
+        const empWithUser = await this.employeeModel.findByPk(
+          lockedException.employeeId,
+          {
+            include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+          },
+        );
+        if (empWithUser?.userId) {
+          await this.notificationsService.createNotification({
+            recipients: [empWithUser.userId],
+            type: NotificationType.HR,
+            referenceType: 'regularization_rejected',
+            referenceId: lockedException.id,
+            title: '❌ Attendance Regularization Rejected',
+            payload: {
+              exceptionId: lockedException.id,
+              date: lockedException.metadata?.date || 'the requested date',
+              remarks: dto.remarks || 'Rejected by Manager/Admin',
+              url: '/attendance/my-attendance',
+              message: `Your regularization request for ${lockedException.metadata?.date || 'the requested date'} was rejected.`,
+            },
+            category: 'ATTENDANCE',
+          });
+        }
+      } catch (notifErr) {
+        console.error(
+          '[AttendanceRegularizationService] Failed to send rejection notification:',
+          notifErr,
+        );
+      }
+
+      try {
+        const empForCompany = lockedException.employee;
+        const compId = empForCompany?.companyId || 1;
+        this.attendanceGateway.emitRegularizationUpdate(compId, {
+          action: 'regularization_rejected',
+          exceptionId: lockedException.id,
+          employeeId: lockedException.employeeId,
+          companyId: compId,
+        });
+      } catch (socketErr) {
+        console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
       }
 
       return lockedException;

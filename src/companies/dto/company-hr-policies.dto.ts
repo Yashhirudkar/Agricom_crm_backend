@@ -86,4 +86,9 @@ export class UpsertCompanyHrPolicyDto {
   @IsOptional()
   @IsString()
   defaultShiftEndTime?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  defaultBreakMinutes?: number;
 }

@@ -140,7 +140,7 @@ export class AttendanceService {
         name: 'Default Shift',
         startTime: policy?.defaultShiftStartTime || '09:00',
         endTime: policy?.defaultShiftEndTime || '18:00',
-        breakMinutes: 60,
+        breakMinutes: policy?.defaultBreakMinutes ?? 30,
         gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
         weeklyOffDays: policy?.weeklyOffDays || [0, 6],
       };
@@ -397,7 +397,7 @@ export class AttendanceService {
         shift = {
           startTime: policy?.defaultShiftStartTime || '09:00',
           endTime: policy?.defaultShiftEndTime || '18:00',
-          breakMinutes: 60,
+          breakMinutes: policy?.defaultBreakMinutes ?? 30,
           gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
         };
       }
