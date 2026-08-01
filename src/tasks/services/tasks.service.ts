@@ -594,6 +594,11 @@ export class TasksService {
       }
 
       this.eventEmitter.emit('task.deleted', { taskId: id, clientId, userId });
+
+      this.triggerTaskNotification(id, clientId, 'Task Deleted', userId, task).catch((err) => {
+        console.error(`Failed to trigger task deleted notification: ${err.message}`);
+      });
+
       return { success: true };
     } catch (error) {
       await transaction.rollback();
@@ -625,6 +630,11 @@ export class TasksService {
       await transaction.commit();
 
       this.eventEmitter.emit('task.restored', { taskId: id, clientId, userId });
+
+      this.triggerTaskNotification(id, clientId, 'Task Restored', userId, task).catch((err) => {
+        console.error(`Failed to trigger task restored notification: ${err.message}`);
+      });
+
       return { success: true };
     } catch (error) {
       await transaction.rollback();
@@ -637,25 +647,34 @@ export class TasksService {
     clientId: number,
     title: string,
     actorId: number,
+    taskInstance?: any,
   ) {
     try {
-      const task = await this.taskModel.findOne({
-        where: { id: taskId, clientId },
-        include: [
-          { model: TaskStatus, as: 'status' },
-          { model: TaskAssignee, as: 'assignees' },
-        ],
-      });
+      const task =
+        taskInstance ||
+        (await this.taskModel.findOne({
+          where: { id: taskId, clientId },
+          paranoid: false,
+          include: [
+            { model: TaskStatus, as: 'status' },
+            { model: TaskAssignee, as: 'assignees' },
+          ],
+        }));
 
       if (!task) {
-        console.warn(`[triggerTaskNotification] Task not found with ID ${taskId} and clientID ${clientId}`);
+        console.warn(
+          `[triggerTaskNotification] Task not found with ID ${taskId} and clientID ${clientId}`,
+        );
         return;
       }
 
       const ownerId = task.ownerId;
-      const assigneeIds = task.assignees?.map((a) => a.userId) || [];
-      const recipients = [ownerId, ...assigneeIds].filter((id): id is number => !!id);
-      
+      const createdById = task.createdById;
+      const assigneeIds = task.assignees?.map((a: any) => a.userId) || [];
+      const recipients = Array.from(
+        new Set([ownerId, createdById, ...assigneeIds, actorId].filter((id): id is number => !!id)),
+      );
+
       const statusName = task.status?.name || 'Open';
 
       await this.notificationsService.createNotification(
@@ -668,16 +687,21 @@ export class TasksService {
           payload: {
             taskId,
             taskName: task.title,
-            status: statusName,
-            url: `/tasks/${taskId}`,
+            status: title === 'Task Deleted' ? 'Deleted' : statusName,
+            url: `/tasks`,
             icon: 'task',
           },
         },
         actorId,
       );
-      console.log(`[triggerTaskNotification] notificationsService.createNotification call completed successfully.`);
+      console.log(
+        `[triggerTaskNotification] notificationsService.createNotification call completed successfully for action: ${title}`,
+      );
     } catch (err) {
-      console.error(`[triggerTaskNotification] Error triggering notification: ${err.message}`, err);
+      console.error(
+        `[triggerTaskNotification] Error triggering notification: ${err.message}`,
+        err,
+      );
     }
   }
 
@@ -846,7 +870,8 @@ export class TasksService {
       
       const tasks = await this.taskModel.findAll({
         where,
-        attributes: ['id', 'ownerId', 'createdById'],
+        attributes: ['id', 'ownerId', 'createdById', 'title'],
+        include: [{ model: TaskAssignee, as: 'assignees' }],
         transaction,
       });
 
@@ -872,6 +897,13 @@ export class TasksService {
       }
 
       await transaction.commit();
+
+      for (const task of tasks) {
+        this.triggerTaskNotification(task.id, clientId, 'Task Deleted', userId, task).catch((err) => {
+          console.error(`Failed to trigger task deleted notification for task ${task.id}: ${err.message}`);
+        });
+      }
+
       return { success: true, count: matchedIds.length };
     } catch (error) {
       await transaction.rollback();
