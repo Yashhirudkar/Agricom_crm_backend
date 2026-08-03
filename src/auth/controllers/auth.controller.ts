@@ -295,6 +295,8 @@ export class AuthController {
         }
       : { name: 'Agricom', logoUrl: null };
 
+    const prefs = await this.profileService.getPreferences(userId).catch(() => null);
+
     return {
       id: user.id,
       name: user.name,
@@ -314,6 +316,7 @@ export class AuthController {
       permissions,
       company: companyData,
       employeeId: req.user.employeeId || null,
+      birthdayMetadata: prefs?.birthdayMetadata || null,
     };
   }
 

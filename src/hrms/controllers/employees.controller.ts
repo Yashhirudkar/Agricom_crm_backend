@@ -98,6 +98,12 @@ export class EmployeesController {
     return this.employeesService.getOrgChart(companyId);
   }
 
+  @Get('today-birthdays')
+  getTodayBirthdays(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.employeesService.getTodayBirthdays(companyId);
+  }
+
   @Get(':id')
   @RequirePermission('employees:read')
   async getEmployeeById(@Param('id', ParseIntPipe) id: number, @Request() req) {

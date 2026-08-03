@@ -69,6 +69,9 @@ export class UserPreference extends Model<UserPreference> {
   @Column({ type: DataType.STRING(50), allowNull: false })
   declare theme: string;
 
+  @Column({ type: DataType.JSONB, allowNull: true })
+  declare birthdayMetadata: any;
+
   @CreatedAt
   declare createdAt: Date;
 

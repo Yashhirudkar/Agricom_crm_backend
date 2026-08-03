@@ -644,6 +644,30 @@ export class EmployeesService {
     };
   }
 
+  async getTodayBirthdays(companyId: number): Promise<Employee[]> {
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    const [, currentMonth, currentDay] = todayStr.split('-');
+
+    const employees = await this.employeeModel.findAll({
+      where: {
+        companyId,
+        status: {
+          [Op.notIn]: [EmployeeStatus.TERMINATED, EmployeeStatus.RESIGNED],
+        },
+      },
+      attributes: ['id', 'firstName', 'lastName', 'email', 'dob', 'userId'],
+    });
+
+    return employees.filter((emp) => {
+      if (!emp.dob) return false;
+      const dobStr = typeof emp.dob === 'string'
+        ? emp.dob
+        : (emp.dob as any).toISOString().split('T')[0];
+      const [, dobMonth, dobDay] = dobStr.split('-');
+      return dobMonth === currentMonth && dobDay === currentDay;
+    });
+  }
+
   async getEmployeeById(id: number, companyId: number): Promise<Employee> {
     const employee = await this.employeeModel.findOne({
       where: { id, companyId },

@@ -375,6 +375,10 @@ export class ProfileService {
           ? dto.desktopNotificationsEnabled
           : prefs.desktopNotificationsEnabled,
       theme: dto.theme !== undefined ? dto.theme : prefs.theme,
+      birthdayMetadata:
+        dto.birthdayMetadata !== undefined
+          ? dto.birthdayMetadata
+          : prefs.birthdayMetadata,
     });
 
     await prefs.reload();

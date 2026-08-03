@@ -36,4 +36,7 @@ export class UpdatePreferencesDto {
   @IsOptional()
   @IsString()
   updatedAt?: Date; // For optimistic locking
+
+  @IsOptional()
+  birthdayMetadata?: any;
 }
