@@ -1,0 +1,709 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Conversation } from '../models/conversation.model';
+import { ConversationSetting } from '../models/conversation-setting.model';
+import { ConversationMember } from '../models/conversation-member.model';
+import { Message } from '../models/message.model';
+import { MessageReaction } from '../models/message-reaction.model';
+import { MessageAttachment } from '../models/message-attachment.model';
+import { MessageMention } from '../models/message-mention.model';
+import { MessageReadState } from '../models/message-read-state.model';
+import { MessageVersion } from '../models/message-version.model';
+import { User } from '../../users/models/user.model';
+import { Attachment } from '../../attachments/models/attachment.model';
+import { SendMessageDto, ReactMessageDto } from '../dto/chat.dto';
+import { MessageType, MemberRole } from '../constants/chat.constants';
+import { AuditService } from '../../audit/services/audit.service';
+import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import { ConversationSummaryService } from './conversation-summary.service';
+import {
+  ChatEventNames,
+  MessageCreatedEvent,
+  MessageUpdatedEvent,
+  MessageDeletedEvent,
+  MessageReactedEvent,
+  MessageReadEvent,
+} from '../events/chat.events';
+import { Op } from 'sequelize';
+
+@Injectable()
+export class MessageService implements OnModuleDestroy {
+  private readonly logger = new Logger(MessageService.name);
+  private cleanupTimer: NodeJS.Timeout | null = null;
+
+  // In-memory idempotency cache for duplicate prevention during retries (60s TTL)
+  private readonly idempotencyCache = new Map<
+    string,
+    { message: Message; timestamp: number }
+  >();
+
+  constructor(
+    @InjectModel(Conversation)
+    private readonly conversationModel: typeof Conversation,
+    @InjectModel(ConversationMember)
+    private readonly memberModel: typeof ConversationMember,
+    @InjectModel(Message)
+    private readonly messageModel: typeof Message,
+    @InjectModel(MessageReaction)
+    private readonly reactionModel: typeof MessageReaction,
+    @InjectModel(MessageAttachment)
+    private readonly messageAttachmentModel: typeof MessageAttachment,
+    @InjectModel(MessageMention)
+    private readonly mentionModel: typeof MessageMention,
+    @InjectModel(MessageReadState)
+    private readonly readStateModel: typeof MessageReadState,
+    @InjectModel(MessageVersion)
+    private readonly versionModel: typeof MessageVersion,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
+    @InjectModel(Attachment)
+    private readonly attachmentModel: typeof Attachment,
+    private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly summaryService: ConversationSummaryService,
+  ) {
+    // Periodic cleanup of idempotency cache every 5 minutes
+    this.cleanupTimer = setInterval(() => this.cleanupIdempotencyCache(), 5 * 60 * 1000);
+
+    // Self-healing database check: ensure "deletedAt" column exists on "message_read_states"
+    if (this.messageModel.sequelize) {
+      this.messageModel.sequelize
+        .query('ALTER TABLE message_read_states ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP WITH TIME ZONE;')
+        .then(() => {
+          this.logger.log('Database self-healing: ensure deletedAt column exists in message_read_states.');
+        })
+        .catch((err) => {
+          this.logger.error('Failed to run self-healing deletedAt column query: ' + err.message);
+        });
+    }
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  private cleanupIdempotencyCache() {
+    const now = Date.now();
+    for (const [key, val] of this.idempotencyCache.entries()) {
+      if (now - val.timestamp > 60 * 1000) {
+        this.idempotencyCache.delete(key);
+      }
+    }
+  }
+
+  private verifyPermissions(settings: ConversationSetting, type: MessageType) {
+    if (type === MessageType.VOICE && !settings.allowVoice) {
+      throw new ForbiddenException('Voice notes are disabled in this conversation.');
+    }
+    if (type === MessageType.VIDEO && !settings.allowVideo) {
+      throw new ForbiddenException('Video messages are disabled in this conversation.');
+    }
+    if (type === MessageType.POLL && !settings.allowPoll) {
+      throw new ForbiddenException('Polls are disabled in this conversation.');
+    }
+  }
+
+  async send(
+    conversationId: number,
+    companyId: number,
+    dto: SendMessageDto,
+    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    clientMessageId?: string,
+  ): Promise<Message> {
+    const senderId = actor.userId;
+
+    // Idempotency check: if clientMessageId was processed within last 60s, return cached message
+    if (clientMessageId) {
+      const cacheKey = `${senderId}:${conversationId}:${clientMessageId}`;
+      const cached = this.idempotencyCache.get(cacheKey);
+      if (cached) {
+        return cached.message;
+      }
+    }
+
+    // 1. Get conversation with settings
+    const conversation = await this.conversationModel.findOne({
+      where: { id: conversationId, companyId },
+      include: [ConversationSetting],
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found.');
+    }
+
+    // 2. Get sender membership
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId: senderId },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('You are not a member of this conversation.');
+    }
+
+    const isPrivileged = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR].includes(member.role);
+
+    // 3. Verify Locks and Mute duration
+    if (conversation.isLocked && !isPrivileged) {
+      throw new ForbiddenException('This conversation is locked by an administrator.');
+    }
+
+    if (conversation.announcementMode && !isPrivileged) {
+      throw new ForbiddenException('Only administrators can send messages in announcement channels.');
+    }
+
+    if (member.isMuted) {
+      if (member.mutedUntil && new Date() > member.mutedUntil) {
+        member.isMuted = false;
+        member.mutedUntil = null;
+        await member.save();
+      } else {
+        throw new ForbiddenException('You are muted in this conversation.');
+      }
+    }
+
+    // 4. Verify message type permissions
+    if (conversation.settings) {
+      this.verifyPermissions(conversation.settings, dto.type);
+    }
+
+    let createdMessageId: number;
+    const mentionedUserIds = new Set<number>();
+
+    const t = await this.messageModel.sequelize.transaction();
+    try {
+      // 5. Create Message
+      const message = await this.messageModel.create(
+        {
+          conversationId,
+          senderId,
+          content: dto.content || null,
+          type: dto.type,
+          payload: dto.payload || null,
+          isEdited: false,
+          version: 1,
+          parentId: dto.parentId || null,
+          isDeleted: false,
+        } as any,
+        { transaction: t },
+      );
+
+      createdMessageId = message.id;
+
+      // 6. Handle Attachments
+      if (dto.attachmentId) {
+        const attachment = await this.attachmentModel.findByPk(dto.attachmentId, { transaction: t });
+        if (!attachment) {
+          throw new NotFoundException('Attachment not found.');
+        }
+
+        if (conversation.settings && conversation.settings.maxUploadSize) {
+          if (attachment.fileSize > conversation.settings.maxUploadSize) {
+            throw new BadRequestException('Attached file size exceeds channel limit.');
+          }
+        }
+
+        await this.messageAttachmentModel.create(
+          {
+            messageId: message.id,
+            attachmentId: dto.attachmentId,
+          } as any,
+          { transaction: t },
+        );
+
+        message.payload = {
+          ...message.payload,
+          attachmentId: attachment.id,
+          originalName: attachment.originalName,
+          mimeType: attachment.mimeType,
+          fileSize: attachment.fileSize,
+        };
+        await message.save({ transaction: t });
+      }
+
+      // 7. Handle Mentions
+      if (dto.content) {
+        const mentionRegex = /@\[(\d+)\]/g;
+        let match;
+        while ((match = mentionRegex.exec(dto.content)) !== null) {
+          mentionedUserIds.add(parseInt(match[1], 10));
+        }
+      }
+
+      for (const mentionedId of mentionedUserIds) {
+        const isUserInRoom = await this.memberModel.findOne({
+          where: { conversationId, userId: mentionedId },
+          transaction: t,
+        });
+
+        if (isUserInRoom) {
+          await this.mentionModel.create(
+            {
+              messageId: message.id,
+              userId: mentionedId,
+            } as any,
+            { transaction: t },
+          );
+        }
+      }
+
+      // 8. Auto-mark read for sender
+      member.lastReadMessageId = message.id;
+      await member.save({ transaction: t });
+
+      await this.readStateModel.create(
+        {
+          userId: senderId,
+          messageId: message.id,
+          isRead: true,
+          readAt: new Date(),
+        } as any,
+        { transaction: t },
+      );
+
+      // COMMIT TRANSACTION
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    // ------------------------------------------------------------------------
+    // AFTER COMMIT: Load rich metadata, emit domain event & notifications
+    // ------------------------------------------------------------------------
+    const fullMessage = await this.messageModel.findByPk(createdMessageId, {
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'email', 'avatarUrl'],
+        },
+        {
+          model: MessageAttachment,
+          include: [Attachment],
+        },
+      ],
+    });
+
+    const resultMessage = fullMessage || (await this.messageModel.findByPk(createdMessageId));
+
+    // Cache for idempotency
+    if (clientMessageId) {
+      const cacheKey = `${senderId}:${conversationId}:${clientMessageId}`;
+      this.idempotencyCache.set(cacheKey, {
+        message: resultMessage,
+        timestamp: Date.now(),
+      });
+    }
+
+    // Record conversation summary activity
+    await this.summaryService.recordNewMessage(conversationId, resultMessage);
+
+    // EMIT DOMAIN EVENT STRICTLY AFTER COMMIT
+    this.eventEmitter.emit(
+      ChatEventNames.MESSAGE_CREATED,
+      new MessageCreatedEvent(conversationId, companyId, resultMessage, clientMessageId),
+    );
+
+    // Asynchronously dispatch notifications to members
+    this.dispatchMessageNotifications(conversation, resultMessage, senderId, mentionedUserIds, dto.content);
+
+    return resultMessage;
+  }
+
+  private async dispatchMessageNotifications(
+    conversation: Conversation,
+    message: Message,
+    senderId: number,
+    mentionedUserIds: Set<number>,
+    content?: string,
+  ) {
+    try {
+      const activeMembers = await this.memberModel.findAll({
+        where: { conversationId: conversation.id, userId: { [Op.ne]: senderId } },
+      });
+      const recipients = activeMembers.map((m) => m.userId);
+
+      if (recipients.length > 0) {
+        const mentionRecipients = Array.from(mentionedUserIds).filter((id) => recipients.includes(id));
+        const regularRecipients = recipients.filter((id) => !mentionRecipients.includes(id));
+
+        if (mentionRecipients.length > 0) {
+          await this.notificationsService.createNotification(
+            {
+              recipients: mentionRecipients,
+              type: NotificationType.CHAT,
+              referenceType: 'message',
+              referenceId: message.id,
+              title: `You were tagged in: ${conversation.name || 'Conversation'}`,
+              category: 'SYSTEM',
+              payload: { conversationId: conversation.id, senderId, snippet: content },
+            },
+            senderId,
+          );
+        }
+
+        if (regularRecipients.length > 0) {
+          await this.notificationsService.createNotification(
+            {
+              recipients: regularRecipients,
+              type: NotificationType.CHAT,
+              referenceType: 'message',
+              referenceId: message.id,
+              title: `New message in: ${conversation.name || 'Conversation'}`,
+              category: 'SYSTEM',
+              payload: { conversationId: conversation.id, senderId, snippet: content },
+            },
+            senderId,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Failed to dispatch message notification: ${err.message}`);
+    }
+  }
+
+  async edit(
+    conversationId: number,
+    messageId: number,
+    content: string,
+    companyId: number,
+    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+  ): Promise<Message> {
+    const message = await this.messageModel.findOne({
+      where: { id: messageId, conversationId },
+      include: [{ model: Conversation, where: { companyId } }],
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    if (message.senderId !== actor.userId) {
+      throw new ForbiddenException('You can only edit your own messages.');
+    }
+
+    if (message.isDeleted) {
+      throw new BadRequestException('Cannot edit a deleted message.');
+    }
+
+    const t = await this.messageModel.sequelize.transaction();
+    try {
+      // Snapshot previous version for audit and compliance
+      await this.versionModel.create(
+        {
+          messageId: message.id,
+          version: message.version,
+          content: message.content,
+          payload: message.payload,
+          editedBy: actor.userId,
+        } as any,
+        { transaction: t },
+      );
+
+      message.content = content;
+      message.isEdited = true;
+      message.version += 1;
+      await message.save({ transaction: t });
+
+      await this.auditService.writeLog({
+        clientId: actor.clientId || null,
+        companyId,
+        userId: actor.userId,
+        action: 'EDIT_MESSAGE',
+        entityType: 'MESSAGE',
+        entityId: message.id,
+        newValue: { conversationId, newVersion: message.version },
+      });
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    // EMIT DOMAIN EVENT STRICTLY AFTER COMMIT / PERSISTENCE
+    this.eventEmitter.emit(
+      ChatEventNames.MESSAGE_UPDATED,
+      new MessageUpdatedEvent(conversationId, companyId, messageId, message),
+    );
+
+    return message;
+  }
+
+  async getMessageVersions(messageId: number, companyId: number): Promise<MessageVersion[]> {
+    const message = await this.messageModel.findOne({
+      where: { id: messageId },
+      include: [{ model: Conversation, where: { companyId } }],
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    return this.versionModel.findAll({
+      where: { messageId },
+      order: [['version', 'ASC']],
+      include: [{ model: User, as: 'editor', attributes: ['id', 'name', 'email'] }],
+    });
+  }
+
+  async delete(
+    conversationId: number,
+    messageId: number,
+    mode: 'everyone' | 'me',
+    companyId: number,
+    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+  ): Promise<void> {
+    const message = await this.messageModel.findOne({
+      where: { id: messageId, conversationId },
+      include: [{ model: Conversation, where: { companyId } }],
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId: actor.userId },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Access denied.');
+    }
+
+    const isSender = message.senderId === actor.userId;
+    const isModerator = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR].includes(member.role);
+
+    if (mode === 'everyone') {
+      if (!isSender && !isModerator) {
+        throw new ForbiddenException('You do not have permission to delete this message for everyone.');
+      }
+
+      message.isDeleted = true;
+      message.deletedBy = actor.userId;
+      message.deletedAt = new Date();
+      await message.save();
+
+      // Write Audit Log
+      await this.auditService.writeLog({
+        clientId: actor.clientId,
+        companyId,
+        userId: actor.userId,
+        entityType: 'Message',
+        entityId: message.id,
+        action: 'DELETE_FOR_EVERYONE',
+        newValue: { deletedBy: actor.userId },
+        ipAddress: actor.ipAddress,
+        userAgent: actor.userAgent,
+      });
+
+      // EMIT DOMAIN EVENT
+      this.eventEmitter.emit(
+        ChatEventNames.MESSAGE_DELETED,
+        new MessageDeletedEvent(conversationId, companyId, messageId, actor.userId, 'everyone'),
+      );
+    } else {
+      // Delete for Me
+      await this.readStateModel.upsert({
+        userId: actor.userId,
+        messageId,
+        isRead: true,
+        readAt: new Date(),
+        deletedAt: new Date(),
+      } as any);
+
+      this.eventEmitter.emit(
+        ChatEventNames.MESSAGE_DELETED,
+        new MessageDeletedEvent(conversationId, companyId, messageId, actor.userId, 'me'),
+      );
+    }
+  }
+
+  async react(
+    conversationId: number,
+    messageId: number,
+    dto: ReactMessageDto,
+    companyId: number,
+    actor: { userId: number; clientId: number | null },
+  ): Promise<MessageReaction> {
+    const message = await this.messageModel.findOne({
+      where: { id: messageId, conversationId },
+      include: [{ model: Conversation, where: { companyId } }],
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found.');
+    }
+
+    const userId = actor.userId;
+
+    const existing = await this.reactionModel.findOne({
+      where: { messageId, userId, reaction: dto.reaction },
+    });
+
+    let reactionRecord: MessageReaction;
+    if (existing) {
+      await existing.destroy();
+      reactionRecord = existing;
+    } else {
+      reactionRecord = await this.reactionModel.create({
+        messageId,
+        userId,
+        reaction: dto.reaction,
+      } as any);
+    }
+
+    // EMIT DOMAIN EVENT
+    this.eventEmitter.emit(
+      ChatEventNames.MESSAGE_REACTED,
+      new MessageReactedEvent(conversationId, companyId, messageId, userId, dto.reaction, reactionRecord),
+    );
+
+    return reactionRecord;
+  }
+
+  async markRead(conversationId: number, lastMessageId: number, userId: number): Promise<void> {
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId },
+      include: [Conversation],
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Not a member.');
+    }
+
+    member.lastReadMessageId = lastMessageId;
+    await member.save();
+
+    await this.readStateModel.upsert({
+      userId,
+      messageId: lastMessageId,
+      isRead: true,
+      readAt: new Date(),
+    } as any);
+
+    const companyId = (member as any).conversation?.companyId || 0;
+
+    // EMIT DOMAIN EVENT
+    this.eventEmitter.emit(
+      ChatEventNames.MESSAGE_READ,
+      new MessageReadEvent(conversationId, companyId, userId, lastMessageId),
+    );
+  }
+
+  async getHistory(
+    conversationId: number,
+    companyId: number,
+    userId: number,
+    cursor?: number,
+    limit: number = 30,
+  ) {
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('You are not authorized to view messages in this conversation.');
+    }
+
+    const where: any = {
+      conversationId,
+    };
+
+    const mutedStates = await this.readStateModel.findAll({
+      where: {
+        userId,
+        deletedAt: { [Op.ne]: null },
+      },
+      attributes: ['messageId'],
+    });
+
+    const mutedMessageIds = mutedStates.map((s) => s.messageId);
+    if (mutedMessageIds.length > 0) {
+      where.id = { [Op.notIn]: mutedMessageIds };
+    }
+
+    if (cursor) {
+      where.id = {
+        ...where.id,
+        [Op.lt]: cursor,
+      };
+    }
+
+    const messages = await this.messageModel.findAll({
+      where,
+      limit: limit + 1,
+      order: [['id', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'email', 'avatarUrl'],
+        },
+        {
+          model: MessageReaction,
+          attributes: ['userId', 'reaction'],
+        },
+      ],
+    });
+
+    const hasMore = messages.length > limit;
+    const items = hasMore ? messages.slice(0, limit) : messages;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
+
+    return {
+      data: items.reverse(),
+      meta: {
+        nextCursor,
+        hasMore,
+      },
+    };
+  }
+
+  /**
+   * Offline Sync catch-up: fetches messages newer than lastReceivedMessageId
+   */
+  async getMissedMessages(
+    conversationId: number,
+    lastReceivedMessageId: number,
+    userId: number,
+    limit: number = 50,
+  ): Promise<Message[]> {
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Not a member of this conversation.');
+    }
+
+    return this.messageModel.findAll({
+      where: {
+        conversationId,
+        id: { [Op.gt]: lastReceivedMessageId },
+        isDeleted: false,
+      },
+      order: [['id', 'ASC']],
+      limit,
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'email', 'avatarUrl'],
+        },
+      ],
+    });
+  }
+}

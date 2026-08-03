@@ -114,6 +114,30 @@ import {
   TaskLabelMap,
 } from './tasks/models';
 
+import { ChatModule } from './chat/chat.module';
+import {
+  Conversation,
+  ConversationSetting,
+  ConversationMember,
+  Message,
+  MessageReaction,
+  MessageAttachment,
+  MessageMention,
+  MessageReadState,
+  MessageVersion,
+  MessagePin,
+  MessagePoll,
+  MessagePollOption,
+  MessagePollVote,
+  ConversationDraft,
+  ConversationLabel,
+  ConversationLabelMap,
+  ConversationTemplate,
+  ChatPolicy,
+  ChatFeatureFlag,
+  ScheduledMessage,
+} from './chat/models';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -225,6 +249,26 @@ import {
             TaskLabel,
             TaskLabelMap,
             Notification,
+            Conversation,
+            ConversationSetting,
+            ConversationMember,
+            Message,
+            MessageReaction,
+            MessageAttachment,
+            MessageMention,
+            MessageReadState,
+            MessageVersion,
+            MessagePin,
+            MessagePoll,
+            MessagePollOption,
+            MessagePollVote,
+            ConversationDraft,
+            ConversationLabel,
+            ConversationLabelMap,
+            ConversationTemplate,
+            ChatPolicy,
+            ChatFeatureFlag,
+            ScheduledMessage,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -253,6 +297,7 @@ import {
     LocationsModule,
     NotificationsModule,
     FollowUpManagementModule,
+    ChatModule,
   ],
   providers: [
     {
