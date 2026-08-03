@@ -42,7 +42,7 @@ export class FollowUpManagementController {
   }
 
   @Get('dashboard/stats')
-  @RequirePermission('partner:view')
+  @RequirePermission('follow_up:view')
   async getDashboardStats(@Req() req: any) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
@@ -50,7 +50,7 @@ export class FollowUpManagementController {
   }
 
   @Get('dashboard/list')
-  @RequirePermission('partner:view')
+  @RequirePermission('follow_up:view')
   async getDashboardList(@Query() query: QueryFollowUpDto, @Req() req: any) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
@@ -58,7 +58,7 @@ export class FollowUpManagementController {
   }
 
   @Get('header')
-  @RequirePermission('partner:view')
+  @RequirePermission('follow_up:view')
   async getHeaderDrawer(@Req() req: any) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
@@ -66,7 +66,7 @@ export class FollowUpManagementController {
   }
 
   @Patch(':id/complete')
-  @RequirePermission('partner:followup')
+  @RequirePermission('follow_up:update')
   @HttpCode(HttpStatus.OK)
   async completeFollowUp(
     @Param('id', ParseIntPipe) id: number,
@@ -79,7 +79,7 @@ export class FollowUpManagementController {
   }
 
   @Patch(':id/reschedule')
-  @RequirePermission('partner:followup')
+  @RequirePermission('follow_up:update')
   @HttpCode(HttpStatus.OK)
   async rescheduleFollowUp(
     @Param('id', ParseIntPipe) id: number,

@@ -78,13 +78,23 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
 
       actionName = actionName.toUpperCase(); // e.g. create -> CREATE
 
+      // Normalize resourceName
+      if (resourceName === 'sales-contract' || resourceName === 'sales_contracts') {
+        resourceName = 'sales_contract';
+      }
+      if (resourceName === 'follow-up' || resourceName === 'follow_ups') {
+        resourceName = 'follow_up';
+      }
+
       let moduleName = resourceName
         .split('_')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
 
       // Map to desired frontend matrix modules
-      if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
+      if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
+      else if (resourceName === 'follow_up') moduleName = 'Follow Up';
+      else if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
       else if (resourceName === 'leave_requests' || resourceName === 'leave')
         moduleName = 'Leaves';
       else if (resourceName === 'leave_types') moduleName = 'Leave Types';

@@ -30,6 +30,14 @@ export function standardizePermission(permKey: string): {
     action = 'update';
   }
 
+  if (resource === 'sales_contracts' || resource === 'sales_contract') {
+    resource = 'sales-contract';
+  }
+
+  if (resource === 'follow-up' || resource === 'follow_ups') {
+    resource = 'follow_up';
+  }
+
   if (resource === 'manager' && action === 'approve_leave') {
     resource = 'leave';
     action = 'approve';

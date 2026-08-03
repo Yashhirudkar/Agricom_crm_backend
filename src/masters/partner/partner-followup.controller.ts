@@ -23,7 +23,7 @@ export class PartnerFollowUpController {
   constructor(private readonly partnerFollowUpService: PartnerFollowUpService) {}
 
   @Post()
-  @RequirePermission('partner:followup')
+  @RequirePermission('follow_up:create')
   create(
     @Param('partnerId') partnerId: string,
     @Body() dto: CreatePartnerFollowUpDto,
@@ -34,7 +34,7 @@ export class PartnerFollowUpController {
   }
 
   @Get()
-  @RequirePermission('partner:view')
+  @RequirePermission('follow_up:view')
   findAll(
     @Param('partnerId') partnerId: string,
     @Query('entityType') entityType?: string,
@@ -44,13 +44,13 @@ export class PartnerFollowUpController {
   }
 
   @Get(':id')
-  @RequirePermission('partner:view')
+  @RequirePermission('follow_up:view')
   findOne(@Param('id') id: string) {
     return this.partnerFollowUpService.findOne(+id);
   }
 
   @Patch(':id')
-  @RequirePermission('partner:followup')
+  @RequirePermission('follow_up:update')
   update(
     @Param('id') id: string,
     @Body() dto: UpdatePartnerFollowUpDto,
@@ -60,7 +60,7 @@ export class PartnerFollowUpController {
   }
 
   @Delete(':id')
-  @RequirePermission('partner:followup')
+  @RequirePermission('follow_up:delete')
   remove(@Param('id') id: string, @Req() req: any) {
     return this.partnerFollowUpService.remove(+id, req.user);
   }
