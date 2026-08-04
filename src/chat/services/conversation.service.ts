@@ -176,6 +176,7 @@ export class ConversationService implements OnModuleInit {
           clientId,
           companyId,
           name: dto.name || null,
+          description: dto.description || null,
           type: dto.type,
           entityType: dto.entityType || null,
           entityId: dto.entityId || null,
@@ -488,6 +489,7 @@ export class ConversationService implements OnModuleInit {
     const oldRecord = conversation.toJSON();
 
     if (dto.name !== undefined) conversation.name = dto.name;
+    if (dto.description !== undefined) conversation.description = dto.description;
     if (dto.isArchived !== undefined) {
       conversation.isArchived = dto.isArchived;
       conversation.deletedAt = dto.isArchived ? new Date() : null;

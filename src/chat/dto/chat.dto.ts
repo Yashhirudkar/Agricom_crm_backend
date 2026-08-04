@@ -14,6 +14,10 @@ export class CreateConversationDto {
   @IsOptional()
   name?: string;
 
+  @IsString()
+  @IsOptional()
+  description?: string;
+
   @IsEnum(ConversationType)
   @IsNotEmpty()
   type: ConversationType;
@@ -36,6 +40,10 @@ export class UpdateConversationDto {
   @IsString()
   @IsOptional()
   name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
 
   @IsBoolean()
   @IsOptional()

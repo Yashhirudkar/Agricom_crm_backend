@@ -21,6 +21,7 @@ import * as phase20 from './phase-20-followup-permissions-sync';
 import * as phase21 from './phase-21-chat-foundation';
 import * as phase22 from './phase-22-chat-advanced';
 import * as phase23 from './phase-23-message-read-state-deleted-at';
+import * as phase24 from './phase-24-add-conversation-description';
 
 export interface MigrationPhase {
   phase: string;
@@ -57,6 +58,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase21,
   phase22,
   phase23,
+  phase24,
 ];
 
 

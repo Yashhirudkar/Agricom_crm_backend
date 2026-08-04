@@ -43,7 +43,7 @@ export class MemberController {
   }
 
   @Post()
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:add_members')
   addMember(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @Body() dto: AddMemberDto,
@@ -55,7 +55,7 @@ export class MemberController {
   }
 
   @Delete(':userId')
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:remove_members')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeMember(
     @Param('conversationId', ParseIntPipe) conversationId: number,
@@ -68,7 +68,7 @@ export class MemberController {
   }
 
   @Put(':userId/role')
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:promote_admin')
   updateRole(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @Param('userId', ParseIntPipe) userId: number,
@@ -81,7 +81,7 @@ export class MemberController {
   }
 
   @Post(':userId/mute')
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:manage_permissions')
   muteMember(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @Param('userId', ParseIntPipe) userId: number,

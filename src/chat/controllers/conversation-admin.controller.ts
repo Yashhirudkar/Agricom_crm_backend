@@ -91,7 +91,7 @@ export class ConversationAdminController {
 
   @Post('conversations/:conversationId/members/bulk-add')
   @UseGuards(ConversationGuard)
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:add_members')
   async bulkAddMembers(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @Body('userIds') userIds: number[],
@@ -103,12 +103,120 @@ export class ConversationAdminController {
 
   @Post('conversations/:conversationId/members/bulk-remove')
   @UseGuards(ConversationGuard)
-  @RequirePermission('chat:moderate')
+  @RequirePermission('chat_group:remove_members')
   async bulkRemoveMembers(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @Body('userIds') userIds: number[],
     @CurrentUser() user: any,
   ) {
     return this.adminService.bulkRemoveMembers(conversationId, userIds, user);
+  }
+
+  // Group Management Discovery Routes
+  @Put('conversations/:conversationId/rename')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:rename')
+  async renameGroup(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body('name') name: string,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Put('conversations/:conversationId/photo')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:change_photo')
+  async changePhoto(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body('photoUrl') photoUrl: string,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Put('conversations/:conversationId/description')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:change_description')
+  async changeDescription(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body('description') description: string,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Put('conversations/:conversationId/members/:userId/role')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:promote_admin')
+  async promoteMember(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body('role') role: string,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Put('conversations/:conversationId/members/:userId/role/demote')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:demote_admin')
+  async demoteMember(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Delete('conversations/:conversationId/delete')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:delete')
+  async deleteGroup(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Delete('conversations/:conversationId/archive')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:archive')
+  async archiveGroup(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Post('conversations/:conversationId/leave')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:leave')
+  async leaveGroup(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Post('conversations/:conversationId/permissions')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:manage_permissions')
+  async managePermissions(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Body() dto: any,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
+  }
+
+  @Post('conversations/:conversationId/invite-link')
+  @UseGuards(ConversationGuard)
+  @RequirePermission('chat_group:manage_invite_link')
+  async manageInviteLink(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @CurrentUser() user: any,
+  ) {
+    return { success: true };
   }
 }

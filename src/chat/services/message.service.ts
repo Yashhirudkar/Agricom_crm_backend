@@ -17,6 +17,7 @@ import { MessageAttachment } from '../models/message-attachment.model';
 import { MessageMention } from '../models/message-mention.model';
 import { MessageReadState } from '../models/message-read-state.model';
 import { MessageVersion } from '../models/message-version.model';
+import { MessagePin } from '../models/message-pin.model';
 import { User } from '../../users/models/user.model';
 import { Attachment } from '../../attachments/models/attachment.model';
 import { SendMessageDto, ReactMessageDto } from '../dto/chat.dto';
@@ -292,6 +293,17 @@ export class MessageService implements OnModuleDestroy {
         {
           model: MessageAttachment,
           include: [Attachment],
+        },
+        {
+          model: Message,
+          as: 'parentMessage',
+          include: [
+            {
+              model: User,
+              as: 'sender',
+              attributes: ['id', 'name', 'email', 'avatarUrl'],
+            },
+          ],
         },
       ],
     });
@@ -620,6 +632,7 @@ export class MessageService implements OnModuleDestroy {
 
     const where: any = {
       conversationId,
+      isDeleted: false,
     };
 
     const mutedStates = await this.readStateModel.findAll({
@@ -656,15 +669,39 @@ export class MessageService implements OnModuleDestroy {
           model: MessageReaction,
           attributes: ['userId', 'reaction'],
         },
+        {
+          model: MessagePin,
+          as: 'pins',
+          attributes: ['pinnedAt', 'pinnedBy'],
+        },
+        {
+          model: Message,
+          as: 'parentMessage',
+          include: [
+            {
+              model: User,
+              as: 'sender',
+              attributes: ['id', 'name', 'email', 'avatarUrl'],
+            },
+          ],
+        },
       ],
     });
 
     const hasMore = messages.length > limit;
     const items = hasMore ? messages.slice(0, limit) : messages;
+    
+    // Map items to plain objects and inject pinnedAt attribute
+    const mappedItems = items.map((msg) => {
+      const plain = msg.get({ plain: true }) as any;
+      plain.pinnedAt = plain.pins && plain.pins.length > 0 ? plain.pins[0].pinnedAt : null;
+      return plain;
+    });
+
     const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
 
     return {
-      data: items.reverse(),
+      data: mappedItems.reverse(),
       meta: {
         nextCursor,
         hasMore,

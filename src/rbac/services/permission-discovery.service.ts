@@ -103,7 +103,9 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         .join(' ');
 
       // Map to desired frontend matrix modules
-      if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
+      if (resourceName.startsWith('chat_') || resourceName === 'chat')
+        moduleName = 'Chat';
+      else if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
       else if (resourceName === 'follow_up') moduleName = 'Follow Up';
       else if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
       else if (resourceName === 'leave_requests' || resourceName === 'leave')

@@ -66,6 +66,10 @@ export class Conversation extends Model<Conversation> {
   @Column({ type: DataType.STRING(100) })
   declare name: string | null;
 
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare description: string | null;
+
   @AllowNull(false)
   @Default(ConversationType.GROUP)
   @Column({
