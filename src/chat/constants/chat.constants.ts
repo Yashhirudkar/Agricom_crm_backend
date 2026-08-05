@@ -9,6 +9,18 @@ export enum ConversationType {
   RECORD = 'RECORD',
 }
 
+/**
+ * Channel posting policy — controls who can send messages in a CHANNEL/ANNOUNCEMENT conversation.
+ * Mirrors the frontend POSTING_POLICY constants in channelPosting.js
+ */
+export enum PostingPolicy {
+  EVERYONE = 'EVERYONE',
+  ADMINS = 'ADMINS',
+  OWNER = 'OWNER',
+  SELECTED_ROLES = 'SELECTED_ROLES',
+  SELECTED_USERS = 'SELECTED_USERS',
+}
+
 export enum MessageType {
   TEXT = 'TEXT',
   IMAGE = 'IMAGE',

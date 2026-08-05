@@ -13,8 +13,8 @@ import { ConversationSetting } from '../models/conversation-setting.model';
 import { ConversationMember } from '../models/conversation-member.model';
 import { Message } from '../models/message.model';
 import { User } from '../../users/models/user.model';
-import { CreateConversationDto, UpdateConversationDto } from '../dto/chat.dto';
-import { ConversationType, MemberRole } from '../constants/chat.constants';
+import { CreateConversationDto, UpdateConversationDto, UpdatePostingPolicyDto } from '../dto/chat.dto';
+import { ConversationType, MemberRole, PostingPolicy } from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import {
@@ -143,7 +143,7 @@ export class ConversationService implements OnModuleInit {
             },
             {
               model: ConversationMember,
-              attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount'],
+              attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
               include: [
                 {
                   model: User,
@@ -218,6 +218,7 @@ export class ConversationService implements OnModuleInit {
           userId: creatorId,
           role: MemberRole.OWNER,
           isMuted: false,
+          isNotificationMuted: false,
           joinedAt: new Date(),
         } as any,
         { transaction: t },
@@ -234,6 +235,7 @@ export class ConversationService implements OnModuleInit {
             userId: recipientId,
             role: MemberRole.MEMBER,
             isMuted: false,
+            isNotificationMuted: false,
             joinedAt: new Date(),
           } as any,
           { transaction: t },
@@ -254,6 +256,7 @@ export class ConversationService implements OnModuleInit {
                   userId: memberId,
                   role: MemberRole.MEMBER,
                   isMuted: false,
+                  isNotificationMuted: false,
                   joinedAt: new Date(),
                 } as any,
                 { transaction: t },
@@ -279,7 +282,7 @@ export class ConversationService implements OnModuleInit {
         },
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount'],
+          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
           include: [
             {
               model: User,
@@ -330,7 +333,7 @@ export class ConversationService implements OnModuleInit {
   async getConversations(
     companyId: number,
     userId: number,
-    filters: { type?: ConversationType; entityType?: string; entityId?: string; page?: number; limit?: number },
+    filters: { type?: ConversationType; entityType?: string; entityId?: string; page?: number; limit?: number; archived?: boolean },
   ) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
@@ -338,7 +341,7 @@ export class ConversationService implements OnModuleInit {
 
     const where: any = {
       companyId,
-      isArchived: false,
+      isArchived: filters.archived === true,
     };
 
     if (this.conversationModel.sequelize) {
@@ -346,7 +349,7 @@ export class ConversationService implements OnModuleInit {
         [Op.in]: this.conversationModel.sequelize.literal(`(
           SELECT "conversationId" 
           FROM "conversation_members" 
-          WHERE "userId" = ${userId}
+          WHERE "userId" = ${userId} AND "isHidden" = false
         )`)
       };
     }
@@ -368,7 +371,7 @@ export class ConversationService implements OnModuleInit {
       include: [
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount'],
+          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
           include: [
             {
               model: User,
@@ -399,31 +402,52 @@ export class ConversationService implements OnModuleInit {
         const plain = conv.toJSON() as any;
         const membership = conv.members.find((m: any) => m.userId === userId);
 
+        const lastMessageWhere: any = {
+          conversationId: conv.id,
+          isDeleted: false,
+        };
+
+        if (this.conversationModel.sequelize) {
+          lastMessageWhere.id = {
+            [Op.notIn]: this.conversationModel.sequelize.literal(`(
+              SELECT "messageId" 
+              FROM "message_read_states" 
+              WHERE "userId" = ${userId} AND "deletedAt" IS NOT NULL
+            )`)
+          };
+        }
+
         const lastMessage = await this.messageModel.findOne({
-          where: { conversationId: conv.id, isDeleted: false },
+          where: lastMessageWhere,
           order: [['createdAt', 'DESC']],
           attributes: ['id', 'content', 'type', 'createdAt'],
         });
 
         let unreadCount = 0;
-        if (membership && membership.lastReadMessageId) {
-          unreadCount = await this.messageModel.count({
-            where: {
-              conversationId: conv.id,
-              isDeleted: false,
-              id: { [Op.gt]: membership.lastReadMessageId },
-              senderId: { [Op.ne]: userId },
-            },
-          });
-        } else {
-          unreadCount = await this.messageModel.count({
-            where: {
-              conversationId: conv.id,
-              isDeleted: false,
-              senderId: { [Op.ne]: userId },
-            },
+        const unreadWhere: any = {
+          conversationId: conv.id,
+          isDeleted: false,
+          senderId: { [Op.ne]: userId },
+        };
+        const idConditions: any[] = [];
+        if (this.conversationModel.sequelize) {
+          idConditions.push({
+            [Op.notIn]: this.messageModel.sequelize.literal(`(
+              SELECT "messageId" 
+              FROM "message_read_states" 
+              WHERE "userId" = ${userId} AND "deletedAt" IS NOT NULL
+            )`)
           });
         }
+        if (membership && membership.lastReadMessageId) {
+          idConditions.push({
+            [Op.gt]: membership.lastReadMessageId,
+          });
+        }
+        if (idConditions.length > 0) {
+          unreadWhere.id = idConditions.length === 1 ? idConditions[0] : { [Op.and]: idConditions };
+        }
+        unreadCount = await this.messageModel.count({ where: unreadWhere });
 
         plain.unreadCount = unreadCount;
         plain.lastMessage = lastMessage ? lastMessage.toJSON() : null;
@@ -451,7 +475,7 @@ export class ConversationService implements OnModuleInit {
         },
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount'],
+          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
           include: [
             {
               model: User,
@@ -490,6 +514,7 @@ export class ConversationService implements OnModuleInit {
 
     if (dto.name !== undefined) conversation.name = dto.name;
     if (dto.description !== undefined) conversation.description = dto.description;
+    if (dto.avatarUrl !== undefined) conversation.avatarUrl = dto.avatarUrl;
     if (dto.isArchived !== undefined) {
       conversation.isArchived = dto.isArchived;
       conversation.deletedAt = dto.isArchived ? new Date() : null;
@@ -545,6 +570,28 @@ export class ConversationService implements OnModuleInit {
     await this.update(conversationId, companyId, { isArchived: archive }, actor);
   }
 
+  async delete(
+    conversationId: number,
+    companyId: number,
+    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+  ): Promise<void> {
+    const conversation = await this.getConversationById(conversationId, companyId);
+    
+    // Perform hard-delete (force: true) to permanently delete from the database.
+    // This triggers CASCADE deletion on database level for all members, messages, settings, etc.
+    await conversation.destroy({ force: true });
+
+    // Audit Log
+    await this.auditService.writeLog({
+      clientId: actor.clientId,
+      companyId,
+      userId: actor.userId,
+      entityType: 'Conversation',
+      entityId: conversationId,
+      action: 'DELETE',
+    });
+  }
+
   async setLock(
     conversationId: number,
     companyId: number,
@@ -552,5 +599,70 @@ export class ConversationService implements OnModuleInit {
     actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
   ): Promise<void> {
     await this.update(conversationId, companyId, { isLocked: lock }, actor);
+  }
+
+  /**
+   * Update the posting policy of a channel conversation.
+   * Endpoint: PATCH /conversations/:id/posting-policy
+   * Permission: chat_channel:update_posting_policy (or chat:update as fallback)
+   */
+  async updatePostingPolicy(
+    conversationId: number,
+    companyId: number,
+    dto: UpdatePostingPolicyDto,
+    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+  ): Promise<Conversation> {
+    const conversation = await this.getConversationById(conversationId, companyId);
+
+    // Only CHANNEL and ANNOUNCEMENT type conversations support posting policy
+    const allowedTypes = [ConversationType.CHANNEL, ConversationType.ANNOUNCEMENT];
+    if (!allowedTypes.includes(conversation.type)) {
+      throw new BadRequestException(
+        'Posting policy can only be set on CHANNEL or ANNOUNCEMENT conversations.',
+      );
+    }
+
+    const oldRecord = conversation.toJSON();
+
+    // Update posting policy
+    (conversation as any).postingPolicy = dto.postingPolicy;
+
+    // Clear old allowedPosters / allowedRoles before setting new ones
+    (conversation as any).allowedPosters = [];
+    (conversation as any).allowedRoles = [];
+
+    if (dto.postingPolicy === PostingPolicy.SELECTED_USERS && dto.allowedPosters?.length) {
+      (conversation as any).allowedPosters = dto.allowedPosters;
+    }
+
+    if (dto.postingPolicy === PostingPolicy.SELECTED_ROLES && dto.allowedRoles?.length) {
+      (conversation as any).allowedRoles = dto.allowedRoles;
+    }
+
+    await conversation.save();
+
+    const updatedRecord = await this.getConversationById(conversationId, companyId);
+
+    // Audit log
+    await this.auditService.writeDiffLog({
+      clientId: actor.clientId,
+      companyId,
+      userId: actor.userId,
+      entityType: 'Conversation',
+      entityId: conversationId,
+      action: 'UPDATE',
+      oldRecord,
+      newRecord: updatedRecord,
+      ipAddress: actor.ipAddress,
+      userAgent: actor.userAgent,
+    });
+
+    // Emit conversation_updated so frontend cache invalidates
+    this.eventEmitter.emit(
+      ChatEventNames.CONVERSATION_UPDATED,
+      new ConversationUpdatedEvent(conversationId, companyId, updatedRecord),
+    );
+
+    return updatedRecord;
   }
 }

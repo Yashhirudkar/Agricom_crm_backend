@@ -44,6 +44,21 @@ export class PartnerController {
     return result;
   }
 
+  // Lightweight dropdown endpoint — returns only id + entityName.
+  // Must be declared before @Get(':id') to avoid route shadowing.
+  @Get('options')
+  @RequirePermission('partner:view')
+  async findOptions(
+    @Query('partnerRoleId') partnerRoleId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.partnerService.findOptions({
+      partnerRoleId: partnerRoleId ? parseInt(partnerRoleId, 10) : undefined,
+      search,
+      isActive: true,
+    });
+  }
+
   @Get('countries')
   @RequirePermission('partner:view')
   async getCountries() {

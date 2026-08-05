@@ -60,6 +60,10 @@ export class CancelLeaveDto {
 
 export class GetLeaveRequestsFilterDto {
   @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   page?: number;
@@ -71,6 +75,7 @@ export class GetLeaveRequestsFilterDto {
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   employeeId?: number;
 
   @IsEnum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'])
@@ -84,4 +89,23 @@ export class GetLeaveRequestsFilterDto {
   @IsDateString()
   @IsOptional()
   endDate?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  leaveTypeId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  branchId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  departmentId?: number;
+
+  @IsOptional()
+  @IsString()
+  month?: string;
 }

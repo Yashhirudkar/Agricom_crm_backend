@@ -263,6 +263,17 @@ export class ChatEventsListener implements OnModuleDestroy {
         conversation: event.conversation,
       },
     );
+
+    // Also broadcast to the company room so that sidebars of other users update
+    this.chatGateway.broadcastToCompany(
+      event.companyId,
+      'conversation_updated',
+      {
+        eventId: event.eventId,
+        conversationId: event.conversationId,
+        conversation: event.conversation,
+      },
+    );
   }
 
   @OnEvent(ChatEventNames.CONVERSATION_ARCHIVED)
@@ -321,6 +332,19 @@ export class ChatEventsListener implements OnModuleDestroy {
         member: event.member,
       },
     );
+
+    // Also notify the user who was added in their private user room
+    if (event.member?.userId) {
+      this.chatGateway.broadcastToUser(
+        event.member.userId,
+        'member_added',
+        {
+          eventId: event.eventId,
+          conversationId: event.conversationId,
+          member: event.member,
+        },
+      );
+    }
   }
 
   @OnEvent(ChatEventNames.MEMBER_REMOVED)
@@ -334,6 +358,19 @@ export class ChatEventsListener implements OnModuleDestroy {
         userId: event.userId,
       },
     );
+
+    // Also notify the user who was removed in their private user room
+    if (event.userId) {
+      this.chatGateway.broadcastToUser(
+        event.userId,
+        'member_removed',
+        {
+          eventId: event.eventId,
+          conversationId: event.conversationId,
+          userId: event.userId,
+        },
+      );
+    }
   }
 
   @OnEvent(ChatEventNames.MEMBER_ROLE_UPDATED)

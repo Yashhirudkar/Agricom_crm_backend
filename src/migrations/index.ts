@@ -22,6 +22,12 @@ import * as phase21 from './phase-21-chat-foundation';
 import * as phase22 from './phase-22-chat-advanced';
 import * as phase23 from './phase-23-message-read-state-deleted-at';
 import * as phase24 from './phase-24-add-conversation-description';
+import * as phase25 from './phase-25-company-hr-policy-weekly-off-days';
+import * as phase26 from './phase-26-add-birthday-metadata-to-user-preferences';
+import * as phase27 from './phase-27-add-conversation-avatar';
+import * as phase28 from './phase-28-add-channel-posting-policy';
+import * as phase29 from './phase-29-add-member-mute-notifications';
+
 
 export interface MigrationPhase {
   phase: string;
@@ -59,6 +65,11 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase22,
   phase23,
   phase24,
+  phase25,
+  phase26,
+  phase27,
+  phase28,
+  phase29,
 ];
 
 

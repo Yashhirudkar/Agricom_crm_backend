@@ -13,14 +13,16 @@ import { Conversation } from '../models/conversation.model';
 import { ConversationMember } from '../models/conversation-member.model';
 import { ConversationLabel } from '../models/conversation-label.model';
 import { ConversationLabelMap } from '../models/conversation-label-map.model';
+import { Message } from '../models/message.model';
 import { User } from '../../users/models/user.model';
-import { MemberRole } from '../constants/chat.constants';
+import { MemberRole, MessageType } from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
 import {
   ChatEventNames,
   ConversationFrozenEvent,
   MemberAddedEvent,
   MemberRemovedEvent,
+  MessageCreatedEvent,
 } from '../events/chat.events';
 
 @Injectable()
@@ -36,6 +38,10 @@ export class ConversationAdminService {
     private readonly labelRepository: typeof ConversationLabel,
     @InjectModel(ConversationLabelMap)
     private readonly labelMapRepository: typeof ConversationLabelMap,
+    @InjectModel(Message)
+    private readonly messageRepository: typeof Message,
+    @InjectModel(User)
+    private readonly userRepository: typeof User,
     private readonly auditService: AuditService,
     private readonly eventEmitter: EventEmitter2,
     private readonly sequelize: Sequelize,
@@ -218,12 +224,54 @@ export class ConversationAdminService {
 
     await this.memberRepository.bulkCreate(rows as any);
 
+    const addedUsers = await this.userRepository.findAll({
+      where: { id: { [Op.in]: toAddIds } },
+      attributes: ['id', 'name'],
+    });
+
+    let actorName = actor.name;
+    if (!actorName) {
+      const actorUser = await this.userRepository.findByPk(actor.id);
+      actorName = actorUser ? actorUser.name : 'Admin';
+    }
+
     for (const uId of toAddIds) {
       this.eventEmitter.emit(
         ChatEventNames.MEMBER_ADDED,
         new MemberAddedEvent(conversationId, actor.companyId, { userId: uId, role }),
       );
+
+      const addedUser = addedUsers.find((u) => u.id === uId);
+      const addedUserName = addedUser ? addedUser.name : 'A member';
+
+      let systemMessageContent = '';
+      if (Number(actor.id) === Number(uId)) {
+        systemMessageContent = `${addedUserName} joined the group.`;
+      } else {
+        systemMessageContent = `${addedUserName} was added to the group by ${actorName}.`;
+      }
+
+      const systemMessage = await this.messageRepository.create({
+        conversationId,
+        senderId: null,
+        content: systemMessageContent,
+        type: MessageType.SYSTEM,
+        payload: { isSystem: true },
+        isEdited: false,
+        version: 1,
+        isDeleted: false,
+      } as any);
+
+      this.eventEmitter.emit(
+        ChatEventNames.MESSAGE_CREATED,
+        new MessageCreatedEvent(conversationId, actor.companyId, systemMessage),
+      );
     }
+
+    await this.conversationRepository.update(
+      { updatedAt: new Date() },
+      { where: { id: conversationId } }
+    );
 
     return { addedCount: toAddIds.length, userIds: toAddIds };
   }

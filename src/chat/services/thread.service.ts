@@ -22,6 +22,7 @@ import {
   ChatEventNames,
   ThreadRepliedEvent,
   MessageCreatedEvent,
+  ConversationUpdatedEvent,
 } from '../events/chat.events';
 
 @Injectable()
@@ -83,6 +84,7 @@ export class ThreadService {
 
     let createdReply: Message;
     let threadSummary: any;
+    let unhidMembers = false;
 
     await this.sequelize.transaction(async (t) => {
       createdReply = await this.messageRepository.create(
@@ -118,6 +120,18 @@ export class ThreadService {
         await this.mentionRepository.bulkCreate(mentionRows as any, { transaction: t });
       }
 
+      // Unhide members who had hidden this conversation
+      const [affectedCount] = await this.memberRepository.update(
+        { isHidden: false },
+        {
+          where: { conversationId, isHidden: true },
+          transaction: t,
+        },
+      );
+      if (affectedCount > 0) {
+        unhidMembers = true;
+      }
+
       // Update summary
       await this.summaryService.updateActivity(conversationId, t);
     });
@@ -132,6 +146,17 @@ export class ThreadService {
     });
 
     threadSummary = await this.getThreadSummary(conversationId, parentMessageId, actor.id);
+
+    if (unhidMembers) {
+      this.eventEmitter.emit(
+        ChatEventNames.CONVERSATION_UPDATED,
+        new ConversationUpdatedEvent(
+          conversationId,
+          conversation.companyId,
+          { id: conversationId },
+        ),
+      );
+    }
 
     // Emit Domain Events
     this.eventEmitter.emit(

@@ -71,6 +71,11 @@ export class ConversationMember extends Model<ConversationMember> {
   @Column({ type: DataType.BOOLEAN })
   declare isMuted: boolean;
 
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare isNotificationMuted: boolean;
+
   @AllowNull(true)
   @Column({ type: DataType.DATE })
   declare mutedUntil: Date | null;

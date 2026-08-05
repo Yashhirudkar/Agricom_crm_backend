@@ -90,6 +90,7 @@ export class UnreadService {
     totalUnreadMessages: number;
     totalUnreadMentions: number;
     totalUnreadThreads: number;
+    total: number;
   }> {
     const memberships = await this.memberRepository.findAll({
       where: { userId },
@@ -118,6 +119,7 @@ export class UnreadService {
       totalUnreadMessages,
       totalUnreadMentions,
       totalUnreadThreads,
+      total: totalUnreadMessages + totalUnreadMentions,
     };
   }
 

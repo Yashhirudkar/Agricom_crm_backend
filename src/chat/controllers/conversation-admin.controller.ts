@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ConversationAdminService } from '../services/conversation-admin.service';
+import { MemberService } from '../services/member.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ConversationGuard } from '../guards/conversation.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
@@ -19,7 +20,10 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 @Controller('chat')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ConversationAdminController {
-  constructor(private readonly adminService: ConversationAdminService) {}
+  constructor(
+    private readonly adminService: ConversationAdminService,
+    private readonly memberService: MemberService,
+  ) {}
 
   @Post('labels')
   @RequirePermission('chat:create')
@@ -191,11 +195,21 @@ export class ConversationAdminController {
 
   @Post('conversations/:conversationId/leave')
   @UseGuards(ConversationGuard)
-  @RequirePermission('chat_group:leave')
+  @RequirePermission('chat:read')
   async leaveGroup(
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @CurrentUser() user: any,
   ) {
+    const actor = {
+      userId: user.userId || user.id,
+      clientId: null,
+    };
+    await this.memberService.removeMember(
+      conversationId,
+      user.companyId,
+      user.userId || user.id,
+      actor,
+    );
     return { success: true };
   }
 

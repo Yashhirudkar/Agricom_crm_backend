@@ -34,8 +34,63 @@ export class LeaveRequestsQueryService {
     const where: any = { companyId };
     if (query.employeeId) where.employeeId = query.employeeId;
     if (query.status) where.status = query.status;
+    if (query.leaveTypeId) where.leaveTypeId = query.leaveTypeId;
+
+    // Date range filter
     if (query.startDate && query.endDate) {
       where.fromDate = { [Op.between]: [query.startDate, query.endDate] };
+    }
+
+    // Month filter: derive start/end dates from YYYY-MM string
+    if (query.month && !where.fromDate) {
+      const [year, month] = query.month.split('-').map(Number);
+      const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).toISOString().split('T')[0];
+      where.fromDate = { [Op.between]: [firstDay, lastDay] };
+    }
+
+    // Filter by department or branch (via employee)
+    if (query.departmentId || query.branchId) {
+      const empWhere: any = { companyId };
+      if (query.departmentId) empWhere.departmentId = query.departmentId;
+      if (query.branchId) empWhere.branchId = query.branchId;
+      const matchingEmployees = await Employee.findAll({
+        where: empWhere,
+        attributes: ['id'],
+      });
+      const empIds = matchingEmployees.map((e) => e.id);
+      where.employeeId = empIds.length > 0 ? { [Op.in]: empIds } : { [Op.in]: [-1] };
+    }
+
+    // Filter by search query (employee firstName, lastName, employeeCode, email)
+    if (query.search) {
+      const searchPattern = `%${query.search}%`;
+      const matchingEmployees = await Employee.findAll({
+        where: {
+          companyId,
+          [Op.or]: [
+            { firstName: { [Op.iLike]: searchPattern } },
+            { lastName: { [Op.iLike]: searchPattern } },
+            { employeeCode: { [Op.iLike]: searchPattern } },
+            { email: { [Op.iLike]: searchPattern } },
+          ],
+        },
+        attributes: ['id'],
+      });
+      const searchEmpIds = matchingEmployees.map((e) => e.id);
+
+      if (where.employeeId) {
+        if (typeof where.employeeId === 'number') {
+          if (!searchEmpIds.includes(where.employeeId)) {
+            where.employeeId = -1;
+          }
+        } else if (where.employeeId[Op.in]) {
+          const intersected = where.employeeId[Op.in].filter((id) => searchEmpIds.includes(id));
+          where.employeeId = intersected.length > 0 ? { [Op.in]: intersected } : { [Op.in]: [-1] };
+        }
+      } else {
+        where.employeeId = searchEmpIds.length > 0 ? { [Op.in]: searchEmpIds } : { [Op.in]: [-1] };
+      }
     }
 
     const page = query.page || 1;

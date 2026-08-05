@@ -32,6 +32,7 @@ import {
   MessageDeletedEvent,
   MessageReactedEvent,
   MessageReadEvent,
+  ConversationUpdatedEvent,
 } from '../events/chat.events';
 import { Op } from 'sequelize';
 
@@ -181,6 +182,7 @@ export class MessageService implements OnModuleDestroy {
 
     let createdMessageId: number;
     const mentionedUserIds = new Set<number>();
+    let unhidMembers = false;
 
     const t = await this.messageModel.sequelize.transaction();
     try {
@@ -273,6 +275,24 @@ export class MessageService implements OnModuleDestroy {
         { transaction: t },
       );
 
+      // 9. Unhide members who had hidden this conversation
+      const [affectedCount] = await this.memberModel.update(
+        { isHidden: false },
+        {
+          where: { conversationId, isHidden: true },
+          transaction: t,
+        },
+      );
+      if (affectedCount > 0) {
+        unhidMembers = true;
+      }
+
+      // Force updatedAt update on conversation to bubble to top
+      await this.conversationModel.update(
+        { updatedAt: new Date() },
+        { where: { id: conversationId }, transaction: t }
+      );
+
       // COMMIT TRANSACTION
       await t.commit();
     } catch (err) {
@@ -322,6 +342,13 @@ export class MessageService implements OnModuleDestroy {
     // Record conversation summary activity
     await this.summaryService.recordNewMessage(conversationId, resultMessage);
 
+    if (unhidMembers) {
+      this.eventEmitter.emit(
+        ChatEventNames.CONVERSATION_UPDATED,
+        new ConversationUpdatedEvent(conversationId, companyId, { id: conversationId }),
+      );
+    }
+
     // EMIT DOMAIN EVENT STRICTLY AFTER COMMIT
     this.eventEmitter.emit(
       ChatEventNames.MESSAGE_CREATED,
@@ -349,7 +376,24 @@ export class MessageService implements OnModuleDestroy {
 
       if (recipients.length > 0) {
         const mentionRecipients = Array.from(mentionedUserIds).filter((id) => recipients.includes(id));
-        const regularRecipients = recipients.filter((id) => !mentionRecipients.includes(id));
+        const regularRecipients = activeMembers
+          .filter((m) => !m.isNotificationMuted && !mentionedUserIds.has(m.userId))
+          .map((m) => m.userId);
+
+        const senderName = message.sender?.name || 'Someone';
+        const snippetText = content || (message.type === 'FILE' ? '📎 Sent a file' : message.type === 'VOICE' ? '🎤 Sent a voice note' : 'Sent a message');
+
+        const notificationTitle = conversation.type === 'DIRECT'
+          ? `${senderName}`
+          : `New message in: ${conversation.name || 'Group'}`;
+
+        const mentionTitle = conversation.type === 'DIRECT'
+          ? `You were tagged by ${senderName}`
+          : `You were tagged in: ${conversation.name || 'Group'}`;
+
+        const notificationBody = conversation.type === 'DIRECT'
+          ? snippetText
+          : `${senderName}: ${snippetText}`;
 
         if (mentionRecipients.length > 0) {
           await this.notificationsService.createNotification(
@@ -358,9 +402,14 @@ export class MessageService implements OnModuleDestroy {
               type: NotificationType.CHAT,
               referenceType: 'message',
               referenceId: message.id,
-              title: `You were tagged in: ${conversation.name || 'Conversation'}`,
+              title: mentionTitle,
               category: 'SYSTEM',
-              payload: { conversationId: conversation.id, senderId, snippet: content },
+              payload: {
+                conversationId: conversation.id,
+                senderId,
+                snippet: content,
+                message: notificationBody
+              },
             },
             senderId,
           );
@@ -373,9 +422,14 @@ export class MessageService implements OnModuleDestroy {
               type: NotificationType.CHAT,
               referenceType: 'message',
               referenceId: message.id,
-              title: `New message in: ${conversation.name || 'Conversation'}`,
+              title: notificationTitle,
               category: 'SYSTEM',
-              payload: { conversationId: conversation.id, senderId, snippet: content },
+              payload: {
+                conversationId: conversation.id,
+                senderId,
+                snippet: content,
+                message: notificationBody
+              },
             },
             senderId,
           );
@@ -543,6 +597,77 @@ export class MessageService implements OnModuleDestroy {
     }
   }
 
+  async clearChat(
+    conversationId: number,
+    companyId: number,
+    userId: number,
+  ): Promise<void> {
+    const member = await this.memberModel.findOne({
+      where: { conversationId, userId },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Not a member of this conversation.');
+    }
+
+    const conversation = await this.conversationModel.findOne({
+      where: { id: conversationId, companyId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found.');
+    }
+
+    // Find all active (non-deleted) messages in this conversation
+    const messages = await this.messageModel.findAll({
+      where: { conversationId, isDeleted: false },
+      attributes: ['id'],
+    });
+
+    const messageIds = messages.map((m) => m.id);
+
+    if (messageIds.length > 0) {
+      // Find existing states
+      const existingStates = await this.readStateModel.findAll({
+        where: {
+          userId,
+          messageId: { [Op.in]: messageIds },
+        },
+        attributes: ['messageId'],
+      });
+
+      const existingMessageIds = new Set(existingStates.map((s) => s.messageId));
+
+      // Update existing states
+      if (existingStates.length > 0) {
+        await this.readStateModel.update(
+          { deletedAt: new Date(), isRead: true, readAt: new Date() },
+          {
+            where: {
+              userId,
+              messageId: { [Op.in]: Array.from(existingMessageIds) },
+            },
+          },
+        );
+      }
+
+      // Bulk create new read state records for messages that don't have one
+      const newStatesToCreate = messageIds
+        .filter((id) => !existingMessageIds.has(id))
+        .map((id) => ({
+          userId,
+          messageId: id,
+          isRead: true,
+          readAt: new Date(),
+          deletedAt: new Date(),
+        }));
+
+      if (newStatesToCreate.length > 0) {
+        await this.readStateModel.bulkCreate(newStatesToCreate);
+      }
+    }
+  }
+
   async react(
     conversationId: number,
     messageId: number,
@@ -690,7 +815,7 @@ export class MessageService implements OnModuleDestroy {
 
     const hasMore = messages.length > limit;
     const items = hasMore ? messages.slice(0, limit) : messages;
-    
+
     // Map items to plain objects and inject pinnedAt attribute
     const mappedItems = items.map((msg) => {
       const plain = msg.get({ plain: true }) as any;

@@ -72,6 +72,19 @@ export class MessageController {
     return this.messageService.edit(conversationId, messageId, content, companyId, actor);
   }
 
+  @Delete('clear')
+  @RequirePermission('chat:delete')
+  @HttpCode(HttpStatus.OK)
+  async clearChat(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Request() req,
+  ) {
+    const companyId = this.getCompanyId(req);
+    const userId = req.user.userId || req.user.id;
+    await this.messageService.clearChat(conversationId, companyId, userId);
+    return { success: true };
+  }
+
   @Delete(':messageId')
   @RequirePermission('chat:delete')
   @HttpCode(HttpStatus.NO_CONTENT)

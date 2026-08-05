@@ -22,7 +22,7 @@ import { User } from '../../users/models/user.model';
 import { ConversationMember } from './conversation-member.model';
 import { Message } from './message.model';
 import { ConversationSetting } from './conversation-setting.model';
-import { ConversationType } from '../constants/chat.constants';
+import { ConversationType, PostingPolicy } from '../constants/chat.constants';
 
 @Table({
   tableName: 'conversations',
@@ -70,6 +70,10 @@ export class Conversation extends Model<Conversation> {
   @Column({ type: DataType.TEXT })
   declare description: string | null;
 
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare avatarUrl: string | null;
+
   @AllowNull(false)
   @Default(ConversationType.GROUP)
   @Column({
@@ -99,6 +103,36 @@ export class Conversation extends Model<Conversation> {
   @Default(false)
   @Column({ type: DataType.BOOLEAN })
   declare announcementMode: boolean;
+
+  /**
+   * Channel posting policy — who can send messages.
+   * Only applies when type is CHANNEL or ANNOUNCEMENT.
+   * Defaults to EVERYONE (backward compatible with existing channels).
+   */
+  @AllowNull(false)
+  @Default(PostingPolicy.EVERYONE)
+  @Column({
+    type: DataType.ENUM(...Object.values(PostingPolicy)),
+  })
+  declare postingPolicy: PostingPolicy;
+
+  /**
+   * User IDs allowed to post — used when postingPolicy = SELECTED_USERS.
+   * Stored as JSON array of numbers.
+   */
+  @AllowNull(true)
+  @Default([])
+  @Column({ type: DataType.JSONB })
+  declare allowedPosters: number[];
+
+  /**
+   * Role names allowed to post — used when postingPolicy = SELECTED_ROLES.
+   * Stored as JSON array of strings (e.g. ["HR_MANAGER", "DIRECTOR"]).
+   */
+  @AllowNull(true)
+  @Default([])
+  @Column({ type: DataType.JSONB })
+  declare allowedRoles: string[];
 
   @ForeignKey(() => User)
   @AllowNull(true)

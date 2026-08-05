@@ -188,6 +188,30 @@ export class PartnerService {
     return buildPaginatedResponse(rows, count, page || 1, finalLimit);
   }
 
+  /**
+   * Lightweight dropdown endpoint — returns only id + entityName.
+   * Filters by partnerRoleId and optional search (ILIKE on entityName).
+   * Hard-capped at 30 records so it stays fast even with 10k+ partners.
+   */
+  async findOptions(params: { partnerRoleId?: number; search?: string; isActive?: boolean }): Promise<{ id: number; entityName: string }[]> {
+    const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
+    if (params.partnerRoleId) {
+      where.partnerRoleId = params.partnerRoleId;
+    }
+    if (params.search && params.search.trim()) {
+      where.entityName = { [Op.iLike]: `%${params.search.trim()}%` };
+    }
+
+    const rows = await this.partnerModel.findAll({
+      where,
+      attributes: ['id', 'entityName'],
+      order: [['entityName', 'ASC']],
+      limit: 30,
+    });
+
+    return rows.map((r) => ({ id: r.id, entityName: r.entityName }));
+  }
+
   async findOne(id: number): Promise<Partner> {
     const partner = await this.partnerModel.findOne({
       where: { id, isActive: true },

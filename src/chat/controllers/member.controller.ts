@@ -92,4 +92,58 @@ export class MemberController {
     const actor = this.getActor(req);
     return this.memberService.muteMember(conversationId, companyId, userId, dto, actor);
   }
+
+  // ── Per-user conversation pin/unpin (sidebar ordering) ────────────────────
+
+  @Post(':userId/pin')
+  @HttpCode(HttpStatus.OK)
+  pinConversation(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.memberService.pinConversation(conversationId, userId);
+  }
+
+  @Delete(':userId/pin')
+  @HttpCode(HttpStatus.OK)
+  unpinConversation(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.memberService.unpinConversation(conversationId, userId);
+  }
+
+
+  // ── Per-user notification mute/unmute toggle ──
+
+  @Post(':userId/mute-self')
+  @HttpCode(HttpStatus.OK)
+  muteSelf(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() dto: { mute: boolean },
+  ) {
+    return this.memberService.muteSelf(conversationId, userId, dto.mute);
+  }
+
+  // ── Per-user conversation favorite/unfavorite toggle ──
+
+  @Post(':userId/favorite')
+  @HttpCode(HttpStatus.OK)
+  favoriteConversation(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.memberService.favoriteConversation(conversationId, userId);
+  }
+
+  @Delete(':userId/favorite')
+  @HttpCode(HttpStatus.OK)
+  unfavoriteConversation(
+    @Param('conversationId', ParseIntPipe) conversationId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.memberService.unfavoriteConversation(conversationId, userId);
+  }
 }
+

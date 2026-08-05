@@ -7,7 +7,7 @@ import {
   IsInt,
   IsBoolean,
 } from 'class-validator';
-import { ConversationType, MessageType, MemberRole } from '../constants/chat.constants';
+import { ConversationType, MessageType, MemberRole, PostingPolicy } from '../constants/chat.constants';
 
 export class CreateConversationDto {
   @IsString()
@@ -44,6 +44,10 @@ export class UpdateConversationDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string;
 
   @IsBoolean()
   @IsOptional()
@@ -105,4 +109,32 @@ export class MuteMemberDto {
   @IsInt()
   @IsOptional()
   durationMinutes?: number;
+}
+
+/**
+ * DTO for PATCH /conversations/:id/posting-policy
+ * Controls who can send messages in a CHANNEL conversation.
+ */
+export class UpdatePostingPolicyDto {
+  @IsEnum(PostingPolicy)
+  @IsNotEmpty()
+  postingPolicy: PostingPolicy;
+
+  /**
+   * Required when postingPolicy = SELECTED_USERS.
+   * Array of userId numbers that are allowed to post.
+   */
+  @IsArray()
+  @IsInt({ each: true })
+  @IsOptional()
+  allowedPosters?: number[];
+
+  /**
+   * Required when postingPolicy = SELECTED_ROLES.
+   * Array of role name strings (e.g. ["HR_MANAGER", "DIRECTOR"]).
+   */
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedRoles?: string[];
 }

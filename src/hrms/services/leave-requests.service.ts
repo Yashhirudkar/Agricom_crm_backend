@@ -23,6 +23,7 @@ import { EmployeeLeaveBalance } from '../models/employee-leave-balance.model';
 import { LeaveType } from '../models/leave-type.model';
 import { Employee, EmployeeStatus } from '../models/employee.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
+import { Shift } from '../../attendance/models/shift.model';
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { AuditService } from '../../audit/services/audit.service';
@@ -189,7 +190,7 @@ export class LeaveRequestsService {
     toDate: string,
     companyId: number,
     isHalfDay: boolean,
-    policy: any,
+    weeklyOffDays: number[],
   ): Promise<number> {
     if (isHalfDay) return 0.5;
 
@@ -198,8 +199,6 @@ export class LeaveRequestsService {
 
     if (start > end)
       throw new BadRequestException('From date cannot be after To date');
-
-    const weeklyOffDays = policy?.weeklyOffDays || [0, 6]; // 0=Sun, 6=Sat
 
     const holidays = await this.holidayModel.findAll({
       where: {
@@ -254,6 +253,7 @@ export class LeaveRequestsService {
   ): Promise<LeaveRequest> {
     const employee = await this.employeeModel.findOne({
       where: { id: employeeId, companyId },
+      include: [{ model: Shift, required: false }],
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -341,12 +341,19 @@ export class LeaveRequestsService {
       }
     }
 
+    let weeklyOffDays = [0, 6];
+    if (employee.shift && Array.isArray(employee.shift.weeklyOffDays)) {
+      weeklyOffDays = employee.shift.weeklyOffDays;
+    } else if (policy && Array.isArray(policy.weeklyOffDays)) {
+      weeklyOffDays = policy.weeklyOffDays;
+    }
+
     const totalDays = await this.calculateActualLeaveDays(
       dto.fromDate,
       dto.toDate,
       companyId,
       dto.isHalfDay || false,
-      policy,
+      weeklyOffDays,
     );
     if (totalDays === 0) {
       throw new BadRequestException(
