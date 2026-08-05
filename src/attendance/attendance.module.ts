@@ -44,6 +44,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AttendanceConflictService } from './services/attendance-conflict.service';
 import { AuditLog } from '../audit/models/audit-log.model';
 
+import { AttendancePolicyEngineService } from './services/attendance-policy-engine.service';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
@@ -85,6 +87,7 @@ import { AuditLog } from '../audit/models/audit-log.model';
   ],
   controllers: [AttendanceController, ShiftsController],
   providers: [
+    AttendancePolicyEngineService,
     AttendanceService,
     AttendanceHelperService,
     AttendanceReportService,
@@ -99,6 +102,7 @@ import { AuditLog } from '../audit/models/audit-log.model';
     AttendanceConflictService,
   ],
   exports: [
+    AttendancePolicyEngineService,
     AttendanceService,
     AttendanceHelperService,
     AttendanceReportService,

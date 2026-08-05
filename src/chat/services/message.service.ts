@@ -8,6 +8,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as fs from 'fs';
+import { join } from 'path';
+import { ATTACHMENT_UPLOAD_DIR } from '../../attachments/config/multer.config';
 import { Conversation } from '../models/conversation.model';
 import { ConversationSetting } from '../models/conversation-setting.model';
 import { ConversationMember } from '../models/conversation-member.model';
@@ -228,6 +231,8 @@ export class MessageService implements OnModuleDestroy {
         message.payload = {
           ...message.payload,
           attachmentId: attachment.id,
+          filePath: `/attachments/download/${attachment.storagePath || attachment.storedName}`,
+          fileName: attachment.originalName,
           originalName: attachment.originalName,
           mimeType: attachment.mimeType,
           fileSize: attachment.fileSize,
@@ -525,6 +530,53 @@ export class MessageService implements OnModuleDestroy {
     });
   }
 
+  private async deletePhysicalAttachment(message: Message) {
+    try {
+      // 1. Delete associated MessageAttachment & Attachment models and physical files
+      const msgAttachments = await this.messageAttachmentModel.findAll({
+        where: { messageId: message.id },
+        include: [Attachment],
+      });
+
+      for (const msgAtt of msgAttachments) {
+        if (msgAtt.attachment) {
+          const filename = msgAtt.attachment.storagePath || msgAtt.attachment.storedName;
+          if (filename) {
+            const diskPath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);
+            if (fs.existsSync(diskPath)) {
+              fs.unlinkSync(diskPath);
+              this.logger.log(`Physically deleted attachment file from storage: ${diskPath}`);
+            }
+          }
+          await msgAtt.attachment.destroy({ force: true });
+        }
+        await msgAtt.destroy({ force: true });
+      }
+
+      // 2. Check payload.filePath if present (direct chat uploads)
+      if (message.payload?.filePath) {
+        const filePathStr = message.payload.filePath as string;
+        const filename = filePathStr.split('/').pop();
+        if (filename) {
+          // Check ./storage/attachments
+          const storagePath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);
+          if (fs.existsSync(storagePath)) {
+            fs.unlinkSync(storagePath);
+            this.logger.log(`Physically deleted payload file from storage/attachments: ${storagePath}`);
+          }
+          // Check ./uploads/chat
+          const uploadsChatPath = join(process.cwd(), 'uploads', 'chat', filename);
+          if (fs.existsSync(uploadsChatPath)) {
+            fs.unlinkSync(uploadsChatPath);
+            this.logger.log(`Physically deleted payload file from uploads/chat: ${uploadsChatPath}`);
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error(`Error deleting physical attachment files for message ${message.id}: ${err.message}`);
+    }
+  }
+
   async delete(
     conversationId: number,
     messageId: number,
@@ -557,7 +609,12 @@ export class MessageService implements OnModuleDestroy {
         throw new ForbiddenException('You do not have permission to delete this message for everyone.');
       }
 
+      // Hard delete physical files from disk & attachment DB entries
+      await this.deletePhysicalAttachment(message);
+
       message.isDeleted = true;
+      message.content = null;
+      message.payload = null;
       message.deletedBy = actor.userId;
       message.deletedAt = new Date();
       await message.save();
@@ -757,7 +814,6 @@ export class MessageService implements OnModuleDestroy {
 
     const where: any = {
       conversationId,
-      isDeleted: false,
     };
 
     const mutedStates = await this.readStateModel.findAll({

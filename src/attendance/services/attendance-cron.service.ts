@@ -18,6 +18,7 @@ import {
   LeaveRequest,
   LeaveRequestStatus,
 } from '../../hrms/models/leave-request.model';
+import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
 
 @Injectable()
 export class AttendanceCronService {
@@ -37,6 +38,7 @@ export class AttendanceCronService {
     @InjectModel(LeaveRequest)
     private readonly leaveRequestModel: typeof LeaveRequest,
     private readonly attendanceGateway: AttendanceGateway,
+    private readonly policyEngineService: AttendancePolicyEngineService,
   ) {}
 
   /**
@@ -200,14 +202,14 @@ export class AttendanceCronService {
                 continue;
               }
 
-              let shiftEndTime = '18:00';
+              let shiftEndTime: string | null = null;
               const shift = record.shiftId ? shiftsMap.get(record.shiftId) : null;
               if (shift) {
                 shiftEndTime = shift.endTime;
               } else {
                 const policy = policiesMap.get(employee.companyId);
                 if (policy) {
-                  shiftEndTime = policy.defaultShiftEndTime || '18:00';
+                  shiftEndTime = policy.defaultShiftEndTime;
                 }
               }
 
@@ -269,29 +271,22 @@ export class AttendanceCronService {
                   checkOutTimeVal.getTime() - currentBreakStart.getTime();
               }
 
-              const totalWorkMs =
-                checkOutTimeVal.getTime() -
-                checkInTime.getTime() -
-                breakDurationMs;
-              const totalHours = Math.max(
-                0,
-                parseFloat((totalWorkMs / (1000 * 60 * 60)).toFixed(2)),
+              const policy = policiesMap.get(employee.companyId) || null;
+
+              const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
+                employee.id,
+                employee.companyId,
+                targetDateStr,
+                record.checkInTime,
+                checkOutTimeVal,
+                shift,
+                policy,
+                [],
+                timezone,
               );
 
-              // Determine status based on policy hours or default to PRESENT
-              let status = AttendanceStatus.PRESENT;
-              if (record.lateMinutes > 0) {
-                status = AttendanceStatus.LATE;
-              }
-
-              const policy = policiesMap.get(employee.companyId);
-              if (policy) {
-                if (totalHours < policy.minHoursForHalfDay) {
-                  status = AttendanceStatus.ABSENT;
-                } else if (totalHours < policy.minHoursForPresent) {
-                  status = AttendanceStatus.HALF_DAY;
-                }
-              }
+              let status = evalResult.attendanceStatus;
+              const totalHours = evalResult.netWorkingHours;
 
               // Check if employee is on approved leave to prevent ABSENT override
               const leave = findApprovedLeave(employee.id, targetDateStr);

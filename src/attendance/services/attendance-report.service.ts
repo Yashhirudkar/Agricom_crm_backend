@@ -572,14 +572,29 @@ export class AttendanceReportService {
           }
         }
 
+        // Normalize legacy LATE status to PRESENT with isLate flag
+        let displayStatus = status;
+        const isLate = lateMinutes > 0 || (status as any) === 'LATE';
+        if ((status as any) === 'LATE') {
+          displayStatus = AttendanceStatus.PRESENT;
+        }
+
         // Increment counts based on resolved status:
-        if (status === AttendanceStatus.PRESENT) presentCount++;
-        else if (status === AttendanceStatus.ABSENT) absentCount++;
-        else if (status === AttendanceStatus.LATE) lateCount++;
-        else if (status === AttendanceStatus.HALF_DAY) halfDayCount++;
-        else if (status === AttendanceStatus.WEEK_OFF) weeklyOffCount++;
-        else if (status === AttendanceStatus.ON_LEAVE) leaveCount++;
-        else if (status === AttendanceStatus.HOLIDAY) holidayCount++;
+        if (displayStatus === AttendanceStatus.PRESENT) {
+          presentCount++;
+          if (isLate) lateCount++;
+        } else if (displayStatus === AttendanceStatus.ABSENT) {
+          absentCount++;
+        } else if (displayStatus === AttendanceStatus.HALF_DAY) {
+          halfDayCount++;
+          if (isLate) lateCount++;
+        } else if (displayStatus === AttendanceStatus.WEEK_OFF) {
+          weeklyOffCount++;
+        } else if (displayStatus === AttendanceStatus.ON_LEAVE) {
+          leaveCount++;
+        } else if (displayStatus === AttendanceStatus.HOLIDAY) {
+          holidayCount++;
+        }
 
         totalWorkHours += workHours;
         totalOvertimeHours += overtime;
@@ -589,7 +604,8 @@ export class AttendanceReportService {
           date: dateStr,
           checkIn,
           checkOut,
-          status,
+          status: displayStatus,
+          isLate,
           workHours,
           overtime,
           lateMinutes,
@@ -598,7 +614,7 @@ export class AttendanceReportService {
       }
 
       const totalWorkingDays = lastDay - weeklyOffCount - holidayCount;
-      const actualPresent = presentCount + lateCount + halfDayCount * 0.5;
+      const actualPresent = presentCount + lateCount * 0 + halfDayCount * 0.5;
       const attendancePercentage =
         totalWorkingDays > 0
           ? parseFloat(((actualPresent / totalWorkingDays) * 100).toFixed(2))
@@ -611,6 +627,7 @@ export class AttendanceReportService {
         summary: {
           present: presentCount,
           absent: absentCount,
+          lateCount: lateCount,
           late: lateCount,
           halfDay: halfDayCount,
           weeklyOff: weeklyOffCount,

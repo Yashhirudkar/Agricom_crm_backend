@@ -36,7 +36,7 @@ export class AttachmentsController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
-  @RequirePermission('attachments:upload')
+  @RequirePermission('chat:create')
   uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
     const companyId = headerOrActive
@@ -60,7 +60,7 @@ export class AttachmentsController {
   }
 
   @Get('download/:filename')
-  @RequirePermission('attachments:download')
+  @RequirePermission('chat:read')
   downloadFile(
     @Param('filename') filename: string,
     @Request() req,
@@ -73,26 +73,6 @@ export class AttachmentsController {
       filename.includes('\\')
     ) {
       throw new BadRequestException('Invalid filename');
-    }
-
-    // Verify ownership
-    const isSuper =
-      req.user?.type === 'super_admin' || req.user?.clientId === null;
-
-    if (!isSuper) {
-      const parts = filename.split('_');
-      if (parts.length >= 2 && parts[0] === 'client') {
-        const fileClientId = parts[1];
-        if (
-          fileClientId !== 'global' &&
-          fileClientId !== String(req.user.clientId)
-        ) {
-          throw new ForbiddenException('Access denied to this file');
-        }
-      } else {
-        // Legacy or malformed filename, deny for non-super admin
-        throw new ForbiddenException('Cannot verify file ownership');
-      }
     }
 
     const filePath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);

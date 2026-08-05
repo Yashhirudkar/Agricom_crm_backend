@@ -99,4 +99,35 @@ export class UpsertCompanyHrPolicyDto {
   @IsOptional()
   @IsString()
   defaultBreakEndTime?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  monthlyLateThreshold?: number;
+
+  @IsOptional()
+  @IsString()
+  latePenaltyAction?: string;
+
+  @IsOptional()
+  @IsString()
+  halfDayAfterTime?: string;
+
+  @IsOptional()
+  @IsString()
+  absentAfterTime?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  checkoutGraceMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  autoCheckoutTime?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  overtimeStartAfter?: number;
 }

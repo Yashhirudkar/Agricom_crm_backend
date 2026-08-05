@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  PreconditionFailedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import {
@@ -41,6 +42,8 @@ import { UserCompany } from '../../users/models/user-company.model';
 import { Designation } from '../../hrms/models/designation.model';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 
+import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
+
 @Injectable()
 export class AttendanceRegularizationService {
   constructor(
@@ -65,6 +68,7 @@ export class AttendanceRegularizationService {
     private readonly attendanceGateway: AttendanceGateway,
     private readonly helperService: AttendanceHelperService,
     private readonly notificationsService: NotificationsService,
+    private readonly policyEngineService: AttendancePolicyEngineService,
   ) {}
 
   private async getApproverUserIds(
@@ -359,12 +363,17 @@ export class AttendanceRegularizationService {
       }
 
       if (!shift) {
+        if (!policy) {
+          throw new PreconditionFailedException(
+            `Company HR Policy is not configured for company ID ${companyId}. Please configure HR Policy in settings.`,
+          );
+        }
         shift = {
-          startTime: policy?.defaultShiftStartTime || '09:00',
-          endTime: policy?.defaultShiftEndTime || '18:00',
-          breakMinutes: policy?.defaultBreakMinutes ?? 30,
-          gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
-          weeklyOffDays: policy?.weeklyOffDays || [0, 6],
+          startTime: policy.defaultShiftStartTime,
+          endTime: policy.defaultShiftEndTime,
+          breakMinutes: policy.defaultBreakMinutes,
+          gracePeriodMinutes: policy.lateComingGraceMinutes,
+          weeklyOffDays: policy.weeklyOffDays || [],
         };
       }
 
@@ -470,18 +479,23 @@ export class AttendanceRegularizationService {
         }
       }
 
-      // Determine Status
-      const minHoursPresent =
-        policy?.minHoursForPresent !== undefined
-          ? Number(policy.minHoursForPresent)
-          : 8;
-      const minHoursHalfDay =
-        policy?.minHoursForHalfDay !== undefined
-          ? Number(policy.minHoursForHalfDay)
-          : 4;
-      let finalStatus = record
-        ? record.attendanceStatus
-        : AttendanceStatus.PRESENT;
+      const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
+        employee.id,
+        companyId,
+        requestDateStr,
+        finalCheckIn,
+        finalCheckOut,
+        shift,
+        policy,
+        [],
+        timezone,
+        t,
+      );
+
+      lateMinutes = evalResult.lateMinutes;
+      totalHours = evalResult.netWorkingHours;
+      overtimeHours = evalResult.overtimeHours;
+      let finalStatus = evalResult.attendanceStatus;
 
       // Check if employee has an approved leave request for this date to prevent overwriting ON_LEAVE
       const activeLeave = await this.leaveRequestModel.findOne({
@@ -493,23 +507,6 @@ export class AttendanceRegularizationService {
         },
         transaction: t,
       });
-
-      if (finalCheckIn && !finalCheckOut) {
-        finalStatus =
-          lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
-      } else if (finalCheckIn && finalCheckOut) {
-        if (totalHours < minHoursHalfDay) {
-          finalStatus = AttendanceStatus.ABSENT;
-        } else if (totalHours < minHoursPresent) {
-          finalStatus = AttendanceStatus.HALF_DAY;
-        } else if (lateMinutes > 0) {
-          finalStatus = AttendanceStatus.LATE;
-        } else {
-          finalStatus = AttendanceStatus.PRESENT;
-        }
-      } else {
-        finalStatus = AttendanceStatus.ABSENT;
-      }
 
       if (activeLeave) {
         if (!activeLeave.isHalfDay) {

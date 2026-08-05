@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
   Body,
   UseGuards,
@@ -40,6 +41,26 @@ export class CompanyHrPoliciesController {
   getHrPolicies(@Request() req) {
     const companyId = this.getCompanyId(req);
     return this.policiesService.getHrPolicies(companyId);
+  }
+
+  @Post('preview')
+  @RequirePermission('hrpolicy:read')
+  getHrPolicyPreview(@Body() dto: any) {
+    return this.policiesService.getPolicyPreview(dto);
+  }
+
+  @Get('history')
+  @RequirePermission('hrpolicy:read')
+  getHrPolicyHistory(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.policiesService.getPolicyHistory(companyId);
+  }
+
+  @Get('impact')
+  @RequirePermission('hrpolicy:read')
+  getHrPolicyImpact(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.policiesService.getPolicyImpact(companyId);
   }
 
   @Put()

@@ -146,6 +146,41 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.INTEGER })
   declare maxBackdatedDays: number;
 
+  @Default(3)
+  @AllowNull(false)
+  @Column({ type: DataType.INTEGER })
+  declare monthlyLateThreshold: number;
+
+  @Default('HALF_DAY')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare latePenaltyAction: string;
+
+  @Default('11:00')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare halfDayAfterTime: string;
+
+  @Default('13:30')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare absentAfterTime: string;
+
+  @Default(5)
+  @AllowNull(false)
+  @Column({ type: DataType.INTEGER })
+  declare checkoutGraceMinutes: number;
+
+  @Default('23:59')
+  @AllowNull(false)
+  @Column({ type: DataType.STRING })
+  declare autoCheckoutTime: string;
+
+  @Default(0)
+  @AllowNull(false)
+  @Column({ type: DataType.INTEGER })
+  declare overtimeStartAfter: number;
+
   @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
