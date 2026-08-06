@@ -62,6 +62,20 @@ export class SalesContractService implements OnModuleInit {
       await this.sequelize.query(
         `ALTER TABLE "sales_contracts" ADD COLUMN IF NOT EXISTS "print_overrides" JSONB;`
       );
+
+      // Auto-migrate: Add missing shipment columns if not exists
+      const shipmentCols = [
+        { name: 'no_of_containers', type: 'INTEGER' },
+        { name: 'rate_per_mt', type: 'DECIMAL(12, 2)' },
+        { name: 'purchase_rate', type: 'DECIMAL(12, 2)' },
+        { name: 'forex', type: 'DECIMAL(12, 2)' },
+        { name: 'freight', type: 'DECIMAL(12, 2)' },
+      ];
+      for (const col of shipmentCols) {
+        await this.sequelize.query(
+          `ALTER TABLE "sales_contract_shipments" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type};`
+        );
+      }
     } catch (err) {
       console.warn('[SalesContractService] Column alteration warning:', err?.message || err);
     }

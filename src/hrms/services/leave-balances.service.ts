@@ -11,7 +11,9 @@ export class LeaveBalancesService {
     private readonly employeeLeaveBalanceModel: typeof EmployeeLeaveBalance,
     @InjectModel(Employee)
     private readonly employeeModel: typeof Employee,
-  ) {}
+    @InjectModel(LeaveType)
+    private readonly leaveTypeModel: typeof LeaveType,
+  ) { }
 
   async getFallbackEmployeeIdForAdmin(
     companyId: number,
@@ -24,8 +26,15 @@ export class LeaveBalancesService {
     employeeId: number,
     companyId: number,
     year: number,
-  ): Promise<EmployeeLeaveBalance[]> {
-    return this.employeeLeaveBalanceModel.findAll({
+  ): Promise<any[]> {
+    // 1. Fetch all active leave types for this company
+    const activeLeaveTypes = await this.leaveTypeModel.findAll({
+      where: { companyId, isActive: true },
+      order: [['name', 'ASC']],
+    });
+
+    // 2. Fetch existing balance records for this employee for the given year
+    const existingBalances = await this.employeeLeaveBalanceModel.findAll({
       where: { employeeId, companyId, year },
       include: [
         {
@@ -34,6 +43,47 @@ export class LeaveBalancesService {
         },
       ],
     });
+
+    const balanceMap = new Map<number, EmployeeLeaveBalance>();
+    for (const bal of existingBalances) {
+      balanceMap.set(bal.leaveTypeId, bal);
+    }
+
+    // 3. Return balance cards for ALL active leave types of the company
+    return activeLeaveTypes.map((leaveType) => {
+      const existing = balanceMap.get(leaveType.id);
+
+      const allocated = leaveType.daysPerYear != null
+        ? Number(leaveType.daysPerYear)
+        : Number(existing?.totalAllocated || 0);
+
+      const used = Number(existing?.usedDays || 0);
+      const pending = Number(existing?.pendingDays || 0);
+      const carryForward = Number(existing?.carryForwardDays || 0);
+      const remaining = Math.max(0, allocated - used - pending + carryForward);
+
+      return {
+        id: existing?.id || `lt-${leaveType.id}`,
+        companyId,
+        employeeId,
+        leaveTypeId: leaveType.id,
+        year,
+        totalAllocated: allocated,
+        usedDays: used,
+        pendingDays: pending,
+        remainingDays: remaining,
+        carryForwardDays: carryForward,
+        createdAt: existing?.createdAt || new Date(),
+        updatedAt: existing?.updatedAt || new Date(),
+        leaveType: {
+          id: leaveType.id,
+          name: leaveType.name,
+          code: leaveType.code,
+          daysPerYear: leaveType.daysPerYear,
+          isPaid: leaveType.isPaid,
+        },
+      };
+    });
   }
 
   async getBalance(
@@ -41,7 +91,7 @@ export class LeaveBalancesService {
     leaveTypeId: number,
     companyId: number,
     year: number,
-  ): Promise<EmployeeLeaveBalance> {
+  ): Promise<any> {
     const balance = await this.employeeLeaveBalanceModel.findOne({
       where: { employeeId, leaveTypeId, companyId, year },
       include: [{ model: LeaveType }],
@@ -53,6 +103,19 @@ export class LeaveBalancesService {
       );
     }
 
-    return balance;
+    const json = balance.get({ plain: true });
+    const allocated = balance.leaveType && balance.leaveType.daysPerYear != null
+      ? Number(balance.leaveType.daysPerYear)
+      : Number(balance.totalAllocated || 0);
+    const used = Number(balance.usedDays || 0);
+    const pending = Number(balance.pendingDays || 0);
+    const carryForward = Number(balance.carryForwardDays || 0);
+    const remaining = Math.max(0, allocated - used - pending + carryForward);
+
+    return {
+      ...json,
+      totalAllocated: allocated,
+      remainingDays: remaining,
+    };
   }
 }

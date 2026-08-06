@@ -233,9 +233,26 @@ export class LeaveRequestsQueryService {
       },
     });
 
-    const balances = await this.employeeLeaveBalanceModel.findAll({
+    const rawBalances = await this.employeeLeaveBalanceModel.findAll({
       where: { employeeId, year: today.getFullYear() },
-      include: [{ model: LeaveType, attributes: ['name', 'code'] }],
+      include: [{ model: LeaveType, attributes: ['id', 'name', 'code', 'daysPerYear'] }],
+    });
+
+    const balances = rawBalances.map((bal) => {
+      const json = bal.get({ plain: true });
+      const allocated = bal.leaveType && bal.leaveType.daysPerYear != null
+        ? Number(bal.leaveType.daysPerYear)
+        : Number(bal.totalAllocated || 0);
+      const used = Number(bal.usedDays || 0);
+      const pending = Number(bal.pendingDays || 0);
+      const carryForward = Number(bal.carryForwardDays || 0);
+      const remaining = Math.max(0, allocated - used - pending + carryForward);
+
+      return {
+        ...json,
+        totalAllocated: allocated,
+        remainingDays: remaining,
+      };
     });
 
     const approvedThisMonth = await this.leaveRequestModel.count({

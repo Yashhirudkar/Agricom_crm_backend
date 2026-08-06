@@ -1,4 +1,4 @@
-import { Injectable, PreconditionFailedException } from '@nestjs/common';
+import { Injectable, PreconditionFailedException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../models/attendance-record.model';
 import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.model';
@@ -64,7 +64,22 @@ export class AttendancePolicyEngineService {
   constructor(
     @InjectModel(AttendanceRecord)
     private readonly recordModel: typeof AttendanceRecord,
+    @InjectModel(CompanyHrPolicy)
+    private readonly policyModel: typeof CompanyHrPolicy,
   ) {}
+
+  /**
+   * Retrieves the current Company HR Policy for attendance calculations and displays.
+   */
+  public async getCompanyPolicy(companyId: number): Promise<CompanyHrPolicy> {
+    const policy = await this.policyModel.findOne({ where: { companyId } });
+    if (!policy) {
+      throw new NotFoundException(
+        `Company HR Policy is not configured for company ID ${companyId}. Please configure HR Policy in settings.`,
+      );
+    }
+    return policy;
+  }
 
   /**
    * Generates pure policy preview calculations for frontend display without duplicating business logic.

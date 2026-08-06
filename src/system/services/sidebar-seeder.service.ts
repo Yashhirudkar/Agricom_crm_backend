@@ -17,15 +17,21 @@ export class SidebarSeederService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     try {
       const folderCount = await this.sidebarFolderModel.count();
-      if (folderCount > 0) {
-        this.logger.log('Sidebar folders already exist. Skipping seeding.');
-        return;
+      if (folderCount === 0) {
+        this.logger.log(
+          'No sidebar configuration found. Seeding default structure...',
+        );
+        await this.seedDefaultStructure();
       }
 
-      this.logger.log(
-        'No sidebar configuration found. Seeding default structure...',
-      );
+      await this.syncHrPoliciesSidebarItem();
+    } catch (error) {
+      this.logger.error('Failed to seed or sync sidebar structure', error);
+    }
+  }
 
+  private async seedDefaultStructure() {
+    try {
       // 1. Workspace
       const workspaceFolder = await this.sidebarFolderModel.create({
         name: 'Workspace',
@@ -117,6 +123,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 40,
           is_active: true,
           permission_link: null,
+        },
+        {
+          name: 'HR Policies',
+          route: '/hr-policies',
+          icon_name: 'FileText',
+          folder_id: hrFolder.id,
+          sort_order: 50,
+          is_active: true,
+          permission_link: 'hrpolicy:read',
         },
       ] as any[]);
 
@@ -432,6 +447,77 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       this.logger.log('Sidebar default structure seeded successfully.');
     } catch (error) {
       this.logger.error('Failed to seed sidebar structure', error);
+    }
+  }
+
+  private async syncHrPoliciesSidebarItem() {
+    try {
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/hr-policies' },
+      });
+
+      let itemId: number | null = null;
+
+      if (items.length > 0) {
+        for (const item of items) {
+          if (item.permission_link !== 'hrpolicy:read') {
+            item.permission_link = 'hrpolicy:read';
+            await item.save();
+            this.logger.log(
+              `Updated sidebar item ${item.id} (${item.route}) permission_link to hrpolicy:read`,
+            );
+          }
+          itemId = item.id;
+        }
+      } else {
+        let hrFolder = await this.sidebarFolderModel.findOne({
+          where: { name: 'HR Management' },
+        });
+
+        if (!hrFolder) {
+          hrFolder = await this.sidebarFolderModel.create({
+            name: 'HR Management',
+            icon_name: 'Users',
+            sort_order: 20,
+            is_active: true,
+          } as any);
+        }
+
+        const newItem = await this.sidebarItemModel.create({
+          name: 'HR Policies',
+          route: '/hr-policies',
+          icon_name: 'FileText',
+          folder_id: hrFolder.id,
+          sort_order: 50,
+          is_active: true,
+          permission_link: 'hrpolicy:read',
+        } as any);
+
+        itemId = newItem.id;
+        this.logger.log(
+          'Created /hr-policies sidebar item with hrpolicy:read permission_link',
+        );
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      if (itemId && seq) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          await seq
+            .query(
+              `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
+             VALUES (:clientId, :itemId, NOW(), NOW())
+             ON CONFLICT (client_id, item_id) DO NOTHING;`,
+              { replacements: { clientId: client.id, itemId } },
+            )
+            .catch(() => {});
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync HR Policies sidebar item', err);
     }
   }
 }

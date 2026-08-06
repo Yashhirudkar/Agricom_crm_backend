@@ -17,7 +17,7 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('leave-balances')
 export class LeaveBalancesController {
-  constructor(private readonly leaveBalancesService: LeaveBalancesService) {}
+  constructor(private readonly leaveBalancesService: LeaveBalancesService) { }
 
   private getCompanyId(req: any): number {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;

@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { AttendanceService } from '../services/attendance.service';
 import { AttendanceConflictService } from '../services/attendance-conflict.service';
+import { AttendancePolicyEngineService } from '../services/attendance-policy-engine.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
@@ -39,7 +40,15 @@ export class AttendanceController {
   constructor(
     private readonly attendanceService: AttendanceService,
     private readonly conflictService: AttendanceConflictService,
+    private readonly policyEngineService: AttendancePolicyEngineService,
   ) { }
+
+  @Get('policy')
+  @RequirePermission('attendance_activity:read')
+  async getAttendancePolicy(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.policyEngineService.getCompanyPolicy(companyId);
+  }
 
   private getCompanyId(req: any): number {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;

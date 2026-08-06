@@ -426,22 +426,15 @@ export class LeaveRequestsService {
       });
 
       if (!balance) {
-        const joinDate = new Date(employee.joiningDate || new Date());
-        const joinedMonth =
-          joinDate.getFullYear() === year ? joinDate.getMonth() : 0;
-        const remainingMonths = 12 - joinedMonth;
-        const proratedDays = parseFloat(
-          ((leaveType.daysPerYear / 12) * remainingMonths).toFixed(2),
-        );
-
+        const initialAllocated = Number(leaveType.daysPerYear || 0);
         balance = await this.employeeLeaveBalanceModel.create(
           {
             companyId,
             employeeId,
             leaveTypeId: leaveType.id,
             year,
-            totalAllocated: proratedDays,
-            remainingDays: proratedDays,
+            totalAllocated: initialAllocated,
+            remainingDays: initialAllocated,
             usedDays: 0,
             pendingDays: 0,
             carryForwardDays: 0,
@@ -450,9 +443,14 @@ export class LeaveRequestsService {
         );
       }
 
-      if (balance.remainingDays < totalDays) {
+      const effectiveTotal = leaveType.daysPerYear != null
+        ? Number(leaveType.daysPerYear)
+        : Number(balance.totalAllocated || 0);
+      const effectiveRemaining = effectiveTotal - Number(balance.usedDays || 0) - Number(balance.pendingDays || 0) + Number(balance.carryForwardDays || 0);
+
+      if (effectiveRemaining < totalDays) {
         throw new BadRequestException(
-          `Insufficient leave balance. Required: ${totalDays}, Remaining: ${balance.remainingDays}`,
+          `Insufficient leave balance. Required: ${totalDays}, Remaining: ${Math.max(0, effectiveRemaining)}`,
         );
       }
 
@@ -504,18 +502,20 @@ export class LeaveRequestsService {
 
       // Deduct from balance
       if (leaveRequest.status === LeaveRequestStatus.PENDING) {
+        const newPending = Number(balance.pendingDays) + totalDays;
         await balance.update(
           {
-            pendingDays: Number(balance.pendingDays) + totalDays,
-            remainingDays: Number(balance.remainingDays) - totalDays,
+            pendingDays: newPending,
+            remainingDays: Math.max(0, effectiveRemaining - totalDays),
           },
           { transaction: t },
         );
       } else if (leaveRequest.status === LeaveRequestStatus.APPROVED) {
+        const newUsed = Number(balance.usedDays) + totalDays;
         await balance.update(
           {
-            usedDays: Number(balance.usedDays) + totalDays,
-            remainingDays: Number(balance.remainingDays) - totalDays,
+            usedDays: newUsed,
+            remainingDays: Math.max(0, effectiveRemaining - totalDays),
           },
           { transaction: t },
         );

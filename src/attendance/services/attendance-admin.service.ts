@@ -393,22 +393,15 @@ export class AttendanceAdminService {
         });
 
         if (!balance) {
-          const joinDate = new Date(employee.joiningDate || new Date());
-          const joinedMonth =
-            joinDate.getFullYear() === year ? joinDate.getMonth() : 0;
-          const remainingMonths = 12 - joinedMonth;
-          const proratedDays = parseFloat(
-            ((leaveType.daysPerYear / 12) * remainingMonths).toFixed(2),
-          );
-
+          const initialAllocated = Number(leaveType.daysPerYear || 0);
           balance = await this.employeeLeaveBalanceModel.create(
             {
               companyId,
               employeeId: dto.employeeId,
               leaveTypeId: dto.leaveTypeId,
               year,
-              totalAllocated: proratedDays,
-              remainingDays: proratedDays,
+              totalAllocated: initialAllocated,
+              remainingDays: initialAllocated,
               usedDays: 0,
               pendingDays: 0,
               carryForwardDays: 0,
@@ -417,16 +410,22 @@ export class AttendanceAdminService {
           );
         }
 
-        if (balance.remainingDays < 1) {
+        const effectiveTotal = leaveType.daysPerYear != null
+          ? Number(leaveType.daysPerYear)
+          : Number(balance.totalAllocated || 0);
+        const effectiveRemaining = effectiveTotal - Number(balance.usedDays || 0) - Number(balance.pendingDays || 0) + Number(balance.carryForwardDays || 0);
+
+        if (effectiveRemaining < 1) {
           throw new BadRequestException(
-            `Insufficient leave balance. Required: 1, Remaining: ${balance.remainingDays}`,
+            `Insufficient leave balance. Required: 1, Remaining: ${Math.max(0, effectiveRemaining)}`,
           );
         }
 
+        const newUsed = Number(balance.usedDays) + 1;
         await balance.update(
           {
-            remainingDays: Number(balance.remainingDays) - 1,
-            usedDays: Number(balance.usedDays) + 1,
+            usedDays: newUsed,
+            remainingDays: Math.max(0, effectiveRemaining - 1),
           },
           { transaction: t },
         );

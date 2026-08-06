@@ -109,19 +109,6 @@ export class PartnerService {
       dto.productIds,
     );
 
-    // Business Rule: A dynamic schema must be configured for the selected partner role
-    // before a partner of that role can be created.
-    // Super Admin must define the schema first via POST /masters/partner-roles/:roleId/dynamic-config
-    const activeConfig = await this.dynamicConfigModel.findOne({
-      where: { partnerRoleId: dto.partnerRoleId, isActive: true },
-    });
-    if (!activeConfig) {
-      throw new BadRequestException(
-        'Dynamic configuration not defined for selected partner role. ' +
-          'A Super Admin must configure the Additional Information schema before partners of this role can be created.',
-      );
-    }
-
     return await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...partnerData } = dto;
       const partner = await this.partnerModel.create(

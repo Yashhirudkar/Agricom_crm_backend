@@ -14,6 +14,7 @@ import { Employee } from '../../hrms/models/employee.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Branch } from '../../hrms/models/branch.model';
 import { AttendanceHelperService } from './attendance-helper.service';
+import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
 import { Op } from 'sequelize';
 
 export interface AttendanceDayDto {
@@ -60,6 +61,7 @@ export class AttendanceSummaryService {
     @InjectModel(CompanyHrPolicy)
     private readonly policyModel: typeof CompanyHrPolicy,
     private readonly helperService: AttendanceHelperService,
+    private readonly policyEngineService: AttendancePolicyEngineService,
   ) {}
 
   public normalizeLegacyStatus(status: string | null): string | null {
@@ -72,10 +74,17 @@ export class AttendanceSummaryService {
   public normalizeAttendanceRecord(record: any): AttendanceDayDto {
     const status = record?.attendanceStatus || null;
     const lateMinutes = Number(record?.lateMinutes || 0);
-    const workHours =
-      record?.attendanceState === AttendanceState.WORKING
-        ? 0
-        : Number(record?.totalHours || 0);
+    let workHours = Number(record?.totalHours || 0);
+    if (record?.attendanceState === AttendanceState.WORKING && record?.checkInTime) {
+      const calc = this.policyEngineService.calculateWorkingHours(
+        record.checkInTime,
+        null,
+        record.shift,
+        null,
+        record.logs || [],
+      );
+      workHours = calc.netWorkingHours;
+    }
     const overtime = Number(record?.overtimeHours || 0);
 
     return {
@@ -336,8 +345,18 @@ export class AttendanceSummaryService {
 
       if (record) {
         status = record.attendanceStatus;
-        workHours =
-          record.attendanceState === AttendanceState.WORKING ? 0 : Number(record.totalHours || 0);
+        if (record.attendanceState === AttendanceState.WORKING && record.checkInTime) {
+          const calc = this.policyEngineService.calculateWorkingHours(
+            record.checkInTime,
+            null,
+            shift,
+            policy,
+            record.logs || [],
+          );
+          workHours = calc.netWorkingHours;
+        } else {
+          workHours = Number(record.totalHours || 0);
+        }
         overtime = Number(record.overtimeHours || 0);
         lateMinutes = Number(record.lateMinutes || 0);
         checkIn = record.checkInTime;
