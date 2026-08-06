@@ -45,6 +45,7 @@ import { AttendanceConflictService } from './services/attendance-conflict.servic
 import { AuditLog } from '../audit/models/audit-log.model';
 
 import { AttendancePolicyEngineService } from './services/attendance-policy-engine.service';
+import { AttendanceSummaryService } from './services/attendance-summary.service';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { AttendancePolicyEngineService } from './services/attendance-policy-engi
   controllers: [AttendanceController, ShiftsController],
   providers: [
     AttendancePolicyEngineService,
+    AttendanceSummaryService,
     AttendanceService,
     AttendanceHelperService,
     AttendanceReportService,
@@ -103,6 +105,7 @@ import { AttendancePolicyEngineService } from './services/attendance-policy-engi
   ],
   exports: [
     AttendancePolicyEngineService,
+    AttendanceSummaryService,
     AttendanceService,
     AttendanceHelperService,
     AttendanceReportService,

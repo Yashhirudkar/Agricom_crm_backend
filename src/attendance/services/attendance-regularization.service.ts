@@ -43,6 +43,7 @@ import { Designation } from '../../hrms/models/designation.model';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 
 import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
+import { AttendanceSummaryService } from './attendance-summary.service';
 
 @Injectable()
 export class AttendanceRegularizationService {
@@ -69,6 +70,7 @@ export class AttendanceRegularizationService {
     private readonly helperService: AttendanceHelperService,
     private readonly notificationsService: NotificationsService,
     private readonly policyEngineService: AttendancePolicyEngineService,
+    private readonly summaryService: AttendanceSummaryService,
   ) {}
 
   private async getApproverUserIds(
@@ -616,9 +618,24 @@ export class AttendanceRegularizationService {
         );
       }
 
+      let summary = null;
+      try {
+        const [yearStr, monthStr] = freshRecord.date.split('-');
+        const summaryData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          freshRecord.employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        summary = summaryData.summary;
+      } catch (err) {
+        console.error('Failed to compute monthly summary for regularization approve socket:', err);
+      }
+
       this.attendanceGateway.emitAttendanceUpdate(
         'regularization_approved',
         freshRecord,
+        summary,
       );
 
       try {
@@ -741,10 +758,25 @@ export class AttendanceRegularizationService {
           lockedException.attendanceRecordId,
         );
         if (record) {
+          let summary = null;
+          try {
+            const [yearStr, monthStr] = record.date.split('-');
+            const summaryData = await this.summaryService.getEmployeeMonthlySummary(
+              employee.companyId,
+              record.employeeId,
+              parseInt(yearStr),
+              parseInt(monthStr),
+            );
+            summary = summaryData.summary;
+          } catch (err) {
+            console.error('Failed to compute monthly summary for regularization reject socket:', err);
+          }
+
           try {
             this.attendanceGateway.emitAttendanceUpdate(
               'regularization_rejected',
               record,
+              summary,
             );
           } catch (err) {
             console.error('Socket emit error in rejectCorrection:', err);

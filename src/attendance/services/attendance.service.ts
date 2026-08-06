@@ -55,6 +55,7 @@ import { Designation } from '../../hrms/models/designation.model';
 
 import { AttendanceConflictService } from './attendance-conflict.service';
 import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
+import { AttendanceSummaryService } from './attendance-summary.service';
 
 @Injectable()
 export class AttendanceService {
@@ -87,6 +88,7 @@ export class AttendanceService {
     private readonly exceptionsQueryService: AttendanceExceptionsQueryService,
     private readonly conflictService: AttendanceConflictService,
     private readonly policyEngineService: AttendancePolicyEngineService,
+    private readonly summaryService: AttendanceSummaryService,
   ) {}
 
   // 1. Employee Check In
@@ -255,7 +257,14 @@ export class AttendanceService {
       const freshRecord = await this.recordModel.findByPk(record.id);
 
       try {
-        this.attendanceGateway.emitCheckedIn(freshRecord);
+        const [yearStr, monthStr] = freshRecord.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        this.attendanceGateway.emitCheckedIn(freshRecord, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkIn:', err);
       }
@@ -464,7 +473,14 @@ export class AttendanceService {
       await t.commit();
 
       try {
-        this.attendanceGateway.emitCheckedOut(record);
+        const [yearStr, monthStr] = record.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        this.attendanceGateway.emitCheckedOut(record, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkOut:', err);
       }

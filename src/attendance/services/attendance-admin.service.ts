@@ -24,6 +24,7 @@ import { Op } from 'sequelize';
 import { AttendanceGateway } from '../gateways/attendance.gateway';
 
 import { AttendanceConflictService } from './attendance-conflict.service';
+import { AttendanceSummaryService } from './attendance-summary.service';
 
 @Injectable()
 export class AttendanceAdminService {
@@ -44,6 +45,7 @@ export class AttendanceAdminService {
     private readonly leaveTypeModel: typeof LeaveType,
     private readonly attendanceGateway: AttendanceGateway,
     private readonly conflictService: AttendanceConflictService,
+    private readonly summaryService: AttendanceSummaryService,
   ) {}
 
   // 11. Assign Shift to Employee
@@ -241,7 +243,14 @@ export class AttendanceAdminService {
       await t.commit();
 
       try {
-        this.attendanceGateway.emitAttendanceUpdate('manual_override', record);
+        const [yearStr, monthStr] = record.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          record.employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        this.attendanceGateway.emitAttendanceUpdate('manual_override', record, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in manualOverride:', err);
       }
@@ -501,9 +510,17 @@ export class AttendanceAdminService {
       await t.commit();
 
       try {
+        const [yearStr, monthStr] = record.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          dto.employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
         this.attendanceGateway.emitAttendanceUpdate(
           'manual_attendance',
           record,
+          monthlyReportData.summary,
         );
       } catch (err) {
         console.error('Socket emit error in manualAttendance:', err);

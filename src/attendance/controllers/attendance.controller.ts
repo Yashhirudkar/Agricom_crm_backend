@@ -39,7 +39,7 @@ export class AttendanceController {
   constructor(
     private readonly attendanceService: AttendanceService,
     private readonly conflictService: AttendanceConflictService,
-  ) {}
+  ) { }
 
   private getCompanyId(req: any): number {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;

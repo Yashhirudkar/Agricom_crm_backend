@@ -254,7 +254,7 @@ export class AttendanceConflictService {
           record.isIgnored = false;
           // Set attendanceStatus back to Present or calculated value
           if (!record.attendanceStatus || record.attendanceStatus === AttendanceStatus.ON_LEAVE) {
-            record.attendanceStatus = record.lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+            record.attendanceStatus = AttendanceStatus.PRESENT;
           }
           await record.save({ transaction: t });
           newAttendanceStatus = record.attendanceStatus;
@@ -344,7 +344,7 @@ export class AttendanceConflictService {
           record.isIgnored = true;
           // Set to PRESENT (preserving checkout history) but flagged isIgnored
           if (!record.attendanceStatus || record.attendanceStatus === AttendanceStatus.ON_LEAVE) {
-            record.attendanceStatus = record.lateMinutes > 0 ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+            record.attendanceStatus = AttendanceStatus.PRESENT;
           }
           await record.save({ transaction: t });
           newAttendanceStatus = record.attendanceStatus;
