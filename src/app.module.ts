@@ -47,6 +47,10 @@ import { Shift } from './attendance/models/shift.model';
 import { AttendanceRecord } from './attendance/models/attendance-record.model';
 import { AttendanceLog } from './attendance/models/attendance-log.model';
 import { AttendanceException } from './attendance/models/attendance-exception.model';
+import { AttendanceAuditTrail } from './attendance/models/attendance-audit-trail.model';
+import { BiometricModule } from './biometric/biometric.module';
+import { BiometricDevice } from './biometric/models/biometric-device.model';
+import { BiometricPunchLog } from './biometric/models/biometric-punch-log.model';
 
 import { join } from 'path';
 
@@ -200,6 +204,9 @@ import {
             AttendanceRecord,
             AttendanceLog,
             AttendanceException,
+            AttendanceAuditTrail,
+            BiometricDevice,
+            BiometricPunchLog,
             AppModuleModel,
             ModuleResource,
             ResourceAction,
@@ -290,6 +297,7 @@ import {
     HolidaysModule,
     ProfileModule,
     AttendanceModule,
+    BiometricModule,
     MastersModule,
     TasksModule,
     SalesContractsModule,

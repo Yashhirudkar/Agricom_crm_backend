@@ -181,6 +181,31 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Column({ type: DataType.INTEGER })
   declare overtimeStartAfter: number;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare biometricEnabled: boolean;
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare manualAttendanceAllowed: boolean;
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare mixedAttendanceAllowed: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare requireBiometricCheckout: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare allowMobileCheckin: boolean;
+
   @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })

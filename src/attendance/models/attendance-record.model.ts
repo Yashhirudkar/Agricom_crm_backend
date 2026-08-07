@@ -177,6 +177,11 @@ export class AttendanceRecord extends Model<AttendanceRecord> {
   @Column({ type: DataType.BOOLEAN })
   declare isIgnored: boolean;
 
+  @Default(1)
+  @AllowNull(false)
+  @Column({ type: DataType.INTEGER })
+  declare revision: number;
+
   @CreatedAt
   declare createdAt: Date;
 

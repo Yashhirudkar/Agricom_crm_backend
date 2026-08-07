@@ -7,6 +7,7 @@ import { Shift } from './models/shift.model';
 import { AttendanceRecord } from './models/attendance-record.model';
 import { AttendanceLog } from './models/attendance-log.model';
 import { AttendanceException } from './models/attendance-exception.model';
+import { AttendanceAuditTrail } from './models/attendance-audit-trail.model';
 import { CompanyBreakPolicy } from './models/company-break-policy.model';
 import { SentReminder } from './models/sent-reminder.model';
 import { Employee } from '../hrms/models/employee.model';
@@ -54,6 +55,7 @@ import { AttendanceSummaryService } from './services/attendance-summary.service'
       AttendanceRecord,
       AttendanceLog,
       AttendanceException,
+      AttendanceAuditTrail,
       CompanyBreakPolicy,
       SentReminder,
       Employee,

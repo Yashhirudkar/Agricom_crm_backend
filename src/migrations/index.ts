@@ -28,6 +28,9 @@ import * as phase27 from './phase-27-add-conversation-avatar';
 import * as phase28 from './phase-28-add-channel-posting-policy';
 import * as phase29 from './phase-29-add-member-mute-notifications';
 import * as phase30 from './phase-30-enterprise-attendance-policy';
+import * as phase31 from './phase-31-biometric-integration';
+import * as phase32 from './phase-32-biometric-retry-and-sidebar';
+import * as phase33 from './phase-33-remove-employee-biometric-id';
 
 export interface MigrationPhase {
   phase: string;
@@ -71,6 +74,9 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase28,
   phase29,
   phase30,
+  phase31,
+  phase32,
+  phase33,
 ];
 
 
