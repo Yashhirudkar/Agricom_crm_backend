@@ -1,4 +1,4 @@
-import { Injectable, PreconditionFailedException, NotFoundException } from '@nestjs/common';
+import { Injectable, PreconditionFailedException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../models/attendance-record.model';
 import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.model';
@@ -23,6 +23,8 @@ export interface CheckInWindowEvaluation {
 
 export interface EnterpriseAttendanceEvaluation {
   attendanceStatus: AttendanceStatus;
+  employeeStatus: AttendanceStatus;
+  adminStatus: string;
   attendanceState?: AttendanceState;
   grossWorkingHours: number;
   netWorkingHours: number;
@@ -60,13 +62,25 @@ export interface PolicyPreviewResult {
 }
 
 @Injectable()
-export class AttendancePolicyEngineService {
+export class AttendancePolicyEngineService implements OnModuleInit {
   constructor(
     @InjectModel(AttendanceRecord)
     private readonly recordModel: typeof AttendanceRecord,
     @InjectModel(CompanyHrPolicy)
     private readonly policyModel: typeof CompanyHrPolicy,
   ) {}
+
+  async onModuleInit() {
+    try {
+      if (this.policyModel && this.policyModel.sequelize) {
+        await this.policyModel.sequelize.query(
+          `ALTER TABLE "company_hr_policies" ADD COLUMN IF NOT EXISTS "mandatoryBreakDeduction" BOOLEAN NOT NULL DEFAULT false;`,
+        );
+      }
+    } catch (err: any) {
+      console.warn('Could not auto-add mandatoryBreakDeduction column:', err.message);
+    }
+  }
 
   /**
    * Retrieves the current Company HR Policy for attendance calculations and displays.
@@ -233,6 +247,10 @@ export class AttendancePolicyEngineService {
 
   /**
    * 1. Calculate Gross Working Hours, Break Duration, Net Working Hours, and Effective Minutes
+   * Clean Enterprise Policy:
+   * - If actual break logs exist -> deduct actual break duration from logs.
+   * - Else if company policy specifies mandatory break deduction -> deduct default break.
+   * - Else -> no deduction (0 ms).
    */
   public calculateWorkingHours(
     checkInTime: Date | string | null,
@@ -256,7 +274,6 @@ export class AttendancePolicyEngineService {
     const endMs = checkOutTime ? new Date(checkOutTime).getTime() : Date.now();
     const grossWorkingMs = Math.max(0, endMs - startMs);
 
-    // Calculate Break Duration
     let breakDurationMs = 0;
     let breakLogsExist = false;
 
@@ -284,15 +301,9 @@ export class AttendancePolicyEngineService {
       }
     }
 
-    // Default break deduction if no break logs exist and checkIn is at/before break start
     if (!breakLogsExist) {
-      const defaultBreakMins = shift?.breakMinutes ?? (policy?.defaultBreakMinutes ?? 0);
-      const breakStartStr = policy?.defaultBreakStartTime;
-      const checkInObj = new Date(checkInTime);
-      const checkInMins = checkInObj.getHours() * 60 + checkInObj.getMinutes();
-      const breakStartMins = this.timeStrToMinutes(breakStartStr, '00:00');
-
-      if (breakStartStr && checkInMins <= breakStartMins) {
+      if (policy && (policy as any).mandatoryBreakDeduction === true) {
+        const defaultBreakMins = shift?.breakMinutes ?? (policy?.defaultBreakMinutes ?? 0);
         breakDurationMs = (defaultBreakMins || 0) * 60 * 1000;
       } else {
         breakDurationMs = 0;
@@ -319,6 +330,7 @@ export class AttendancePolicyEngineService {
 
   /**
    * 2. Evaluate Check-In Window (Grace, Late Window, Half Day Window, Absent Window)
+   * Late minutes formula: lateMinutes = checkInMinutes > graceEndMinutes ? checkInMinutes - graceEndMinutes : 0
    */
   public evaluateCheckInWindow(
     checkInTime: Date | string,
@@ -337,10 +349,11 @@ export class AttendancePolicyEngineService {
     const checkInMinutes = inH * 60 + inM;
 
     const shiftStartMinutes = this.timeStrToMinutes(shiftStartTimeStr, '00:00');
+    const graceEndMinutes = shiftStartMinutes + graceMinutes;
     const halfDayAfterMinutes = halfDayAfterTimeStr ? this.timeStrToMinutes(halfDayAfterTimeStr, '00:00') : Infinity;
     const absentAfterMinutes = absentAfterTimeStr ? this.timeStrToMinutes(absentAfterTimeStr, '00:00') : Infinity;
 
-    if (checkInMinutes <= shiftStartMinutes + graceMinutes) {
+    if (checkInMinutes <= graceEndMinutes) {
       return {
         windowStatus: AttendanceStatus.PRESENT,
         lateMinutes: 0,
@@ -348,7 +361,7 @@ export class AttendancePolicyEngineService {
       };
     }
 
-    const lateMinutes = checkInMinutes - shiftStartMinutes;
+    const lateMinutes = checkInMinutes - graceEndMinutes;
 
     if (checkInMinutes < halfDayAfterMinutes) {
       return {
@@ -402,7 +415,7 @@ export class AttendancePolicyEngineService {
   }
 
   /**
-   * 4. Full Enterprise Policy Evaluation
+   * 4. Centralized Enterprise Policy Evaluator (evaluateAttendance / evaluateAttendanceStatus)
    */
   public async evaluateAttendanceStatus(
     employeeId: number,
@@ -480,13 +493,14 @@ export class AttendancePolicyEngineService {
     let isMissedCheckout = false;
 
     if (checkInTime && checkOutTime) {
-      const minHoursPresent = policy?.minHoursForPresent !== undefined ? Number(policy.minHoursForPresent) : 0;
-      const minHoursHalfDay = policy?.minHoursForHalfDay !== undefined ? Number(policy.minHoursForHalfDay) : 0;
+      const minHoursPresent = policy?.minHoursForPresent !== undefined ? Number(policy.minHoursForPresent) : 7;
+      const minHoursHalfDay = policy?.minHoursForHalfDay !== undefined ? Number(policy.minHoursForHalfDay) : 4;
       const requiredNetMinutes = Math.round(minHoursPresent * 60);
       const requiredHalfDayMinutes = Math.round(minHoursHalfDay * 60);
 
       const effectiveMinutes = workingHoursInfo.effectiveWorkingMinutes;
 
+      // Minutes-based threshold comparison (prevents float rounding bugs)
       if (requiredHalfDayMinutes > 0 && effectiveMinutes < requiredHalfDayMinutes) {
         finalStatus = AttendanceStatus.ABSENT;
       } else if (requiredNetMinutes > 0 && effectiveMinutes < requiredNetMinutes) {
@@ -544,8 +558,14 @@ export class AttendancePolicyEngineService {
       }
     }
 
+    // Explicit Status Separation: employeeStatus vs adminStatus
+    const employeeStatus = finalStatus; // ONLY PRESENT, HALF_DAY, or ABSENT (never LATE)
+    const adminStatus = isLate ? `${finalStatus}_LATE` : finalStatus;
+
     return {
       attendanceStatus: finalStatus,
+      employeeStatus,
+      adminStatus,
       lateMinutes,
       earlyExitMinutes,
       isLate,

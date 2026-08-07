@@ -20,6 +20,8 @@ import { Op } from 'sequelize';
 export interface AttendanceDayDto {
   date: string;
   status: string | null;
+  employeeStatus: string | null;
+  adminStatus: string | null;
   isLate: boolean;
   lateMinutes: number;
   workHours: number;
@@ -87,10 +89,17 @@ export class AttendanceSummaryService {
     }
     const overtime = Number(record?.overtimeHours || 0);
 
+    const normalizedStatus = this.normalizeLegacyStatus(status);
+    const isLate = lateMinutes > 0 || status === 'LATE';
+    const employeeStatus = normalizedStatus;
+    const adminStatus = isLate ? `${normalizedStatus}_LATE` : normalizedStatus;
+
     return {
       date: record.date,
-      status: this.normalizeLegacyStatus(status),
-      isLate: lateMinutes > 0 || status === 'LATE',
+      status: normalizedStatus,
+      employeeStatus,
+      adminStatus,
+      isLate,
       lateMinutes,
       workHours: parseFloat(workHours.toFixed(2)),
       overtime: parseFloat(overtime.toFixed(2)),
@@ -415,12 +424,16 @@ export class AttendanceSummaryService {
 
       const normalizedStatus = this.normalizeLegacyStatus(status);
       const isLate = lateMinutes > 0 || status === 'LATE';
+      const employeeStatus = normalizedStatus;
+      const adminStatus = isLate ? `${normalizedStatus}_LATE` : normalizedStatus;
 
       daysDetails.push({
         date: dateStr,
         checkIn,
         checkOut,
         status: normalizedStatus,
+        employeeStatus,
+        adminStatus,
         isLate,
         workHours: parseFloat(workHours.toFixed(2)),
         overtime: parseFloat(overtime.toFixed(2)),

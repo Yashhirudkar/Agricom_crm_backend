@@ -52,6 +52,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     defaultValue: 0,
   });
 
+  await addCol('mandatoryBreakDeduction', {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  });
+
   console.log('✅ Phase 30 - Enterprise Attendance Policy columns added to company_hr_policies');
 }
 

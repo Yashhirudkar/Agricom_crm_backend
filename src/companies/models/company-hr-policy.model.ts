@@ -139,6 +139,11 @@ export class CompanyHrPolicy extends Model<CompanyHrPolicy> {
   @Default(false)
   @AllowNull(false)
   @Column({ type: DataType.BOOLEAN })
+  declare mandatoryBreakDeduction: boolean;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
   declare allowBackdatedLeave: boolean;
 
   @Default(0)

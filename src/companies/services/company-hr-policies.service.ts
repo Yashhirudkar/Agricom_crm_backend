@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CompanyHrPolicy } from '../models/company-hr-policy.model';
 import { AuditService } from '../../audit/services/audit.service';
@@ -8,7 +8,7 @@ import { UpsertCompanyHrPolicyDto } from '../dto/company-hr-policies.dto';
 import { AttendancePolicyEngineService, PolicyPreviewResult } from '../../attendance/services/attendance-policy-engine.service';
 
 @Injectable()
-export class CompanyHrPoliciesService {
+export class CompanyHrPoliciesService implements OnModuleInit {
   constructor(
     @InjectModel(CompanyHrPolicy)
     private readonly policyModel: typeof CompanyHrPolicy,
@@ -19,6 +19,16 @@ export class CompanyHrPoliciesService {
     private readonly auditService: AuditService,
     private readonly policyEngineService: AttendancePolicyEngineService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      await this.policyModel.sequelize.query(
+        `ALTER TABLE "company_hr_policies" ADD COLUMN IF NOT EXISTS "mandatoryBreakDeduction" BOOLEAN NOT NULL DEFAULT false;`,
+      );
+    } catch (err: any) {
+      console.warn('Could not auto-add mandatoryBreakDeduction column:', err.message);
+    }
+  }
 
   async getHrPolicies(companyId: number): Promise<CompanyHrPolicy | null> {
     const policy = await this.policyModel.findOne({
