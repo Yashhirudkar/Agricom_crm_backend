@@ -9,6 +9,9 @@ export enum EnquiryPurity {
 export enum EnquiryShipmentType {
   FCL = 'FCL',
   VESSEL = 'VESSEL',
+  TRUCK = 'TRUCK',
+  WAGON = 'WAGON',
+  TRUCK_WAGON = 'TRUCK_WAGON',
 }
 
 export enum EnquiryStatus {
