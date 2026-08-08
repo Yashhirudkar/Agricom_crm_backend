@@ -17,7 +17,7 @@ import { Partner } from '../../masters/partner/partner.model';
 import { Product } from '../../masters/product/product.model';
 import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
 import { User } from '../../users/models/user.model';
-import { EnquiryStatus } from '../enquiry.constants';
+import { EnquiryStatus, EnquiryShipmentMode } from '../enquiry.constants';
 
 @Table({
   tableName: 'enquiries',
@@ -70,8 +70,44 @@ export class Enquiry extends Model<Enquiry> {
   declare product: Product;
 
   @AllowNull(true)
-  @Column({ field: 'origin_country_id', type: DataType.INTEGER })
-  declare originCountryId: number;
+  @Column({ field: 'origin_country_id', type: DataType.STRING })
+  declare originCountryId: string;
+
+  @AllowNull(true)
+  @Column({ field: 'shipment_mode', type: DataType.STRING(50) })
+  declare shipmentMode: EnquiryShipmentMode;
+
+  @AllowNull(true)
+  @Column({ field: 'origin_port', type: DataType.STRING(100) })
+  declare originPort: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_port', type: DataType.STRING(100) })
+  declare destinationPort: string;
+
+  @AllowNull(true)
+  @Column({ field: 'origin_state', type: DataType.STRING(100) })
+  declare originState: string;
+
+  @AllowNull(true)
+  @Column({ field: 'origin_city', type: DataType.STRING(100) })
+  declare originCity: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_country', type: DataType.STRING(100) })
+  declare destinationCountry: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_state', type: DataType.STRING(100) })
+  declare destinationState: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_city', type: DataType.STRING(100) })
+  declare destinationCity: string;
+
+  @AllowNull(true)
+  @Column({ field: 'bid_currency', type: DataType.STRING(10) })
+  declare bidCurrency: string;
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(50) })
@@ -85,6 +121,9 @@ export class Enquiry extends Model<Enquiry> {
   @BelongsTo(() => PackingType)
   declare packingType: PackingType;
 
+  /**
+   * @deprecated Use destinationPort instead. Kept for legacy contract conversion logic.
+   */
   @Column({
     type: DataType.STRING,
     allowNull: true,
@@ -112,6 +151,7 @@ export class Enquiry extends Model<Enquiry> {
   @Default(true)
   @Column({ field: 'potential_enquiry', type: DataType.BOOLEAN })
   declare potentialEnquiry: boolean;
+
 
   @AllowNull(false)
   @Default(EnquiryStatus.NEW)

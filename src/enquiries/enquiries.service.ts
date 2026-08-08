@@ -18,6 +18,7 @@ import { buildPagination } from '../masters/common/pagination.helper';
 import { buildSearchQuery } from '../masters/common/search.helper';
 import { buildPaginatedResponse } from '../masters/common/response.helper';
 import { AuditService } from '../audit/services/audit.service';
+import { EnquiryShipmentMode } from './enquiry.constants';
 
 const INCLUDE_RELATIONS = [
   {
@@ -105,6 +106,105 @@ export class EnquiriesService {
     }
   }
 
+  private normalizeLogisticsPayload(dto: any): any {
+    const payload = { ...dto };
+
+    // Sync destinationPort and podPort
+    if (payload.destinationPort) {
+      payload.podPort = payload.destinationPort;
+    } else if (payload.podPort) {
+      payload.destinationPort = payload.podPort;
+    }
+
+    if (payload.shipmentMode) {
+      const mode = payload.shipmentMode;
+      if (mode === EnquiryShipmentMode.SHIP) {
+        // Clear land state and city fields (Country fields are allowed/required)
+        payload.originState = null;
+        payload.originCity = null;
+        payload.destinationState = null;
+        payload.destinationCity = null;
+      } else if (mode === EnquiryShipmentMode.ROAD || mode === EnquiryShipmentMode.RAIL) {
+        // Clear port fields
+        payload.originPort = null;
+        payload.destinationPort = null;
+        payload.podPort = null;
+      }
+    }
+
+    // Limit currency to upper case ISO code
+    if (payload.bidCurrency) {
+      payload.bidCurrency = payload.bidCurrency.trim().toUpperCase();
+    }
+
+    return payload;
+  }
+
+  private validateLogistics(data: any): void {
+    if (data.shipmentMode) {
+      const mode = data.shipmentMode;
+      if (mode === EnquiryShipmentMode.SHIP) {
+        if (!data.originCountryId || !data.originCountryId.trim()) {
+          throw new BadRequestException('Origin Country is required for Ship mode');
+        }
+        if (!data.originPort || !data.originPort.trim()) {
+          throw new BadRequestException('Origin Port is required for Ship mode');
+        }
+        if (!data.destinationCountry || !data.destinationCountry.trim()) {
+          throw new BadRequestException('Destination Country is required for Ship mode');
+        }
+        if (!data.destinationPort || !data.destinationPort.trim()) {
+          throw new BadRequestException('Destination Port is required for Ship mode');
+        }
+        // Enforce mutually exclusive land state and city fields
+        if (
+          data.originState ||
+          data.originCity ||
+          data.destinationState ||
+          data.destinationCity
+        ) {
+          throw new BadRequestException('States and Cities are not allowed for Ship mode');
+        }
+      } else if (mode === EnquiryShipmentMode.ROAD || mode === EnquiryShipmentMode.RAIL) {
+        if (!data.originCountryId || !data.originCountryId.trim()) {
+          throw new BadRequestException(`Origin Country is required for ${mode} mode`);
+        }
+        if (!data.originState || !data.originState.trim()) {
+          throw new BadRequestException(`Origin State is required for ${mode} mode`);
+        }
+        if (!data.originCity || !data.originCity.trim()) {
+          throw new BadRequestException(`Origin City is required for ${mode} mode`);
+        }
+        if (!data.destinationCountry || !data.destinationCountry.trim()) {
+          throw new BadRequestException(`Destination Country is required for ${mode} mode`);
+        }
+        if (!data.destinationState || !data.destinationState.trim()) {
+          throw new BadRequestException(`Destination State is required for ${mode} mode`);
+        }
+        if (!data.destinationCity || !data.destinationCity.trim()) {
+          throw new BadRequestException(`Destination City is required for ${mode} mode`);
+        }
+        // Enforce mutually exclusive port fields
+        if (data.originPort || data.destinationPort || data.podPort) {
+          throw new BadRequestException(`Ports are not allowed for ${mode} mode`);
+        }
+      } else {
+        throw new BadRequestException(`Invalid shipment mode: ${mode}`);
+      }
+    }
+
+    // Bid validation
+    const bidAmount = data.buyingInterest;
+    if (bidAmount !== undefined && bidAmount !== null && bidAmount !== '') {
+      if (Number(bidAmount) < 0) {
+        throw new BadRequestException('Bid Amount must be greater than or equal to 0');
+      }
+      if (!data.bidCurrency || !data.bidCurrency.trim()) {
+        throw new BadRequestException('Currency is required when Bid Amount is entered');
+      }
+    }
+  }
+
   async create(dto: CreateEnquiryDto, user: any): Promise<Enquiry> {
     await this.validateForeignKeys(
       dto.partnerRoleId,
@@ -113,12 +213,15 @@ export class EnquiriesService {
       dto.packingTypeId,
     );
 
+    const normalized = this.normalizeLogisticsPayload(dto);
+    this.validateLogistics(normalized);
+
     return await this.sequelize.transaction(async (transaction) => {
       const enquiryNo = await this.generateEnquiryNumber(transaction);
 
       const enquiry = await this.enquiryModel.create(
         {
-          ...dto,
+          ...normalized,
           enquiryNo,
           createdBy: user?.userId,
         },
@@ -226,6 +329,15 @@ export class EnquiriesService {
       buyingInterest: row.buyingInterest,
       potentialEnquiry: row.potentialEnquiry,
       status: row.status,
+      shipmentMode: row.shipmentMode,
+      originPort: row.originPort,
+      destinationPort: row.destinationPort,
+      originState: row.originState,
+      originCity: row.originCity,
+      destinationCountry: row.destinationCountry,
+      destinationState: row.destinationState,
+      destinationCity: row.destinationCity,
+      bidCurrency: row.bidCurrency,
     }));
 
     return buildPaginatedResponse(mappedRows, count, page || 1, finalLimit);
@@ -258,10 +370,18 @@ export class EnquiriesService {
       );
     }
 
+    // Merge current values with incoming update payload for complete state validation
+    const merged = { ...enquiry.toJSON(), ...dto };
+    const normalizedMerged = this.normalizeLogisticsPayload(merged);
+    this.validateLogistics(normalizedMerged);
+
+    // Apply normalization to actual delta properties for DB update
+    const normalizedDto = this.normalizeLogisticsPayload(dto);
+
     await this.sequelize.transaction(async (transaction) => {
       await enquiry.update(
         {
-          ...dto,
+          ...normalizedDto,
           updatedBy: user?.userId,
         },
         { transaction },

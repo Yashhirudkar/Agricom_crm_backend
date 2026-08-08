@@ -22,3 +22,10 @@ export enum EnquiryStatus {
   CLOSED = 'CLOSED',
 }
 
+export enum EnquiryShipmentMode {
+  SHIP = 'SHIP',
+  ROAD = 'ROAD',
+  RAIL = 'RAIL',
+}
+
+
