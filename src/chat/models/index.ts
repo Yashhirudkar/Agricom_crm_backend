@@ -18,3 +18,5 @@ export * from './conversation-template.model';
 export * from './chat-policy.model';
 export * from './chat-feature-flag.model';
 export * from './scheduled-message.model';
+export * from './retention-policy.model';
+export * from './conversation-permission-override.model';

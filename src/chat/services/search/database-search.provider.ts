@@ -12,6 +12,7 @@ import { MessagePin } from '../../models/message-pin.model';
 import { MessageReadState } from '../../models/message-read-state.model';
 import { User } from '../../../users/models/user.model';
 import { Attachment } from '../../../attachments/models/attachment.model';
+import { PolicyService } from '../policy.service';
 
 @Injectable()
 export class DatabaseSearchProvider implements ISearchProvider {
@@ -26,6 +27,7 @@ export class DatabaseSearchProvider implements ISearchProvider {
     private readonly messageAttachmentRepository: typeof MessageAttachment,
     @InjectModel(Attachment)
     private readonly attachmentRepository: typeof Attachment,
+    private readonly policyService: PolicyService,
   ) {}
 
   async searchMessages(
@@ -119,27 +121,29 @@ export class DatabaseSearchProvider implements ISearchProvider {
     };
   }
 
+  async getAccessibleConversationIds(userId: number, companyId: number, userType: string = 'standard'): Promise<number[]> {
+    return this.policyService.getAccessibleConversationIds(userId, companyId, userType);
+  }
+
   async searchConversations(
     companyId: number,
     userId: number,
+    userType: string,
     query: string,
     limit: number = 20,
   ): Promise<any[]> {
-    const userMemberships = await this.memberRepository.findAll({
-      where: { userId },
-      attributes: ['conversationId'],
-    });
-    const conversationIds = userMemberships.map((m) => m.conversationId);
+    const accessibleConversationIds = await this.getAccessibleConversationIds(userId, companyId, userType);
 
-    if (conversationIds.length === 0) {
+    if (accessibleConversationIds.length === 0) {
       return [];
     }
 
     return this.conversationRepository.findAll({
       where: {
-        id: { [Op.in]: conversationIds },
+        id: { [Op.in]: accessibleConversationIds },
         companyId,
         isArchived: false,
+        showInSearch: true,
         name: { [Op.iLike]: `%${query.trim()}%` },
       },
       limit,

@@ -14,6 +14,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { Conversation } from './conversation.model';
+import { ActionPolicy } from '../constants/chat.constants';
 
 @Table({
   tableName: 'conversation_settings',
@@ -88,6 +89,43 @@ export class ConversationSetting extends Model<ConversationSetting> {
   @Default(true)
   @Column({ type: DataType.BOOLEAN })
   declare allowExport: boolean;
+
+  @AllowNull(false)
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN })
+  declare allowSend: boolean;
+
+  @AllowNull(false)
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN })
+  declare allowPin: boolean;
+
+  @AllowNull(false)
+  @Default(ActionPolicy.MEMBER)
+  @Column({
+    type: DataType.ENUM(...Object.values(ActionPolicy)),
+  })
+  declare pinPolicy: ActionPolicy;
+
+  @AllowNull(false)
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN })
+  declare allowDownload: boolean;
+
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare disableCopy: boolean;
+
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare screenshotProtectionBestEffort: boolean;
+
+  @AllowNull(false)
+  @Default(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare disablePrint: boolean;
 
   @AllowNull(false)
   @Default(10485760) // 10MB default

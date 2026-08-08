@@ -105,7 +105,8 @@ export class ConversationController {
   ) {
     const companyId = this.getCompanyId(req);
     const userId = req.user.userId || req.user.id;
-    return this.conversationService.getConversations(companyId, userId, {
+    const userType = req.user.type || '';
+    return this.conversationService.getConversations(companyId, userId, userType, {
       type,
       entityType,
       entityId,

@@ -28,6 +28,7 @@ import { MessageType, MemberRole } from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 import { ConversationSummaryService } from './conversation-summary.service';
+import { PolicyService } from './policy.service';
 import {
   ChatEventNames,
   MessageCreatedEvent,
@@ -75,6 +76,7 @@ export class MessageService implements OnModuleDestroy {
     private readonly notificationsService: NotificationsService,
     private readonly eventEmitter: EventEmitter2,
     private readonly summaryService: ConversationSummaryService,
+    private readonly policyService: PolicyService,
   ) {
     // Periodic cleanup of idempotency cache every 5 minutes
     this.cleanupTimer = setInterval(() => this.cleanupIdempotencyCache(), 5 * 60 * 1000);
@@ -148,27 +150,15 @@ export class MessageService implements OnModuleDestroy {
       throw new NotFoundException('Conversation not found.');
     }
 
-    // 2. Get sender membership
+    // Verify using Policy Engine
+    await this.policyService.canSend(conversationId, actor, companyId);
+
+    // Get sender membership for mute status checks
     const member = await this.memberModel.findOne({
       where: { conversationId, userId: senderId },
     });
 
-    if (!member) {
-      throw new ForbiddenException('You are not a member of this conversation.');
-    }
-
-    const isPrivileged = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR].includes(member.role);
-
-    // 3. Verify Locks and Mute duration
-    if (conversation.isLocked && !isPrivileged) {
-      throw new ForbiddenException('This conversation is locked by an administrator.');
-    }
-
-    if (conversation.announcementMode && !isPrivileged) {
-      throw new ForbiddenException('Only administrators can send messages in announcement channels.');
-    }
-
-    if (member.isMuted) {
+    if (member && member.isMuted) {
       if (member.mutedUntil && new Date() > member.mutedUntil) {
         member.isMuted = false;
         member.mutedUntil = null;
@@ -461,9 +451,7 @@ export class MessageService implements OnModuleDestroy {
       throw new NotFoundException('Message not found.');
     }
 
-    if (message.senderId !== actor.userId) {
-      throw new ForbiddenException('You can only edit your own messages.');
-    }
+    await this.policyService.canEditMessage(conversationId, actor, companyId, message.senderId);
 
     if (message.isDeleted) {
       throw new BadRequestException('Cannot edit a deleted message.');
@@ -593,21 +581,10 @@ export class MessageService implements OnModuleDestroy {
       throw new NotFoundException('Message not found.');
     }
 
-    const member = await this.memberModel.findOne({
-      where: { conversationId, userId: actor.userId },
-    });
-
-    if (!member) {
-      throw new ForbiddenException('Access denied.');
-    }
-
-    const isSender = message.senderId === actor.userId;
-    const isModerator = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR].includes(member.role);
+    await this.policyService.canView(conversationId, actor, companyId);
 
     if (mode === 'everyone') {
-      if (!isSender && !isModerator) {
-        throw new ForbiddenException('You do not have permission to delete this message for everyone.');
-      }
+      await this.policyService.canDeleteMessage(conversationId, actor, companyId, message.senderId);
 
       // Hard delete physical files from disk & attachment DB entries
       await this.deletePhysicalAttachment(message);
@@ -800,17 +777,13 @@ export class MessageService implements OnModuleDestroy {
   async getHistory(
     conversationId: number,
     companyId: number,
-    userId: number,
+    user: any,
     cursor?: number,
     limit: number = 30,
   ) {
-    const member = await this.memberModel.findOne({
-      where: { conversationId, userId },
-    });
+    await this.policyService.canView(conversationId, user, companyId);
 
-    if (!member) {
-      throw new ForbiddenException('You are not authorized to view messages in this conversation.');
-    }
+    const userId = user.userId || user.id;
 
     const where: any = {
       conversationId,

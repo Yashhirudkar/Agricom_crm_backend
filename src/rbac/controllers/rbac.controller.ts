@@ -138,7 +138,6 @@ export class RbacController {
   }
 
   @Get('options')
-  @RequirePermission('roles:read')
   async getRoleOptions(
     @Request() req,
     @Query('search') search?: string,

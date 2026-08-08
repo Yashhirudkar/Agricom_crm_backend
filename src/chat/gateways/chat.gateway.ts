@@ -13,6 +13,7 @@ import { Logger, Inject, forwardRef, OnModuleDestroy } from '@nestjs/common';
 import { PresenceStatus, MessageType } from '../constants/chat.constants';
 import { MessageService } from '../services/message.service';
 import { ConversationService } from '../services/conversation.service';
+import { PolicyService } from '../services/policy.service';
 import { SendMessageDto, ReactMessageDto } from '../dto/chat.dto';
 
 @WebSocketGateway({
@@ -47,6 +48,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => ConversationService))
     private readonly conversationService: ConversationService,
+    private readonly policyService: PolicyService,
   ) {
     // Periodic cleanup of reaction debounce map every 2 minutes
     this.debounceCleanupTimer = setInterval(() => this.cleanupDebounceMap(), 2 * 60 * 1000);
@@ -225,6 +227,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   ) {
     const userId = (client as any).userId;
     const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
 
     if (!userId) {
       return { status: 'FAILED', error: 'Unauthenticated socket session.' };
@@ -235,8 +238,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     try {
-      // Validate membership through conversationService
-      await this.conversationService.getConversationById(data.conversationId, companyId);
+      const isAllowed = await this.policyService.canJoinSocket(
+        data.conversationId,
+        userId,
+        companyId,
+        isSuperAdmin,
+      );
+      if (!isAllowed) {
+        return { status: 'FAILED', error: 'You do not have access to this conversation.' };
+      }
+
       client.join(`conversation-${data.conversationId}`);
       return { status: 'SUCCESS', conversationId: data.conversationId };
     } catch (err) {
@@ -473,12 +484,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const userId = (client as any).userId;
     const clientId = (client as any).clientId;
     const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
 
     if (!userId) {
       return { status: 'FAILED', error: 'Unauthenticated socket session.' };
     }
 
-    // Reaction spam debounce: allow at most 1 reaction per 300ms per user-message
+    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    if (!isAllowed) {
+      return { status: 'FAILED', error: 'Access denied to this conversation.' };
+    }
+
     const debounceKey = `${userId}:${data.messageId}`;
     const lastTime = this.reactionDebounceMap.get(debounceKey) || 0;
     const now = Date.now();
@@ -512,9 +528,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     },
   ) {
     const userId = (client as any).userId;
+    const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
 
     if (!userId) {
       return { status: 'FAILED', error: 'Unauthenticated socket session.' };
+    }
+
+    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    if (!isAllowed) {
+      return { status: 'FAILED', error: 'Access denied to this conversation.' };
     }
 
     try {
@@ -539,22 +562,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   // --------------------------------------------------------------------------
 
   @SubscribeMessage('typing_start')
-  handleTypingStart(
+  async handleTypingStart(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: number },
   ) {
     const userId = (client as any).userId;
+    const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
     if (!userId || !data.conversationId) return;
+
+    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    if (!isAllowed) return;
+
+    // Check typing visibility
+    const conversation = await this.conversationService.getConversationById(data.conversationId, companyId);
+    if (conversation && conversation.typingVisibility === 'NOBODY') {
+      return;
+    }
 
     const timerKey = `${data.conversationId}:${userId}`;
 
-    // Clear existing timer if refreshed
     const existing = this.typingTimers.get(timerKey);
     if (existing) {
       clearTimeout(existing);
     }
 
-    // Set 4-second auto-timeout
     const timeout = setTimeout(() => {
       this.typingTimers.delete(timerKey);
       client.to(`conversation-${data.conversationId}`).emit('typing', {
@@ -574,12 +606,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   @SubscribeMessage('typing_stop')
-  handleTypingStop(
+  async handleTypingStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { conversationId: number },
   ) {
     const userId = (client as any).userId;
+    const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
     if (!userId || !data.conversationId) return;
+
+    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    if (!isAllowed) return;
 
     const timerKey = `${data.conversationId}:${userId}`;
     const existing = this.typingTimers.get(timerKey);
@@ -605,8 +642,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     @MessageBody() data: { conversationId: number; lastReceivedMessageId: number },
   ) {
     const userId = (client as any).userId;
+    const companyId = (client as any).companyId;
+    const isSuperAdmin = (client as any).isSuperAdmin || false;
     if (!userId || !data.conversationId) {
       return { status: 'FAILED', error: 'Invalid parameters.' };
+    }
+
+    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    if (!isAllowed) {
+      return { status: 'FAILED', error: 'Access denied to this conversation.' };
     }
 
     try {

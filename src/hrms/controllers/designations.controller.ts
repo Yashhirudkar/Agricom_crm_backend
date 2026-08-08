@@ -66,7 +66,6 @@ export class DesignationsController {
   }
 
   @Get('options')
-  @RequirePermission('designations:read')
   getDesignationOptions(
     @Request() req,
     @Query('search') search?: string,

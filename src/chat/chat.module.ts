@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AttachmentsModule } from '../attachments/modules/attachments.module';
 
 // Chat Models
 import {
@@ -28,15 +29,20 @@ import {
   ChatPolicy,
   ChatFeatureFlag,
   ScheduledMessage,
+  RetentionPolicy,
+  ConversationPermissionOverride,
 } from './models';
 import { Attachment } from '../attachments/models/attachment.model';
 import { User } from '../users/models/user.model';
 import { UserCompany } from '../users/models/user-company.model';
+import { Employee } from '../hrms/models/employee.model';
+import { Role } from '../rbac/models/role.model';
 
 // Services
 import { ConversationService } from './services/conversation.service';
 import { MemberService } from './services/member.service';
 import { MessageService } from './services/message.service';
+import { PolicyService } from './services/policy.service';
 import { ConversationSummaryService } from './services/conversation-summary.service';
 import { ThreadService } from './services/thread.service';
 import { MentionService } from './services/mention.service';
@@ -102,10 +108,15 @@ import { ChatEventsListener } from './listeners/chat-events.listener';
       ChatPolicy,
       ChatFeatureFlag,
       ScheduledMessage,
+      RetentionPolicy,
+      ConversationPermissionOverride,
+      Employee,
+      Role,
     ]),
     RbacModule,
     AuditModule,
     NotificationsModule,
+    forwardRef(() => AttachmentsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -157,11 +168,13 @@ import { ChatEventsListener } from './listeners/chat-events.listener';
     ComplianceRetentionService,
     ChatGateway,
     ChatEventsListener,
+    PolicyService,
   ],
   exports: [
     SequelizeModule,
     ConversationService,
     MemberService,
+    PolicyService,
     MessageService,
     ConversationSummaryService,
     ThreadService,

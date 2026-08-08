@@ -75,7 +75,6 @@ export class EmployeesController {
   }
 
   @Get('options')
-  @RequirePermission('employees:read')
   getEmployeeOptions(
     @Request() req,
     @Query('search') search?: string,

@@ -31,6 +31,8 @@ import * as phase30 from './phase-30-enterprise-attendance-policy';
 import * as phase31 from './phase-31-mandatory-break-deduction';
 import * as phase32 from './phase-32-role-partner-role-access';
 import * as phase33 from './phase-33-add-enquiry-logistics-fields';
+import * as phase34 from './phase-34-add-conversation-visibility-policy';
+import * as phase35 from './phase-35-add-conversation-file-visibility';
 
 export interface MigrationPhase {
   phase: string;
@@ -77,6 +79,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase31,
   phase32,
   phase33,
+  phase34,
+  phase35,
 ];
 
 

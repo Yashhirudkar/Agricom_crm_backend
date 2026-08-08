@@ -46,11 +46,78 @@ export enum PresenceStatus {
 
 export enum MemberRole {
   OWNER = 'OWNER',
+  OWNER_PRIMARY = 'OWNER_PRIMARY',
+  OWNER_SECONDARY = 'OWNER_SECONDARY',
+  OWNER_COMPLIANCE = 'OWNER_COMPLIANCE',
+  OWNER_TECHNICAL = 'OWNER_TECHNICAL',
   ADMIN = 'ADMIN',
   MODERATOR = 'MODERATOR',
   MEMBER = 'MEMBER',
   VIEWER = 'VIEWER',
   GUEST = 'GUEST',
+}
+
+export enum VisibilityType {
+  PUBLIC = 'PUBLIC',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  HIDDEN = 'HIDDEN',
+}
+
+export enum EnterpriseSecurityLevel {
+  STANDARD = 'STANDARD',
+  CONFIDENTIAL = 'CONFIDENTIAL',
+  SECRET = 'SECRET',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum ConversationClassification {
+  PUBLIC = 'PUBLIC',
+  INTERNAL = 'INTERNAL',
+  CONFIDENTIAL = 'CONFIDENTIAL',
+  RESTRICTED = 'RESTRICTED',
+  SECRET = 'SECRET',
+}
+
+export enum NotificationPrivacy {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  NOBODY = 'NOBODY',
+  MENTION_ONLY = 'MENTION_ONLY',
+}
+
+export enum TypingVisibility {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  NOBODY = 'NOBODY',
+}
+
+export enum PresenceVisibility {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  ADMINS_ONLY = 'ADMINS_ONLY',
+  NOBODY = 'NOBODY',
+}
+
+export enum ActionPolicy {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+}
+
+export enum ExportPolicy {
+  NOBODY = 'NOBODY',
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  COMPLIANCE_TEAM = 'COMPLIANCE_TEAM',
+}
+
+export enum PrincipalType {
+  ROLE = 'ROLE',
+  EMPLOYEE = 'EMPLOYEE',
+  DEPARTMENT = 'DEPARTMENT',
+  DESIGNATION = 'DESIGNATION',
+  BRANCH = 'BRANCH',
+  REPORTING_MANAGER = 'REPORTING_MANAGER',
 }
 
 export const CHAT_PERMISSIONS = {

@@ -274,6 +274,15 @@ export class ChatEventsListener implements OnModuleDestroy {
         conversation: event.conversation,
       },
     );
+
+    this.chatGateway.broadcastToCompany(
+      event.companyId,
+      'CONVERSATION_VISIBILITY_CHANGED',
+      {
+        conversationId: event.conversationId,
+        companyId: event.companyId,
+      },
+    );
   }
 
   @OnEvent(ChatEventNames.CONVERSATION_ARCHIVED)
@@ -344,6 +353,15 @@ export class ChatEventsListener implements OnModuleDestroy {
           member: event.member,
         },
       );
+
+      this.chatGateway.broadcastToUser(
+        event.member.userId,
+        'CONVERSATION_VISIBILITY_CHANGED',
+        {
+          conversationId: event.conversationId,
+          companyId: event.companyId,
+        },
+      );
     }
   }
 
@@ -368,6 +386,15 @@ export class ChatEventsListener implements OnModuleDestroy {
           eventId: event.eventId,
           conversationId: event.conversationId,
           userId: event.userId,
+        },
+      );
+
+      this.chatGateway.broadcastToUser(
+        event.userId,
+        'CONVERSATION_VISIBILITY_CHANGED',
+        {
+          conversationId: event.conversationId,
+          companyId: event.companyId,
         },
       );
     }

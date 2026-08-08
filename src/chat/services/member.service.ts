@@ -22,6 +22,7 @@ import {
   MemberMutedEvent,
   MessageCreatedEvent,
 } from '../events/chat.events';
+import { PolicyService } from './policy.service';
 
 @Injectable()
 export class MemberService {
@@ -37,6 +38,7 @@ export class MemberService {
     private readonly auditService: AuditService,
     private readonly notificationsService: NotificationsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly policyService: PolicyService,
   ) {}
 
   async addMember(
@@ -45,6 +47,8 @@ export class MemberService {
     dto: AddMemberDto,
     actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
   ): Promise<ConversationMember> {
+    await this.policyService.canInvite(conversationId, actor, companyId);
+
     const conversation = await this.conversationModel.findOne({
       where: { id: conversationId, companyId },
     });
@@ -157,6 +161,10 @@ export class MemberService {
     userId: number,
     actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
   ): Promise<void> {
+    if (Number(actor.userId) !== Number(userId)) {
+      await this.policyService.canRemoveMember(conversationId, actor, companyId);
+    }
+
     const conversation = await this.conversationModel.findOne({
       where: { id: conversationId, companyId },
     });

@@ -22,7 +22,7 @@ export class ChatSearchController {
     @Query() dto: ChatSearchDto,
     @CurrentUser() user: any,
   ) {
-    return this.searchService.searchMessages(user.companyId, user.id, dto);
+    return this.searchService.searchMessages(user.companyId, user.id, user.type || '', dto);
   }
 
   @Get('conversations')
@@ -31,7 +31,7 @@ export class ChatSearchController {
     @Query('q') query: string,
     @CurrentUser() user: any,
   ) {
-    return this.searchService.searchConversations(user.companyId, user.id, query || '');
+    return this.searchService.searchConversations(user.companyId, user.id, user.type || '', query || '');
   }
 
   @Get('attachments')
@@ -41,6 +41,6 @@ export class ChatSearchController {
     @Query('mimeType') mimeType: string,
     @CurrentUser() user: any,
   ) {
-    return this.searchService.searchAttachments(user.companyId, user.id, query, mimeType);
+    return this.searchService.searchAttachments(user.companyId, user.id, user.type || '', query, mimeType);
   }
 }

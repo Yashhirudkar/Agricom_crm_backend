@@ -7,15 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Conversation } from '../models/conversation.model';
-import { ConversationMember } from '../models/conversation-member.model';
+import { PolicyService } from '../services/policy.service';
 
 @Injectable()
 export class ConversationGuard implements CanActivate {
   constructor(
     @InjectModel(Conversation)
     private readonly conversationModel: typeof Conversation,
-    @InjectModel(ConversationMember)
-    private readonly memberModel: typeof ConversationMember,
+    private readonly policyService: PolicyService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -25,9 +24,6 @@ export class ConversationGuard implements CanActivate {
     if (!user) {
       throw new ForbiddenException('Access denied. Unauthenticated.');
     }
-
-    // Super Admin bypasses membership constraints but must respect company isolation if x-company-id is provided
-    const isSuperAdmin = user.type === 'super_admin';
 
     // 1. Extract conversationId from parameters (could be 'id' or 'conversationId' in params, query, or body)
     const conversationIdVal =
@@ -69,24 +65,25 @@ export class ConversationGuard implements CanActivate {
     // Keep reference on the request object for controllers/services to reuse
     request.activeConversation = conversation;
 
-    if (isSuperAdmin) {
-      return true;
+    // 5. Verify access using Policy Engine
+    const activeCompany = activeCompanyId ? parseInt(activeCompanyId as string, 10) : (conversation.companyId || 1);
+    const { hasAccess, member } = await this.policyService.checkConversationAccess(
+      conversationId,
+      user.userId || user.id,
+      activeCompany,
+      user.type || '',
+    );
+
+    if (!hasAccess) {
+      const security = this.policyService.resolveSecurityFlags(conversation);
+      if (security.hideApi || conversation.visibility === 'HIDDEN') {
+        throw new NotFoundException('Conversation not found.');
+      }
+      throw new ForbiddenException('You do not have permission to view this conversation.');
     }
 
-    // 5. Verify Membership inside the target conversation
-    const membership = await this.memberModel.findOne({
-      where: {
-        conversationId,
-        userId: user.id || user.userId,
-      },
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this conversation.');
-    }
-
-    // Keep membership references on the request context
-    request.conversationMembership = membership;
+    // Keep membership reference on the request context
+    request.conversationMembership = member;
 
     return true;
   }

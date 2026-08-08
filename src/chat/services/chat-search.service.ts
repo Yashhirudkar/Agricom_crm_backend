@@ -20,13 +20,10 @@ export class ChatSearchService {
   async searchMessages(
     companyId: number,
     userId: number,
+    userType: string,
     dto: ChatSearchDto,
   ) {
-    const memberships = await this.memberRepository.findAll({
-      where: { userId },
-      attributes: ['conversationId'],
-    });
-    const accessibleConversationIds = memberships.map((m) => m.conversationId);
+    const accessibleConversationIds = await this.searchProvider.getAccessibleConversationIds(userId, companyId, userType);
 
     return this.searchProvider.searchMessages(
       companyId,
@@ -42,9 +39,10 @@ export class ChatSearchService {
   async searchConversations(
     companyId: number,
     userId: number,
+    userType: string,
     query: string,
   ) {
-    return this.searchProvider.searchConversations(companyId, userId, query);
+    return this.searchProvider.searchConversations(companyId, userId, userType, query);
   }
 
   /**
@@ -53,14 +51,11 @@ export class ChatSearchService {
   async searchAttachments(
     companyId: number,
     userId: number,
+    userType: string,
     query?: string,
     mimeType?: string,
   ) {
-    const memberships = await this.memberRepository.findAll({
-      where: { userId },
-      attributes: ['conversationId'],
-    });
-    const accessibleConversationIds = memberships.map((m) => m.conversationId);
+    const accessibleConversationIds = await this.searchProvider.getAccessibleConversationIds(userId, companyId, userType);
 
     return this.searchProvider.searchAttachments(
       companyId,

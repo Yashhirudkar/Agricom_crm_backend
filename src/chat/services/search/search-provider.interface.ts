@@ -18,6 +18,7 @@ export interface ISearchProvider {
   searchConversations(
     companyId: number,
     userId: number,
+    userType: string,
     query: string,
     limit?: number,
   ): Promise<any[]>;

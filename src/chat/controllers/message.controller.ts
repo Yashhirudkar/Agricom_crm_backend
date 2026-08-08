@@ -137,11 +137,10 @@ export class MessageController {
     @Query('limit') limit?: string,
   ) {
     const companyId = this.getCompanyId(req);
-    const userId = req.user.userId || req.user.id;
     const parsedCursor = cursor ? parseInt(cursor, 10) : undefined;
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
 
-    return this.messageService.getHistory(conversationId, companyId, userId, parsedCursor, parsedLimit);
+    return this.messageService.getHistory(conversationId, companyId, req.user, parsedCursor, parsedLimit);
   }
 
   @Get(':messageId/versions')

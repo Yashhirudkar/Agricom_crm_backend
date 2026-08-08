@@ -63,7 +63,6 @@ export class DepartmentsController {
   }
 
   @Get('options')
-  @RequirePermission('departments:read')
   getDepartmentOptions(
     @Request() req,
     @Query('search') search?: string,

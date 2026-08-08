@@ -136,6 +136,8 @@ import {
   ChatPolicy,
   ChatFeatureFlag,
   ScheduledMessage,
+  ConversationPermissionOverride,
+  RetentionPolicy,
 } from './chat/models';
 
 @Module({
@@ -269,6 +271,8 @@ import {
             ChatPolicy,
             ChatFeatureFlag,
             ScheduledMessage,
+            ConversationPermissionOverride,
+            RetentionPolicy,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
