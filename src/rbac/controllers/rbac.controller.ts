@@ -22,6 +22,7 @@ import { AssignRoleToUserDto } from '../dto/assign-role-to-user.dto';
 
 import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
+import { UpdateRolePartnerRoleAccessDto } from '../dto/update-role-partner-role-access.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
@@ -218,5 +219,33 @@ export class RbacController {
   ) {
     await this.validateUserAccess(userId, req.user);
     return this.rbacService.getUserRoles(userId);
+  }
+
+  // ──────────────────────────────────────────────
+  //  PARTNER ROLE ACCESS
+  // ──────────────────────────────────────────────
+
+  @Get('GetRolePartnerRoleAccess')
+  @RequirePermission('roles:read')
+  async getRolePartnerRoleAccess(
+    @Query('roleId', ParseIntPipe) roleId: number,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(roleId, req.user, false);
+    return this.rbacService.getRolePartnerRoleAccess(roleId);
+  }
+
+  @Post('UpdateRolePartnerRoleAccess')
+  @RequirePermission('roles:assign-permission')
+  @HttpCode(HttpStatus.OK)
+  async updateRolePartnerRoleAccess(
+    @Body() dto: UpdateRolePartnerRoleAccessDto,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(dto.roleId, req.user, true);
+    return this.rbacService.updateRolePartnerRoleAccess(
+      dto.roleId,
+      dto.partnerRoleIds,
+    );
   }
 }

@@ -500,12 +500,17 @@ export class AttendancePolicyEngineService implements OnModuleInit {
 
       const effectiveMinutes = workingHoursInfo.effectiveWorkingMinutes;
 
-      // Minutes-based threshold comparison (prevents float rounding bugs)
+      // Hours-based evaluation — hours always take priority over check-in window
+      // If employee completed required hours → PRESENT, regardless of late check-in time
+      // Late marker (isLate) is tracked separately for reporting purposes
       if (requiredHalfDayMinutes > 0 && effectiveMinutes < requiredHalfDayMinutes) {
+        // Too few hours even for half day → ABSENT
         finalStatus = AttendanceStatus.ABSENT;
-      } else if (requiredNetMinutes > 0 && effectiveMinutes < requiredNetMinutes) {
-        finalStatus = AttendanceStatus.HALF_DAY;
+      } else if (requiredNetMinutes > 0 && effectiveMinutes >= requiredNetMinutes) {
+        // Completed full day hours → always PRESENT (even if late check-in)
+        finalStatus = AttendanceStatus.PRESENT;
       } else {
+        // Between half-day and full-day hours → use check-in window status (HALF_DAY penalty applies)
         finalStatus = windowStatus;
       }
 

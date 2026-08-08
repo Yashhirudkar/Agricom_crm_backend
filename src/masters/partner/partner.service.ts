@@ -145,8 +145,8 @@ export class PartnerService {
     });
   }
 
-  async findAll(query: QueryPartnerDto) {
-    const { search, isActive, partnerRoleId, country, page, limit } = query;
+  async findAll(query: QueryPartnerDto & { allowedPartnerRoleIds?: number[] }) {
+    const { search, isActive, partnerRoleId, country, page, limit, allowedPartnerRoleIds } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
@@ -163,6 +163,16 @@ export class PartnerService {
       whereClause.country = { [Op.iLike]: `%${country}%` };
     }
 
+    // RBAC-based restriction: limit to allowed partner role IDs
+    if (allowedPartnerRoleIds && allowedPartnerRoleIds.length > 0) {
+      if (whereClause.partnerRoleId) {
+        // Already filtered by a specific role — confirmed allowed by controller
+        // no-op (whereClause.partnerRoleId is already set)
+      } else {
+        whereClause.partnerRoleId = { [Op.in]: allowedPartnerRoleIds };
+      }
+    }
+
     const { rows, count } = await this.partnerModel.findAndCountAll({
       where: whereClause,
       limit: finalLimit,
@@ -174,6 +184,7 @@ export class PartnerService {
 
     return buildPaginatedResponse(rows, count, page || 1, finalLimit);
   }
+
 
   /**
    * Lightweight dropdown endpoint — returns only id + entityName.

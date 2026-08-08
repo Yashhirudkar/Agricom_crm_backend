@@ -22,25 +22,76 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
+import { RbacService } from '../../rbac/services/rbac.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partners')
 export class PartnerController {
-  constructor(private readonly partnerService: PartnerService) {}
+  constructor(
+    private readonly partnerService: PartnerService,
+    private readonly rbacService: RbacService,
+  ) {}
+
+  /**
+   * Validates that a given partnerRoleId is within the user's allowed partner roles.
+   * Throws ForbiddenException if not.
+   */
+  private async assertPartnerRoleAllowed(
+    partnerRoleId: number | undefined,
+    user: any,
+    activeCompanyId: number,
+  ): Promise<void> {
+    if (!partnerRoleId) return;
+    if (user.type === 'super_admin') return;
+
+    const allowedIds = await this.rbacService.resolveUserAllowedPartnerRoleIds(
+      user,
+      activeCompanyId,
+    );
+
+    // null = unrestricted
+    if (allowedIds === null) return;
+
+    if (!allowedIds.includes(partnerRoleId)) {
+      throw new ForbiddenException(
+        'You are not allowed to use this Partner Role.',
+      );
+    }
+  }
 
   @Post()
   @RequirePermission('partner:create')
   @AuditLog({ entityType: 'Partner', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createPartnerDto: CreatePartnerDto) {
+  async create(@Body() createPartnerDto: CreatePartnerDto, @Req() req: any) {
+    await this.assertPartnerRoleAllowed(
+      createPartnerDto.partnerRoleId,
+      req.user,
+      req.activeCompanyId,
+    );
     return this.partnerService.create(createPartnerDto);
   }
 
   @Get()
   @RequirePermission('partner:view')
-  async findAll(@Query() query: QueryPartnerDto) {
-    const result = await this.partnerService.findAll(query);
+  async findAll(@Query() query: QueryPartnerDto, @Req() req: any) {
+    // If user is restricted, inject allowed partner role IDs into the query filter
+    if (req?.user?.type !== 'super_admin') {
+      const allowedIds = await this.rbacService.resolveUserAllowedPartnerRoleIds(
+        req.user,
+        req.activeCompanyId,
+      );
+      if (allowedIds !== null) {
+        // If user filtered by a specific role, ensure it's also in allowedIds
+        if (query.partnerRoleId && !allowedIds.includes(Number(query.partnerRoleId))) {
+          return { data: [], total: 0, page: query.page || 1, limit: query.limit || 8, totalPages: 0 };
+        }
+        // Apply restriction: scope to allowed partner role IDs
+        (query as any).allowedPartnerRoleIds = allowedIds;
+      }
+    }
 
+    const result = await this.partnerService.findAll(query);
     return result;
   }
 
@@ -77,10 +128,16 @@ export class PartnerController {
   @Patch(':id')
   @RequirePermission('partner:update')
   @AuditLog({ entityType: 'Partner', action: 'UPDATE' })
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePartnerDto: UpdatePartnerDto,
+    @Req() req: any,
   ) {
+    await this.assertPartnerRoleAllowed(
+      updatePartnerDto.partnerRoleId,
+      req.user,
+      req.activeCompanyId,
+    );
     return this.partnerService.update(id, updatePartnerDto);
   }
 

@@ -21,6 +21,8 @@ import { User } from '../../users/models/user.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { AuditContext } from '../../audit/audit.context';
 import { Op } from 'sequelize';
+import { UserCompany } from '../../users/models/user-company.model';
+import { RolePartnerRoleAccess } from '../../masters/partner-role/role-partner-role-access.model';
 
 @Injectable()
 export class RbacService {
@@ -36,6 +38,10 @@ export class RbacService {
     private readonly userRoleModel: typeof UserRole,
     @InjectModel(User)
     private readonly userModel: typeof User,
+    @InjectModel(UserCompany)
+    private readonly userCompanyModel: typeof UserCompany,
+    @InjectModel(RolePartnerRoleAccess)
+    private readonly rolePartnerRoleAccessModel: typeof RolePartnerRoleAccess,
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
   ) { }
@@ -412,5 +418,143 @@ export class RbacService {
     }
 
     return { message: 'Permissions updated successfully' };
+  }
+
+  // ─── Partner Role Access ────────────────────────────────────────────────────
+
+  /**
+   * Returns the list of partner_role IDs explicitly assigned to this RBAC role.
+   * Empty array means: no rows configured → role is UNRESTRICTED (all partner roles allowed).
+   */
+  async getRolePartnerRoleAccess(
+    roleId: number,
+  ): Promise<{ roleId: number; partnerRoleIds: number[]; isUnrestricted: boolean }> {
+    const role = await this.roleModel.findByPk(roleId);
+    if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
+
+    const rows = await this.rolePartnerRoleAccessModel.findAll({
+      where: { roleId },
+    });
+
+    const partnerRoleIds = rows.map((r) => r.partnerRoleId);
+    return {
+      roleId,
+      partnerRoleIds,
+      isUnrestricted: partnerRoleIds.length === 0,
+    };
+  }
+
+  /**
+   * Replaces the partner role access list for an RBAC role.
+   * Passing an empty array marks the role as UNRESTRICTED (no restriction rows).
+   */
+  async updateRolePartnerRoleAccess(
+    roleId: number,
+    partnerRoleIds: number[],
+  ): Promise<{ message: string }> {
+    const role = await this.roleModel.findByPk(roleId);
+    if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
+
+    const t = await this.rolePartnerRoleAccessModel.sequelize.transaction();
+    try {
+      // Delete all existing access rows for this role
+      await this.rolePartnerRoleAccessModel.destroy({
+        where: { roleId },
+        transaction: t,
+      });
+
+      // Insert new rows (de-duplicate IDs)
+      if (partnerRoleIds.length > 0) {
+        const uniqueIds = [...new Set(partnerRoleIds)];
+        await this.rolePartnerRoleAccessModel.bulkCreate(
+          uniqueIds.map((prId) => ({ roleId, partnerRoleId: prId })),
+          { transaction: t },
+        );
+      }
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    return { message: 'Partner role access updated successfully' };
+  }
+
+  /**
+   * Resolves the effective allowed partner_role IDs for a given user.
+   *
+   * Rules:
+   *  - Super Admin / Client Admin → null (= unrestricted, all allowed)
+   *  - Standard user with roles where ALL roles are unrestricted → null
+   *  - Otherwise → UNION of allowed partner_role IDs across all user roles
+   */
+  async resolveUserAllowedPartnerRoleIds(
+    user: any,
+    companyId?: number,
+  ): Promise<number[] | null> {
+    // Super admin is always unrestricted
+    if (user.type === 'super_admin') return null;
+
+    // Collect role IDs for this user
+    let roleIds: number[] = [];
+
+    if (user.type === 'client_admin') {
+      const globalRoles = await this.userRoleModel.findAll({
+        where: { userId: user.userId || user.id },
+        include: [{ model: Role, where: { isActive: true }, required: true }],
+      });
+      roleIds = globalRoles.map((gr) => gr.roleId);
+    } else {
+      // Standard user: get role from UserCompany membership
+      const membershipWhere: any = {
+        userId: user.userId || user.id,
+        status: 'Active',
+      };
+      if (companyId) membershipWhere.companyId = companyId;
+
+      const memberships = await this.userCompanyModel.findAll({
+        where: membershipWhere,
+        include: [{ model: Role, where: { isActive: true }, required: true }],
+      });
+      roleIds = memberships
+        .filter((m) => m.roleId)
+        .map((m) => m.roleId);
+    }
+
+    if (roleIds.length === 0) return null;
+
+    // Fetch access rows for all these roles
+    const accessRows = await this.rolePartnerRoleAccessModel.findAll({
+      where: { roleId: roleIds },
+    });
+
+    // Group by roleId to check which roles have restrictions
+    const byRole = new Map<number, number[]>();
+    for (const row of accessRows) {
+      const existing = byRole.get(row.roleId) || [];
+      existing.push(row.partnerRoleId);
+      byRole.set(row.roleId, existing);
+    }
+
+    // If ALL roles have no restriction rows → user is unrestricted
+    const allUnrestricted = roleIds.every((rid) => !byRole.has(rid));
+    if (allUnrestricted) return null;
+
+    // Compute UNION of allowed IDs across all roles
+    // Roles with no restriction rows are treated as unrestricted → whole union = all allowed
+    for (const rid of roleIds) {
+      if (!byRole.has(rid)) {
+        // This role has no restrictions → unrestricted → union is all
+        return null;
+      }
+    }
+
+    const unionIds = new Set<number>();
+    for (const ids of byRole.values()) {
+      ids.forEach((id) => unionIds.add(id));
+    }
+
+    return Array.from(unionIds);
   }
 }

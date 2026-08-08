@@ -40,6 +40,7 @@ import { FollowUpManagementModule } from '../follow-up-management/follow-up-mana
 import { PartnerRoleDynamicConfig } from './partner-role/partner-role-dynamic-config.model';
 import { PartnerDynamicConfigHistory } from './partner-role/partner-dynamic-config-history.model';
 import { PartnerDynamicValues } from './partner/partner-dynamic-values.model';
+import { RolePartnerRoleAccess } from './partner-role/role-partner-role-access.model';
 import { PartnerRoleDynamicConfigController } from './partner-role/partner-role-dynamic-config.controller';
 import { PartnerRoleDynamicConfigService } from './partner-role/partner-role-dynamic-config.service';
 import { PartnerDynamicValuesController } from './partner/partner-dynamic-values.controller';
