@@ -27,10 +27,13 @@ import { Partner } from './partner/partner.model';
 import { PartnerContact } from './partner/partner-contact.model';
 import { PartnerProduct } from './partner/partner-product.model';
 import { PartnerFollowUp } from './partner/partner-followup.model';
+import { PartnerDnbReport } from './partner/partner-dnb-report.model';
 import { PartnerController } from './partner/partner.controller';
 import { PartnerFollowUpController } from './partner/partner-followup.controller';
+import { PartnerDnbReportController } from './partner/partner-dnb-report.controller';
 import { PartnerService } from './partner/partner.service';
 import { PartnerFollowUpService } from './partner/partner-followup.service';
+import { PartnerDnbReportService } from './partner/partner-dnb-report.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
@@ -65,6 +68,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       PartnerContact,
       PartnerProduct,
       PartnerFollowUp,
+      PartnerDnbReport,
       // Dynamic Additional Information Engine
       PartnerRoleDynamicConfig,
       PartnerDynamicConfigHistory,
@@ -90,6 +94,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     ProductController,
     PartnerController,
     PartnerFollowUpController,
+    PartnerDnbReportController,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigController,
     PartnerDynamicValuesController,
@@ -107,6 +112,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     ProductService,
     PartnerService,
     PartnerFollowUpService,
+    PartnerDnbReportService,
     DeletionValidatorService,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigService,

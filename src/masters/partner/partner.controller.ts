@@ -102,11 +102,13 @@ export class PartnerController {
   async findOptions(
     @Query('partnerRoleId') partnerRoleId?: string,
     @Query('search') search?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.partnerService.findOptions({
       partnerRoleId: partnerRoleId ? parseInt(partnerRoleId, 10) : undefined,
       search,
       isActive: true,
+      limit: limit ? parseInt(limit, 10) : 10,
     });
   }
 

@@ -33,6 +33,7 @@ import * as phase32 from './phase-32-role-partner-role-access';
 import * as phase33 from './phase-33-add-enquiry-logistics-fields';
 import * as phase34 from './phase-34-add-conversation-visibility-policy';
 import * as phase35 from './phase-35-add-conversation-file-visibility';
+import * as phase36 from './phase-36-partner-dnb-reports';
 
 export interface MigrationPhase {
   phase: string;
@@ -81,6 +82,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase33,
   phase34,
   phase35,
+  phase36,
 ];
 
 

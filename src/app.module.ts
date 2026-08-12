@@ -75,6 +75,7 @@ import { Partner } from './masters/partner/partner.model';
 import { PartnerContact } from './masters/partner/partner-contact.model';
 import { PartnerProduct } from './masters/partner/partner-product.model';
 import { PartnerFollowUp } from './masters/partner/partner-followup.model';
+import { PartnerDnbReport } from './masters/partner/partner-dnb-report.model';
 import { PartnerRoleDynamicConfig } from './masters/partner-role/partner-role-dynamic-config.model';
 import { PartnerDynamicConfigHistory } from './masters/partner-role/partner-dynamic-config-history.model';
 import { PartnerDynamicValues } from './masters/partner/partner-dynamic-values.model';
@@ -220,6 +221,7 @@ import {
             PartnerContact,
             PartnerProduct,
             PartnerFollowUp,
+            PartnerDnbReport,
             PartnerRoleDynamicConfig,
             PartnerDynamicConfigHistory,
             PartnerDynamicValues,

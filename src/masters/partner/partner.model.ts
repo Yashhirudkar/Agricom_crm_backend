@@ -20,6 +20,8 @@ import { PartnerContact } from './partner-contact.model';
 import { Product } from '../product/product.model';
 import { PartnerProduct } from './partner-product.model';
 import { PartnerFollowUp } from './partner-followup.model';
+import { PartnerDnbReport } from './partner-dnb-report.model';
+import { HasOne } from 'sequelize-typescript';
 
 @Table({
   tableName: 'partners',
@@ -53,11 +55,25 @@ export class Partner extends Model<Partner> {
   @Column({ field: 'country', type: DataType.STRING(150) })
   declare country: string;
 
+  @AllowNull(true)
+  @Column({ field: 'year_of_establishment', type: DataType.INTEGER })
+  declare yearOfEstablishment: number;
+
   @HasMany(() => PartnerContact, { onDelete: 'CASCADE', hooks: true })
   declare contacts: PartnerContact[];
 
   @HasMany(() => PartnerFollowUp, { onDelete: 'CASCADE', hooks: true })
   declare followUps: PartnerFollowUp[];
+
+  @HasMany(() => PartnerDnbReport, { foreignKey: 'partnerId', as: 'dnbReports' })
+  declare dnbReports: PartnerDnbReport[];
+
+  @HasOne(() => PartnerDnbReport, {
+    foreignKey: 'partnerId',
+    scope: { is_latest: true },
+    as: 'latestDnbReport',
+  })
+  declare latestDnbReport: PartnerDnbReport;
 
   @BelongsToMany(() => Product, {
     through: () => PartnerProduct,
