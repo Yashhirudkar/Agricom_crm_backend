@@ -38,6 +38,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
 import { FollowUpManagementModule } from '../follow-up-management/follow-up-management.module';
+import { User } from '../users/models/user.model';
 
 // Dynamic Additional Information Engine
 import { PartnerRoleDynamicConfig } from './partner-role/partner-role-dynamic-config.model';
@@ -69,6 +70,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       PartnerProduct,
       PartnerFollowUp,
       PartnerDnbReport,
+      User,
       // Dynamic Additional Information Engine
       PartnerRoleDynamicConfig,
       PartnerDynamicConfigHistory,
