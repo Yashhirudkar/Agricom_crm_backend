@@ -84,6 +84,15 @@ export class CreateSalesContractShipmentDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  shipmentNo?: number;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
 
 export class CreateSalesContractDocumentDto {

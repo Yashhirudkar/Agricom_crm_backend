@@ -6,6 +6,8 @@ import { SalesContractShipment } from './models/sales-contract-shipment.model';
 import { SalesContractDocument } from './models/sales-contract-document.model';
 import { SalesContractController } from './sales-contract.controller';
 import { SalesContractService } from './sales-contract.service';
+import { ShipmentController } from './shipment.controller';
+import { ShipmentService } from './shipment.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { SalesContractDocumentFile } from './models/sales-contract-document-file.model';
@@ -24,7 +26,7 @@ import { AttachmentsModule } from '../attachments/modules/attachments.module';
     AuditModule,
     AttachmentsModule,
   ],
-  controllers: [SalesContractController],
-  providers: [SalesContractService],
+  controllers: [ShipmentController, SalesContractController],
+  providers: [SalesContractService, ShipmentService],
 })
 export class SalesContractsModule {}

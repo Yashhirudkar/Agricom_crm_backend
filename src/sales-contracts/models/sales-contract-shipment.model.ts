@@ -65,6 +65,20 @@ export class SalesContractShipment extends Model<SalesContractShipment> {
   @Column({ type: DataType.STRING(500) })
   declare remarks: string;
 
+  @AllowNull(true)
+  @Column({ field: 'shipment_reference', type: DataType.STRING(100) })
+  declare shipmentReference: string;
+
+  @AllowNull(false)
+  @Default(1)
+  @Column({ field: 'shipment_no', type: DataType.INTEGER })
+  declare shipmentNo: number;
+
+  @AllowNull(false)
+  @Default('Scheduled')
+  @Column({ type: DataType.STRING(50) })
+  declare status: string;
+
   @CreatedAt
   @Column({ field: 'created_at' })
   declare createdAt: Date;

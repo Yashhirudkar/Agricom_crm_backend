@@ -26,6 +26,7 @@ import { BagSpecification } from '../masters/bag-specs/models/bag-specification.
 import { CreateSalesContractDto } from './dto/create-sales-contract.dto';
 import { UpdateSalesContractDto, UpdateSalesContractStatusDto } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
+import { generateShipmentReference } from './utils/shipment-reference.util';
 
 @Injectable()
 export class SalesContractService implements OnModuleInit {
@@ -126,11 +127,24 @@ export class SalesContractService implements OnModuleInit {
 
       // 4. Create Shipments
       if (dto.shipments && dto.shipments.length > 0) {
-        const shipmentsToCreate = dto.shipments.map((shipment) => ({
-          ...shipment,
-          shipmentDate: new Date(shipment.shipmentDate),
-          salesContractId: contract.id,
-        })) as any[];
+        const contractNo = (contract.contractNumber || dto.contractNumber)?.trim();
+        const shipmentsToCreate = dto.shipments.map((shipment, index) => {
+          const sNo = shipment.shipmentNo || (index + 1);
+          return {
+            ...shipment,
+            shipmentNo: sNo,
+            status: shipment.status || 'Scheduled',
+            shipmentDate: new Date(shipment.shipmentDate),
+            salesContractId: contract.id,
+            shipmentReference: generateShipmentReference(
+              contractNo,
+              sNo,
+              shipment.noOfContainers,
+              shipment.shipmentDate,
+              shipment.quantity,
+            ),
+          };
+        }) as any[];
         await this.shipmentModel.bulkCreate(shipmentsToCreate, { transaction: t });
       }
 
@@ -249,11 +263,24 @@ export class SalesContractService implements OnModuleInit {
       if (dto.shipments) {
         await this.shipmentModel.destroy({ where: { salesContractId: contract.id }, transaction: t });
         if (dto.shipments.length > 0) {
-          const shipmentsToCreate = dto.shipments.map((shipment) => ({
-            ...shipment,
-            shipmentDate: new Date(shipment.shipmentDate),
-            salesContractId: contract.id,
-          })) as any[];
+          const contractNo = (dto.contractNumber || contract.contractNumber)?.trim();
+          const shipmentsToCreate = dto.shipments.map((shipment, index) => {
+            const sNo = shipment.shipmentNo || (index + 1);
+            return {
+              ...shipment,
+              shipmentNo: sNo,
+              status: shipment.status || 'Scheduled',
+              shipmentDate: new Date(shipment.shipmentDate),
+              salesContractId: contract.id,
+              shipmentReference: generateShipmentReference(
+                contractNo,
+                sNo,
+                shipment.noOfContainers,
+                shipment.shipmentDate,
+                shipment.quantity,
+              ),
+            };
+          }) as any[];
           await this.shipmentModel.bulkCreate(shipmentsToCreate, { transaction: t });
         }
       }
