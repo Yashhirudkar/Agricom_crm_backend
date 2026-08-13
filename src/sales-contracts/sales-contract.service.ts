@@ -46,40 +46,7 @@ export class SalesContractService implements OnModuleInit {
   ) { }
 
   async onModuleInit() {
-    try {
-      const textCols = [
-        'seller_signature',
-        'seller_company_seal',
-        'buyer_signature',
-        'buyer_company_seal',
-      ];
-      for (const col of textCols) {
-        await this.sequelize.query(
-          `ALTER TABLE "sales_contracts" ALTER COLUMN "${col}" TYPE TEXT;`
-        );
-      }
-
-      // Auto-migrate: Add print_overrides JSONB column if not exists
-      await this.sequelize.query(
-        `ALTER TABLE "sales_contracts" ADD COLUMN IF NOT EXISTS "print_overrides" JSONB;`
-      );
-
-      // Auto-migrate: Add missing shipment columns if not exists
-      const shipmentCols = [
-        { name: 'no_of_containers', type: 'INTEGER' },
-        { name: 'rate_per_mt', type: 'DECIMAL(12, 2)' },
-        { name: 'purchase_rate', type: 'DECIMAL(12, 2)' },
-        { name: 'forex', type: 'DECIMAL(12, 2)' },
-        { name: 'freight', type: 'DECIMAL(12, 2)' },
-      ];
-      for (const col of shipmentCols) {
-        await this.sequelize.query(
-          `ALTER TABLE "sales_contract_shipments" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type};`
-        );
-      }
-    } catch (err) {
-      console.warn('[SalesContractService] Column alteration warning:', err?.message || err);
-    }
+    // Schema modifications are handled by database migrations (phase-06-sales & phase-07-shipments)
   }
 
 

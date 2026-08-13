@@ -80,18 +80,6 @@ export class MessageService implements OnModuleDestroy {
   ) {
     // Periodic cleanup of idempotency cache every 5 minutes
     this.cleanupTimer = setInterval(() => this.cleanupIdempotencyCache(), 5 * 60 * 1000);
-
-    // Self-healing database check: ensure "deletedAt" column exists on "message_read_states"
-    if (this.messageModel.sequelize) {
-      this.messageModel.sequelize
-        .query('ALTER TABLE message_read_states ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP WITH TIME ZONE;')
-        .then(() => {
-          this.logger.log('Database self-healing: ensure deletedAt column exists in message_read_states.');
-        })
-        .catch((err) => {
-          this.logger.error('Failed to run self-healing deletedAt column query: ' + err.message);
-        });
-    }
   }
 
   onModuleDestroy() {

@@ -71,15 +71,7 @@ export class AttendancePolicyEngineService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    try {
-      if (this.policyModel && this.policyModel.sequelize) {
-        await this.policyModel.sequelize.query(
-          `ALTER TABLE "company_hr_policies" ADD COLUMN IF NOT EXISTS "mandatoryBreakDeduction" BOOLEAN NOT NULL DEFAULT false;`,
-        );
-      }
-    } catch (err: any) {
-      console.warn('Could not auto-add mandatoryBreakDeduction column:', err.message);
-    }
+    // Schema modifications are handled by database migrations (phase-02-hrms)
   }
 
   /**

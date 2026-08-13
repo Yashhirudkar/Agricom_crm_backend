@@ -1,7 +1,7 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
-export const phase = '10';
-export const name = 'Sales Contracts Tables (sales_contracts, sales_contract_items, sales_contract_shipments, sales_contract_documents, sales_contract_document_files)';
+export const phase = '06';
+export const name = 'Sales Contract Architecture (Header, Items, Documents & Files)';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. sales_contracts ──────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     },
     { ifNotExists: true } as any,
   );
+
   await queryInterface.addIndex('sales_contracts', ['status'], { name: 'sales_contracts_status' }).catch(() => { });
   await queryInterface.addIndex('sales_contracts', ['buyer_id'], { name: 'sales_contracts_buyer_id' }).catch(() => { });
   await queryInterface.addIndex('sales_contracts', ['financial_year'], { name: 'sales_contracts_financial_year' }).catch(() => { });
@@ -134,27 +135,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  // ─── 3. sales_contract_shipments ─────────────────────────────────────────────
-  await queryInterface.createTable(
-    'sales_contract_shipments',
-    {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      sales_contract_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'sales_contracts', key: 'id' },
-        onDelete: 'CASCADE',
-      },
-      shipment_date: { type: DataTypes.DATEONLY, allowNull: false },
-      quantity: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-      remarks: { type: DataTypes.STRING(500), allowNull: true },
-      created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
-      updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
-    },
-    { ifNotExists: true } as any,
-  );
-
-  // ─── 4. sales_contract_documents ─────────────────────────────────────────────
+  // ─── 3. sales_contract_documents ─────────────────────────────────────────────
   await queryInterface.createTable(
     'sales_contract_documents',
     {
@@ -176,7 +157,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  // ─── 5. sales_contract_document_files ────────────────────────────────────────
+  // ─── 4. sales_contract_document_files ────────────────────────────────────────
   await queryInterface.createTable(
     'sales_contract_document_files',
     {
@@ -209,15 +190,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  console.log('✅ Phase 10 - Sales contracts tables created successfully');
+  console.log('✅ Phase 06 - Sales Contract tables created successfully');
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.dropTable('sales_contract_document_files').catch(() => { });
   await queryInterface.dropTable('sales_contract_documents').catch(() => { });
-  await queryInterface.dropTable('sales_contract_shipments').catch(() => { });
   await queryInterface.dropTable('sales_contract_items').catch(() => { });
   await queryInterface.dropTable('sales_contracts').catch(() => { });
-  console.log('✅ Phase 10 - Sales contracts tables dropped');
+  console.log('✅ Phase 06 - Sales Contract tables dropped');
 }
-

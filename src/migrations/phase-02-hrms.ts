@@ -1,7 +1,7 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
-export const phase = '05';
-export const name = 'HRMS Tables (branches, designations, shifts, employees, employee_documents, employee_lifecycle_logs)';
+export const phase = '02';
+export const name = 'HRMS & Company HR Policies Architecture';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. branches ─────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('shifts', ['companyId'], { name: 'shifts_company_id' }).catch(() => {});
+  await queryInterface.addIndex('shifts', ['companyId'], { name: 'shifts_company_id' }).catch(() => { });
 
   // ─── 4. employees ─────────────────────────────────────────────────────────────
   await queryInterface.createTable(
@@ -192,12 +192,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('employees', ['companyId'], { name: 'employees_company_id' }).catch(() => {});
-  await queryInterface.addIndex('employees', ['userId'], { name: 'employees_user_id' }).catch(() => {});
-  await queryInterface.addIndex('employees', ['managerId'], { name: 'employees_manager_id' }).catch(() => {});
+  await queryInterface.addIndex('employees', ['companyId'], { name: 'employees_company_id' }).catch(() => { });
+  await queryInterface.addIndex('employees', ['userId'], { name: 'employees_user_id' }).catch(() => { });
+  await queryInterface.addIndex('employees', ['managerId'], { name: 'employees_manager_id' }).catch(() => { });
   await queryInterface
     .addIndex('employees', ['companyId', 'employeeCode'], { name: 'employees_company_code_unique', unique: true })
-    .catch(() => {});
+    .catch(() => { });
 
   // ─── 5. employee_documents ───────────────────────────────────────────────────
   await queryInterface.createTable(
@@ -257,16 +257,55 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  console.log('✅ Phase 05 - HRMS tables created successfully');
+  // ─── 7. company_hr_policies (unified with all break & attendance policy columns) ─────
+  await queryInterface.createTable(
+    'company_hr_policies',
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      companyId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: 'companyId',
+        references: { model: 'companies', key: 'id' },
+        onDelete: 'CASCADE',
+      },
+      policyName: { type: DataTypes.STRING(255), allowNull: false, field: 'policyName' },
+      policyType: { type: DataTypes.STRING(100), allowNull: true, field: 'policyType' },
+      content: { type: DataTypes.TEXT, allowNull: true },
+      isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isActive' },
+      effectiveDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'effectiveDate' },
+      defaultBreakMinutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 30, field: 'defaultBreakMinutes' },
+      defaultBreakStartTime: { type: DataTypes.TIME, allowNull: true, field: 'defaultBreakStartTime' },
+      defaultBreakEndTime: { type: DataTypes.TIME, allowNull: true, field: 'defaultBreakEndTime' },
+      weeklyOffDays: { type: DataTypes.JSONB, allowNull: false, defaultValue: ['SUNDAY'], field: 'weeklyOffDays' },
+      gracePeriodMinutes: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 15, field: 'gracePeriodMinutes' },
+      halfDayThresholdHours: { type: DataTypes.DECIMAL(4, 2), allowNull: false, defaultValue: 4.0, field: 'halfDayThresholdHours' },
+      fullDayThresholdHours: { type: DataTypes.DECIMAL(4, 2), allowNull: false, defaultValue: 8.0, field: 'fullDayThresholdHours' },
+      overtimeThresholdHours: { type: DataTypes.DECIMAL(4, 2), allowNull: false, defaultValue: 8.0, field: 'overtimeThresholdHours' },
+      penaltyMode: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'NONE', field: 'penaltyMode' },
+      lateArrivalPenaltyPercentage: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0.0, field: 'lateArrivalPenaltyPercentage' },
+      earlyDeparturePenaltyPercentage: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0.0, field: 'earlyDeparturePenaltyPercentage' },
+      maxLateArrivalsAllowed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 3, field: 'maxLateArrivalsAllowed' },
+      checkInReminderTime: { type: DataTypes.STRING(5), allowNull: true, defaultValue: '08:45', field: 'checkInReminderTime' },
+      checkOutReminderTime: { type: DataTypes.STRING(5), allowNull: true, defaultValue: '17:15', field: 'checkOutReminderTime' },
+      sendReminderEmails: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'sendReminderEmails' },
+      mandatoryBreakDeduction: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'mandatoryBreakDeduction' },
+      createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
+      updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
+    },
+    { ifNotExists: true } as any,
+  );
+
+  console.log('✅ Phase 02 - HRMS & HR Policies tables created successfully');
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('employee_lifecycle_logs').catch(() => {});
-  await queryInterface.dropTable('employee_documents').catch(() => {});
-  await queryInterface.dropTable('employees').catch(() => {});
-  await queryInterface.dropTable('shifts').catch(() => {});
-  await queryInterface.dropTable('designations').catch(() => {});
-  await queryInterface.dropTable('branches').catch(() => {});
-  console.log('✅ Phase 05 - HRMS tables dropped');
+  await queryInterface.dropTable('company_hr_policies').catch(() => { });
+  await queryInterface.dropTable('employee_lifecycle_logs').catch(() => { });
+  await queryInterface.dropTable('employee_documents').catch(() => { });
+  await queryInterface.dropTable('employees').catch(() => { });
+  await queryInterface.dropTable('shifts').catch(() => { });
+  await queryInterface.dropTable('designations').catch(() => { });
+  await queryInterface.dropTable('branches').catch(() => { });
+  console.log('✅ Phase 02 - HRMS & HR Policies tables dropped');
 }
-

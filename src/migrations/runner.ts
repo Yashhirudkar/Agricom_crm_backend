@@ -50,7 +50,8 @@ async function ensureLogTable(): Promise<void> {
 
 async function getRanPhases(): Promise<string[]> {
   const rows = (await sequelize.query(`SELECT phase FROM "${LOG_TABLE}" WHERE direction = 'up'`)) as any[];
-  return rows[0].map((r: any) => r.phase);
+  const validPhases = new Set(ALL_PHASES.map((p) => p.phase));
+  return rows[0].map((r: any) => r.phase).filter((p: string) => validPhases.has(p));
 }
 
 async function logPhase(phase: string, name: string, direction: 'up' | 'down'): Promise<void> {

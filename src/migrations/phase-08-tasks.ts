@@ -1,7 +1,7 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
-export const phase = '11';
-export const name = 'Tasks Tables (task_statuses, task_priorities, task_labels, tasks, task_assignees, task_comments, task_comment_history, task_comment_mentions, task_checklists, task_attachments, task_label_maps, task_time_logs, task_dependencies, task_custom_fields, task_custom_field_values, task_sequences, task_sla_rules, task_status_transitions, task_recurrences, task_recurrence_exceptions, task_templates, task_template_items, task_activities)';
+export const phase = '08';
+export const name = 'Tasks Engine & Performance Optimization Architecture';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. task_statuses ────────────────────────────────────────────────────────
@@ -152,6 +152,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.addIndex('tasks', ['clientId', 'priorityId'], { name: 'tasks_client_priority' }).catch(() => { });
   await queryInterface.addIndex('tasks', ['entityModule', 'entityTable', 'entityId'], { name: 'tasks_polymorphic_link' }).catch(() => { });
   await queryInterface.addIndex('tasks', ['taskCode'], { name: 'tasks_client_task_code' }).catch(() => { });
+
+  // Performance Indexes
+  await queryInterface.addIndex('tasks', ['clientId', 'createdAt', 'id'], { name: 'tasks_client_created_at_composite' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'statusId', 'createdAt'], { name: 'tasks_client_status_created_at' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'ownerId'], { name: 'tasks_client_owner' }).catch(() => { });
+  await queryInterface.addIndex('tasks', ['clientId', 'dueDate'], { name: 'tasks_client_due_date' }).catch(() => { });
 
   // ─── 5. task_assignees ───────────────────────────────────────────────────────
   await queryInterface.createTable(
@@ -539,7 +545,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'tasks', key: 'id' },
         onDelete: 'CASCADE',
       },
-      frequency: { type: DataTypes.STRING(50), allowNull: false }, // DAILY, WEEKLY, MONTHLY, YEARLY
+      frequency: { type: DataTypes.STRING(50), allowNull: false },
       interval: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
       daysOfWeek: { type: DataTypes.JSON, allowNull: true, field: 'daysOfWeek' },
       dayOfMonth: { type: DataTypes.INTEGER, allowNull: true, field: 'dayOfMonth' },
@@ -654,10 +660,15 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  console.log('✅ Phase 11 - Tasks tables created successfully');
+  console.log('✅ Phase 08 - Tasks Engine & Performance Indexes created successfully');
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
+  await queryInterface.removeIndex('tasks', 'tasks_client_due_date').catch(() => { });
+  await queryInterface.removeIndex('tasks', 'tasks_client_owner').catch(() => { });
+  await queryInterface.removeIndex('tasks', 'tasks_client_status_created_at').catch(() => { });
+  await queryInterface.removeIndex('tasks', 'tasks_client_created_at_composite').catch(() => { });
+
   await queryInterface.dropTable('task_activities').catch(() => { });
   await queryInterface.dropTable('task_template_items').catch(() => { });
   await queryInterface.dropTable('task_templates').catch(() => { });
@@ -681,6 +692,5 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.dropTable('task_labels').catch(() => { });
   await queryInterface.dropTable('task_priorities').catch(() => { });
   await queryInterface.dropTable('task_statuses').catch(() => { });
-  console.log('✅ Phase 11 - Tasks tables dropped');
+  console.log('✅ Phase 08 - Tasks Engine & Performance Indexes dropped');
 }
-

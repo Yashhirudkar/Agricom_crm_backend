@@ -40,13 +40,7 @@ export class ProductService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    try {
-      await this.sequelize.query(
-        `ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "hs_code" VARCHAR(100);`
-      );
-    } catch (err) {
-      console.warn('[ProductService] Column alteration warning:', err?.message || err);
-    }
+    // Schema modifications are handled by database migrations (phase-04-masters)
   }
 
   private async validateForeignKeys(categoryId?: number) {
