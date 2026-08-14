@@ -43,12 +43,20 @@ export class LeaveRequestsController {
   }
 
   private getActor(req: any) {
+    const userPermissions = req.userPermissions || new Set();
+    const permissionsArray = Array.from(userPermissions);
     return {
       userId: req.user.userId || req.user.sub || null,
       clientId: req.user.clientId || null,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
       type: req.user.type || null,
+      permissions: permissionsArray,
+      hasApprovePermission:
+        userPermissions.has('leave:approve') ||
+        userPermissions.has('leave:approve_leave') ||
+        req.user.type === 'super_admin' ||
+        req.user.type === 'client_admin',
     };
   }
 
@@ -137,6 +145,16 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.getDashboardSummary(companyId, employeeId);
   }
 
+  @Get('monthly-summary')
+  @RequirePermission('leave:approve')
+  async getMonthlyLeaveSummary(
+    @Query() query: { month?: string; year?: number; departmentId?: number; branchId?: number; page?: number; limit?: number },
+    @Request() req,
+  ) {
+    const companyId = this.getCompanyId(req);
+    return this.leaveRequestsService.getMonthlyLeaveSummary(companyId, query);
+  }
+
   @Get(':id')
   @RequirePermission('leave:read')
   getLeaveRequestById(@Param('id', ParseIntPipe) id: number, @Request() req) {
@@ -155,7 +173,12 @@ export class LeaveRequestsController {
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
-    if (!approverId && actor.type === 'super_admin') {
+    if (
+      !approverId &&
+      (actor.type === 'super_admin' ||
+        actor.type === 'client_admin' ||
+        actor.hasApprovePermission)
+    ) {
       approverId =
         await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(
           companyId,
@@ -184,7 +207,12 @@ export class LeaveRequestsController {
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
-    if (!approverId && actor.type === 'super_admin') {
+    if (
+      !approverId &&
+      (actor.type === 'super_admin' ||
+        actor.type === 'client_admin' ||
+        actor.hasApprovePermission)
+    ) {
       approverId =
         await this.leaveRequestsService.getFallbackEmployeeIdForAdmin(
           companyId,

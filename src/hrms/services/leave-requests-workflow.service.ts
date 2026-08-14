@@ -110,10 +110,17 @@ export class LeaveRequestsWorkflowService {
       if (!step)
         throw new BadRequestException('No pending approval step found');
 
+      const hasApprovePerm =
+        actor?.hasApprovePermission ||
+        (Array.isArray(actor?.permissions) &&
+          (actor.permissions.includes('leave:approve') ||
+            actor.permissions.includes('leave:approve_leave'))) ||
+        actor?.type === 'super_admin' ||
+        actor?.type === 'client_admin';
+
       if (
         step.approverId !== approverId &&
-        actor?.type !== 'super_admin' &&
-        actor?.type !== 'client_admin'
+        !hasApprovePerm
       ) {
         throw new ForbiddenException(
           'You are not the designated approver for this step',
@@ -313,10 +320,17 @@ export class LeaveRequestsWorkflowService {
       if (!step)
         throw new BadRequestException('No pending approval step found');
 
+      const hasApprovePerm =
+        actor?.hasApprovePermission ||
+        (Array.isArray(actor?.permissions) &&
+          (actor.permissions.includes('leave:approve') ||
+            actor.permissions.includes('leave:approve_leave'))) ||
+        actor?.type === 'super_admin' ||
+        actor?.type === 'client_admin';
+
       if (
         step.approverId !== approverId &&
-        actor?.type !== 'super_admin' &&
-        actor?.type !== 'client_admin'
+        !hasApprovePerm
       ) {
         throw new ForbiddenException(
           'You are not the designated approver for this step',

@@ -630,4 +630,11 @@ export class LeaveRequestsService {
   ): Promise<any> {
     return this.queryService.getDashboardSummary(companyId, employeeId);
   }
+
+  async getMonthlyLeaveSummary(
+    companyId: number,
+    query: { month?: string; year?: number; departmentId?: number; branchId?: number; page?: number; limit?: number },
+  ): Promise<any> {
+    return this.queryService.getMonthlyLeaveSummary(companyId, query);
+  }
 }
