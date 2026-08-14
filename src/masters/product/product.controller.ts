@@ -36,10 +36,9 @@ export class ProductController {
     return this.productService.create(createProductDto);
   }
 
-  // Lightweight options endpoint — accessible to anyone with partner:read
-  // (used for dropdowns in partner forms where full product:view isn't needed)
+  // Lightweight options endpoint — accessible to any logged-in user
+  // (used for dropdowns in shipments filter and partner forms)
   @Get('options')
-  @RequirePermission('partner:read')
   async findOptions(@Query('limit') limit?: string) {
     const result = await this.productService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
     return result;

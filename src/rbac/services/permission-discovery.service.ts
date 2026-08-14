@@ -114,6 +114,8 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       else if (resourceName.startsWith('employee_')) moduleName = 'Employees';
       else if (resourceName.startsWith('attendance_'))
         moduleName = 'Attendance';
+      else if (resourceName === 'shipments' || resourceName === 'shipment')
+        moduleName = 'Shipments';
 
       const isSystemLevel =
         ['clients', 'subscriptions', 'system'].includes(resourceName) ||

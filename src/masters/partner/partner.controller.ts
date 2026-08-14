@@ -30,7 +30,7 @@ export class PartnerController {
   constructor(
     private readonly partnerService: PartnerService,
     private readonly rbacService: RbacService,
-  ) {}
+  ) { }
 
   /**
    * Validates that a given partnerRoleId is within the user's allowed partner roles.
@@ -98,7 +98,6 @@ export class PartnerController {
   // Lightweight dropdown endpoint — returns only id + entityName.
   // Must be declared before @Get(':id') to avoid route shadowing.
   @Get('options')
-  @RequirePermission('partner:view')
   async findOptions(
     @Query('partnerRoleId') partnerRoleId?: string,
     @Query('search') search?: string,

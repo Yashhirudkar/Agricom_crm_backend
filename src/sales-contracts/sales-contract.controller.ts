@@ -47,7 +47,6 @@ export class SalesContractController {
   }
 
   @Get('financial-years')
-  @RequirePermission('sales-contract:view')
   async getDistinctFinancialYears() {
     return await this.service.getDistinctFinancialYears();
   }
