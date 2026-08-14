@@ -10,6 +10,7 @@ import { Partner } from './partner.model';
 import { PartnerContact } from './partner-contact.model';
 import { PartnerProduct } from './partner-product.model';
 import { PartnerFollowUp } from './partner-followup.model';
+import { PartnerDnbReport } from './partner-dnb-report.model';
 import { PartnerRole } from '../partner-role/partner-role.model';
 import { Product } from '../product/product.model';
 import { PartnerRoleDynamicConfig } from '../partner-role/partner-role-dynamic-config.model';
@@ -52,6 +53,16 @@ const INCLUDE_RELATIONS = [
     where: { isActive: true },
     required: false,
     attributes: ['id', 'followupDate', 'nextFollowupDate', 'status', 'communicationType'],
+  },
+  {
+    model: PartnerDnbReport,
+    as: 'latestDnbReport',
+    required: false,
+  },
+  {
+    model: PartnerDnbReport,
+    as: 'dnbReports',
+    required: false,
   },
 ];
 
@@ -109,19 +120,6 @@ export class PartnerService {
       dto.productIds,
     );
 
-    // Business Rule: A dynamic schema must be configured for the selected partner role
-    // before a partner of that role can be created.
-    // Super Admin must define the schema first via POST /masters/partner-roles/:roleId/dynamic-config
-    const activeConfig = await this.dynamicConfigModel.findOne({
-      where: { partnerRoleId: dto.partnerRoleId, isActive: true },
-    });
-    if (!activeConfig) {
-      throw new BadRequestException(
-        'Dynamic configuration not defined for selected partner role. ' +
-          'A Super Admin must configure the Additional Information schema before partners of this role can be created.',
-      );
-    }
-
     return await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...partnerData } = dto;
       const partner = await this.partnerModel.create(
@@ -158,8 +156,8 @@ export class PartnerService {
     });
   }
 
-  async findAll(query: QueryPartnerDto) {
-    const { search, isActive, partnerRoleId, country, page, limit } = query;
+  async findAll(query: QueryPartnerDto & { allowedPartnerRoleIds?: number[] }) {
+    const { search, isActive, partnerRoleId, country, dnbRiskFactor, page, limit, allowedPartnerRoleIds } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
@@ -176,16 +174,123 @@ export class PartnerService {
       whereClause.country = { [Op.iLike]: `%${country}%` };
     }
 
+    // RBAC-based restriction: limit to allowed partner role IDs
+    if (allowedPartnerRoleIds && allowedPartnerRoleIds.length > 0) {
+      if (whereClause.partnerRoleId) {
+        // Already filtered by a specific role — confirmed allowed by controller
+        // no-op (whereClause.partnerRoleId is already set)
+      } else {
+        whereClause.partnerRoleId = { [Op.in]: allowedPartnerRoleIds };
+      }
+    }
+
+    // Handle D&B Risk Factor / Failure Score filter dynamically on latestDnbReport relation
+    const filterKey = dnbRiskFactor ? dnbRiskFactor.toUpperCase() : null;
+
+    const includes = INCLUDE_RELATIONS.map((inc) => {
+      if ((inc as any).as === 'latestDnbReport') {
+        if (filterKey && filterKey !== 'UNKNOWN') {
+          let whereCond: any = {};
+          const safeIntScore = `CASE WHEN "latestDnbReport"."failure_score" ~ '^[0-9]+$' THEN CAST("latestDnbReport"."failure_score" AS INTEGER) ELSE NULL END`;
+          if (filterKey === 'VERY_LOW') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 90 AND 100)`),
+                { failureScore: 'VERY_LOW' },
+              ],
+            };
+          } else if (filterKey === 'LOW') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 75 AND 89)`),
+                { failureScore: 'LOW' },
+                { riskFactor: 'LOW' },
+              ],
+            };
+          } else if (filterKey === 'MODERATE_LOW') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 60 AND 74)`),
+                { failureScore: 'MODERATE_LOW' },
+              ],
+            };
+          } else if (filterKey === 'MODERATE') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 40 AND 59)`),
+                { failureScore: 'MODERATE' },
+                { riskFactor: 'MODERATE' },
+              ],
+            };
+          } else if (filterKey === 'HIGH') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 20 AND 39)`),
+                { failureScore: 'HIGH' },
+                { riskFactor: 'HIGH' },
+              ],
+            };
+          } else if (filterKey === 'VERY_HIGH') {
+            whereCond = {
+              [Op.or]: [
+                Sequelize.literal(`(${safeIntScore} BETWEEN 1 AND 19)`),
+                { failureScore: 'VERY_HIGH' },
+              ],
+            };
+          }
+
+          return {
+            ...inc,
+            where: whereCond,
+            required: true,
+          };
+        }
+      }
+      return inc;
+    });
+
+    if (filterKey === 'UNKNOWN') {
+      whereClause['$latestDnbReport.id$'] = { [Op.is]: null };
+    }
+
     const { rows, count } = await this.partnerModel.findAndCountAll({
       where: whereClause,
       limit: finalLimit,
       offset,
       order: [['createdAt', 'DESC']],
-      include: INCLUDE_RELATIONS,
+      include: includes,
       distinct: true,
     });
 
     return buildPaginatedResponse(rows, count, page || 1, finalLimit);
+  }
+
+
+  /**
+   * Lightweight dropdown endpoint — returns only id + entityName.
+   * Filters by partnerRoleId and optional search (ILIKE on entityName).
+   * Hard-capped at 30 records so it stays fast even with 10k+ partners.
+   */
+  async findOptions(params: { partnerRoleId?: number; search?: string; isActive?: boolean; limit?: number }): Promise<{ id: number; entityName: string }[]> {
+    const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
+    if (params.partnerRoleId) {
+      where.partnerRoleId = params.partnerRoleId;
+    }
+    if (params.search && params.search.trim()) {
+      where.entityName = { [Op.iLike]: `%${params.search.trim()}%` };
+    }
+
+    const requestedLimit = params.limit || 10;
+    const finalLimit = Math.min(Math.max(requestedLimit, 1), 30);
+
+    const rows = await this.partnerModel.findAll({
+      where,
+      attributes: ['id', 'entityName'],
+      order: [['entityName', 'ASC']],
+      limit: finalLimit,
+    });
+
+    return rows.map((r) => ({ id: r.id, entityName: r.entityName }));
   }
 
   async findOne(id: number): Promise<Partner> {

@@ -22,11 +22,15 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
+import { RbacService } from '../../rbac/services/rbac.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partner-roles')
 export class PartnerRoleController {
-  constructor(private readonly partnerRoleService: PartnerRoleService) {}
+  constructor(
+    private readonly partnerRoleService: PartnerRoleService,
+    private readonly rbacService: RbacService,
+  ) {}
 
   @Post()
   @RequirePermission('partnerrole:create')
@@ -36,12 +40,28 @@ export class PartnerRoleController {
     return this.partnerRoleService.create(createPartnerRoleDto);
   }
 
-  // Lightweight options endpoint — accessible to anyone with partner:read
-  // (used for dropdowns in partner forms where full partnerrole:view isn't needed)
+  // Lightweight options endpoint — returns partner roles filtered by user's RBAC role access.
+  // Used for dropdowns in partner forms and filter selectors.
   @Get('options')
   @RequirePermission('partner:read')
-  async findOptions(@Query('limit') limit?: string) {
-    const result = await this.partnerRoleService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
+  async findOptions(@Query('limit') limit?: string, @Req() req?: any) {
+    // Super admin: return all
+    if (req?.user?.type === 'super_admin') {
+      const result = await this.partnerRoleService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
+      return result;
+    }
+
+    // Resolve allowed partner role IDs for this user
+    const allowedIds = await this.rbacService.resolveUserAllowedPartnerRoleIds(
+      req.user,
+      req.activeCompanyId,
+    );
+
+    const result = await this.partnerRoleService.findAll({
+      limit: limit ? parseInt(limit) : 100,
+      isActive: true,
+      allowedIds, // null = unrestricted
+    } as any);
     return result;
   }
 

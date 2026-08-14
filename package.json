@@ -24,7 +24,8 @@
     "migrate": "ts-node -r tsconfig-paths/register src/migrations/runner.ts",
     "migrate:phase": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --phase",
     "migrate:status": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --status",
-    "migrate:fresh": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --fresh"
+    "migrate:fresh": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --fresh",
+    "query-attendance": "node C:/Users/Admin/.gemini/antigravity-ide/brain/6c932d4b-bfab-4b45-b7ca-ea0e957a93b0/scratch/query_attendance.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -55,6 +56,7 @@
     "passport-jwt": "^4.0.1",
     "pg": "^8.21.0",
     "pg-hstore": "^2.3.4",
+    "react-virtuoso": "^4.18.11",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sea-ports": "^0.0.9",

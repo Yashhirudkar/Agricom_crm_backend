@@ -121,9 +121,10 @@ export class AttendanceHelperService {
   ): number {
     const [shiftHour, shiftMin] = shiftStartTime.split(':').map(Number);
     const shiftMinutes = shiftHour * 60 + shiftMin;
+    const graceEndMinutes = shiftMinutes + gracePeriod;
 
-    if (minutesOfDay > shiftMinutes + gracePeriod) {
-      return minutesOfDay - shiftMinutes;
+    if (minutesOfDay > graceEndMinutes) {
+      return minutesOfDay - graceEndMinutes;
     }
     return 0;
   }

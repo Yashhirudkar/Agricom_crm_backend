@@ -23,8 +23,13 @@ import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import * as fs from 'fs';
 import { Response } from 'express';
-
-
+import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
+import { PolicyService } from '../../chat/services/policy.service';
+import { AuditService } from '../../audit/services/audit.service';
+import { MessageAttachment } from '../../chat/models/message-attachment.model';
+import { Message } from '../../chat/models/message.model';
+import { Attachment } from '../models/attachment.model';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('attachments')
@@ -32,11 +37,17 @@ export class AttachmentsController {
   constructor(
     private readonly attachmentsService: AttachmentsService,
     @Inject(STORAGE_PROVIDER) private readonly storageProvider: StorageProvider,
+    private readonly policyService: PolicyService,
+    private readonly auditService: AuditService,
+    @InjectModel(MessageAttachment)
+    private readonly messageAttachmentModel: typeof MessageAttachment,
+    @InjectModel(Attachment)
+    private readonly attachmentModel: typeof Attachment,
   ) {}
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
-  @RequirePermission('attachments:upload')
+  @RequirePermission('chat:create')
   uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
     const companyId = headerOrActive
@@ -59,9 +70,26 @@ export class AttachmentsController {
     };
   }
 
+  private async checkAttachmentAccess(attachment: Attachment, user: any, companyId: number) {
+    const messageAttachment = await this.messageAttachmentModel.findOne({
+      where: { attachmentId: attachment.id },
+      include: [{ model: Message, as: 'message' }],
+    });
+
+    if (messageAttachment && messageAttachment.message) {
+      const conversationId = messageAttachment.message.conversationId;
+      await this.policyService.canDownload(conversationId, user, companyId);
+    } else {
+      const isSuper = user?.type === 'super_admin' || user?.clientId === null;
+      if (!isSuper && attachment.companyId !== companyId) {
+        throw new ForbiddenException('You do not have access to this attachment.');
+      }
+    }
+  }
+
   @Get('download/:filename')
-  @RequirePermission('attachments:download')
-  downloadFile(
+  @RequirePermission('chat:read')
+  async downloadFile(
     @Param('filename') filename: string,
     @Request() req,
     @Res() res: Response,
@@ -75,30 +103,45 @@ export class AttachmentsController {
       throw new BadRequestException('Invalid filename');
     }
 
-    // Verify ownership
-    const isSuper =
-      req.user?.type === 'super_admin' || req.user?.clientId === null;
+    const attachment = await this.attachmentModel.findOne({
+      where: {
+        [Op.or]: [
+          { storedName: filename },
+          { storagePath: filename },
+        ],
+      },
+    });
 
-    if (!isSuper) {
-      const parts = filename.split('_');
-      if (parts.length >= 2 && parts[0] === 'client') {
-        const fileClientId = parts[1];
-        if (
-          fileClientId !== 'global' &&
-          fileClientId !== String(req.user.clientId)
-        ) {
-          throw new ForbiddenException('Access denied to this file');
-        }
-      } else {
-        // Legacy or malformed filename, deny for non-super admin
-        throw new ForbiddenException('Cannot verify file ownership');
-      }
+    if (!attachment) {
+      throw new NotFoundException('Attachment record not found');
     }
+
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : attachment.companyId;
+
+    if (!companyId) {
+      throw new BadRequestException('Company context is required');
+    }
+
+    await this.checkAttachmentAccess(attachment, req.user, companyId);
 
     const filePath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('File not found');
     }
+
+    // Write audit log
+    await this.auditService.writeLog({
+      clientId: req.user?.clientId || null,
+      companyId,
+      userId: req.user?.id || req.user?.userId || null,
+      entityType: 'Attachment',
+      entityId: attachment.id,
+      action: 'DOWNLOAD',
+      newValue: { filename: attachment.storedName, size: attachment.fileSize },
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.sendFile(filePath);
   }
@@ -116,24 +159,36 @@ export class AttachmentsController {
     }
 
     const attachment = await this.attachmentsService.getAttachment(attachmentId);
-
-    // Verify ownership
-    const isSuper =
-      req.user?.type === 'super_admin' || req.user?.clientId === null;
-
-    if (!isSuper) {
-      if (attachment.companyId !== (req.headers['x-company-id'] || req.activeCompanyId)) {
-          // If strict separation is required. We'll rely on the existing logic
-          // The old logic used filename. The new one uses the DB.
-          // For now, let's just make sure they belong to the correct client/company.
-          // In a real app we'd verify the user's company matches attachment.companyId
-      }
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found');
     }
+
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : attachment.companyId;
+
+    if (!companyId) {
+      throw new BadRequestException('Company context is required');
+    }
+
+    await this.checkAttachmentAccess(attachment, req.user, companyId);
 
     const filePath = this.storageProvider.resolvePath(attachment.storagePath);
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('File not found');
     }
+
+    // Write audit log
+    await this.auditService.writeLog({
+      clientId: req.user?.clientId || null,
+      companyId,
+      userId: req.user?.id || req.user?.userId || null,
+      entityType: 'Attachment',
+      entityId: attachment.id,
+      action: 'DOWNLOAD',
+      newValue: { filename: attachment.storedName, size: attachment.fileSize },
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
 
     return res.sendFile(filePath);
   }

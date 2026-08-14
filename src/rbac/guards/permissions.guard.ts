@@ -43,6 +43,13 @@ export function standardizePermission(permKey: string): {
     action = 'approve';
   }
 
+  if (resource === 'leave_types' || resource === 'leave-types') {
+    if (action === 'read' || action === 'view') {
+      resource = 'leave';
+      action = 'read';
+    }
+  }
+
   if (resource === 'employees') {
     if (['upload_document', 'upload'].includes(action)) {
       resource = 'employee_documents';

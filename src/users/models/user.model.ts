@@ -11,6 +11,7 @@ import {
   BelongsToMany,
   ForeignKey,
   BelongsTo,
+  HasOne,
 } from 'sequelize-typescript';
 import { UserSession } from './user-session.model';
 import { Company } from '../../companies/models/company.model';
@@ -19,6 +20,7 @@ import { Role } from '../../rbac/models/role.model';
 import { UserRole } from '../../rbac/models/user-role.model';
 import { UserCompany } from './user-company.model';
 import { TaskAssignee } from '../../tasks/models/task-assignee.model';
+import { Employee } from '../../hrms/models/employee.model';
 
 @Table({
   tableName: 'users',
@@ -102,4 +104,7 @@ export class User extends Model<User> {
   // Many-to-many with Role through UserRole
   @BelongsToMany(() => Role, () => UserRole)
   declare roles: Role[];
+
+  @HasOne(() => Employee, { foreignKey: 'userId', onDelete: 'SET NULL' })
+  declare employee: Employee;
 }

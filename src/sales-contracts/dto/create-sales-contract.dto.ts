@@ -62,8 +62,37 @@ export class CreateSalesContractShipmentDto {
   quantity: number;
 
   @IsOptional()
+  @IsInt()
+  noOfContainers?: number;
+
+  @IsOptional()
+  @IsNumber()
+  ratePerMt?: number;
+
+  @IsOptional()
+  @IsNumber()
+  purchaseRate?: number;
+
+  @IsOptional()
+  @IsNumber()
+  forex?: number;
+
+  @IsOptional()
+  @IsNumber()
+  freight?: number;
+
+  @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  shipmentNo?: number;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
 
 export class CreateSalesContractDocumentDto {

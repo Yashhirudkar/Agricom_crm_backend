@@ -20,12 +20,25 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 
+interface CustomRequest {
+  headers: Record<string, string | undefined>;
+  user?: {
+    userId?: number | string;
+    id?: number | string;
+    sub?: number | string;
+    type?: string;
+  };
+  userPermissions?: Set<string>;
+}
+
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('follow-ups')
 export class FollowUpManagementController {
-  constructor(private readonly followUpManagementService: FollowUpManagementService) {}
+  constructor(
+    private readonly followUpManagementService: FollowUpManagementService,
+  ) {}
 
-  private getCompanyId(req: any): number {
+  private getCompanyId(req: CustomRequest): number {
     const companyId = req.headers['x-company-id'];
     if (!companyId) {
       throw new BadRequestException('x-company-id header is required');
@@ -33,36 +46,61 @@ export class FollowUpManagementController {
     return parseInt(companyId, 10);
   }
 
-  private getUserId(req: any): number {
+  private getUserId(req: CustomRequest): number {
     const userId = req.user?.userId || req.user?.id || req.user?.sub;
     if (!userId) {
       throw new BadRequestException('User session is invalid');
     }
-    return parseInt(userId, 10);
+    return parseInt(String(userId), 10);
   }
 
   @Get('dashboard/stats')
   @RequirePermission('follow_up:view')
-  async getDashboardStats(@Req() req: any) {
+  async getDashboardStats(@Req() req: CustomRequest) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
-    return this.followUpManagementService.getDashboardStats(companyId, userId);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.getDashboardStats(
+      companyId,
+      userId,
+      userType,
+      permissions,
+    );
   }
 
   @Get('dashboard/list')
   @RequirePermission('follow_up:view')
-  async getDashboardList(@Query() query: QueryFollowUpDto, @Req() req: any) {
+  async getDashboardList(
+    @Query() query: QueryFollowUpDto,
+    @Req() req: CustomRequest,
+  ) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
-    return this.followUpManagementService.getDashboardList(companyId, userId, query);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.getDashboardList(
+      companyId,
+      userId,
+      query,
+      userType,
+      permissions,
+    );
   }
 
   @Get('header')
   @RequirePermission('follow_up:view')
-  async getHeaderDrawer(@Req() req: any) {
+  async getHeaderDrawer(@Req() req: CustomRequest) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
-    return this.followUpManagementService.getHeaderDrawer(companyId, userId);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.getHeaderDrawer(
+      companyId,
+      userId,
+      userType,
+      permissions,
+    );
   }
 
   @Patch(':id/complete')
@@ -71,11 +109,20 @@ export class FollowUpManagementController {
   async completeFollowUp(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: CompleteFollowUpDto,
-    @Req() req: any,
+    @Req() req: CustomRequest,
   ) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
-    return this.followUpManagementService.completeFollowUp(id, companyId, userId, dto);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.completeFollowUp(
+      id,
+      companyId,
+      userId,
+      dto,
+      userType,
+      permissions,
+    );
   }
 
   @Patch(':id/reschedule')
@@ -84,10 +131,34 @@ export class FollowUpManagementController {
   async rescheduleFollowUp(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RescheduleFollowUpDto,
-    @Req() req: any,
+    @Req() req: CustomRequest,
   ) {
     const companyId = this.getCompanyId(req);
     const userId = this.getUserId(req);
-    return this.followUpManagementService.rescheduleFollowUp(id, companyId, userId, dto);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.rescheduleFollowUp(
+      id,
+      companyId,
+      userId,
+      dto,
+      userType,
+      permissions,
+    );
+  }
+
+  @Get('reminders')
+  @RequirePermission('follow_up:view')
+  async getMarqueeReminders(@Req() req: CustomRequest) {
+    const companyId = this.getCompanyId(req);
+    const userId = this.getUserId(req);
+    const permissions: Set<string> = req.userPermissions || new Set<string>();
+    const userType = req.user?.type || '';
+    return this.followUpManagementService.getMarqueeReminders(
+      companyId,
+      userId,
+      permissions,
+      userType,
+    );
   }
 }

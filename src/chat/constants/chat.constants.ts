@@ -1,0 +1,151 @@
+export enum ConversationType {
+  DIRECT = 'DIRECT',
+  GROUP = 'GROUP',
+  CHANNEL = 'CHANNEL',
+  ANNOUNCEMENT = 'ANNOUNCEMENT',
+  DEPARTMENT = 'DEPARTMENT',
+  SYSTEM = 'SYSTEM',
+  BOT = 'BOT',
+  RECORD = 'RECORD',
+}
+
+/**
+ * Channel posting policy — controls who can send messages in a CHANNEL/ANNOUNCEMENT conversation.
+ * Mirrors the frontend POSTING_POLICY constants in channelPosting.js
+ */
+export enum PostingPolicy {
+  EVERYONE = 'EVERYONE',
+  ADMINS = 'ADMINS',
+  OWNER = 'OWNER',
+  SELECTED_ROLES = 'SELECTED_ROLES',
+  SELECTED_USERS = 'SELECTED_USERS',
+}
+
+export enum MessageType {
+  TEXT = 'TEXT',
+  IMAGE = 'IMAGE',
+  VIDEO = 'VIDEO',
+  VOICE = 'VOICE',
+  FILE = 'FILE',
+  LOCATION = 'LOCATION',
+  CONTACT = 'CONTACT',
+  POLL = 'POLL',
+  SYSTEM = 'SYSTEM',
+  AI = 'AI',
+  CALL = 'CALL',
+}
+
+export enum PresenceStatus {
+  ONLINE = 'ONLINE',
+  OFFLINE = 'OFFLINE',
+  AWAY = 'AWAY',
+  BUSY = 'BUSY',
+  IN_MEETING = 'IN_MEETING',
+  DO_NOT_DISTURB = 'DO_NOT_DISTURB',
+}
+
+export enum MemberRole {
+  OWNER = 'OWNER',
+  OWNER_PRIMARY = 'OWNER_PRIMARY',
+  OWNER_SECONDARY = 'OWNER_SECONDARY',
+  OWNER_COMPLIANCE = 'OWNER_COMPLIANCE',
+  OWNER_TECHNICAL = 'OWNER_TECHNICAL',
+  ADMIN = 'ADMIN',
+  MODERATOR = 'MODERATOR',
+  MEMBER = 'MEMBER',
+  VIEWER = 'VIEWER',
+  GUEST = 'GUEST',
+}
+
+export enum VisibilityType {
+  PUBLIC = 'PUBLIC',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  HIDDEN = 'HIDDEN',
+}
+
+export enum EnterpriseSecurityLevel {
+  STANDARD = 'STANDARD',
+  CONFIDENTIAL = 'CONFIDENTIAL',
+  SECRET = 'SECRET',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum ConversationClassification {
+  PUBLIC = 'PUBLIC',
+  INTERNAL = 'INTERNAL',
+  CONFIDENTIAL = 'CONFIDENTIAL',
+  RESTRICTED = 'RESTRICTED',
+  SECRET = 'SECRET',
+}
+
+export enum NotificationPrivacy {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  NOBODY = 'NOBODY',
+  MENTION_ONLY = 'MENTION_ONLY',
+}
+
+export enum TypingVisibility {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  NOBODY = 'NOBODY',
+}
+
+export enum PresenceVisibility {
+  EVERYONE = 'EVERYONE',
+  MEMBERS_ONLY = 'MEMBERS_ONLY',
+  ADMINS_ONLY = 'ADMINS_ONLY',
+  NOBODY = 'NOBODY',
+}
+
+export enum ActionPolicy {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+}
+
+export enum ExportPolicy {
+  NOBODY = 'NOBODY',
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  COMPLIANCE_TEAM = 'COMPLIANCE_TEAM',
+}
+
+export enum PrincipalType {
+  ROLE = 'ROLE',
+  EMPLOYEE = 'EMPLOYEE',
+  DEPARTMENT = 'DEPARTMENT',
+  DESIGNATION = 'DESIGNATION',
+  BRANCH = 'BRANCH',
+  REPORTING_MANAGER = 'REPORTING_MANAGER',
+}
+
+export const CHAT_PERMISSIONS = {
+  READ: 'chat:read',
+  CREATE: 'chat:create',
+  UPDATE: 'chat:update',
+  DELETE: 'chat:delete',
+  REACT: 'chat:react',
+  MENTION: 'chat:mention',
+  FILE_UPLOAD: 'chat:file-upload',
+  MODERATE: 'chat:moderate',
+  VIEW_ALL: 'chat:view-all',
+};
+
+export const SocketEvents = {
+  // Client -> Server
+  JOIN_CONVERSATION: 'join_conversation',
+  LEAVE_CONVERSATION: 'leave_conversation',
+  TYPING_START: 'typing_start',
+  TYPING_STOP: 'typing_stop',
+  MARK_READ: 'mark_read',
+  PRESENCE_UPDATE: 'presence_update',
+
+  // Server -> Client
+  MESSAGE_CREATED: 'message_created',
+  MESSAGE_UPDATED: 'message_updated',
+  MESSAGE_DELETED: 'message_deleted',
+  MESSAGE_REACTED: 'message_reacted',
+  TYPING: 'typing',
+  PRESENCE_CHANGED: 'presence_changed',
+};

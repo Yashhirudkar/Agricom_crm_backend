@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
+  PreconditionFailedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import {
@@ -53,6 +54,8 @@ import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 
 import { AttendanceConflictService } from './attendance-conflict.service';
+import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
+import { AttendanceSummaryService } from './attendance-summary.service';
 
 @Injectable()
 export class AttendanceService {
@@ -84,6 +87,8 @@ export class AttendanceService {
     private readonly regularizationService: AttendanceRegularizationService,
     private readonly exceptionsQueryService: AttendanceExceptionsQueryService,
     private readonly conflictService: AttendanceConflictService,
+    private readonly policyEngineService: AttendancePolicyEngineService,
+    private readonly summaryService: AttendanceSummaryService,
   ) {}
 
   // 1. Employee Check In
@@ -134,15 +139,19 @@ export class AttendanceService {
     }
 
     if (!shift) {
-      // Fallback virtual shift from HR Policy
+      if (!policy) {
+        throw new PreconditionFailedException(
+          `Company HR Policy is not configured for company ID ${companyId}. Please configure HR Policy in settings.`,
+        );
+      }
       shift = {
         id: null,
-        name: 'Default Shift',
-        startTime: policy?.defaultShiftStartTime || '09:00',
-        endTime: policy?.defaultShiftEndTime || '18:00',
-        breakMinutes: policy?.defaultBreakMinutes ?? 30,
-        gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
-        weeklyOffDays: policy?.weeklyOffDays || [0, 6],
+        name: 'Default HR Policy Shift',
+        startTime: policy.defaultShiftStartTime,
+        endTime: policy.defaultShiftEndTime,
+        breakMinutes: policy.defaultBreakMinutes,
+        gracePeriodMinutes: policy.lateComingGraceMinutes,
+        weeklyOffDays: policy.weeklyOffDays || [],
       };
     }
 
@@ -248,7 +257,14 @@ export class AttendanceService {
       const freshRecord = await this.recordModel.findByPk(record.id);
 
       try {
-        this.attendanceGateway.emitCheckedIn(freshRecord);
+        const [yearStr, monthStr] = freshRecord.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        this.attendanceGateway.emitCheckedIn(freshRecord, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkIn:', err);
       }
@@ -372,12 +388,7 @@ export class AttendanceService {
         );
       }
 
-      totalWorkMs -= breakDurationMs;
 
-      const totalHours = Math.max(
-        0,
-        parseFloat((totalWorkMs / (1000 * 60 * 60)).toFixed(2)),
-      );
 
       // Fetch policy details
       const policy = await this.policyModel.findOne({
@@ -385,7 +396,6 @@ export class AttendanceService {
         transaction: t,
       });
 
-      // Determine shift duration to calculate overtime
       let shift: any = null;
       if (record.shiftId) {
         shift = await this.shiftModel.findByPk(record.shiftId, {
@@ -393,51 +403,22 @@ export class AttendanceService {
         });
       }
 
-      if (!shift) {
-        shift = {
-          startTime: policy?.defaultShiftStartTime || '09:00',
-          endTime: policy?.defaultShiftEndTime || '18:00',
-          breakMinutes: policy?.defaultBreakMinutes ?? 30,
-          gracePeriodMinutes: policy?.lateComingGraceMinutes || 15,
-        };
-      }
-
-      const [shStart, smStart] = shift.startTime.split(':').map(Number);
-      const [shEnd, smEnd] = shift.endTime.split(':').map(Number);
-      let shiftDiff = shEnd * 60 + smEnd - (shStart * 60 + smStart);
-      if (shiftDiff < 0) {
-        shiftDiff += 24 * 60; // night shift crossover
-      }
-      const shiftHours = Math.max(
-        0,
-        (shiftDiff - (shift.breakMinutes || 0)) / 60,
+      const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
+        employeeId,
+        companyId,
+        record.date,
+        record.checkInTime,
+        checkOutTime,
+        shift,
+        policy,
+        logs,
+        timezone,
+        t,
       );
 
-      // Overtime
-      let overtimeHours = 0;
-      if (policy?.overtimeAllowed && totalHours > shiftHours) {
-        overtimeHours = parseFloat((totalHours - shiftHours).toFixed(2));
-      }
-
-      // Determine status from working hours
-      const minHoursPresent =
-        policy?.minHoursForPresent !== undefined
-          ? Number(policy.minHoursForPresent)
-          : 8;
-      const minHoursHalfDay =
-        policy?.minHoursForHalfDay !== undefined
-          ? Number(policy.minHoursForHalfDay)
-          : 4;
-
-      let finalStatus = AttendanceStatus.PRESENT;
-
-      if (totalHours < minHoursHalfDay) {
-        finalStatus = AttendanceStatus.ABSENT;
-      } else if (totalHours < minHoursPresent) {
-        finalStatus = AttendanceStatus.HALF_DAY;
-      } else if (record.lateMinutes > 0) {
-        finalStatus = AttendanceStatus.LATE;
-      }
+      let finalStatus = evalResult.attendanceStatus;
+      const totalHours = evalResult.netWorkingHours;
+      const overtimeHours = evalResult.overtimeHours;
 
       // Protect against ABSENT override if employee has an approved leave for this date
       const activeLeave = await this.leaveRequestModel.findOne({
@@ -492,7 +473,14 @@ export class AttendanceService {
       await t.commit();
 
       try {
-        this.attendanceGateway.emitCheckedOut(record);
+        const [yearStr, monthStr] = record.date.split('-');
+        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
+          companyId,
+          employeeId,
+          parseInt(yearStr),
+          parseInt(monthStr),
+        );
+        this.attendanceGateway.emitCheckedOut(record, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkOut:', err);
       }

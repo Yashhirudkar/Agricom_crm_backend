@@ -23,6 +23,7 @@ import { EmployeeLeaveBalance } from '../models/employee-leave-balance.model';
 import { LeaveType } from '../models/leave-type.model';
 import { Employee, EmployeeStatus } from '../models/employee.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
+import { Shift } from '../../attendance/models/shift.model';
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { AuditService } from '../../audit/services/audit.service';
@@ -189,7 +190,7 @@ export class LeaveRequestsService {
     toDate: string,
     companyId: number,
     isHalfDay: boolean,
-    policy: any,
+    weeklyOffDays: number[],
   ): Promise<number> {
     if (isHalfDay) return 0.5;
 
@@ -198,8 +199,6 @@ export class LeaveRequestsService {
 
     if (start > end)
       throw new BadRequestException('From date cannot be after To date');
-
-    const weeklyOffDays = policy?.weeklyOffDays || [0, 6]; // 0=Sun, 6=Sat
 
     const holidays = await this.holidayModel.findAll({
       where: {
@@ -254,6 +253,7 @@ export class LeaveRequestsService {
   ): Promise<LeaveRequest> {
     const employee = await this.employeeModel.findOne({
       where: { id: employeeId, companyId },
+      include: [{ model: Shift, required: false }],
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -341,12 +341,19 @@ export class LeaveRequestsService {
       }
     }
 
+    let weeklyOffDays = [0, 6];
+    if (employee.shift && Array.isArray(employee.shift.weeklyOffDays)) {
+      weeklyOffDays = employee.shift.weeklyOffDays;
+    } else if (policy && Array.isArray(policy.weeklyOffDays)) {
+      weeklyOffDays = policy.weeklyOffDays;
+    }
+
     const totalDays = await this.calculateActualLeaveDays(
       dto.fromDate,
       dto.toDate,
       companyId,
       dto.isHalfDay || false,
-      policy,
+      weeklyOffDays,
     );
     if (totalDays === 0) {
       throw new BadRequestException(
@@ -419,22 +426,15 @@ export class LeaveRequestsService {
       });
 
       if (!balance) {
-        const joinDate = new Date(employee.joiningDate || new Date());
-        const joinedMonth =
-          joinDate.getFullYear() === year ? joinDate.getMonth() : 0;
-        const remainingMonths = 12 - joinedMonth;
-        const proratedDays = parseFloat(
-          ((leaveType.daysPerYear / 12) * remainingMonths).toFixed(2),
-        );
-
+        const initialAllocated = Number(leaveType.daysPerYear || 0);
         balance = await this.employeeLeaveBalanceModel.create(
           {
             companyId,
             employeeId,
             leaveTypeId: leaveType.id,
             year,
-            totalAllocated: proratedDays,
-            remainingDays: proratedDays,
+            totalAllocated: initialAllocated,
+            remainingDays: initialAllocated,
             usedDays: 0,
             pendingDays: 0,
             carryForwardDays: 0,
@@ -443,9 +443,14 @@ export class LeaveRequestsService {
         );
       }
 
-      if (balance.remainingDays < totalDays) {
+      const effectiveTotal = leaveType.daysPerYear != null
+        ? Number(leaveType.daysPerYear)
+        : Number(balance.totalAllocated || 0);
+      const effectiveRemaining = effectiveTotal - Number(balance.usedDays || 0) - Number(balance.pendingDays || 0) + Number(balance.carryForwardDays || 0);
+
+      if (effectiveRemaining < totalDays) {
         throw new BadRequestException(
-          `Insufficient leave balance. Required: ${totalDays}, Remaining: ${balance.remainingDays}`,
+          `Insufficient leave balance. Required: ${totalDays}, Remaining: ${Math.max(0, effectiveRemaining)}`,
         );
       }
 
@@ -497,18 +502,20 @@ export class LeaveRequestsService {
 
       // Deduct from balance
       if (leaveRequest.status === LeaveRequestStatus.PENDING) {
+        const newPending = Number(balance.pendingDays) + totalDays;
         await balance.update(
           {
-            pendingDays: Number(balance.pendingDays) + totalDays,
-            remainingDays: Number(balance.remainingDays) - totalDays,
+            pendingDays: newPending,
+            remainingDays: Math.max(0, effectiveRemaining - totalDays),
           },
           { transaction: t },
         );
       } else if (leaveRequest.status === LeaveRequestStatus.APPROVED) {
+        const newUsed = Number(balance.usedDays) + totalDays;
         await balance.update(
           {
-            usedDays: Number(balance.usedDays) + totalDays,
-            remainingDays: Number(balance.remainingDays) - totalDays,
+            usedDays: newUsed,
+            remainingDays: Math.max(0, effectiveRemaining - totalDays),
           },
           { transaction: t },
         );
@@ -622,5 +629,12 @@ export class LeaveRequestsService {
     employeeId: number,
   ): Promise<any> {
     return this.queryService.getDashboardSummary(companyId, employeeId);
+  }
+
+  async getMonthlyLeaveSummary(
+    companyId: number,
+    query: { month?: string; year?: number; departmentId?: number; branchId?: number; page?: number; limit?: number },
+  ): Promise<any> {
+    return this.queryService.getMonthlyLeaveSummary(companyId, query);
   }
 }

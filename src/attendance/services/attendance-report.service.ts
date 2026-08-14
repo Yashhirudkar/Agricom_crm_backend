@@ -24,6 +24,7 @@ import { Op } from 'sequelize';
 import { User } from '../../users/models/user.model';
 import { Designation } from '../../hrms/models/designation.model';
 import { AttendanceHelperService } from './attendance-helper.service';
+import { AttendanceSummaryService } from './attendance-summary.service';
 
 @Injectable()
 export class AttendanceReportService {
@@ -45,6 +46,7 @@ export class AttendanceReportService {
     @InjectModel(LeaveRequest)
     private readonly leaveRequestModel: typeof LeaveRequest,
     private readonly helperService: AttendanceHelperService,
+    private readonly summaryService: AttendanceSummaryService,
   ) {}
 
   // 8. Get Own Attendance (Self)
@@ -191,7 +193,7 @@ export class AttendanceReportService {
   async getCompanyAttendance(
     companyId: number,
     filters: { date?: string; employeeId?: number },
-  ): Promise<AttendanceRecord[]> {
+  ): Promise<any> {
     const whereClause: any = { companyId };
 
     if (filters.date) {
@@ -200,6 +202,8 @@ export class AttendanceReportService {
     if (filters.employeeId) {
       whereClause.employeeId = filters.employeeId;
     }
+
+    let mergedRecords: AttendanceRecord[] = [];
 
     if (filters.date) {
       const activeLeaves = await this.leaveRequestModel.findAll({
@@ -212,7 +216,6 @@ export class AttendanceReportService {
         },
       });
 
-      const employeeIds = activeLeaves.map((l) => l.employeeId);
       const records = await this.recordModel.findAll({
         where: whereClause,
         include: [
@@ -229,7 +232,7 @@ export class AttendanceReportService {
       });
 
       const recordEmpIds = new Set(records.map((r) => r.employeeId));
-      const mergedRecords = [...records];
+      mergedRecords = [...records];
 
       for (const leave of activeLeaves) {
         if (!recordEmpIds.has(leave.employeeId)) {
@@ -249,24 +252,28 @@ export class AttendanceReportService {
           mergedRecords.push(transientRecord);
         }
       }
-
-      return mergedRecords;
+    } else {
+      mergedRecords = await this.recordModel.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: Employee,
+            include: [Branch],
+          },
+          Shift,
+        ],
+        order: [
+          ['date', 'DESC'],
+          ['employeeId', 'ASC'],
+        ],
+      });
     }
 
-    return this.recordModel.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Employee,
-          include: [Branch],
-        },
-        Shift,
-      ],
-      order: [
-        ['date', 'DESC'],
-        ['employeeId', 'ASC'],
-      ],
-    });
+    const summary = this.summaryService.buildCompanyDailySummary(mergedRecords);
+    return {
+      records: mergedRecords,
+      summary,
+    };
   }
 
   // 10. Monthly Attendance Report
@@ -274,10 +281,6 @@ export class AttendanceReportService {
     companyId: number,
     query: { month: number; year: number; employeeId?: number; page?: number; limit?: number },
   ): Promise<any> {
-    const startStr = `${query.year}-${String(query.month).padStart(2, '0')}-01`;
-    const lastDay = new Date(query.year, query.month, 0).getDate();
-    const endStr = `${query.year}-${String(query.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
     // Pagination support
     const page = query.page ? parseInt(query.page as any, 10) : undefined;
     const limit = query.limit ? parseInt(query.limit as any, 10) : undefined;
@@ -325,322 +328,20 @@ export class AttendanceReportService {
       return [];
     }
 
-    // Get all holidays for the month
-    const holidays = await this.holidayModel.findAll({
-      where: {
-        holidayDate: {
-          [Op.between]: [startStr, endStr],
-        },
-        isActive: true,
-      },
-      include: [
-        {
-          model: HolidayCompany,
-          where: { companyId },
-          required: true,
-        },
-      ],
-    });
-    const holidayDates = new Set(holidays.map((h) => h.holidayDate.toString()));
-
-    // Fetch all approved leave requests for this month for the loaded employees
-    const leaves = await this.leaveRequestModel.findAll({
-      where: {
-        employeeId: employees.map((e) => e.id),
-        status: LeaveRequestStatus.APPROVED,
-        [Op.or]: [
-          {
-            fromDate: { [Op.between]: [startStr, endStr] },
-          },
-          {
-            toDate: { [Op.between]: [startStr, endStr] },
-          },
-          {
-            fromDate: { [Op.lte]: startStr },
-            toDate: { [Op.gte]: endStr },
-          },
-        ],
-      },
-    });
-
-    const employeeLeavesMap = new Map<number, Map<string, LeaveRequest>>();
-    for (const leave of leaves) {
-      if (!employeeLeavesMap.has(leave.employeeId)) {
-        employeeLeavesMap.set(leave.employeeId, new Map<string, LeaveRequest>());
-      }
-      const leaveMap = employeeLeavesMap.get(leave.employeeId);
-      const leaveFromTime = new Date(leave.fromDate).getTime();
-      const monthStartTime = new Date(startStr).getTime();
-      const start = new Date(
-        leaveFromTime > monthStartTime ? leave.fromDate : startStr,
-      );
-
-      const leaveToTime = new Date(leave.toDate).getTime();
-      const monthEndTime = new Date(endStr).getTime();
-      const end = new Date(leaveToTime < monthEndTime ? leave.toDate : endStr);
-      const curr = new Date(start);
-      while (curr <= end) {
-        leaveMap.set(
-          curr.toLocaleDateString('en-CA', { timeZone: 'UTC' }),
-          leave,
-        );
-        curr.setDate(curr.getDate() + 1);
-      }
-    }
-
-    // Fetch policy once to avoid N+1 queries
-    const policy = await this.policyModel.findOne({ where: { companyId } });
-    const defaultWeeklyOffDays = policy?.weeklyOffDays || [0, 6];
-
-    // Fetch all shifts once to avoid N+1 queries
-    const shifts = await this.shiftModel.findAll({ where: { companyId } });
-    const shiftMap = new Map<number, Shift>();
-    for (const sh of shifts) {
-      shiftMap.set(sh.id, sh);
-    }
-
-    // Fetch all attendance records for the month once to avoid N+1 queries
-    const allRecords = await this.recordModel.findAll({
-      where: {
-        companyId,
-        date: {
-          [Op.between]: [startStr, endStr],
-        },
-        employeeId: employees.map((e) => e.id),
-      },
-    });
-
-    const employeeRecordsMap = new Map<number, AttendanceRecord[]>();
-    for (const rec of allRecords) {
-      if (!employeeRecordsMap.has(rec.employeeId)) {
-        employeeRecordsMap.set(rec.employeeId, []);
-      }
-      employeeRecordsMap.get(rec.employeeId).push(rec);
-    }
-
     const result = [];
-
     for (const employee of employees) {
-      const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-      const { todayDateStr, minutesOfDay } =
-        this.helperService.getLocalTimeDetails(timezone);
-
-      const records = employeeRecordsMap.get(employee.id) || [];
-      const recordMap = new Map<string, AttendanceRecord>();
-      for (const rec of records) {
-        recordMap.set(rec.date, rec);
-      }
-
-      // Resolve Shift/Policy using maps/caches
-      let shift: any = null;
-      if (employee.shiftId) {
-        shift = shiftMap.get(employee.shiftId) || null;
-      }
-      if (!shift) {
-        shift = {
-          weeklyOffDays: defaultWeeklyOffDays,
-        };
-      }
-
-      let presentCount = 0;
-      let absentCount = 0;
-      let lateCount = 0;
-      let halfDayCount = 0;
-      let weeklyOffCount = 0;
-      let holidayCount = 0;
-      let leaveCount = 0;
-      let totalWorkHours = 0;
-      let totalOvertimeHours = 0;
-      let totalLateMinutes = 0;
-      const daysDetails = [];
-
-      // Loop through every single day of the month
-      for (let day = 1; day <= lastDay; day++) {
-        const dateStr = `${query.year}-${String(query.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-        // Find JS day of week (0-6)
-        const dateObj = new Date(`${dateStr}T12:00:00`); // Use midday to avoid TZ shifts
-        const dayOfWeekStr = dateObj.toLocaleDateString('en-US', {
-          weekday: 'long',
-          timeZone: timezone,
-        });
-        const weekdayNames = [
-          'Sunday',
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-        ];
-        const jsDay = weekdayNames.indexOf(dayOfWeekStr);
-
-        const isWeeklyOff = shift.weeklyOffDays.includes(jsDay);
-        const isHoliday = holidayDates.has(dateStr);
-
-        const record = recordMap.get(dateStr);
-        const leaveMap = employeeLeavesMap.get(employee.id);
-        const matchedLeave = leaveMap?.get(dateStr);
-        const isOnLeave =
-          !!matchedLeave ||
-          (record && record.attendanceStatus === AttendanceStatus.ON_LEAVE);
-
-        let status: AttendanceStatus = null;
-        let workHours = 0;
-        let overtime = 0;
-        let lateMinutes = 0;
-        let checkIn = null;
-        let checkOut = null;
-        const attendanceState = record
-          ? record.attendanceState
-          : AttendanceState.NOT_CHECKED_IN;
-
-        if (record) {
-          status = record.attendanceStatus;
-          workHours =
-            record.attendanceState === AttendanceState.WORKING
-              ? 0
-              : Number(record.totalHours || 0);
-          overtime = Number(record.overtimeHours || 0);
-          lateMinutes = Number(record.lateMinutes || 0);
-          checkIn = record.checkInTime;
-          checkOut = record.checkOutTime;
-        }
-
-        // Apply enterprise status resolution rules:
-        if (dateStr > todayDateStr) {
-          // Future dates:
-          if (isOnLeave) {
-            status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            status = AttendanceStatus.UPCOMING; // Never ABSENT for future dates
-          }
-        } else if (dateStr === todayDateStr) {
-          // Today:
-          if (
-            status &&
-            status !== AttendanceStatus.ABSENT &&
-            status !== AttendanceStatus.UPCOMING
-          ) {
-            // Keep actual punch status (e.g. PRESENT, LATE, HALF_DAY)
-          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
-            // Active check-in. Do not overwrite with ABSENT.
-            status = null;
-          } else if (isOnLeave) {
-            status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            // Today working day: check if shift start time crossed
-            const [shStartHour, shStartMin] = (shift.startTime || '09:00')
-              .split(':')
-              .map(Number);
-            const shiftStartMinutes = shStartHour * 60 + shStartMin;
-
-            if (minutesOfDay < shiftStartMinutes) {
-              status = AttendanceStatus.UPCOMING;
-            } else {
-              // Shift started, employee missed check-in
-              status = AttendanceStatus.ABSENT; // Or check policy
-            }
-          }
-        } else {
-          // Past dates:
-          if (
-            status &&
-            status !== AttendanceStatus.ABSENT &&
-            status !== AttendanceStatus.UPCOMING
-          ) {
-            // Keep actual punch status
-          } else if (attendanceState === AttendanceState.WORKING || checkIn) {
-            // They forgot to check out! Leave as null
-            status = null;
-          } else if (isOnLeave) {
-            status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
-          } else if (isHoliday) {
-            status = AttendanceStatus.HOLIDAY;
-          } else if (isWeeklyOff) {
-            status = AttendanceStatus.WEEK_OFF;
-          } else {
-            status = AttendanceStatus.ABSENT;
-          }
-        }
-
-        // Increment counts based on resolved status:
-        if (status === AttendanceStatus.PRESENT) presentCount++;
-        else if (status === AttendanceStatus.ABSENT) absentCount++;
-        else if (status === AttendanceStatus.LATE) lateCount++;
-        else if (status === AttendanceStatus.HALF_DAY) halfDayCount++;
-        else if (status === AttendanceStatus.WEEK_OFF) weeklyOffCount++;
-        else if (status === AttendanceStatus.ON_LEAVE) leaveCount++;
-        else if (status === AttendanceStatus.HOLIDAY) holidayCount++;
-
-        totalWorkHours += workHours;
-        totalOvertimeHours += overtime;
-        totalLateMinutes += lateMinutes;
-
-        daysDetails.push({
-          date: dateStr,
-          checkIn,
-          checkOut,
-          status,
-          workHours,
-          overtime,
-          lateMinutes,
-          attendanceState,
-        });
-      }
-
-      const totalWorkingDays = lastDay - weeklyOffCount - holidayCount;
-      const actualPresent = presentCount + lateCount + halfDayCount * 0.5;
-      const attendancePercentage =
-        totalWorkingDays > 0
-          ? parseFloat(((actualPresent / totalWorkingDays) * 100).toFixed(2))
-          : 0;
-
+      const summaryResult = await this.summaryService.getEmployeeMonthlySummary(
+        companyId,
+        employee.id,
+        query.year,
+        query.month,
+      );
       result.push({
         employeeId: employee.id,
         employeeCode: employee.employeeCode,
         employeeName: `${employee.firstName} ${employee.lastName}`,
-        summary: {
-          present: presentCount,
-          absent: absentCount,
-          late: lateCount,
-          halfDay: halfDayCount,
-          weeklyOff: weeklyOffCount,
-          holiday: holidayCount,
-          leave: leaveCount,
-          totalWorkHours: parseFloat(totalWorkHours.toFixed(2)),
-          totalOvertimeHours: parseFloat(totalOvertimeHours.toFixed(2)),
-          totalLateMinutes,
-          attendancePercentage,
-          presentPercentage: parseFloat(
-            ((presentCount / lastDay) * 100).toFixed(2),
-          ),
-          absentPercentage: parseFloat(
-            ((absentCount / lastDay) * 100).toFixed(2),
-          ),
-          latePercentage: parseFloat(((lateCount / lastDay) * 100).toFixed(2)),
-          halfDayPercentage: parseFloat(
-            ((halfDayCount / lastDay) * 100).toFixed(2),
-          ),
-          weeklyOffPercentage: parseFloat(
-            ((weeklyOffCount / lastDay) * 100).toFixed(2),
-          ),
-          holidayPercentage: parseFloat(
-            ((holidayCount / lastDay) * 100).toFixed(2),
-          ),
-          leavePercentage: parseFloat(
-            ((leaveCount / lastDay) * 100).toFixed(2),
-          ),
-        },
-        days: daysDetails,
+        summary: summaryResult.summary,
+        days: summaryResult.days,
       });
     }
 

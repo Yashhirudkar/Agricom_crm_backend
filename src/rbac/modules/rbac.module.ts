@@ -12,7 +12,9 @@ import { User } from '../../users/models/user.model';
 import { Company } from '../../companies/models/company.model';
 import { Client } from '../../clients/models/client.model';
 import { ClientActionAccess } from '../../clients/models/client-action-access.model';
+import { ClientModuleAccess } from '../../clients/models/client-module-access.model';
 import { UserCompany } from '../../users/models/user-company.model';
+import { RolePartnerRoleAccess } from '../../masters/partner-role/role-partner-role-access.model';
 import { RbacService } from '../services/rbac.service';
 import { RbacController } from '../controllers/rbac.controller';
 import { RbacSeederService } from '../services/rbac-seeder.service';
@@ -34,6 +36,8 @@ import { AuditModule } from '../../audit/modules/audit.module';
       Client,
       UserCompany,
       ClientActionAccess,
+      ClientModuleAccess,
+      RolePartnerRoleAccess,
     ]),
     DiscoveryModule,
     forwardRef(() => AuditModule),

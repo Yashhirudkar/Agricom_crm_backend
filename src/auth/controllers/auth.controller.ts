@@ -351,11 +351,13 @@ export class AuthController {
         return true;
       }
 
-      // Prevent greedy matching where 'partner' matches 'partnerrole' or 'partnerdynamicschema'
+      // Prevent greedy prefix matching where 'hr' matches 'hrpolicy', 'partner' matches 'partnerrole', etc.
       if (c1 === 'partner' && c2 !== 'partner' && c2.startsWith('partner')) return false;
       if (c2 === 'partner' && c1 !== 'partner' && c1.startsWith('partner')) return false;
+      if (c1 === 'hr' && c2 !== 'hr' && c2.startsWith('hr')) return false;
+      if (c2 === 'hr' && c1 !== 'hr' && c1.startsWith('hr')) return false;
 
-      return c1 === c2 || c1.startsWith(c2) || c2.startsWith(c1);
+      return c1 === c2;
     };
 
     const hasSidebarPermission = (requiredLink: string, userPerms: string[]): boolean => {

@@ -23,6 +23,10 @@ export class QueryPartnerDto {
   country?: string;
 
   @IsOptional()
+  @IsString()
+  dnbRiskFactor?: string;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true' || value === true) return true;
     if (value === 'false' || value === false) return false;

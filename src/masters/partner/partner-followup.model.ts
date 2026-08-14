@@ -13,6 +13,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { Partner } from './partner.model';
+import { User } from '../../users/models/user.model';
 
 @Table({
   tableName: 'partner_followups',
@@ -45,9 +46,13 @@ export class PartnerFollowUp extends Model<PartnerFollowUp> {
   @Column({ field: 'workspace_id', type: DataType.INTEGER })
   declare workspaceId: number;
 
+  @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
+
+  @BelongsTo(() => User, { foreignKey: 'createdBy', onDelete: 'SET NULL' })
+  declare creator: User;
 
   @AllowNull(false)
   @Column({ field: 'followup_date', type: DataType.DATE })

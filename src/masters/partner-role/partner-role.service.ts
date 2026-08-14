@@ -46,8 +46,8 @@ export class PartnerRoleService {
     return this.partnerRoleModel.create(payload);
   }
 
-  async findAll(query: QueryPartnerRoleDto) {
-    const { search, isActive, page = 1, limit = 10 } = query;
+  async findAll(query: QueryPartnerRoleDto & { allowedIds?: number[] | null }) {
+    const { search, isActive, page = 1, limit = 10, allowedIds } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
@@ -58,6 +58,21 @@ export class PartnerRoleService {
 
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
+    }
+
+    // RBAC-based filter: when allowedIds is a non-null array, restrict to those IDs
+    if (allowedIds !== null && allowedIds !== undefined) {
+      if (allowedIds.length === 0) {
+        // Fully restricted — no partner roles accessible
+        return {
+          data: [],
+          total: 0,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: 0,
+        };
+      }
+      whereClause.id = { [Op.in]: allowedIds };
     }
 
     const { rows, count } = await this.partnerRoleModel.findAndCountAll({

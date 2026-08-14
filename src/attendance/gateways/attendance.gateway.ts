@@ -38,25 +38,14 @@ export class AttendanceGateway
   /**
    * Serializes database records to keep payloads clean and whitelisted.
    */
-  private serializePayload(record: any, action: string) {
+  private serializePayload(record: any, action: string, summary?: any) {
     return {
-      id: record.id,
-      employeeId: record.employeeId,
-      companyId: record.companyId,
+      version: 1,
+      generatedAt: new Date(),
+      generatedBy: 'SYSTEM',
       action,
-      attendanceState: record.attendanceState,
-      attendanceStatus: record.attendanceStatus,
-      checkInTime: record.checkInTime,
-      checkOutTime: record.checkOutTime,
-      date: record.date,
-      totalHours: record.totalHours,
-      overtimeHours: record.overtimeHours,
-      timestamp: new Date(),
-      employee: record.employee
-        ? record.employee.toJSON
-          ? record.employee.toJSON()
-          : record.employee
-        : undefined,
+      record: record ? (record.toJSON ? record.toJSON() : record) : null,
+      summary: summary || null,
     };
   }
 
@@ -191,8 +180,8 @@ export class AttendanceGateway
     }
   }
 
-  emitCheckedIn(record: any) {
-    const payload = this.serializePayload(record, 'checked_in');
+  emitCheckedIn(record: any, summary?: any) {
+    const payload = this.serializePayload(record, 'checked_in', summary);
     this.server
       .to(`company-${record.companyId}`)
       .emit('attendance-checkin', payload);
@@ -201,8 +190,8 @@ export class AttendanceGateway
       .emit('attendance-checkin', payload);
   }
 
-  emitCheckedOut(record: any) {
-    const payload = this.serializePayload(record, 'checked_out');
+  emitCheckedOut(record: any, summary?: any) {
+    const payload = this.serializePayload(record, 'checked_out', summary);
     this.server
       .to(`company-${record.companyId}`)
       .emit('attendance-checkout', payload);
@@ -211,11 +200,8 @@ export class AttendanceGateway
       .emit('attendance-checkout', payload);
   }
 
-  emitAttendanceUpdate(action: string, record: any) {
-    console.log('socket emit event name', 'attendance-update');
-    console.log('payload data', record);
-    const payload = this.serializePayload(record, action);
-    console.log('serialized payload', payload);
+  emitAttendanceUpdate(action: string, record: any, summary?: any) {
+    const payload = this.serializePayload(record, action, summary);
     this.server
       .to(`company-${record.companyId}`)
       .emit('attendance-update', payload);

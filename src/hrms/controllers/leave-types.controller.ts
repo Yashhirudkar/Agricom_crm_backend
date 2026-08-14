@@ -64,7 +64,7 @@ export class LeaveTypesController {
   }
 
   @Get()
-  @RequirePermission('leave_types:read')
+  @RequirePermission('leave:read')
   getLeaveTypes(
     @Request() req,
     @Query('search') search?: string,
@@ -80,7 +80,7 @@ export class LeaveTypesController {
   }
 
   @Get(':id')
-  @RequirePermission('leave_types:read')
+  @RequirePermission('leave:read')
   getLeaveTypeById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = this.getCompanyId(req);
     return this.leaveTypesService.getLeaveTypeById(id, companyId);

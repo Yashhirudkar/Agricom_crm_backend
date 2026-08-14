@@ -7,9 +7,10 @@ import {
   IsDate,
   IsEnum,
   Min,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EnquiryPurity, EnquiryShipmentType } from '../enquiry.constants';
+import { EnquiryPurity, EnquiryShipmentType, EnquiryShipmentMode } from '../enquiry.constants';
 
 export class CreateEnquiryDto {
   @IsInt()
@@ -26,8 +27,45 @@ export class CreateEnquiryDto {
   enquiryDate: Date;
 
   @IsOptional()
-  @IsInt()
-  originCountryId?: number;
+  @IsString()
+  originCountryId?: string;
+
+  @IsOptional()
+  @IsEnum(EnquiryShipmentMode)
+  shipmentMode?: EnquiryShipmentMode;
+
+  @IsOptional()
+  @IsString()
+  originPort?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationPort?: string;
+
+  @IsOptional()
+  @IsString()
+  originState?: string;
+
+  @IsOptional()
+  @IsString()
+  originCity?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationState?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationCity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  bidCurrency?: string;
 
   @IsOptional()
   @IsEnum(EnquiryPurity)
@@ -64,3 +102,4 @@ export class CreateEnquiryDto {
   @IsBoolean()
   potentialEnquiry?: boolean;
 }
+

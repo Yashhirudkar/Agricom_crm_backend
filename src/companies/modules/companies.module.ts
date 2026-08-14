@@ -9,14 +9,19 @@ import { CompanyHrPoliciesController } from '../controllers/company-hr-policies.
 import { RbacModule } from '../../rbac/modules/rbac.module';
 import { AuditModule } from '../../audit/modules/audit.module';
 
+import { AuditLog } from '../../audit/models/audit-log.model';
+import { User } from '../../users/models/user.model';
+import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
+import { AttendancePolicyEngineService } from '../../attendance/services/attendance-policy-engine.service';
+
 @Module({
   imports: [
-    SequelizeModule.forFeature([Company, CompanyHrPolicy]),
+    SequelizeModule.forFeature([Company, CompanyHrPolicy, AuditLog, User, AttendanceRecord]),
     RbacModule,
     AuditModule,
   ],
   controllers: [CompaniesController, CompanyHrPoliciesController],
-  providers: [CompaniesService, CompanyHrPoliciesService],
-  exports: [CompaniesService, CompanyHrPoliciesService],
+  providers: [CompaniesService, CompanyHrPoliciesService, AttendancePolicyEngineService],
+  exports: [CompaniesService, CompanyHrPoliciesService, AttendancePolicyEngineService],
 })
 export class CompaniesModule {}

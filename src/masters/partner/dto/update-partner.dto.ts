@@ -9,6 +9,8 @@ import {
   IsArray,
   IsInt,
   ArrayMaxSize,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -62,6 +64,13 @@ export class UpdatePartnerDto {
   @IsNotEmpty()
   @MaxLength(150)
   country?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1900)
+  @Max(new Date().getFullYear())
+  @Type(() => Number)
+  yearOfEstablishment?: number;
 
   @IsOptional()
   @IsString()

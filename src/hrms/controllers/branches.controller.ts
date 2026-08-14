@@ -64,7 +64,6 @@ export class BranchesController {
   }
 
   @Get('options')
-  @RequirePermission('branches:read')
   getBranchOptions(
     @Request() req,
     @Query('search') search?: string,

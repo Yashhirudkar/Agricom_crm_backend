@@ -7,6 +7,9 @@ import { ResourceAction } from '../../system/models/resource-action.model';
 import { Role } from '../models/role.model';
 import { RoleActionPermission } from '../models/role-action-permission.model';
 import { PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
+import { Client } from '../../clients/models/client.model';
+import { ClientActionAccess } from '../../clients/models/client-action-access.model';
+import { ClientModuleAccess } from '../../clients/models/client-module-access.model';
 
 @Injectable()
 export class PermissionDiscoveryService implements OnApplicationBootstrap {
@@ -26,6 +29,12 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     private readonly roleModel: typeof Role,
     @InjectModel(RoleActionPermission)
     private readonly roleActionPermissionModel: typeof RoleActionPermission,
+    @InjectModel(Client)
+    private readonly clientModel: typeof Client,
+    @InjectModel(ClientActionAccess)
+    private readonly clientActionAccessModel: typeof ClientActionAccess,
+    @InjectModel(ClientModuleAccess)
+    private readonly clientModuleAccessModel: typeof ClientModuleAccess,
   ) {}
 
   async onApplicationBootstrap() {
@@ -71,6 +80,8 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       where: { name: 'Client Admin', clientId: null },
     });
 
+    const clients = await this.clientModel.findAll();
+
     for (const permKey of permissions) {
       // Split into resource and action (e.g. 'inventory:create')
       let [resourceName, actionName] = permKey.split(':');
@@ -92,7 +103,9 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         .join(' ');
 
       // Map to desired frontend matrix modules
-      if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
+      if (resourceName.startsWith('chat_') || resourceName === 'chat')
+        moduleName = 'Chat';
+      else if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
       else if (resourceName === 'follow_up') moduleName = 'Follow Up';
       else if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
       else if (resourceName === 'leave_requests' || resourceName === 'leave')
@@ -114,6 +127,17 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         } as any,
       });
       const targetModuleId = sysModule.id;
+
+      // Ensure all clients have access to this module
+      for (const client of clients) {
+        await this.clientModuleAccessModel.findOrCreate({
+          where: { client_id: client.id, module_id: targetModuleId },
+          defaults: {
+            client_id: client.id,
+            module_id: targetModuleId,
+          } as any,
+        });
+      }
 
       const [resource, created] = await this.moduleResourceModel.findOrCreate({
         where: { name: resourceName },
@@ -140,6 +164,17 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
           sort_order: 0,
         } as any,
       });
+
+      // Ensure all clients have access to this action to prevent 403 errors on assignment
+      for (const client of clients) {
+        await this.clientActionAccessModel.findOrCreate({
+          where: { client_id: client.id, resource_action_id: action.id },
+          defaults: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          } as any,
+        });
+      }
 
       // System level permissions logic already evaluated as isSystemLevel
 

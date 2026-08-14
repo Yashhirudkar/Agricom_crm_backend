@@ -1,24 +1,73 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { CompanyHrPolicy } from '../models/company-hr-policy.model';
 import { AuditService } from '../../audit/services/audit.service';
+import { AuditLog } from '../../audit/models/audit-log.model';
+import { User } from '../../users/models/user.model';
 import { UpsertCompanyHrPolicyDto } from '../dto/company-hr-policies.dto';
+import { AttendancePolicyEngineService, PolicyPreviewResult } from '../../attendance/services/attendance-policy-engine.service';
 
 @Injectable()
-export class CompanyHrPoliciesService {
+export class CompanyHrPoliciesService implements OnModuleInit {
   constructor(
     @InjectModel(CompanyHrPolicy)
     private readonly policyModel: typeof CompanyHrPolicy,
+    @InjectModel(AuditLog)
+    private readonly auditLogModel: typeof AuditLog,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
     private readonly auditService: AuditService,
+    private readonly policyEngineService: AttendancePolicyEngineService,
   ) {}
 
-  async getHrPolicies(companyId: number): Promise<CompanyHrPolicy> {
-    let policy = await this.policyModel.findOne({ where: { companyId } });
-    if (!policy) {
-      // Return defaults if none created yet
-      policy = this.policyModel.build({ companyId });
-    }
+  async onModuleInit() {
+    // Schema modifications are handled by database migrations (phase-02-hrms)
+  }
+
+  async getHrPolicies(companyId: number): Promise<CompanyHrPolicy | null> {
+    const policy = await this.policyModel.findOne({
+      where: { companyId },
+      include: [{ model: User, as: 'updater', attributes: ['id', 'name', 'email'] }],
+    });
     return policy;
+  }
+
+  async getPolicyPreview(dto: any): Promise<PolicyPreviewResult> {
+    return this.policyEngineService.generatePolicyPreview(dto);
+  }
+
+  async getPolicyHistory(companyId: number): Promise<any[]> {
+    const logs = await this.auditLogModel.findAll({
+      where: {
+        companyId,
+        entityType: 'CompanyHrPolicy',
+      },
+      include: [{ model: User, attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']],
+      limit: 20,
+    });
+
+    return logs.map((log, index) => {
+      const verNumber = `v1.${logs.length - index}`;
+      return {
+        id: log.id,
+        versionNumber: verNumber,
+        createdAt: log.createdAt,
+        createdBy: log.user?.name || log.user?.email || 'System Admin',
+        oldValue: log.oldValue,
+        newValue: log.newValue,
+      };
+    });
+  }
+
+  async getPolicyImpact(companyId: number): Promise<{ affectedEmployees: number }> {
+    const activeEmployees = await this.userModel.count({
+      where: {
+        companyId,
+        isActive: true,
+      },
+    });
+    return { affectedEmployees: activeEmployees };
   }
 
   async upsertHrPolicies(
@@ -64,7 +113,9 @@ export class CompanyHrPoliciesService {
           { transaction: t },
         );
 
-        const updated = await policy.reload();
+        const updated = await policy.reload({
+          include: [{ model: User, as: 'updater', attributes: ['id', 'name', 'email'] }],
+        });
 
         if (actor) {
           await this.auditService.writeDiffLog({
@@ -83,7 +134,7 @@ export class CompanyHrPoliciesService {
       }
 
       await t.commit();
-      return policy;
+      return this.getHrPolicies(companyId);
     } catch (err) {
       await t.rollback();
       throw err;

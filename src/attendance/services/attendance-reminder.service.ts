@@ -88,11 +88,13 @@ export class AttendanceReminderService {
         let defaultCheckOutActive = false;
 
         for (const policy of policies) {
-          const startStr = policy.defaultShiftStartTime || '09:00';
+          const startStr = policy.defaultShiftStartTime;
+          if (!startStr) continue;
           const [shStart, smStart] = startStr.split(':').map(Number);
           const shiftStartMinutes = shStart * 60 + smStart;
 
-          const endStr = policy.defaultShiftEndTime || '18:00';
+          const endStr = policy.defaultShiftEndTime;
+          if (!endStr) continue;
           const [shEnd, smEnd] = endStr.split(':').map(Number);
           const shiftEndMinutes = shEnd * 60 + smEnd;
 
@@ -210,11 +212,15 @@ export class AttendanceReminderService {
           const policy = policiesMap.get(companyId);
           const isDefaultShift = !shift;
 
-          const startTimeStr = shift ? shift.startTime : (policy?.defaultShiftStartTime || '09:00');
-          const endTimeStr = shift ? shift.endTime : (policy?.defaultShiftEndTime || '18:00');
-          const graceMinutes = shift ? (shift.gracePeriodMinutes || 0) : (policy?.lateComingGraceMinutes || 15);
-          const weeklyOffDays = shift ? (shift.weeklyOffDays || []) : (policy?.weeklyOffDays || [0, 6]);
+          const startTimeStr = shift ? shift.startTime : policy?.defaultShiftStartTime;
+          const endTimeStr = shift ? shift.endTime : policy?.defaultShiftEndTime;
+          const graceMinutes = shift ? (shift.gracePeriodMinutes || 0) : (policy?.lateComingGraceMinutes || 0);
+          const weeklyOffDays = shift ? (shift.weeklyOffDays || []) : (policy?.weeklyOffDays || []);
           const isNightShift = shift ? (shift.isNightShift || false) : false;
+
+          if (!startTimeStr || !endTimeStr) {
+            continue;
+          }
 
           // Compute shift times in minutes of day
           const [shStart, smStart] = startTimeStr.split(':').map(Number);

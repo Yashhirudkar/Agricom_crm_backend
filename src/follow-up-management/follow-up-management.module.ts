@@ -9,10 +9,11 @@ import { FollowUpManagementService } from './services/follow-up-management.servi
 import { FollowUpNotificationService } from './services/follow-up-notification.service';
 import { FollowUpSchedulerService } from './services/follow-up-scheduler.service';
 import { FollowUpManagementController } from './controllers/follow-up-management.controller';
+import { User } from '../users/models/user.model';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([PartnerFollowUp, Partner, Notification]),
+    SequelizeModule.forFeature([PartnerFollowUp, Partner, Notification, User]),
     NotificationsModule,
     RbacModule,
   ],

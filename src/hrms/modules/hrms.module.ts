@@ -52,6 +52,7 @@ import { AttendanceRecord } from '../../attendance/models/attendance-record.mode
 import { AttendanceException } from '../../attendance/models/attendance-exception.model';
 import { AttendanceModule } from '../../attendance/attendance.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { Shift } from '../../attendance/models/shift.model';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { NotificationsModule } from '../../notifications/notifications.module';
       AttendanceRecord,
       AttendanceException,
       User,
+      Shift,
     ]),
     AuditModule,
     RbacModule,
