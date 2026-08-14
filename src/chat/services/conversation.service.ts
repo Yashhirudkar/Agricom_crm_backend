@@ -563,6 +563,9 @@ export class ConversationService implements OnModuleInit {
         unreadCount = await this.messageModel.count({ where: unreadWhere });
 
         plain.unreadCount = unreadCount;
+        if (membership) {
+          membership.unreadMessagesCount = unreadCount;
+        }
         plain.lastMessage = lastMessage ? lastMessage.toJSON() : null;
         return plain;
       }),

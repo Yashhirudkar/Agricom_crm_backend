@@ -50,51 +50,51 @@ export class ChatEventsListener implements OnModuleDestroy {
 
   @OnEvent(ChatEventNames.MESSAGE_CREATED)
   handleMessageCreated(event: MessageCreatedEvent) {
-    this.chatGateway.broadcastToConversation(
-      event.conversationId,
-      'message_created',
-      {
-        eventId: event.eventId,
-        version: event.eventVersion,
-        timestamp: event.timestamp,
-        conversationId: event.conversationId,
-        clientMessageId: event.clientMessageId,
-        message: event.message,
-      },
-    );
+    const payload = {
+      eventId: event.eventId,
+      version: event.eventVersion,
+      timestamp: event.timestamp,
+      conversationId: event.conversationId,
+      clientMessageId: event.clientMessageId,
+      message: event.message,
+    };
+    this.chatGateway.broadcastToConversation(event.conversationId, 'message_created', payload);
+    if (event.companyId) {
+      this.chatGateway.broadcastToCompany(event.companyId, 'message_created', payload);
+    }
   }
 
   @OnEvent(ChatEventNames.MESSAGE_UPDATED)
   handleMessageUpdated(event: MessageUpdatedEvent) {
-    this.chatGateway.broadcastToConversation(
-      event.conversationId,
-      'message_updated',
-      {
-        eventId: event.eventId,
-        version: event.eventVersion,
-        timestamp: event.timestamp,
-        conversationId: event.conversationId,
-        messageId: event.messageId,
-        message: event.message,
-      },
-    );
+    const payload = {
+      eventId: event.eventId,
+      version: event.eventVersion,
+      timestamp: event.timestamp,
+      conversationId: event.conversationId,
+      messageId: event.messageId,
+      message: event.message,
+    };
+    this.chatGateway.broadcastToConversation(event.conversationId, 'message_updated', payload);
+    if (event.companyId) {
+      this.chatGateway.broadcastToCompany(event.companyId, 'message_updated', payload);
+    }
   }
 
   @OnEvent(ChatEventNames.MESSAGE_DELETED)
   handleMessageDeleted(event: MessageDeletedEvent) {
     if (event.mode === 'everyone') {
-      this.chatGateway.broadcastToConversation(
-        event.conversationId,
-        'message_deleted',
-        {
-          eventId: event.eventId,
-          version: event.eventVersion,
-          timestamp: event.timestamp,
-          conversationId: event.conversationId,
-          messageId: event.messageId,
-          deletedBy: event.deletedBy,
-        },
-      );
+      const payload = {
+        eventId: event.eventId,
+        version: event.eventVersion,
+        timestamp: event.timestamp,
+        conversationId: event.conversationId,
+        messageId: event.messageId,
+        deletedBy: event.deletedBy,
+      };
+      this.chatGateway.broadcastToConversation(event.conversationId, 'message_deleted', payload);
+      if (event.companyId) {
+        this.chatGateway.broadcastToCompany(event.companyId, 'message_deleted', payload);
+      }
     }
   }
 

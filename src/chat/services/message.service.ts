@@ -29,6 +29,7 @@ import { AuditService } from '../../audit/services/audit.service';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 import { PolicyService } from './policy.service';
+import { UnreadService } from './unread.service';
 import {
   ChatEventNames,
   MessageCreatedEvent,
@@ -77,6 +78,7 @@ export class MessageService implements OnModuleDestroy {
     private readonly eventEmitter: EventEmitter2,
     private readonly summaryService: ConversationSummaryService,
     private readonly policyService: PolicyService,
+    private readonly unreadService: UnreadService,
   ) {
     // Periodic cleanup of idempotency cache every 5 minutes
     this.cleanupTimer = setInterval(() => this.cleanupIdempotencyCache(), 5 * 60 * 1000);
@@ -256,6 +258,15 @@ export class MessageService implements OnModuleDestroy {
           readAt: new Date(),
         } as any,
         { transaction: t },
+      );
+
+      // Increment unread counters for all non-sender members
+      await this.unreadService.incrementCounters(
+        conversationId,
+        senderId,
+        Array.from(mentionedUserIds),
+        !!dto.parentId,
+        t,
       );
 
       // 9. Unhide members who had hidden this conversation
@@ -744,6 +755,9 @@ export class MessageService implements OnModuleDestroy {
     }
 
     member.lastReadMessageId = lastMessageId;
+    member.unreadMessagesCount = 0;
+    member.unreadMentionsCount = 0;
+    member.unreadThreadsCount = 0;
     await member.save();
 
     await this.readStateModel.upsert({
