@@ -35,7 +35,7 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     private readonly clientActionAccessModel: typeof ClientActionAccess,
     @InjectModel(ClientModuleAccess)
     private readonly clientModuleAccessModel: typeof ClientModuleAccess,
-  ) {}
+  ) { }
 
   async onApplicationBootstrap() {
     this.logger.log('Starting dynamic permission discovery (v2)...');
@@ -68,6 +68,16 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     this.logger.log(
       `Discovered ${discoveredPermissions.size} permissions from controllers.`,
     );
+
+    // Extra permissions used in service-layer logic (not tied to a specific endpoint)
+    // These must be registered so they appear in the permission matrix UI
+    const extraPermissions = [
+      'follow_up:view_all',
+      'follow_up:read_all',
+      'follow_up:update_all',
+    ];
+    extraPermissions.forEach((p) => discoveredPermissions.add(p));
+
     await this.syncPermissions(Array.from(discoveredPermissions));
   }
 
