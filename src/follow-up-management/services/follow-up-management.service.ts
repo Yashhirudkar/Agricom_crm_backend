@@ -571,6 +571,9 @@ export class FollowUpManagementService {
   private hasViewAll(userType: string, permissions: Set<string>): boolean {
     return (
       userType === 'super_admin' ||
+      userType === 'client_admin' ||
+      permissions.has('follow_up:view') ||
+      permissions.has('follow_up:read') ||
       permissions.has('follow_up:view_all') ||
       permissions.has('follow_up:read_all')
     );
@@ -578,7 +581,11 @@ export class FollowUpManagementService {
 
   private hasUpdateAll(userType: string, permissions: Set<string>): boolean {
     return (
-      userType === 'super_admin' || permissions.has('follow_up:update_all')
+      userType === 'super_admin' ||
+      userType === 'client_admin' ||
+      permissions.has('follow_up:update') ||
+      permissions.has('follow_up:edit') ||
+      permissions.has('follow_up:update_all')
     );
   }
 

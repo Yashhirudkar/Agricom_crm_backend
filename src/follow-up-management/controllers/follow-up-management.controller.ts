@@ -69,6 +69,7 @@ export class FollowUpManagementController {
     );
   }
 
+
   @Get('dashboard/list')
   @RequirePermission('follow_up:view')
   async getDashboardList(
