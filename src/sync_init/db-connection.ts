@@ -41,6 +41,7 @@ import { SidebarFolder } from '../system/models/sidebar-folder.model';
 import { SidebarItem } from '../system/models/sidebar-item.model';
 import { SystemAuditLog } from '../system/models/system-audit-log.model';
 import { RoleActionPermission } from '../rbac/models/role-action-permission.model';
+import { RolePartnerRoleAccess } from '../masters/partner-role/role-partner-role-access.model';
 import { ClientFolderAccess } from '../clients/models/client-folder-access.model';
 import { ClientItemAccess } from '../clients/models/client-item-access.model';
 import { ClientModuleAccess } from '../clients/models/client-module-access.model';
@@ -115,6 +116,7 @@ export const sequelize = new Sequelize(
       SidebarItem,
       SystemAuditLog,
       RoleActionPermission,
+      RolePartnerRoleAccess,
       ClientFolderAccess,
       ClientItemAccess,
       ClientModuleAccess,

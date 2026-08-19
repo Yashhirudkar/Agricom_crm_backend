@@ -75,6 +75,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       PartnerRoleDynamicConfig,
       PartnerDynamicConfigHistory,
       PartnerDynamicValues,
+      RolePartnerRoleAccess,
       // Bag Specifications — Dynamic Packaging System
       BagType,
       PackingType,
