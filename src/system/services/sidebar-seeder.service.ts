@@ -25,6 +25,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
 
       await this.syncHrPoliciesSidebarItem();
+      await this.syncShipmentsSidebarItem();
     } catch (error) {
       this.logger.error('Failed to seed or sync sidebar structure', error);
     }
@@ -442,6 +443,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: 'sales_contracts:read',
         },
+        {
+          name: 'Shipments',
+          route: '/sales/shipments',
+          icon_name: 'Ship',
+          folder_id: salesFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: 'shipments:view',
+        },
       ] as any[]);
 
       this.logger.log('Sidebar default structure seeded successfully.');
@@ -518,6 +528,102 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync HR Policies sidebar item', err);
+    }
+  }
+
+  private async syncShipmentsSidebarItem() {
+    try {
+      let salesFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Sales' },
+      });
+
+      if (!salesFolder) {
+        salesFolder = await this.sidebarFolderModel.create({
+          name: 'Sales',
+          icon_name: 'LineChart',
+          sort_order: 80,
+          is_active: true,
+        } as any);
+      }
+
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/sales/shipments' },
+      });
+
+      let itemId: number | null = null;
+
+      if (items.length > 0) {
+        for (const item of items) {
+          let modified = false;
+          if (item.name !== 'Shipments') {
+            item.name = 'Shipments';
+            modified = true;
+          }
+          if (item.folder_id !== salesFolder.id) {
+            item.folder_id = salesFolder.id;
+            modified = true;
+          }
+          if (item.permission_link !== 'shipments:view') {
+            item.permission_link = 'shipments:view';
+            modified = true;
+          }
+          if (item.icon_name !== 'Ship') {
+            item.icon_name = 'Ship';
+            modified = true;
+          }
+          if (!item.is_active) {
+            item.is_active = true;
+            modified = true;
+          }
+          if (modified) {
+            await item.save();
+            this.logger.log(`Updated sidebar item ${item.id} (/sales/shipments)`);
+          }
+          itemId = item.id;
+        }
+      } else {
+        const newItem = await this.sidebarItemModel.create({
+          name: 'Shipments',
+          route: '/sales/shipments',
+          icon_name: 'Ship',
+          folder_id: salesFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: 'shipments:view',
+        } as any);
+
+        itemId = newItem.id;
+        this.logger.log('Created /sales/shipments sidebar item with shipments:view permission_link');
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      if (itemId && seq) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          await seq
+            .query(
+              `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
+             VALUES (:clientId, :itemId, NOW(), NOW())
+             ON CONFLICT (client_id, item_id) DO NOTHING;`,
+              { replacements: { clientId: client.id, itemId } },
+            )
+            .catch(() => {});
+
+          await seq
+            .query(
+              `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
+             VALUES (:clientId, :folderId, NOW(), NOW())
+             ON CONFLICT (client_id, folder_id) DO NOTHING;`,
+              { replacements: { clientId: client.id, folderId: salesFolder.id } },
+            )
+            .catch(() => {});
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Shipments sidebar item', err);
     }
   }
 }

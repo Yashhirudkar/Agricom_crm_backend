@@ -34,6 +34,20 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
+  // Ensure columns exist if table was previously created with partial columns
+  await sequelize.query(`
+    ALTER TABLE sales_contract_shipments 
+    ADD COLUMN IF NOT EXISTS shipment_no INTEGER NOT NULL DEFAULT 1;
+  `);
+  await sequelize.query(`
+    ALTER TABLE sales_contract_shipments 
+    ADD COLUMN IF NOT EXISTS shipment_reference VARCHAR(100);
+  `);
+  await sequelize.query(`
+    ALTER TABLE sales_contract_shipments 
+    ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'Scheduled';
+  `);
+
   // ─── 2. Indexes & Unique Constraints ────────────────────────────────────────
   await sequelize.query(`
     CREATE INDEX IF NOT EXISTS idx_sales_contract_shipments_shipment_ref 
