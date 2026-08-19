@@ -60,18 +60,40 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   `);
 
   // ─── 3. Idempotent App Module Seeding ('Shipments') ──────────────────────────
-  await sequelize.query(`
-    INSERT INTO app_modules (id, name, sort_order, "createdAt", "updatedAt")
-    VALUES (49, 'Shipments', 30, NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE SET name = 'Shipments', sort_order = 30, "updatedAt" = NOW();
+  const [appModuleRes]: any = await sequelize.query(`
+    SELECT id FROM app_modules WHERE name = 'Shipments' LIMIT 1;
   `);
+  let targetModuleId: number;
+  if (appModuleRes.length > 0) {
+    targetModuleId = appModuleRes[0].id;
+  } else {
+    const [insertModuleRes]: any = await sequelize.query(`
+      INSERT INTO app_modules (name, sort_order, "createdAt", "updatedAt")
+      VALUES ('Shipments', 30, NOW(), NOW())
+      RETURNING id;
+    `);
+    targetModuleId = insertModuleRes[0].id;
+  }
 
   // ─── 4. Idempotent Module Resource Seeding ('shipments') ─────────────────────
-  await sequelize.query(`
-    INSERT INTO module_resources (id, name, display_name, sort_order, module_id, "createdAt", "updatedAt")
-    VALUES (53, 'shipments', 'Shipments', 0, 49, NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE SET name = 'shipments', display_name = 'Shipments', module_id = 49, "updatedAt" = NOW();
+  const [modResourceRes]: any = await sequelize.query(`
+    SELECT id FROM module_resources WHERE name = 'shipments' LIMIT 1;
   `);
+  let targetResourceId: number;
+  if (modResourceRes.length > 0) {
+    targetResourceId = modResourceRes[0].id;
+    await sequelize.query(
+      `UPDATE module_resources SET display_name = 'Shipments', module_id = :targetModuleId, "updatedAt" = NOW() WHERE id = :targetResourceId;`,
+      { replacements: { targetModuleId, targetResourceId } }
+    );
+  } else {
+    const [insertResourceRes]: any = await sequelize.query(`
+      INSERT INTO module_resources (name, display_name, sort_order, module_id, "createdAt", "updatedAt")
+      VALUES ('shipments', 'Shipments', 0, :targetModuleId, NOW(), NOW())
+      RETURNING id;
+    `, { replacements: { targetModuleId } });
+    targetResourceId = insertResourceRes[0].id;
+  }
 
   // ─── 5. Idempotent Resource Actions Seeding ─────────────────────────────────
   const shipmentActions = [
@@ -89,8 +111,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   for (const act of shipmentActions) {
     const [checkRes]: any = await sequelize.query(
-      `SELECT id FROM resource_actions WHERE resource_id = 53 AND name = :actionName;`,
-      { replacements: { actionName: act.name } }
+      `SELECT id FROM resource_actions WHERE resource_id = :targetResourceId AND name = :actionName;`,
+      { replacements: { targetResourceId, actionName: act.name } }
     );
 
     let actionId: number;
@@ -103,9 +125,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     } else {
       const [insertRes]: any = await sequelize.query(
         `INSERT INTO resource_actions (name, display_name, sort_order, resource_id, "createdAt", "updatedAt")
-         VALUES (:actionName, :actionName, :sortOrder, 53, NOW(), NOW())
+         VALUES (:actionName, :actionName, :sortOrder, :targetResourceId, NOW(), NOW())
          RETURNING id;`,
-        { replacements: { actionName: act.name, sortOrder: act.sort } }
+        { replacements: { actionName: act.name, sortOrder: act.sort, targetResourceId } }
       );
       actionId = insertRes[0].id;
     }
@@ -153,14 +175,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }
 
     const [hasModuleAccess]: any = await sequelize.query(
-      `SELECT id FROM client_module_access WHERE client_id = :clientId AND module_id = 49;`,
-      { replacements: { clientId } }
+      `SELECT id FROM client_module_access WHERE client_id = :clientId AND module_id = :targetModuleId;`,
+      { replacements: { clientId, targetModuleId } }
     );
     if (hasModuleAccess.length === 0) {
       await sequelize.query(
         `INSERT INTO client_module_access (client_id, module_id, created_at)
-         VALUES (:clientId, 49, NOW());`,
-        { replacements: { clientId } }
+         VALUES (:clientId, :targetModuleId, NOW());`,
+        { replacements: { clientId, targetModuleId } }
       );
     }
   }
@@ -219,12 +241,12 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await sequelize.query(`DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/sales/shipments');`).catch(() => { });
   await sequelize.query(`DELETE FROM sidebar_items WHERE route = '/sales/shipments';`).catch(() => { });
 
-  await sequelize.query(`DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id = 53);`).catch(() => { });
-  await sequelize.query(`DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id = 53);`).catch(() => { });
-  await sequelize.query(`DELETE FROM resource_actions WHERE resource_id = 53;`).catch(() => { });
-  await sequelize.query(`DELETE FROM module_resources WHERE id = 53;`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_module_access WHERE module_id = 49;`).catch(() => { });
-  await sequelize.query(`DELETE FROM app_modules WHERE id = 49;`).catch(() => { });
+  await sequelize.query(`DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`).catch(() => { });
+  await sequelize.query(`DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`).catch(() => { });
+  await sequelize.query(`DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments');`).catch(() => { });
+  await sequelize.query(`DELETE FROM module_resources WHERE name = 'shipments';`).catch(() => { });
+  await sequelize.query(`DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Shipments');`).catch(() => { });
+  await sequelize.query(`DELETE FROM app_modules WHERE name = 'Shipments';`).catch(() => { });
 
   await sequelize.query(`DROP INDEX IF EXISTS idx_shipment_contract_no;`).catch(() => { });
   await sequelize.query(`DROP INDEX IF EXISTS idx_sales_contract_shipments_shipment_ref;`).catch(() => { });

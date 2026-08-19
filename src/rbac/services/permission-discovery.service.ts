@@ -75,6 +75,12 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       'follow_up:view_all',
       'follow_up:read_all',
       'follow_up:update_all',
+      'shipments:create',
+      'shipments:delete',
+      'shipments:force_delete',
+      'shipments:export',
+      'shipments:print',
+      'shipments:manage_documents',
     ];
     extraPermissions.forEach((p) => discoveredPermissions.add(p));
 
