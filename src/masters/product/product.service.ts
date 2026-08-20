@@ -90,7 +90,16 @@ export class ProductService implements OnModuleInit {
       whereClause.categoryId = categoryId;
     }
     if (country) {
-      whereClause.country = { [Op.iLike]: `%${country}%` };
+      const cTrim = country.trim();
+      const cLower = cTrim.toLowerCase();
+      if (cLower === 'china' || cLower.includes('people') || cLower.includes('republic of china') || cLower === 'cn' || cLower === 'chn') {
+        whereClause[Op.or] = [
+          { country: { [Op.iLike]: '%China%' } },
+          { country: { [Op.iLike]: '%People%Republic of China%' } },
+        ];
+      } else {
+        whereClause.country = { [Op.iLike]: `%${cTrim}%` };
+      }
     }
     if (hsCode) {
       whereClause.hsCode = { [Op.iLike]: `%${hsCode}%` };

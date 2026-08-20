@@ -171,7 +171,16 @@ export class PartnerService {
       whereClause.partnerRoleId = partnerRoleId;
     }
     if (country) {
-      whereClause.country = { [Op.iLike]: `%${country}%` };
+      const cTrim = country.trim();
+      const cLower = cTrim.toLowerCase();
+      if (cLower === 'china' || cLower.includes('people') || cLower.includes('republic of china') || cLower === 'cn' || cLower === 'chn') {
+        whereClause[Op.or] = [
+          { country: { [Op.iLike]: '%China%' } },
+          { country: { [Op.iLike]: '%People%Republic of China%' } },
+        ];
+      } else {
+        whereClause.country = { [Op.iLike]: `%${cTrim}%` };
+      }
     }
 
     // RBAC-based restriction: limit to allowed partner role IDs
