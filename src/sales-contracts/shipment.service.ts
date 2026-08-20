@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize } from 'sequelize';
 import { SalesContractShipment } from './models/sales-contract-shipment.model';
@@ -11,6 +11,7 @@ import { SalesContractDocumentFile } from './models/sales-contract-document-file
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
+import { PurchaseContractService } from '../purchase-contracts/services/purchase-contract.service';
 
 @Injectable()
 export class ShipmentService {
@@ -19,6 +20,8 @@ export class ShipmentService {
     private readonly shipmentModel: typeof SalesContractShipment,
     @InjectModel(SalesContract)
     private readonly contractModel: typeof SalesContract,
+    @Inject(forwardRef(() => PurchaseContractService))
+    private readonly purchaseContractService: PurchaseContractService,
   ) {}
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
@@ -382,6 +385,17 @@ export class ShipmentService {
     }
 
     await shipment.save();
+
+    // ── AUTO-CREATE PURCHASE CONTRACT (idempotent) ────────────────────────────
+    // Ensures a Purchase Contract exists for this Sales Contract after any shipment save.
+    // Safe to call multiple times — returns existing PC if already created.
+    await this.purchaseContractService.ensureExists(
+      shipment.salesContractId,
+      undefined, // userId not available here without req injection — logged as system
+    ).catch((err) => {
+      // Non-blocking: PC creation failure must not break shipment update
+      console.error('[ShipmentService] ensureExists failed (non-fatal):', err?.message);
+    });
 
     // Reload with associations
     return await this.shipmentModel.findByPk(id, {

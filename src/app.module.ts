@@ -94,6 +94,11 @@ import { SalesContractShipment } from './sales-contracts/models/sales-contract-s
 import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
 import { Attachment } from './attachments/models/attachment.model';
+import { PurchaseContract } from './purchase-contracts/models/purchase-contract.model';
+import { PurchaseContractShipment } from './purchase-contracts/models/purchase-contract-shipment.model';
+import { PurchaseContractRequiredDocument } from './purchase-contracts/models/purchase-contract-required-document.model';
+import { PurchaseContractActivity } from './purchase-contracts/models/purchase-contract-activity.model';
+import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts.module';
 import { Enquiry } from './enquiries/models/enquiry.model';
 
 import { TasksModule } from './tasks/tasks.module';
@@ -240,6 +245,10 @@ import {
             SalesContractDocument,
             SalesContractDocumentFile,
             Attachment,
+            PurchaseContract,
+            PurchaseContractShipment,
+            PurchaseContractRequiredDocument,
+            PurchaseContractActivity,
             Enquiry,
             Task,
             TaskSequence,
@@ -299,6 +308,7 @@ import {
     MastersModule,
     TasksModule,
     SalesContractsModule,
+    PurchaseContractsModule,
     EnquiriesModule,
     LocationsModule,
     NotificationsModule,

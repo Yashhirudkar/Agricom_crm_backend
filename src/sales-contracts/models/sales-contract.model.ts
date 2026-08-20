@@ -52,6 +52,11 @@ export class SalesContract extends Model<SalesContract> {
   @Column({ field: 'contract_date', type: DataType.DATEONLY })
   declare contractDate: Date;
 
+  @AllowNull(true)
+  @Default('Export')
+  @Column({ field: 'contract_type', type: DataType.STRING(50) })
+  declare contractType: string;
+
   @ForeignKey(() => Partner)
   @AllowNull(false)
   @Column({ field: 'buyer_id', type: DataType.INTEGER })

@@ -41,6 +41,30 @@ export class BagSpecsController {
     return this.bagSpecsService.findAllBagTypes(active);
   }
 
+  @Get('stitching-types')
+  @RequirePermission('bagspec:view')
+  findAllStitchingTypes() {
+    return [
+      { id: 1, name: 'Double Folded Machine Stitched' },
+      { id: 2, name: 'Single Folded Hand Stitched' },
+      { id: 3, name: 'Laminated Heat Sealed' },
+      { id: 4, name: 'Mouth Hemmed & Bottom Stitched' },
+      { id: 5, name: 'Top Open & Bottom Machine Stitched' },
+    ];
+  }
+
+  @Get('marking-types')
+  @RequirePermission('bagspec:view')
+  findAllMarkingTypes() {
+    return [
+      { id: 1, name: 'Standard Export Shipping Marks' },
+      { id: 2, name: 'As Per Buyer Requirement' },
+      { id: 3, name: 'No Special Marking' },
+      { id: 4, name: 'Supplier Standard Shipping Marks' },
+      { id: 5, name: 'Custom Stencilled Marking' },
+    ];
+  }
+
   @Post('bag-types')
   @RequirePermission('bagspec:create')
   @HttpCode(HttpStatus.CREATED)
