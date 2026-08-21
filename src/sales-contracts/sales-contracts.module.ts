@@ -34,7 +34,7 @@ import { PurchaseContractsModule } from '../purchase-contracts/purchase-contract
   exports: [ShipmentService, SalesContractService],
 })
 export class SalesContractsModule implements OnModuleInit {
-  constructor(@InjectConnection() private readonly sequelize: Sequelize) {}
+  constructor(@InjectConnection() private readonly sequelize: Sequelize) { }
 
   async onModuleInit() {
     try {
@@ -42,7 +42,6 @@ export class SalesContractsModule implements OnModuleInit {
         ALTER TABLE sales_contracts
         ADD COLUMN IF NOT EXISTS contract_type VARCHAR(50) DEFAULT 'Export';
       `);
-      console.log('✅ Verified sales_contracts.contract_type column');
     } catch (err) {
       console.error('Auto-migration sales_contracts error:', err);
     }

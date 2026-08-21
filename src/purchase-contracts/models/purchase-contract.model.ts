@@ -17,6 +17,7 @@ import { SalesContract } from '../../sales-contracts/models/sales-contract.model
 import { PurchaseContractShipment } from './purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contract-activity.model';
+import { PurchaseContractAttachment } from './purchase-contract-attachment.model';
 
 /**
  * Purchase Contract is an EXECUTION contract generated from an existing Sales Contract.
@@ -91,4 +92,7 @@ export class PurchaseContract extends Model<PurchaseContract> {
 
   @HasMany(() => PurchaseContractActivity)
   declare activities: PurchaseContractActivity[];
+
+  @HasMany(() => PurchaseContractAttachment)
+  declare attachments: PurchaseContractAttachment[];
 }

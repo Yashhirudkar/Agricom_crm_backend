@@ -98,6 +98,7 @@ import { PurchaseContract } from './purchase-contracts/models/purchase-contract.
 import { PurchaseContractShipment } from './purchase-contracts/models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contracts/models/purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contracts/models/purchase-contract-activity.model';
+import { PurchaseContractAttachment } from './purchase-contracts/models/purchase-contract-attachment.model';
 import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts.module';
 import { Enquiry } from './enquiries/models/enquiry.model';
 
@@ -249,6 +250,7 @@ import {
             PurchaseContractShipment,
             PurchaseContractRequiredDocument,
             PurchaseContractActivity,
+            PurchaseContractAttachment,
             Enquiry,
             Task,
             TaskSequence,

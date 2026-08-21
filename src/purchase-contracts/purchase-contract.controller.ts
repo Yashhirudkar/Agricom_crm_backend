@@ -202,6 +202,43 @@ export class PurchaseContractController {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // ATTACHMENTS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  @Get(':id/attachments')
+  @RequirePermission('purchase-contracts:view')
+  async getContractAttachments(@Param('id', ParseIntPipe) id: number) {
+    return this.documentService.getContractAttachments(id);
+  }
+
+  @Post(':id/attachments')
+  @RequirePermission('purchase-contracts:update')
+  @AuditLog({ entityType: 'PurchaseContractAttachment', action: 'UPLOAD' })
+  @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
+  async uploadContractAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('category') category: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    return this.documentService.uploadContractAttachment(id, category, file, req.user, companyId);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @RequirePermission('purchase-contracts:update')
+  @AuditLog({ entityType: 'PurchaseContractAttachment', action: 'DELETE' })
+  async deleteContractAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('attachmentId', ParseIntPipe) attachmentId: number,
+    @Req() req: any,
+  ) {
+    return this.documentService.deleteContractAttachment(id, attachmentId, req.user);
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // ACTIVITY
   // ─────────────────────────────────────────────────────────────────────────────
 

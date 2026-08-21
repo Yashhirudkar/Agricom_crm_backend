@@ -5,6 +5,7 @@ import { PurchaseContract } from './models/purchase-contract.model';
 import { PurchaseContractShipment } from './models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './models/purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './models/purchase-contract-activity.model';
+import { PurchaseContractAttachment } from './models/purchase-contract-attachment.model';
 import { SalesContract } from '../sales-contracts/models/sales-contract.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
@@ -29,6 +30,7 @@ import { SalesContractsModule } from '../sales-contracts/sales-contracts.module'
       PurchaseContractShipment,
       PurchaseContractRequiredDocument,
       PurchaseContractActivity,
+      PurchaseContractAttachment,
       SalesContract,
       SalesContractShipment,
       TradeDocument,

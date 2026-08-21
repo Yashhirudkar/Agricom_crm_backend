@@ -5,6 +5,7 @@ import { Sequelize } from 'sequelize-typescript';
 import { PurchaseContract } from '../models/purchase-contract.model';
 import { PurchaseContractShipment } from '../models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from '../models/purchase-contract-required-document.model';
+import { PurchaseContractAttachment } from '../models/purchase-contract-attachment.model';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Partner } from '../../masters/partner/partner.model';
@@ -29,6 +30,8 @@ export class PurchaseContractQueryService {
     private readonly shipmentLinkModel: typeof PurchaseContractShipment,
     @InjectModel(PurchaseContractRequiredDocument)
     private readonly docModel: typeof PurchaseContractRequiredDocument,
+    @InjectModel(PurchaseContractAttachment)
+    private readonly attachmentLinkModel: typeof PurchaseContractAttachment,
     @InjectModel(SalesContractShipment)
     private readonly salesShipmentModel: typeof SalesContractShipment,
     private readonly sequelize: Sequelize,
@@ -142,6 +145,30 @@ export class PurchaseContractQueryService {
     json.contractNumber = `PC-${pc.salesContract?.contractNumber ?? pc.salesContractId}`;
     json.health = await this.computeHealthScore(id);
     json.allocationSummary = await this.computeAllocationSummary(id);
+
+    const attachmentLinks = await this.attachmentLinkModel.findAll({
+      where: { purchaseContractId: id },
+      include: [
+        {
+          model: Attachment,
+          as: 'attachment',
+          attributes: ['id', 'originalName', 'mimeType', 'fileSize'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    }).catch(() => []);
+
+    json.attachments = attachmentLinks.map((l) => ({
+      id: l.id,
+      attachmentId: l.attachmentId,
+      category: l.category,
+      originalName: l.attachment?.originalName || 'Attachment',
+      mimeType: l.attachment?.mimeType,
+      fileSize: l.attachment?.fileSize,
+      downloadUrl: l.attachment ? `/attachments/${l.attachment.id}/download` : null,
+      createdAt: l.createdAt,
+    }));
+
     return json;
   }
 
