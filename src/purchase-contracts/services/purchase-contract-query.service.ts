@@ -143,6 +143,9 @@ export class PurchaseContractQueryService {
 
     const json: any = pc.toJSON();
     json.contractNumber = `PC-${pc.salesContract?.contractNumber ?? pc.salesContractId}`;
+    if (!json.terms || json.terms.length === 0) {
+      json.terms = pc.salesContract?.terms || [];
+    }
     json.health = await this.computeHealthScore(id);
     json.allocationSummary = await this.computeAllocationSummary(id);
 
@@ -195,18 +198,6 @@ export class PurchaseContractQueryService {
       ],
     });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
-
-    // Auto-sync all shipments belonging to this Sales Contract
-    const allShipments = await this.salesShipmentModel.findAll({
-      where: { salesContractId: pc.salesContractId },
-      attributes: ['id'],
-    });
-    for (const s of allShipments) {
-      await this.shipmentLinkModel.findOrCreate({
-        where: { purchaseContractId: id, shipmentId: s.id },
-        defaults: { purchaseContractId: id, shipmentId: s.id } as any,
-      });
-    }
 
     // Single aggregation query — no N+1, no in-memory math
     const [financials]: any[] = await this.sequelize.query(
@@ -363,18 +354,6 @@ export class PurchaseContractQueryService {
   async getTimeline(id: number) {
     const pc = await this.model.findByPk(id);
     if (!pc) throw new NotFoundException('Purchase Contract not found');
-
-    // Auto-sync all shipments belonging to this Sales Contract
-    const allShipments = await this.salesShipmentModel.findAll({
-      where: { salesContractId: pc.salesContractId },
-      attributes: ['id'],
-    });
-    for (const s of allShipments) {
-      await this.shipmentLinkModel.findOrCreate({
-        where: { purchaseContractId: id, shipmentId: s.id },
-        defaults: { purchaseContractId: id, shipmentId: s.id } as any,
-      });
-    }
 
     const links = await this.shipmentLinkModel.findAll({
       where: { purchaseContractId: id },

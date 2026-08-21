@@ -13,24 +13,53 @@ export const VALID_PC_STATUSES = [
 export type PurchaseContractStatus = (typeof VALID_PC_STATUSES)[number];
 
 export class UpdatePurchaseContractDto {
-
+  @IsOptional()
+  purchaseType?: any;
 
   @IsOptional()
-  @IsString()
-  sellerContractNo?: string;
+  sellerContractNo?: any;
 
   @IsOptional()
-  @IsString()
-  notes?: string;
+  notes?: any;
 
   @IsOptional()
-  @IsString()
-  status?: string;
+  terms?: any;
 
   @IsOptional()
-  @IsArray()
-  @IsNumber({}, { each: true })
-  shipmentIds?: number[];
+  quantity?: any;
+
+  @IsOptional()
+  productQuality?: any;
+
+  @IsOptional()
+  packing?: any;
+
+  @IsOptional()
+  bagType?: any;
+
+  @IsOptional()
+  bagSpec?: any;
+
+  @IsOptional()
+  stitching?: any;
+
+  @IsOptional()
+  marking?: any;
+
+  @IsOptional()
+  incoterm?: any;
+
+  @IsOptional()
+  deliveryPlace?: any;
+
+  @IsOptional()
+  status?: any;
+
+  @IsOptional()
+  shipmentIds?: any;
+
+  @IsOptional()
+  shipmentScheduleData?: any;
 }
 
 export class UpdatePurchaseContractStatusDto {

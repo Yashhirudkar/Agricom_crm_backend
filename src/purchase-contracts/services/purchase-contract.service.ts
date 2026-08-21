@@ -73,19 +73,19 @@ export class PurchaseContractService {
         userId,
         { salesContractId },
       );
-    }
 
-    // Auto-link all existing shipments belonging to this salesContractId
-    const shipments = await this.salesShipmentModel.findAll({
-      where: { salesContractId },
-      attributes: ['id'],
-    });
-
-    for (const s of shipments) {
-      await this.shipmentLinkModel.findOrCreate({
-        where: { purchaseContractId: pc.id, shipmentId: s.id },
-        defaults: { purchaseContractId: pc.id, shipmentId: s.id } as any,
+      // Auto-link all existing shipments belonging to this salesContractId
+      const shipments = await this.salesShipmentModel.findAll({
+        where: { salesContractId },
+        attributes: ['id'],
       });
+
+      for (const s of shipments) {
+        await this.shipmentLinkModel.findOrCreate({
+          where: { purchaseContractId: pc.id, shipmentId: s.id },
+          defaults: { purchaseContractId: pc.id, shipmentId: s.id } as any,
+        });
+      }
     }
 
     return pc;
@@ -150,12 +150,28 @@ export class PurchaseContractService {
 
   async update(id: number, dto: UpdatePurchaseContractDto, user: any): Promise<PurchaseContract> {
     const pc = await this.findOne(id);
-    const { shipmentIds, ...updateData } = dto;
+    const { shipmentIds, shipmentScheduleData, ...updateData } = dto;
 
-    await pc.update({ ...updateData, updatedBy: user?.userId });
+    const sanitizeData: any = {};
+    if (updateData.purchaseType !== undefined) sanitizeData.purchaseType = updateData.purchaseType ? String(updateData.purchaseType) : null;
+    if (updateData.sellerContractNo !== undefined) sanitizeData.sellerContractNo = updateData.sellerContractNo ? String(updateData.sellerContractNo) : null;
+    if (updateData.notes !== undefined) sanitizeData.notes = updateData.notes ? String(updateData.notes) : null;
+    if (updateData.terms !== undefined) sanitizeData.terms = Array.isArray(updateData.terms) ? updateData.terms : [];
+    if (updateData.quantity !== undefined) sanitizeData.quantity = updateData.quantity != null ? String(updateData.quantity) : null;
+    if (updateData.productQuality !== undefined) sanitizeData.productQuality = updateData.productQuality ? String(updateData.productQuality) : null;
+    if (updateData.packing !== undefined) sanitizeData.packing = updateData.packing ? String(updateData.packing) : null;
+    if (updateData.bagType !== undefined) sanitizeData.bagType = updateData.bagType ? String(updateData.bagType) : null;
+    if (updateData.bagSpec !== undefined) sanitizeData.bagSpec = updateData.bagSpec ? String(updateData.bagSpec) : null;
+    if (updateData.stitching !== undefined) sanitizeData.stitching = updateData.stitching ? String(updateData.stitching) : null;
+    if (updateData.marking !== undefined) sanitizeData.marking = updateData.marking ? String(updateData.marking) : null;
+    if (updateData.incoterm !== undefined) sanitizeData.incoterm = updateData.incoterm ? String(updateData.incoterm) : null;
+    if (updateData.deliveryPlace !== undefined) sanitizeData.deliveryPlace = updateData.deliveryPlace ? String(updateData.deliveryPlace) : null;
+    if (updateData.status !== undefined) sanitizeData.status = String(updateData.status);
+
+    await pc.update({ ...sanitizeData, updatedBy: user?.userId });
 
     if (Array.isArray(shipmentIds)) {
-      const ids = shipmentIds.map(Number);
+      const ids = shipmentIds.map(Number).filter((n) => !isNaN(n));
       await this.shipmentLinkModel.destroy({
         where: {
           purchaseContractId: id,
@@ -167,6 +183,24 @@ export class PurchaseContractService {
           where: { purchaseContractId: id, shipmentId: sId },
           defaults: { purchaseContractId: id, shipmentId: sId } as any,
         });
+      }
+    }
+
+    if (shipmentScheduleData && typeof shipmentScheduleData === 'object') {
+      for (const [shipmentIdStr, data] of Object.entries(shipmentScheduleData)) {
+        const sId = Number(shipmentIdStr);
+        if (!isNaN(sId) && data) {
+          const itemData: any = data;
+          const sUpdate: any = {};
+          if (itemData.purchaseRate !== undefined && itemData.purchaseRate !== '') sUpdate.purchaseRate = Number(itemData.purchaseRate);
+          if (itemData.forex !== undefined && itemData.forex !== '') sUpdate.forex = Number(itemData.forex);
+          if (itemData.freight !== undefined && itemData.freight !== '') sUpdate.freight = Number(itemData.freight);
+          if (itemData.remarks !== undefined) sUpdate.remarks = itemData.remarks;
+
+          if (Object.keys(sUpdate).length > 0) {
+            await this.salesShipmentModel.update(sUpdate, { where: { id: sId } });
+          }
+        }
       }
     }
 

@@ -57,6 +57,10 @@ export class PurchaseContract extends Model<PurchaseContract> {
 
 
 
+  @AllowNull(true)
+  @Column({ field: 'purchase_type', type: DataType.STRING(30) })
+  declare purchaseType: string;
+
   /** Optional seller reference contract number */
   @AllowNull(true)
   @Column({ field: 'seller_contract_no', type: DataType.STRING(100) })
@@ -66,6 +70,47 @@ export class PurchaseContract extends Model<PurchaseContract> {
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare notes: string;
+
+  @Default([])
+  @AllowNull(true)
+  @Column({ type: DataType.JSONB })
+  declare terms: string[];
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare quantity: string;
+
+  @AllowNull(true)
+  @Column({ field: 'product_quality', type: DataType.STRING(255) })
+  declare productQuality: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare packing: string;
+
+  @AllowNull(true)
+  @Column({ field: 'bag_type', type: DataType.STRING(100) })
+  declare bagType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'bag_spec', type: DataType.STRING(100) })
+  declare bagSpec: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare stitching: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare marking: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(100) })
+  declare incoterm: string;
+
+  @AllowNull(true)
+  @Column({ field: 'delivery_place', type: DataType.STRING(255) })
+  declare deliveryPlace: string;
 
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })

@@ -25,6 +25,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       purchase_type: { type: DataTypes.STRING(30), allowNull: true },
       seller_contract_no: { type: DataTypes.STRING(100), allowNull: true },
       notes: { type: DataTypes.TEXT, allowNull: true },
+      terms: { type: DataTypes.JSONB, allowNull: true, defaultValue: [] },
+      quantity: { type: DataTypes.STRING(100), allowNull: true },
+      product_quality: { type: DataTypes.STRING(255), allowNull: true },
+      packing: { type: DataTypes.STRING(100), allowNull: true },
+      bag_type: { type: DataTypes.STRING(100), allowNull: true },
+      bag_spec: { type: DataTypes.STRING(100), allowNull: true },
+      stitching: { type: DataTypes.STRING(100), allowNull: true },
+      marking: { type: DataTypes.STRING(100), allowNull: true },
+      incoterm: { type: DataTypes.STRING(100), allowNull: true },
+      delivery_place: { type: DataTypes.STRING(255), allowNull: true },
       created_by: { type: DataTypes.INTEGER, allowNull: true },
       updated_by: { type: DataTypes.INTEGER, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false },
@@ -35,8 +45,19 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   await sequelize.query(`
     ALTER TABLE purchase_contracts
+    ADD COLUMN IF NOT EXISTS purchase_type VARCHAR(30),
     ADD COLUMN IF NOT EXISTS seller_contract_no VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS notes TEXT;
+    ADD COLUMN IF NOT EXISTS notes TEXT,
+    ADD COLUMN IF NOT EXISTS terms JSONB DEFAULT '[]',
+    ADD COLUMN IF NOT EXISTS quantity VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS product_quality VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS packing VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS bag_type VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS bag_spec VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS stitching VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS marking VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS incoterm VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS delivery_place VARCHAR(255);
   `);
 
   await sequelize.query(`

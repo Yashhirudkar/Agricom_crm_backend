@@ -72,19 +72,6 @@ export class PurchaseContractShipmentService {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
-    // Auto-sync shipments belonging to this salesContractId
-    const allShipments = await this.shipmentModel.findAll({
-      where: { salesContractId: contract.salesContractId },
-      attributes: ['id'],
-    });
-
-    for (const s of allShipments) {
-      await this.linkModel.findOrCreate({
-        where: { purchaseContractId, shipmentId: s.id },
-        defaults: { purchaseContractId, shipmentId: s.id } as any,
-      });
-    }
-
     const links = await this.linkModel.findAll({
       where: { purchaseContractId },
       include: [
