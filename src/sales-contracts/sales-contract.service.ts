@@ -217,47 +217,172 @@ export class SalesContractService implements OnModuleInit {
       }
       await contract.update(updateData, { transaction: t });
 
-      // 2. Update Items (Destroy & Recreate for simplicity)
+      // 2. Update Items
       if (dto.items) {
-        await this.itemModel.destroy({ where: { salesContractId: contract.id }, transaction: t });
-        if (dto.items.length > 0) {
-          const itemsToCreate = dto.items.map((item) => ({ ...item, salesContractId: contract.id }));
-          await this.itemModel.bulkCreate(itemsToCreate, { transaction: t });
+        const existingItems = await this.itemModel.findAll({
+          where: { salesContractId: contract.id },
+          transaction: t,
+        });
+        const updatedItemIds: number[] = [];
+
+        for (let index = 0; index < dto.items.length; index++) {
+          const item = dto.items[index] as any;
+          let existing = existingItems.find(
+            (i) => (item.id && i.id === item.id),
+          );
+          if (!existing && index < existingItems.length && !item.id) {
+            existing = existingItems[index];
+          }
+
+          if (existing) {
+            await existing.update(
+              {
+                ...item,
+                salesContractId: contract.id,
+              },
+              { transaction: t },
+            );
+            updatedItemIds.push(existing.id);
+          } else {
+            const created = await this.itemModel.create(
+              {
+                ...item,
+                salesContractId: contract.id,
+              } as any,
+              { transaction: t },
+            );
+            updatedItemIds.push(created.id);
+          }
+        }
+
+        const itemsToDelete = existingItems.filter((i) => !updatedItemIds.includes(i.id));
+        for (const item of itemsToDelete) {
+          await item.destroy({ transaction: t });
         }
       }
 
-      // 3. Update Shipments
+      // 3. Update Shipments (In-place update to preserve PKs & FK links, e.g. purchase_contract_shipments)
       if (dto.shipments) {
-        await this.shipmentModel.destroy({ where: { salesContractId: contract.id }, transaction: t });
-        if (dto.shipments.length > 0) {
-          const contractNo = (dto.contractNumber || contract.contractNumber)?.trim();
-          const shipmentsToCreate = dto.shipments.map((shipment, index) => {
-            const sNo = shipment.shipmentNo || (index + 1);
-            return {
-              ...shipment,
-              shipmentNo: sNo,
-              status: shipment.status || 'Scheduled',
-              shipmentDate: new Date(shipment.shipmentDate),
-              salesContractId: contract.id,
-              shipmentReference: generateShipmentReference(
-                contractNo,
-                sNo,
-                shipment.noOfContainers,
-                shipment.shipmentDate,
-                shipment.quantity,
-              ),
-            };
-          }) as any[];
-          await this.shipmentModel.bulkCreate(shipmentsToCreate, { transaction: t });
+        const existingShipments = await this.shipmentModel.findAll({
+          where: { salesContractId: contract.id },
+          transaction: t,
+        });
+
+        const contractNo = (dto.contractNumber || contract.contractNumber)?.trim();
+        const updatedShipmentIds: number[] = [];
+
+        for (let index = 0; index < dto.shipments.length; index++) {
+          const shipment = dto.shipments[index] as any;
+          const sNo = shipment.shipmentNo || (index + 1);
+
+          let existing = existingShipments.find(
+            (s) => (shipment.id && s.id === shipment.id) || s.shipmentNo === sNo,
+          );
+          if (!existing && index < existingShipments.length && !shipment.id) {
+            existing = existingShipments[index];
+          }
+
+          const shipmentRef = generateShipmentReference(
+            contractNo,
+            sNo,
+            shipment.noOfContainers,
+            shipment.shipmentDate,
+            shipment.quantity,
+          );
+
+          if (existing) {
+            await existing.update(
+              {
+                ...shipment,
+                shipmentNo: sNo,
+                shipmentDate: new Date(shipment.shipmentDate),
+                shipmentReference: shipmentRef,
+                status: shipment.status || existing.status || 'Scheduled',
+              },
+              { transaction: t },
+            );
+            updatedShipmentIds.push(existing.id);
+          } else {
+            const created = await this.shipmentModel.create(
+              {
+                ...shipment,
+                salesContractId: contract.id,
+                shipmentNo: sNo,
+                shipmentDate: new Date(shipment.shipmentDate),
+                shipmentReference: shipmentRef,
+                status: shipment.status || 'Scheduled',
+              } as any,
+              { transaction: t },
+            );
+            updatedShipmentIds.push(created.id);
+          }
+        }
+
+        const shipmentsToDelete = existingShipments.filter(
+          (s) => !updatedShipmentIds.includes(s.id),
+        );
+        for (const s of shipmentsToDelete) {
+          try {
+            await s.destroy({ transaction: t });
+          } catch (err: any) {
+            if (
+              err.name === 'SequelizeDatabaseError' ||
+              err.code === '23001' ||
+              err.parent?.code === '23001'
+            ) {
+              throw new BadRequestException(
+                `Cannot remove Shipment #${s.shipmentNo} (${
+                  s.shipmentReference || 'ID ' + s.id
+                }) because it is linked to a Purchase Contract or execution record. Please unlink it before deleting.`,
+              );
+            }
+            throw err;
+          }
         }
       }
 
       // 4. Update Documents
       if (dto.documents) {
-        await this.documentModel.destroy({ where: { salesContractId: contract.id }, transaction: t });
-        if (dto.documents.length > 0) {
-          const docsToCreate = dto.documents.map((doc) => ({ ...doc, salesContractId: contract.id })) as any[];
-          await this.documentModel.bulkCreate(docsToCreate, { transaction: t });
+        const existingDocs = await this.documentModel.findAll({
+          where: { salesContractId: contract.id },
+          transaction: t,
+        });
+
+        const updatedDocIds: number[] = [];
+
+        for (let index = 0; index < dto.documents.length; index++) {
+          const doc = dto.documents[index] as any;
+          let existing = existingDocs.find(
+            (d) => (doc.id && d.id === doc.id) || d.tradeDocumentId === doc.tradeDocumentId,
+          );
+          if (!existing && index < existingDocs.length && !doc.id) {
+            existing = existingDocs[index];
+          }
+
+          if (existing) {
+            await existing.update(
+              {
+                ...doc,
+                salesContractId: contract.id,
+              },
+              { transaction: t },
+            );
+            updatedDocIds.push(existing.id);
+          } else {
+            const created = await this.documentModel.create(
+              {
+                ...doc,
+                salesContractId: contract.id,
+              } as any,
+              { transaction: t },
+            );
+            updatedDocIds.push(created.id);
+          }
+        }
+
+        const docsToDelete = existingDocs.filter((d) => !updatedDocIds.includes(d.id));
+        for (const doc of docsToDelete) {
+          await doc.destroy({ transaction: t });
         }
       }
     });

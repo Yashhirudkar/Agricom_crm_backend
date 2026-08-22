@@ -32,6 +32,7 @@ import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway'
 import { AttendanceConflictService } from '../../attendance/services/attendance-conflict.service';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
 import { Employee } from '../models/employee.model';
+import { LeaveCalculationService } from './leave-calculation.service';
 
 /** Safely convert a Sequelize DATEONLY value (string "YYYY-MM-DD" or Date) to "YYYY-MM-DD" string. */
 function toDateOnlyStr(value: Date | string | any): string {
@@ -63,6 +64,7 @@ export class LeaveRequestsWorkflowService {
     private readonly attendanceGateway: AttendanceGateway,
     private readonly conflictService: AttendanceConflictService,
     private readonly notificationsService: NotificationsService,
+    private readonly leaveCalculationService: LeaveCalculationService,
   ) {}
 
   async approveLeave(
@@ -137,6 +139,55 @@ export class LeaveRequestsWorkflowService {
         transaction: t,
         lock: t.LOCK.UPDATE,
       });
+
+      // ─── Revalidate Leave Days at Approval Time ─────────────────────────
+      const oldTotalDays = Number(leaveRequest.totalDays);
+      const recalculatedDays =
+        await this.leaveCalculationService.calculateActualLeaveDays({
+          fromDate: toDateOnlyStr(leaveRequest.fromDate),
+          toDate: toDateOnlyStr(leaveRequest.toDate),
+          companyId,
+          employeeId: leaveRequest.employeeId,
+          isHalfDay: leaveRequest.isHalfDay,
+        });
+
+      const diff = recalculatedDays - oldTotalDays;
+      if (diff !== 0) {
+        await leaveRequest.update(
+          { totalDays: recalculatedDays },
+          { transaction: t },
+        );
+
+        if (balance) {
+          const newPending = Number(balance.pendingDays) + diff;
+          const newRemaining = Number(balance.remainingDays) - diff;
+
+          if (newPending < 0 || newRemaining < 0) {
+            throw new BadRequestException(
+              `Leave approval recalculation error: invalid resulting balance (pending: ${newPending}, remaining: ${newRemaining}).`,
+            );
+          }
+
+          await balance.update(
+            {
+              pendingDays: newPending,
+              remainingDays: newRemaining,
+            },
+            { transaction: t },
+          );
+        }
+
+        await this.leaveApprovalLogModel.create(
+          {
+            leaveRequestId: leaveRequest.id,
+            action: LeaveAction.RECALCULATED,
+            performedBy: actor?.userId || null,
+            remarks: `Auto-recalculated at approval: ${oldTotalDays} → ${recalculatedDays} days (diff: ${diff > 0 ? '+' : ''}${diff})`,
+          },
+          { transaction: t },
+        );
+      }
+
       await step.update(
         {
           status: ApprovalStepStatus.APPROVED,

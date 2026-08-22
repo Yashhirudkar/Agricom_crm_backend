@@ -15,6 +15,10 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateSalesContractItemDto {
+  @IsOptional()
+  @IsInt()
+  id?: number;
+
   @IsNotEmpty()
   @IsInt()
   productId: number;
@@ -52,6 +56,10 @@ export class CreateSalesContractItemDto {
 }
 
 export class CreateSalesContractShipmentDto {
+  @IsOptional()
+  @IsInt()
+  id?: number;
+
   @IsNotEmpty()
   @IsDateString()
   shipmentDate: string;
@@ -96,6 +104,10 @@ export class CreateSalesContractShipmentDto {
 }
 
 export class CreateSalesContractDocumentDto {
+  @IsOptional()
+  @IsInt()
+  id?: number;
+
   @IsNotEmpty()
   @IsInt()
   tradeDocumentId: number;
