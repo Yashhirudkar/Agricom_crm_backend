@@ -170,7 +170,41 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     ON purchase_contract_activities (created_at DESC);
   `);
 
-  // ─── 5. RBAC: App Module ──────────────────────────────────────────────────────
+  // ─── 5. purchase_contract_attachments ────────────────────────────────────────
+  await queryInterface.createTable(
+    'purchase_contract_attachments',
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      purchase_contract_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: { model: 'purchase_contracts', key: 'id' },
+        onDelete: 'CASCADE',
+      },
+      attachment_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: { model: 'attachments', key: 'id' },
+        onDelete: 'CASCADE',
+      },
+      category: { type: DataTypes.STRING(100), allowNull: false, defaultValue: 'general' },
+      uploaded_by: { type: DataTypes.INTEGER, allowNull: true },
+      created_at: { type: DataTypes.DATE, allowNull: false },
+      updated_at: { type: DataTypes.DATE, allowNull: false },
+    },
+    { ifNotExists: true } as any,
+  );
+
+  await sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_pca_contract_id
+    ON purchase_contract_attachments (purchase_contract_id);
+  `);
+  await sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_pca_attachment_id
+    ON purchase_contract_attachments (attachment_id);
+  `);
+
+  // ─── 6. RBAC: App Module ──────────────────────────────────────────────────────
   const [appModuleRes]: any = await sequelize.query(`
     SELECT id FROM app_modules WHERE name = 'Purchase Contracts' LIMIT 1;
   `);
@@ -355,6 +389,10 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await sequelize.query(`DELETE FROM module_resources WHERE name = 'purchase-contracts';`).catch(() => { });
   await sequelize.query(`DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Purchase Contracts');`).catch(() => { });
   await sequelize.query(`DELETE FROM app_modules WHERE name = 'Purchase Contracts';`).catch(() => { });
+
+  await sequelize.query(`DROP INDEX IF EXISTS idx_pca_attachment_id;`).catch(() => { });
+  await sequelize.query(`DROP INDEX IF EXISTS idx_pca_contract_id;`).catch(() => { });
+  await queryInterface.dropTable('purchase_contract_attachments').catch(() => { });
 
   await sequelize.query(`DROP INDEX IF EXISTS idx_pc_activities_created_at;`).catch(() => { });
   await sequelize.query(`DROP INDEX IF EXISTS idx_pc_activities_contract_id;`).catch(() => { });

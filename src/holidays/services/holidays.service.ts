@@ -16,7 +16,14 @@ import { AuditService } from '../../audit/services/audit.service';
 import { UserCompany } from '../../users/models/user-company.model';
 import { User } from '../../users/models/user.model';
 import { Company } from '../../companies/models/company.model';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Op } from 'sequelize';
+
+function toHolidayDateStr(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val.split('T')[0];
+  return new Date(val).toISOString().split('T')[0];
+}
 
 @Injectable()
 export class HolidaysService {
@@ -28,6 +35,7 @@ export class HolidaysService {
     @InjectModel(UserCompany)
     private readonly userCompanyModel: typeof UserCompany,
     private readonly auditService: AuditService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async createHoliday(
@@ -91,6 +99,20 @@ export class HolidaysService {
       'New Holiday Added',
       `A new holiday '${holiday.title}' has been scheduled for ${holiday.holidayDate}.`,
     );
+
+    // Emit holiday.changed event for robust leave revalidation (strictly after commit)
+    const holidayDateStr = toHolidayDateStr(holiday.holidayDate);
+
+    this.eventEmitter.emit('holiday.changed', {
+      action: 'CREATED',
+      clientId,
+      affectedDates: [holidayDateStr],
+      affectedCompanyIds:
+        dto.companyIds && dto.companyIds.length > 0 ? dto.companyIds : null,
+      triggeredBy: actor.userId,
+      holidayId: holiday.id,
+      holidayTitle: holiday.title,
+    });
 
     return createdHoliday;
   }
@@ -274,6 +296,38 @@ export class HolidaysService {
       userAgent: actor.userAgent,
     });
 
+    // Emit holiday.changed event for robust leave revalidation (strictly after commit)
+    const oldDateStr = toHolidayDateStr(oldRecord.holidayDate);
+    const newDateStr = dto.holidayDate
+      ? toHolidayDateStr(dto.holidayDate)
+      : oldDateStr;
+
+    const affectedDates = Array.from(new Set([oldDateStr, newDateStr]));
+
+    const oldCompanyIds =
+      oldRecord.holidayCompanies?.map((hc: any) => hc.companyId) || [];
+    const newCompanyIds =
+      dto.companyIds !== undefined ? dto.companyIds : oldCompanyIds;
+
+    let affectedCompanyIds: number[] | null = null;
+    if (oldCompanyIds.length > 0 && newCompanyIds.length > 0) {
+      affectedCompanyIds = Array.from(
+        new Set([...oldCompanyIds, ...newCompanyIds]),
+      );
+    } else {
+      affectedCompanyIds = null; // Client-wide
+    }
+
+    this.eventEmitter.emit('holiday.changed', {
+      action: 'UPDATED',
+      clientId,
+      affectedDates,
+      affectedCompanyIds,
+      triggeredBy: actor.userId,
+      holidayId: holiday.id,
+      holidayTitle: updatedRecord.title,
+    });
+
     return updatedRecord;
   }
 
@@ -308,6 +362,22 @@ export class HolidaysService {
       oldRecord,
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
+    });
+
+    // Emit holiday.changed event for robust leave revalidation (strictly after commit)
+    const oldDateStr = toHolidayDateStr(oldRecord.holidayDate);
+
+    const oldCompanyIds =
+      oldRecord.holidayCompanies?.map((hc: any) => hc.companyId) || [];
+
+    this.eventEmitter.emit('holiday.changed', {
+      action: 'DELETED',
+      clientId,
+      affectedDates: [oldDateStr],
+      affectedCompanyIds: oldCompanyIds.length > 0 ? oldCompanyIds : null,
+      triggeredBy: actor.userId,
+      holidayId: holiday.id,
+      holidayTitle: oldRecord.title,
     });
 
     return { message: 'Holiday deleted successfully' };
@@ -485,6 +555,17 @@ export class HolidaysService {
         `A new holiday '${h.title}' has been scheduled for ${h.holidayDate}.`,
       );
     }
+
+    // Emit holiday.changed event for robust leave revalidation (strictly after commit)
+    this.eventEmitter.emit('holiday.changed', {
+      action: 'CREATED',
+      clientId,
+      affectedDates: dates,
+      affectedCompanyIds:
+        dto.companyIds && dto.companyIds.length > 0 ? dto.companyIds : null,
+      triggeredBy: actor.userId,
+      holidayTitle: dto.title,
+    });
 
     return {
       message: `Successfully created ${createdHolidays.length} recurring holidays.`,

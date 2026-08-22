@@ -15,6 +15,7 @@ import { LeaveRequest } from '../models/leave-request.model';
 import { LeaveApprovalStep } from '../models/leave-approval-step.model';
 import { LeaveApprovalLog } from '../models/leave-approval-log.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
+import { Company } from '../../companies/models/company.model';
 import { AuditModule } from '../../audit/modules/audit.module';
 import { RbacModule } from '../../rbac/modules/rbac.module';
 import { UsersModule } from '../../users/modules/users.module';
@@ -46,6 +47,9 @@ import { LeaveBalancesController } from '../controllers/leave-balances.controlle
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { LeaveRequestsWorkflowService } from '../services/leave-requests-workflow.service';
 import { LeaveRequestsQueryService } from '../services/leave-requests-query.service';
+import { LeaveCalculationService } from '../services/leave-calculation.service';
+import { LeaveRevalidationService } from '../services/leave-revalidation.service';
+import { LeaveReconciliationService } from '../services/leave-reconciliation.service';
 import { LeaveRequestsController } from '../controllers/leave-requests.controller';
 
 import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
@@ -72,6 +76,7 @@ import { Shift } from '../../attendance/models/shift.model';
       LeaveApprovalStep,
       LeaveApprovalLog,
       CompanyHrPolicy,
+      Company,
       AttendanceRecord,
       AttendanceException,
       User,
@@ -96,6 +101,9 @@ import { Shift } from '../../attendance/models/shift.model';
     LeaveRequestsService,
     LeaveRequestsWorkflowService,
     LeaveRequestsQueryService,
+    LeaveCalculationService,
+    LeaveRevalidationService,
+    LeaveReconciliationService,
   ],
   controllers: [
     DepartmentsController,
@@ -119,6 +127,9 @@ import { Shift } from '../../attendance/models/shift.model';
     LeaveRequestsService,
     LeaveRequestsWorkflowService,
     LeaveRequestsQueryService,
+    LeaveCalculationService,
+    LeaveRevalidationService,
+    LeaveReconciliationService,
   ],
 })
 export class HrmsModule {}

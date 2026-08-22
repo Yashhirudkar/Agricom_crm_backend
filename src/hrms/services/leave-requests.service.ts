@@ -44,6 +44,7 @@ import {
 } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
 import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import { LeaveCalculationService } from './leave-calculation.service';
 import * as crypto from 'crypto';
 import * as path from 'path';
 
@@ -86,6 +87,7 @@ export class LeaveRequestsService {
     private readonly workflowService: LeaveRequestsWorkflowService,
     private readonly queryService: LeaveRequestsQueryService,
     private readonly notificationsService: NotificationsService,
+    private readonly leaveCalculationService: LeaveCalculationService,
   ) {}
 
   async getLeaveApprovalRecipients(companyId: number, managerId?: number): Promise<number[]> {
@@ -185,63 +187,22 @@ export class LeaveRequestsService {
     return employee ? employee.id : null;
   }
 
-  private async calculateActualLeaveDays(
+  async calculateActualLeaveDays(
     fromDate: string,
     toDate: string,
     companyId: number,
     isHalfDay: boolean,
-    weeklyOffDays: number[],
+    weeklyOffDays?: number[],
+    employeeId?: number,
   ): Promise<number> {
-    if (isHalfDay) return 0.5;
-
-    const start = new Date(fromDate);
-    const end = new Date(toDate);
-
-    if (start > end)
-      throw new BadRequestException('From date cannot be after To date');
-
-    const holidays = await this.holidayModel.findAll({
-      where: {
-        isActive: true,
-        holidayDate: {
-          [Op.between]: [fromDate, toDate],
-        },
-      },
-      include: [
-        {
-          model: HolidayCompany,
-          required: false,
-        },
-      ],
+    return this.leaveCalculationService.calculateActualLeaveDays({
+      fromDate,
+      toDate,
+      companyId,
+      employeeId: employeeId || 0,
+      isHalfDay,
+      weeklyOffDays,
     });
-
-    const filteredHolidays = holidays.filter((h) => {
-      if (h.holidayCompanies && h.holidayCompanies.length > 0) {
-        return h.holidayCompanies.some((hc) => hc.companyId === companyId);
-      }
-      return true; // client-wide holiday
-    });
-
-    const holidayDates = filteredHolidays.map(
-      (h) => new Date(h.holidayDate).toISOString().split('T')[0],
-    );
-
-    let days = 0;
-    const current = new Date(start);
-    while (current <= end) {
-      const dayOfWeek = current.getDay();
-      const dateString = current.toISOString().split('T')[0];
-
-      if (
-        !weeklyOffDays.includes(dayOfWeek) &&
-        !holidayDates.includes(dateString)
-      ) {
-        days++;
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    return days;
   }
 
   async applyLeave(
@@ -348,13 +309,14 @@ export class LeaveRequestsService {
       weeklyOffDays = policy.weeklyOffDays;
     }
 
-    const totalDays = await this.calculateActualLeaveDays(
-      dto.fromDate,
-      dto.toDate,
+    const totalDays = await this.leaveCalculationService.calculateActualLeaveDays({
+      fromDate: dto.fromDate,
+      toDate: dto.toDate,
       companyId,
-      dto.isHalfDay || false,
+      employeeId,
+      isHalfDay: dto.isHalfDay || false,
       weeklyOffDays,
-    );
+    });
     if (totalDays === 0) {
       throw new BadRequestException(
         'Total calculated leave days is zero. Cannot apply leave on holidays or weekly offs only.',

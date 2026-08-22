@@ -21,6 +21,7 @@ export enum LeaveAction {
   REJECTED = 'REJECTED',
   CANCELLED = 'CANCELLED',
   ESCALATED = 'ESCALATED',
+  RECALCULATED = 'RECALCULATED',
 }
 
 @Table({
@@ -49,6 +50,7 @@ export class LeaveApprovalLog extends Model<LeaveApprovalLog> {
       'REJECTED',
       'CANCELLED',
       'ESCALATED',
+      'RECALCULATED',
     ),
   })
   declare action: LeaveAction;
