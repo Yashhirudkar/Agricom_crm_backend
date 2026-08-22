@@ -43,9 +43,9 @@ export class PurchaseContractController {
     private readonly shipmentService: PurchaseContractShipmentService,
     private readonly documentService: PurchaseContractDocumentService,
     private readonly activityService: PurchaseContractActivityService,
-  ) {}
+  ) { }
 
-  // ─── Dashboard ────────────────────────────────────────────────────────────────
+  // ||─── Dashboard ────────────────────────────────────────────────────────────────|||
   @Get('dashboard')
   @RequirePermission('purchase-contracts:view')
   async getDashboard() {
