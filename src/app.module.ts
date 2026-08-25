@@ -108,6 +108,10 @@ import { LocationsModule } from './locations/locations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { Notification } from './notifications/models/notification.model';
 import { FollowUpManagementModule } from './follow-up-management/follow-up-management.module';
+import { QuotationsModule } from './quotations/quotations.module';
+import { Quotation } from './quotations/models/quotation.model';
+import { QuotationItem } from './quotations/models/quotation-item.model';
+import { QuotationSequence } from './quotations/models/quotation-sequence.model';
 import {
   Task,
   TaskSequence,
@@ -286,6 +290,9 @@ import {
             ScheduledMessage,
             ConversationPermissionOverride,
             RetentionPolicy,
+            Quotation,
+            QuotationItem,
+            QuotationSequence,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -316,6 +323,7 @@ import {
     NotificationsModule,
     FollowUpManagementModule,
     ChatModule,
+    QuotationsModule,
   ],
   providers: [
     {

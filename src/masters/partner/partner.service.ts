@@ -264,6 +264,20 @@ export class PartnerService {
 
     const { rows, count } = await this.partnerModel.findAndCountAll({
       where: whereClause,
+      attributes: {
+        include: [
+          [
+            Sequelize.literal(`(
+              SELECT COUNT(DISTINCT "q"."id")::int
+              FROM "quotations" AS "q"
+              WHERE "q"."buyer_id" = "Partner"."id"
+              AND "q"."deleted_at" IS NULL
+              AND "q"."status" != 'Draft'
+            )`),
+            'quotationCount',
+          ],
+        ],
+      },
       limit: finalLimit,
       offset,
       order: [['createdAt', 'DESC']],
@@ -277,11 +291,22 @@ export class PartnerService {
 
   /**
    * Lightweight dropdown endpoint — returns only id + entityName.
-   * Filters by partnerRoleId and optional search (ILIKE on entityName).
-   * Hard-capped at 30 records so it stays fast even with 10k+ partners.
+   * Supports server-side search (ILIKE), pagination (for infinite scroll),
+   * and optional roleName filter (JOIN on partner_roles by name).
+   *
+   * Returns a paginated envelope { data, total, page, totalPages }.
+   * Existing callers that use `res.data?.data || res.data || []` continue to work.
    */
-  async findOptions(params: { partnerRoleId?: number; search?: string; isActive?: boolean; limit?: number }): Promise<{ id: number; entityName: string }[]> {
+  async findOptions(params: {
+    partnerRoleId?: number;
+    roleName?: string;
+    search?: string;
+    isActive?: boolean;
+    limit?: number;
+    page?: number;
+  }): Promise<{ data: { id: number; entityName: string }[]; total: number; page: number; totalPages: number }> {
     const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
+
     if (params.partnerRoleId) {
       where.partnerRoleId = params.partnerRoleId;
     }
@@ -289,17 +314,37 @@ export class PartnerService {
       where.entityName = { [Op.iLike]: `%${params.search.trim()}%` };
     }
 
-    const requestedLimit = params.limit || 10;
-    const finalLimit = Math.min(Math.max(requestedLimit, 1), 30);
+    const limit = Math.min(Math.max(params.limit || 10, 1), 50);
+    const page = Math.max(params.page || 1, 1);
+    const offset = (page - 1) * limit;
 
-    const rows = await this.partnerModel.findAll({
+    // Build include for roleName JOIN (e.g. for Importer-only dropdown)
+    const include: any[] = [];
+    if (params.roleName) {
+      include.push({
+        model: this.partnerRoleModel,
+        attributes: [],
+        where: { name: { [Op.iLike]: params.roleName.trim() } },
+        required: true,
+      });
+    }
+
+    const { rows, count } = await this.partnerModel.findAndCountAll({
       where,
       attributes: ['id', 'entityName'],
       order: [['entityName', 'ASC']],
-      limit: finalLimit,
+      limit,
+      offset,
+      include,
+      distinct: true,
     });
 
-    return rows.map((r) => ({ id: r.id, entityName: r.entityName }));
+    return {
+      data: rows.map((r) => ({ id: r.id, entityName: r.entityName })),
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+    };
   }
 
   async findOne(id: number): Promise<Partner> {

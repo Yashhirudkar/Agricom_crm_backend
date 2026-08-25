@@ -120,7 +120,82 @@ export class PartnerFollowUpService {
       ],
     });
 
-    return rows.map((row) => transformFollowUpCreator(row));
+    // Collect quotation IDs to perform efficient batch runtime join
+    const quotationIds = rows
+      .filter(
+        (r) =>
+          r.entityId &&
+          (r.entityType?.toLowerCase() === 'quotation' ||
+            r.communicationType?.toUpperCase() === 'QUOTATION'),
+      )
+      .map((r) => r.entityId);
+
+    const quotationsMap = new Map<number, any>();
+    if (quotationIds.length > 0) {
+      const QuotationModel = this.sequelize.models.Quotation;
+      const QuotationItemModel = this.sequelize.models.QuotationItem;
+      const ProductModel = this.sequelize.models.Product;
+      const PartnerModel = this.sequelize.models.Partner;
+      const PartnerRoleModel = this.sequelize.models.PartnerRole;
+      const PackingTypeModel = this.sequelize.models.PackingType;
+
+      if (QuotationModel && QuotationItemModel && ProductModel) {
+        const quotes = await QuotationModel.findAll({
+          where: { id: { [Op.in]: quotationIds }, deletedAt: null },
+          include: [
+            ...(PartnerModel
+              ? [
+                  {
+                    model: PartnerModel,
+                    as: 'buyer',
+                    attributes: ['id', 'entityName', 'country', 'partnerRoleId'],
+                    include: PartnerRoleModel
+                      ? [
+                          {
+                            model: PartnerRoleModel,
+                            attributes: ['id', 'name'],
+                          },
+                        ]
+                      : [],
+                  },
+                ]
+              : []),
+            {
+              model: QuotationItemModel,
+              as: 'items',
+              include: [
+                {
+                  model: ProductModel,
+                  attributes: ['id', 'name'],
+                },
+                ...(PackingTypeModel
+                  ? [
+                      {
+                        model: PackingTypeModel,
+                        as: 'packingType',
+                        attributes: ['id', 'name'],
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ],
+        });
+        quotes.forEach((q: any) => quotationsMap.set(q.id, q.toJSON()));
+      }
+    }
+
+    return rows.map((row) => {
+      const item = transformFollowUpCreator(row);
+      if (
+        item.entityId &&
+        (item.entityType?.toLowerCase() === 'quotation' ||
+          item.communicationType?.toUpperCase() === 'QUOTATION')
+      ) {
+        item.quotation = quotationsMap.get(item.entityId) || null;
+      }
+      return item;
+    });
   }
 
   async findOne(id: number): Promise<PartnerFollowUp> {

@@ -37,10 +37,19 @@ export class ProductController {
   }
 
   // Lightweight options endpoint — accessible to any logged-in user
-  // (used for dropdowns in shipments filter and partner forms)
+  // (used for dropdowns in shipments filter, partner forms, and quotation drawer)
   @Get('options')
-  async findOptions(@Query('limit') limit?: string) {
-    const result = await this.productService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
+  async findOptions(
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+  ) {
+    const result = await this.productService.findAll({
+      limit: limit ? parseInt(limit) : 15,
+      page: page ? parseInt(page) : 1,
+      search: search || undefined,
+      isActive: true,
+    } as any);
     return result;
   }
 
