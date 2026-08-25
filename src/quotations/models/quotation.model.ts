@@ -111,11 +111,15 @@ export class Quotation extends Model<Quotation> {
   @BelongsTo(() => PartnerFollowUp, { foreignKey: 'followUpId', as: 'followUp' })
   declare followUp: PartnerFollowUp;
 
-  // ─── Pricing ──────────────────────────────────────────────────────────────
+  // ─── Pricing & Validity ───────────────────────────────────────────────────
 
   @AllowNull(false)
   @Column({ field: 'currency_code', type: DataType.STRING(10) })
   declare currencyCode: string;
+
+  @AllowNull(true)
+  @Column({ field: 'valid_until', type: DataType.DATEONLY })
+  declare validUntil: Date | string;
 
   // ─── Audit: Generation ────────────────────────────────────────────────────
 

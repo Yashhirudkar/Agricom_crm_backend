@@ -53,6 +53,10 @@ export class CreateQuotationDto {
   @IsNotEmpty()
   currencyCode: string;
 
+  @IsOptional()
+  @IsString()
+  validUntil?: string;
+
   /**
    * Phase-1: exactly 1 item (ArrayMinSize(1), ArrayMaxSize(1)).
    * Future multi-product: just remove ArrayMaxSize and update the UI.

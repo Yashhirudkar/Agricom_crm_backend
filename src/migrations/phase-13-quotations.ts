@@ -55,6 +55,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
       currency_code: { type: DataTypes.STRING(10), allowNull: false, field: 'currency_code' },
 
+      valid_until: { type: DataTypes.DATEONLY, allowNull: true, field: 'valid_until' },
+
       // Audit: generation
       generated_by: {
         type: DataTypes.INTEGER, allowNull: true, field: 'generated_by',
@@ -114,6 +116,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   await queryInterface
     .addIndex('quotations', ['deleted_at'], { name: 'quotations_deleted_at' })
+    .catch(() => {});
+
+  await queryInterface
+    .addColumn('quotations', 'valid_until', {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    })
     .catch(() => {});
 
   // ─── 3. quotation_items ───────────────────────────────────────────────────

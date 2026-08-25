@@ -39,6 +39,10 @@ export class UpdateQuotationDto {
 
   @IsOptional()
   @IsString()
+  validUntil?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
 
   @IsOptional()
