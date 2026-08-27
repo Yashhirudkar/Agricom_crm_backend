@@ -117,6 +117,10 @@ export class UpdatePartnerDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsString()
+  productNotes?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })

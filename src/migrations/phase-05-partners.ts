@@ -101,6 +101,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       inn_no: { type: DataTypes.STRING(50), allowNull: true },
       financial_status: { type: DataTypes.STRING(100), allowNull: true },
       year_of_establishment: { type: DataTypes.INTEGER, allowNull: true },
+      product_notes: { type: DataTypes.TEXT, allowNull: true },
       is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
       created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
       updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
@@ -151,12 +152,18 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'partner_role_dynamic_configs', key: 'id' },
         onDelete: 'CASCADE',
       },
+      schema_version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      values_json: { type: DataTypes.JSONB, allowNull: false, defaultValue: {} },
       field_value: { type: DataTypes.TEXT, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
       updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
     },
     { ifNotExists: true } as any,
   );
+  await queryInterface.addIndex('partner_dynamic_values', ['partner_id', 'config_id'], {
+    name: 'partner_dynamic_values_partner_config_unique',
+    unique: true,
+  }).catch(() => { });
 
   // ─── 7. partner_followups ─────────────────────────────────────────────────────
   await queryInterface.createTable(

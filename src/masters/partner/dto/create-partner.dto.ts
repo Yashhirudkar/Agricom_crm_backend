@@ -113,6 +113,10 @@ export class CreatePartnerDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsString()
+  productNotes?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
   @ValidateNested({ each: true })

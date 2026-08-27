@@ -119,6 +119,10 @@ export class Partner extends Model<Partner> {
   @Column({ field: 'is_active', type: DataType.BOOLEAN })
   declare isActive: boolean;
 
+  @AllowNull(true)
+  @Column({ field: 'product_notes', type: DataType.TEXT })
+  declare productNotes: string;
+
   @CreatedAt
   @Column({ field: 'created_at' })
   declare createdAt: Date;
