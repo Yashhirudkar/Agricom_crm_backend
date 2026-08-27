@@ -160,9 +160,36 @@ export class PartnerService {
     const { search, isActive, partnerRoleId, country, dnbRiskFactor, page, limit, allowedPartnerRoleIds } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
-    const whereClause: any = {
-      ...buildSearchQuery(search, ['entityName']),
-    };
+    const whereClause: any = {};
+
+    if (search && search.trim()) {
+      const searchTrim = search.trim();
+      const searchEscaped = searchTrim.replace(/'/g, "''");
+      const digitsOnly = searchTrim.replace(/\D/g, '');
+      const searchPattern = `%${searchEscaped}%`;
+
+      const searchConditions: any[] = [
+        { entityName: { [Op.iLike]: searchPattern } },
+        { contactEmail: { [Op.iLike]: searchPattern } },
+        { city: { [Op.iLike]: searchPattern } },
+      ];
+
+      let contactSql = `("pc"."name" ILIKE '${searchPattern}' OR "pc"."email" ILIKE '${searchPattern}' OR "pc"."phone" ILIKE '${searchPattern}')`;
+      if (digitsOnly.length >= 3) {
+        const digitsEscaped = digitsOnly.replace(/'/g, "''");
+        contactSql += ` OR (REGEXP_REPLACE("pc"."phone", '[^0-9]', '', 'g') ILIKE '%${digitsEscaped}%')`;
+      }
+
+      searchConditions.push(
+        Sequelize.literal(`EXISTS (
+          SELECT 1 FROM "partner_contacts" AS "pc"
+          WHERE "pc"."partner_id" = "Partner"."id"
+          AND (${contactSql})
+        )`)
+      );
+
+      whereClause[Op.or] = searchConditions;
+    }
 
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
@@ -280,7 +307,7 @@ export class PartnerService {
       },
       limit: finalLimit,
       offset,
-      order: [['createdAt', 'DESC']],
+      order: [['entityName', 'ASC']],
       include: includes,
       distinct: true,
     });
@@ -311,7 +338,26 @@ export class PartnerService {
       where.partnerRoleId = params.partnerRoleId;
     }
     if (params.search && params.search.trim()) {
-      where.entityName = { [Op.iLike]: `%${params.search.trim()}%` };
+      const searchTrim = params.search.trim();
+      const searchEscaped = searchTrim.replace(/'/g, "''");
+      const digitsOnly = searchTrim.replace(/\D/g, '');
+      const searchPattern = `%${searchEscaped}%`;
+
+      let contactSql = `("pc"."name" ILIKE '${searchPattern}' OR "pc"."email" ILIKE '${searchPattern}' OR "pc"."phone" ILIKE '${searchPattern}')`;
+      if (digitsOnly.length >= 3) {
+        const digitsEscaped = digitsOnly.replace(/'/g, "''");
+        contactSql += ` OR (REGEXP_REPLACE("pc"."phone", '[^0-9]', '', 'g') ILIKE '%${digitsEscaped}%')`;
+      }
+
+      where[Op.or] = [
+        { entityName: { [Op.iLike]: searchPattern } },
+        { contactEmail: { [Op.iLike]: searchPattern } },
+        Sequelize.literal(`EXISTS (
+          SELECT 1 FROM "partner_contacts" AS "pc"
+          WHERE "pc"."partner_id" = "Partner"."id"
+          AND (${contactSql})
+        )`),
+      ];
     }
 
     const limit = Math.min(Math.max(params.limit || 10, 1), 50);

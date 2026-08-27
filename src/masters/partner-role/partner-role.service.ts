@@ -79,7 +79,7 @@ export class PartnerRoleService {
       where: whereClause,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['createdAt', 'DESC']],
+      order: [['name', 'ASC']],
     });
 
     return {
