@@ -27,6 +27,7 @@ import { LogisticsService } from '../services/logistics.service';
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
 import { CreateFreightQuoteDto, UpdateFreightQuoteDto } from '../dto/create-freight-quote.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('logistics')
@@ -42,7 +43,7 @@ export class LogisticsController {
 
   // ─── Details Lookup & Auto-Initialization ────────────────────────────────────
   @Get('enquiry/:enquiryId')
-  @RequirePermission('logistics:view')
+  @RequireAnyPermission('logistics:view', 'enquiry:read')  // Enquiry users can view logistics in read-only mode
   async getDetails(@Param('enquiryId') enquiryId: string, @Req() req: any) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
     const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
@@ -128,7 +129,7 @@ export class LogisticsController {
 
   // ─── Get Attachments List ────────────────────────────────────────────────────
   @Get(':id/attachments')
-  @RequirePermission('logistics:view')
+  @RequireAnyPermission('logistics:view', 'enquiry:read')  // Enquiry users can view attachments in read-only mode
   async getAttachments(@Param('id', ParseIntPipe) id: number) {
     return this.service.getAttachments(id);
   }

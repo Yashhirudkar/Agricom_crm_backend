@@ -234,8 +234,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     actionIds.push(actionId);
   }
 
-  // 9. Grant Role Permissions (Roles 1 & 2)
-  for (const roleId of [1, 2]) {
+  // 9. Grant Role Permissions (Roles 1, 2 & 3)
+  for (const roleId of [1, 2, 3]) {
     const [roleExists]: any = await sequelize.query(`SELECT id FROM roles WHERE id = :roleId;`, { replacements: { roleId } });
     if (roleExists.length === 0) continue;
 

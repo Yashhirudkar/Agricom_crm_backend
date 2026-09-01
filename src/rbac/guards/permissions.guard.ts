@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/sequelize';
 import { PERMISSIONS_KEY } from '../decorators/require-permission.decorator';
+import { ANY_PERMISSIONS_KEY } from '../decorators/require-any-permission.decorator';
 import { UserRole } from '../models/user-role.model';
 import { RoleActionPermission } from '../models/role-action-permission.model';
 import { ResourceAction } from '../../system/models/resource-action.model';
@@ -119,9 +120,17 @@ export class PermissionsGuard implements CanActivate {
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],
     );
+    // Gather any-of permissions (OR logic)
+    const anyPermissions = this.reflector.getAllAndOverride<string[]>(
+      ANY_PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // No permissions required — allow through
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (
+      (!requiredPermissions || requiredPermissions.length === 0) &&
+      (!anyPermissions || anyPermissions.length === 0)
+    ) {
       return true;
     }
 
@@ -268,21 +277,53 @@ export class PermissionsGuard implements CanActivate {
     );
     request.userPermissions = grantedSet;
 
-    // Check every required permission
-    const hasAll = requiredPermissions.every((perm) => {
-      const standardized = standardizePermission(perm);
-      return grantedSet.has(standardized.name);
-    });
-
-    if (!hasAll) {
-      throw new ForbiddenException({
-        message: `Insufficient permissions. Required: ${requiredPermissions.join(', ')}`,
-        debug: {
-          roleIds,
-          grantedSet: Array.from(grantedSet),
-          requiredPermissions
-        }
+    // Check every required permission (AND logic)
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      const hasAll = requiredPermissions.every((perm) => {
+        const standardized = standardizePermission(perm);
+        return grantedSet.has(standardized.name);
       });
+
+      if (!hasAll) {
+        // Also check anyPermissions before throwing — maybe the route has OR fallback
+        const hasAny =
+          anyPermissions && anyPermissions.length > 0
+            ? anyPermissions.some((perm) => grantedSet.has(standardizePermission(perm).name))
+            : false;
+
+        if (!hasAny) {
+          throw new ForbiddenException({
+            message: `Insufficient permissions. Required: ${requiredPermissions.join(', ')}`,
+            debug: {
+              roleIds,
+              grantedSet: Array.from(grantedSet),
+              requiredPermissions,
+            },
+          });
+        }
+      }
+    }
+
+    // Check any-of permissions (OR logic) — only evaluated if no @RequirePermission
+    if (
+      (!requiredPermissions || requiredPermissions.length === 0) &&
+      anyPermissions &&
+      anyPermissions.length > 0
+    ) {
+      const hasAny = anyPermissions.some((perm) =>
+        grantedSet.has(standardizePermission(perm).name),
+      );
+
+      if (!hasAny) {
+        throw new ForbiddenException({
+          message: `Insufficient permissions. Required any of: ${anyPermissions.join(', ')}`,
+          debug: {
+            roleIds,
+            grantedSet: Array.from(grantedSet),
+            anyPermissions,
+          },
+        });
+      }
     }
 
     return true;
