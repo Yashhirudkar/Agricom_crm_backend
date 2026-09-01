@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { OnEvent } from '@nestjs/event-emitter';
+import { Op } from 'sequelize';
 import { ChatEventNames } from '../events/chat.events';
 import { Conversation } from '../models/conversation.model';
 import { ConversationMember } from '../models/conversation-member.model';
@@ -92,10 +93,20 @@ export class PolicyService {
     companyId: number,
     userType: string,
   ): Promise<{ hasAccess: boolean; isMember: boolean; conversation: Conversation; member: ConversationMember | null }> {
-    const conversation = await this.conversationModel.findOne({
-      where: { id: conversationId, companyId },
+    const where: any = { id: conversationId };
+    if (companyId) {
+      where[Op.or] = [{ companyId }, { companyId: null }];
+    }
+    let conversation = await this.conversationModel.findOne({
+      where,
       include: [ConversationSetting],
     });
+
+    if (!conversation) {
+      conversation = await this.conversationModel.findByPk(conversationId, {
+        include: [ConversationSetting],
+      });
+    }
 
     if (!conversation) {
       return { hasAccess: false, isMember: false, conversation: null, member: null };
@@ -108,6 +119,10 @@ export class PolicyService {
 
     if (member) {
       return { hasAccess: true, isMember: true, conversation, member };
+    }
+
+    if (userType === 'super_admin') {
+      return { hasAccess: true, isMember: false, conversation, member: null };
     }
 
     // 2. Non-member access check

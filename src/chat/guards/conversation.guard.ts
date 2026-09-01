@@ -48,14 +48,14 @@ export class ConversationGuard implements CanActivate {
       throw new NotFoundException('Conversation not found.');
     }
 
-    // 3. Verify Tenant Isolation (clientId)
-    if (user.clientId !== null && conversation.clientId !== null && conversation.clientId !== user.clientId) {
+    // 3. Verify Tenant Isolation (clientId) (Super Admins bypass)
+    if (user.type !== 'super_admin' && user.clientId !== null && conversation.clientId !== null && conversation.clientId !== user.clientId) {
       throw new ForbiddenException('Cross-tenant data access is not allowed.');
     }
 
-    // 4. Verify Company/Workspace Isolation
+    // 4. Verify Company/Workspace Isolation (Super Admins bypass)
     const activeCompanyId = request.headers['x-company-id'] || request.activeCompanyId;
-    if (activeCompanyId) {
+    if (user.type !== 'super_admin' && activeCompanyId) {
       const companyId = parseInt(activeCompanyId as string, 10);
       if (conversation.companyId !== null && conversation.companyId !== companyId) {
         throw new ForbiddenException('Conversation does not belong to the selected company workspace.');

@@ -745,27 +745,46 @@ export class MessageService implements OnModuleDestroy {
   }
 
   async markRead(conversationId: number, lastMessageId: number, userId: number): Promise<void> {
-    const member = await this.memberModel.findOne({
+    let member = await this.memberModel.findOne({
       where: { conversationId, userId },
       include: [Conversation],
     });
 
     if (!member) {
-      throw new ForbiddenException('Not a member.');
+      const conversation = await this.conversationModel.findByPk(conversationId);
+      if (!conversation) {
+        return;
+      }
+
+      // Auto-join/create membership for user viewing the conversation (e.g. Super Admin, public channel viewer)
+      member = await this.memberModel.create({
+        conversationId,
+        userId,
+        role: MemberRole.MEMBER,
+        joinedAt: new Date(),
+        lastReadMessageId: lastMessageId || null,
+        unreadMessagesCount: 0,
+        unreadMentionsCount: 0,
+        unreadThreadsCount: 0,
+      } as any);
+
+      (member as any).conversation = conversation;
+    } else {
+      member.lastReadMessageId = lastMessageId || member.lastReadMessageId;
+      member.unreadMessagesCount = 0;
+      member.unreadMentionsCount = 0;
+      member.unreadThreadsCount = 0;
+      await member.save();
     }
 
-    member.lastReadMessageId = lastMessageId;
-    member.unreadMessagesCount = 0;
-    member.unreadMentionsCount = 0;
-    member.unreadThreadsCount = 0;
-    await member.save();
-
-    await this.readStateModel.upsert({
-      userId,
-      messageId: lastMessageId,
-      isRead: true,
-      readAt: new Date(),
-    } as any);
+    if (lastMessageId) {
+      await this.readStateModel.upsert({
+        userId,
+        messageId: lastMessageId,
+        isRead: true,
+        readAt: new Date(),
+      } as any);
+    }
 
     const companyId = (member as any).conversation?.companyId || 0;
 
