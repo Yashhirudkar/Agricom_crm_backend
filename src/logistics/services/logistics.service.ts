@@ -97,7 +97,7 @@ export class LogisticsService {
       whereConditions.push({
         [Op.or]: [
           { enquiryNo: { [Op.iLike]: `%${s}%` } },
-          { '$partner.entityName$': { [Op.iLike]: `%${s}%` } },
+          { '$partner.entity_name$': { [Op.iLike]: `%${s}%` } },
           { '$product.name$': { [Op.iLike]: `%${s}%` } },
         ],
       });

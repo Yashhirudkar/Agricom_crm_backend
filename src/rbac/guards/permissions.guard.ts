@@ -31,8 +31,29 @@ export function standardizePermission(permKey: string): {
     action = 'update';
   }
 
+  if (resource === 'partners') {
+    resource = 'partner';
+  }
+
+  if (
+    resource === 'partner_roles' ||
+    resource === 'partner-roles' ||
+    resource === 'partner_role' ||
+    resource === 'partner-role'
+  ) {
+    resource = 'partnerrole';
+  }
+
   if (resource === 'sales_contracts' || resource === 'sales_contract') {
     resource = 'sales-contract';
+  }
+
+  if (resource === 'purchase_contracts' || resource === 'purchase_contract') {
+    resource = 'purchase-contract';
+  }
+
+  if (resource === 'shipments') {
+    resource = 'shipment';
   }
 
   if (resource === 'follow-up' || resource === 'follow_ups') {

@@ -13,6 +13,7 @@ import { SavePartnerDynamicValuesDto } from './dto/save-partner-dynamic-values.d
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -47,7 +48,18 @@ export class PartnerDynamicValuesController {
    * { "hasConfig": false, "configId": null, ... all null }
    */
   @Get()
-  @RequirePermission('partner:view')
+  @RequireAnyPermission(
+    'partner:view',
+    'partner:read',
+    'logistics:view',
+    'logistics:read',
+    'enquiry:view',
+    'enquiry:read',
+    'sales-contract:view',
+    'sales-contract:read',
+    'purchase-contract:view',
+    'purchase-contract:read',
+  )
   async getAdditionalInfo(
     @Param('partnerId', ParseIntPipe) partnerId: number,
   ) {
@@ -72,7 +84,13 @@ export class PartnerDynamicValuesController {
    * - schema_version is captured automatically from the config at save time.
    */
   @Put()
-  @RequirePermission('partner:update')
+  @RequireAnyPermission(
+    'partner:update',
+    'logistics:update',
+    'enquiry:update',
+    'sales-contract:update',
+    'purchase-contract:update',
+  )
   @AuditLog({ entityType: 'PartnerAdditionalInfo', action: 'UPDATE' })
   async saveAdditionalInfo(
     @Param('partnerId', ParseIntPipe) partnerId: number,
