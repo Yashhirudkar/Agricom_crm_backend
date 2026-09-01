@@ -25,6 +25,7 @@
     "migrate:phase": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --phase",
     "migrate:status": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --status",
     "migrate:fresh": "ts-node -r tsconfig-paths/register src/migrations/runner.ts --fresh",
+    "debug:test": "ts-node -r tsconfig-paths/register src/scratch_debug.ts",
     "query-attendance": "node C:/Users/Admin/.gemini/antigravity-ide/brain/6c932d4b-bfab-4b45-b7ca-ea0e957a93b0/scratch/query_attendance.js"
   },
   "dependencies": {

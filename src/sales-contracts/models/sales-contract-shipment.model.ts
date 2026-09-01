@@ -13,6 +13,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { SalesContract } from './sales-contract.model';
+import { Logistics } from '../../logistics/models/logistics.model';
 
 @Table({
   tableName: 'sales_contract_shipments',
@@ -23,6 +24,14 @@ export class SalesContractShipment extends Model<SalesContractShipment> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => Logistics)
+  @AllowNull(true)
+  @Column({ field: 'logistics_id', type: DataType.INTEGER })
+  declare logisticsId: number;
+
+  @BelongsTo(() => Logistics)
+  declare logistics: Logistics;
 
   @ForeignKey(() => SalesContract)
   @AllowNull(false)

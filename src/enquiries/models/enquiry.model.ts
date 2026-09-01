@@ -11,6 +11,7 @@ import {
   DeletedAt,
   ForeignKey,
   BelongsTo,
+  HasOne,
 } from 'sequelize-typescript';
 import { PartnerRole } from '../../masters/partner-role/partner-role.model';
 import { Partner } from '../../masters/partner/partner.model';
@@ -18,6 +19,7 @@ import { Product } from '../../masters/product/product.model';
 import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
 import { User } from '../../users/models/user.model';
 import { EnquiryStatus, EnquiryShipmentMode } from '../enquiry.constants';
+import { Logistics } from '../../logistics/models/logistics.model';
 
 @Table({
   tableName: 'enquiries',
@@ -185,4 +187,7 @@ export class Enquiry extends Model<Enquiry> {
   @DeletedAt
   @Column({ field: 'deleted_at' })
   declare deletedAt: Date;
+
+  @HasOne(() => Logistics)
+  declare logistics: Logistics;
 }

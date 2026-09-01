@@ -12,6 +12,7 @@ import * as phase11 from './phase-11-purchase-contracts';
 import * as phase12 from './phase-12-leave-revalidation';
 import * as phase13 from './phase-13-quotations';
 import * as phase14 from './phase-14-partner-dynamic-fields-update';
+import * as phase15 from './phase-15-logistics';
 
 export interface MigrationPhase {
   phase: string;
@@ -23,6 +24,7 @@ export interface MigrationPhase {
 /**
  * All migration phases in dependency order.
  * Each phase only depends on tables created in previous phases.
+ *
  */
 export const ALL_PHASES: MigrationPhase[] = [
   phase01,
@@ -39,4 +41,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase12,
   phase13,
   phase14,
+  phase15,
 ];

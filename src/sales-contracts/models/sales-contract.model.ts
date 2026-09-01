@@ -15,6 +15,7 @@ import {
   Unique,
 } from 'sequelize-typescript';
 import { Partner } from '../../masters/partner/partner.model';
+import { Enquiry } from '../../enquiries/models/enquiry.model';
 
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
@@ -38,6 +39,14 @@ export class SalesContract extends Model<SalesContract> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => Enquiry)
+  @AllowNull(true)
+  @Column({ field: 'enquiry_id', type: DataType.UUID })
+  declare enquiryId: string;
+
+  @BelongsTo(() => Enquiry)
+  declare enquiry: Enquiry;
 
   @Unique
   @AllowNull(false)

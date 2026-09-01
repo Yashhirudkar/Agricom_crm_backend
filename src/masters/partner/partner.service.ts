@@ -41,6 +41,7 @@ const INCLUDE_RELATIONS = [
       'communicationType',
       'isPrimary',
     ],
+    required: false,
   },
   {
     model: Product,
@@ -84,7 +85,7 @@ export class PartnerService {
     private sequelize: Sequelize,
     private readonly deletionValidator: DeletionValidatorService,
     private readonly auditService: AuditService,
-  ) {}
+  ) { }
 
   private async validateForeignKeys(
     partnerRoleId?: number,
@@ -331,7 +332,8 @@ export class PartnerService {
     isActive?: boolean;
     limit?: number;
     page?: number;
-  }): Promise<{ data: { id: number; entityName: string }[]; total: number; page: number; totalPages: number }> {
+    includeContacts?: boolean;
+  }): Promise<{ data: { id: number; entityName: string; contacts?: any[] }[]; total: number; page: number; totalPages: number }> {
     const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
 
     if (params.partnerRoleId) {
@@ -367,11 +369,25 @@ export class PartnerService {
     // Build include for roleName JOIN (e.g. for Importer-only dropdown)
     const include: any[] = [];
     if (params.roleName) {
+      const roles = params.roleName.split(',').map(r => r.trim()).filter(Boolean);
+      const roleCondition = roles.length > 1
+        ? { [Op.or]: roles.map(r => ({ [Op.iLike]: r })) }
+        : { [Op.iLike]: params.roleName.trim() };
+
       include.push({
         model: this.partnerRoleModel,
         attributes: [],
-        where: { name: { [Op.iLike]: params.roleName.trim() } },
+        where: { name: roleCondition },
         required: true,
+      });
+    }
+
+    if (params.includeContacts) {
+      include.push({
+        model: PartnerContact,
+        as: 'contacts',
+        attributes: ['id', 'name', 'designation', 'phone', 'email', 'communicationType', 'isPrimary'],
+        required: false,
       });
     }
 
@@ -386,7 +402,11 @@ export class PartnerService {
     });
 
     return {
-      data: rows.map((r) => ({ id: r.id, entityName: r.entityName })),
+      data: rows.map((r) => ({
+        id: r.id,
+        entityName: r.entityName,
+        ...(params.includeContacts && { contacts: r.contacts || [] }),
+      })),
       total: count,
       page,
       totalPages: Math.ceil(count / limit),
@@ -431,7 +451,7 @@ export class PartnerService {
   }
 
   async update(id: number, dto: UpdatePartnerDto): Promise<Partner> {
-    const partner = await this.findOneActive(id);
+    const partner = await this.findOneAnyState(id);
 
     if (dto.entityName) {
       dto.entityName = dto.entityName.trim().toUpperCase();
@@ -507,7 +527,7 @@ export class PartnerService {
       newValue: { isActive: true },
     });
 
-    return partner.reload({ include: INCLUDE_RELATIONS });
+    return partner;
   }
 
   async remove(id: number, reason?: string, user?: any): Promise<Partner> {
@@ -532,31 +552,35 @@ export class PartnerService {
       });
     }
 
-    return partner.reload({ include: INCLUDE_RELATIONS });
+    return partner;
   }
 
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
     const partner = await this.findOneAnyState(id);
-    // Note: Partner contacts and products are automatically deleted via onDelete: CASCADE db config.
 
     const oldValue = {
       ...partner.toJSON(),
       deletedAt: new Date(),
-      deletedBy: user.userId,
+      deletedBy: user?.userId,
       deleteReason: reason || 'No reason provided',
     };
 
+    await this.partnerContactModel.destroy({ where: { partnerId: id } });
+    await this.partnerProductModel.destroy({ where: { partnerId: id } });
+
     await partner.destroy();
 
-    await this.auditService.writeLog({
-      clientId: user.clientId || null,
-      companyId: user.companyId || null,
-      userId: user.userId,
-      entityType: 'Partner',
-      entityId: id,
-      action: 'FORCE_DELETE',
-      oldValue,
-      newValue: null,
-    });
+    if (user) {
+      await this.auditService.writeLog({
+        clientId: user.clientId || null,
+        companyId: user.companyId || null,
+        userId: user.userId,
+        entityType: 'Partner',
+        entityId: id,
+        action: 'FORCE_DELETE',
+        oldValue,
+        newValue: null,
+      });
+    }
   }
 }

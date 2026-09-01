@@ -101,6 +101,9 @@ import { PurchaseContractActivity } from './purchase-contracts/models/purchase-c
 import { PurchaseContractAttachment } from './purchase-contracts/models/purchase-contract-attachment.model';
 import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts.module';
 import { Enquiry } from './enquiries/models/enquiry.model';
+import { Logistics } from './logistics/models/logistics.model';
+import { FreightQuote } from './logistics/models/freight-quote.model';
+import { LogisticsModule } from './logistics/logistics.module';
 
 import { TasksModule } from './tasks/tasks.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
@@ -293,6 +296,8 @@ import {
             Quotation,
             QuotationItem,
             QuotationSequence,
+            Logistics,
+            FreightQuote,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -324,6 +329,7 @@ import {
     FollowUpManagementModule,
     ChatModule,
     QuotationsModule,
+    LogisticsModule,
   ],
   providers: [
     {

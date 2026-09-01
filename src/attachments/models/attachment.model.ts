@@ -22,6 +22,14 @@ export class Attachment extends Model<Attachment> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
+  @AllowNull(true)
+  @Column({ field: 'entity_type', type: DataType.STRING(100) })
+  declare entityType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'entity_id', type: DataType.INTEGER })
+  declare entityId: number;
+
   @AllowNull(false)
   @Column({ field: 'original_name', type: DataType.STRING(255) })
   declare originalName: string;

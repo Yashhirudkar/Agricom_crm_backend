@@ -122,6 +122,10 @@ export class CreateSalesContractDocumentDto {
 }
 
 export class CreateSalesContractDto {
+  @IsOptional()
+  @IsString()
+  enquiryId?: string;
+
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d{4}-\d{4}$/, { message: 'financialYear must be in YYYY-YYYY format' })

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -14,6 +15,7 @@ import {
   Req,
   ForbiddenException,
 } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PartnerService } from './partner.service';
 import { CreatePartnerDto } from './dto/create-partner.dto';
 import { UpdatePartnerDto } from './dto/update-partner.dto';
@@ -98,12 +100,14 @@ export class PartnerController {
   // Lightweight dropdown endpoint — returns only id + entityName.
   // Must be declared before @Get(':id') to avoid route shadowing.
   @Get('options')
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   async findOptions(
     @Query('partnerRoleId') partnerRoleId?: string,
     @Query('roleName') roleName?: string,
     @Query('search') search?: string,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
+    @Query('includeContacts') includeContacts?: string,
   ) {
     return this.partnerService.findOptions({
       partnerRoleId: partnerRoleId ? parseInt(partnerRoleId, 10) : undefined,
@@ -112,6 +116,7 @@ export class PartnerController {
       isActive: true,
       limit: limit ? parseInt(limit, 10) : 10,
       page: page ? parseInt(page, 10) : 1,
+      includeContacts: includeContacts === 'true',
     });
   }
 
@@ -144,6 +149,17 @@ export class PartnerController {
       req.activeCompanyId,
     );
     return this.partnerService.update(id, updatePartnerDto);
+  }
+
+  @Put(':id')
+  @RequirePermission('partner:update')
+  @AuditLog({ entityType: 'Partner', action: 'UPDATE' })
+  async updatePut(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updatePartnerDto: UpdatePartnerDto,
+    @Req() req: any,
+  ) {
+    return this.update(id, updatePartnerDto, req);
   }
 
   @Patch(':id/restore')
