@@ -108,6 +108,22 @@ export class Enquiry extends Model<Enquiry> {
   declare destinationCity: string;
 
   @AllowNull(true)
+  @Column({ field: 'origin_zip_code', type: DataType.STRING(20) })
+  declare originZipCode: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_zip_code', type: DataType.STRING(20) })
+  declare destinationZipCode: string;
+
+  @AllowNull(true)
+  @Column({ field: 'origin_station_code', type: DataType.STRING(20) })
+  declare originStationCode: string;
+
+  @AllowNull(true)
+  @Column({ field: 'destination_station_code', type: DataType.STRING(20) })
+  declare destinationStationCode: string;
+
+  @AllowNull(true)
   @Column({ field: 'bid_currency', type: DataType.STRING(10) })
   declare bidCurrency: string;
 

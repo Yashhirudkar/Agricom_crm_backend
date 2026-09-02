@@ -37,8 +37,10 @@ export class LogisticsController {
   // ─── Queue List ──────────────────────────────────────────────────────────────
   @Get()
   @RequirePermission('logistics:view')
-  async findQueue(@Query() query: QueryLogisticsDto) {
-    return this.service.findQueue(query);
+  async findQueue(@Query() query: QueryLogisticsDto, @Req() req: any) {
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    return this.service.findQueue(query, companyId);
   }
 
   // ─── Details Lookup & Auto-Initialization ────────────────────────────────────

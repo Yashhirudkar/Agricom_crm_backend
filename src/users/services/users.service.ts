@@ -80,7 +80,7 @@ export class UsersService {
           include: [
             {
               model: Company,
-              attributes: ['id', 'name', 'clientId', 'logoUrl'],
+              attributes: ['id', 'name', 'clientId', 'logoUrl', 'country'],
             },
             {
               model: Role,

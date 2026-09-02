@@ -58,6 +58,10 @@ import { ProductBagAssignment } from './bag-specs/models/product-bag-assignment.
 import { BagSpecsController } from './bag-specs/controllers/bag-specs.controller';
 import { BagSpecsService } from './bag-specs/services/bag-specs.service';
 
+import { EquipmentOption } from './equipment-option/equipment-option.model';
+import { EquipmentOptionController } from './equipment-option/equipment-option.controller';
+import { EquipmentOptionService } from './equipment-option/equipment-option.service';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
@@ -85,6 +89,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
       ShipmentType,
       PaymentTerm,
       TradeDocument,
+      EquipmentOption,
     ]),
     RbacModule,
     AuditModule,
@@ -107,6 +112,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     ShipmentTypeController,
     PaymentTermController,
     TradeDocumentController,
+    EquipmentOptionController,
   ],
   providers: [
     CategoryService,
@@ -126,6 +132,7 @@ import { BagSpecsService } from './bag-specs/services/bag-specs.service';
     ShipmentTypeService,
     PaymentTermService,
     TradeDocumentService,
+    EquipmentOptionService,
   ],
 })
 export class MastersModule {}

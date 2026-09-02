@@ -13,6 +13,9 @@ import * as phase12 from './phase-12-leave-revalidation';
 import * as phase13 from './phase-13-quotations';
 import * as phase14 from './phase-14-partner-dynamic-fields-update';
 import * as phase15 from './phase-15-logistics';
+import * as phase16 from './phase-16-enquiries-logistics-fields';
+import * as phase17 from './phase-17-freight-quotes-equipment-fields';
+import * as phase18 from './phase-18-equipment-options';
 
 export interface MigrationPhase {
   phase: string;
@@ -42,4 +45,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase13,
   phase14,
   phase15,
+  phase16,
+  phase17,
+  phase18,
 ];

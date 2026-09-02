@@ -126,16 +126,29 @@ export class EnquiriesService {
     if (payload.shipmentMode) {
       const mode = payload.shipmentMode;
       if (mode === EnquiryShipmentMode.SHIP) {
-        // Clear land state and city fields (Country fields are allowed/required)
+        // Clear land state, city, zip, and station fields (Country fields are allowed/required)
         payload.originState = null;
         payload.originCity = null;
+        payload.originZipCode = null;
+        payload.originStationCode = null;
         payload.destinationState = null;
         payload.destinationCity = null;
-      } else if (mode === EnquiryShipmentMode.ROAD || mode === EnquiryShipmentMode.RAIL) {
-        // Clear port fields
+        payload.destinationZipCode = null;
+        payload.destinationStationCode = null;
+      } else if (mode === EnquiryShipmentMode.ROAD) {
+        // Clear port and railway station fields
         payload.originPort = null;
         payload.destinationPort = null;
         payload.podPort = null;
+        payload.originStationCode = null;
+        payload.destinationStationCode = null;
+      } else if (mode === EnquiryShipmentMode.RAIL) {
+        // Clear port and zip code fields
+        payload.originPort = null;
+        payload.destinationPort = null;
+        payload.podPort = null;
+        payload.originZipCode = null;
+        payload.destinationZipCode = null;
       }
     }
 
@@ -344,6 +357,10 @@ export class EnquiriesService {
       destinationCountry: row.destinationCountry,
       destinationState: row.destinationState,
       destinationCity: row.destinationCity,
+      originZipCode: row.originZipCode,
+      destinationZipCode: row.destinationZipCode,
+      originStationCode: row.originStationCode,
+      destinationStationCode: row.destinationStationCode,
       bidCurrency: row.bidCurrency,
       createdBy: row.createdBy,
       createdByName: row.creator?.name || null,

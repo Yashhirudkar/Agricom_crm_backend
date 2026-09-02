@@ -25,6 +25,7 @@ import { CreateFreightQuoteDto } from '../dto/create-freight-quote.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 
 import { PartnerContact } from '../../masters/partner/partner-contact.model';
+import { Company } from '../../companies/models/company.model';
 
 @Injectable()
 export class LogisticsService {
@@ -48,7 +49,7 @@ export class LogisticsService {
     private readonly attachmentsService: AttachmentsService,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
-  ) {}
+  ) { }
 
   /**
    * Get confirmed enquiries for the logistics queue, joined with logistics workspace.
@@ -63,9 +64,12 @@ export class LogisticsService {
     'Closed',
   ];
 
-  async findQueue(query: QueryLogisticsDto) {
+  async findQueue(query: QueryLogisticsDto, companyId: number = 1) {
     const { search, mode, status, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
+
+    const company = (await this.sequelize.models.Company.findByPk(companyId)) as any;
+    const companyCountry = company?.country;
 
     // ── Base Enquiry Conditions ───────────────────────────────────────────────
     // Exclude cancelled enquiries (show NEW, PENDING, CONFIRMED, CLOSED, etc.)
@@ -73,23 +77,37 @@ export class LogisticsService {
       { status: { [Op.notIn]: ['CANCELLED'] } },
     ];
 
-    // ── Mode Filter ───────────────────────────────────────────────────────────
-    // Domestic: ROAD, RAIL, empty, or null
-    // International: SHIP
-    if (mode === 'Domestic') {
-      whereConditions.push({
-        [Op.or]: [
-          { shipmentMode: { [Op.in]: ['ROAD', 'RAIL', 'road', 'rail'] } },
-          { shipmentMode: null },
-          { shipmentMode: '' },
-        ],
-      });
-    } else if (mode === 'International') {
-      whereConditions.push({
-        shipmentMode: { [Op.iLike]: 'SHIP' },
-      });
+    // ── Mode Filter (case-insensitive, null-safe) ─────────────────────────────
+    // Normalize company country — trim + lowercase for consistent comparison.
+    // Op.iLike without wildcards = case-insensitive exact match in PostgreSQL.
+    // Op.notILike = NOT ILIKE, case-insensitive inequality.
+    const normCompanyCountry = companyCountry?.trim().toLowerCase() || null;
+
+    if (normCompanyCountry && mode && mode !== 'All') {
+      if (mode === 'Domestic') {
+        // origin == company AND destination == company
+        whereConditions.push({
+          originCountryId: { [Op.iLike]: normCompanyCountry },
+          destinationCountry: { [Op.iLike]: normCompanyCountry },
+        });
+      } else if (mode === 'Export') {
+        // origin == company AND destination != company
+        whereConditions.push({
+          originCountryId: { [Op.iLike]: normCompanyCountry },
+          destinationCountry: { [Op.notILike]: normCompanyCountry },
+        });
+      } else if (mode === 'Merchant Export') {
+        // origin != company AND destination != company
+        whereConditions.push({
+          originCountryId: { [Op.notILike]: normCompanyCountry },
+          destinationCountry: { [Op.notILike]: normCompanyCountry },
+        });
+      }
     }
-    // mode === 'All' → no mode filter
+    // mode === 'All' OR no companyCountry → no mode filter applied
+
+
+
 
     // ── Search Filter ─────────────────────────────────────────────────────────
     if (search && search.trim()) {
@@ -291,11 +309,6 @@ export class LogisticsService {
       throw new NotFoundException('Logistics record not found');
     }
 
-    // Ensure contact_person column exists on freight_quotes table
-    await this.sequelize
-      .query('ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS contact_person VARCHAR(100);')
-      .catch(() => {});
-
     return await this.sequelize.transaction(async (transaction) => {
       // Generate FQ/YYYY/###### number via sequence
       await this.sequelize.query(
@@ -331,7 +344,7 @@ export class LogisticsService {
       // Auto transition logistics status to Quotes Received if Pending
       if (logistics.status === 'Pending') {
         await logistics.update({ status: 'Quotes Received' }, { transaction });
-        
+
         await this.auditService.writeLog({
           clientId: null,
           companyId,
@@ -375,10 +388,6 @@ export class LogisticsService {
     if (!quote) {
       throw new NotFoundException('Freight quote not found');
     }
-
-    await this.sequelize
-      .query('ALTER TABLE freight_quotes ADD COLUMN IF NOT EXISTS contact_person VARCHAR(100);')
-      .catch(() => {});
 
     await this.sequelize.transaction(async (transaction) => {
       // Increment version placeholder
@@ -639,7 +648,7 @@ export class LogisticsService {
       // Extract shipment details from preferred quote
       const shipmentDate = logistics.estimatedDispatchDate || quote.etd || new Date();
       const quantity = logistics.enquiry.quantity || 0;
-      
+
       // Calculate totalAmount runtime getter value
       const freightCost = quote.totalAmount;
 
@@ -697,12 +706,6 @@ export class LogisticsService {
   // ─────────────────────────────────────────────────────────────────────────────
 
   async getAttachments(logisticsId: number) {
-    // Ensure entity_type and entity_id columns exist on attachments table
-    await this.sequelize.query(`
-      ALTER TABLE attachments ADD COLUMN IF NOT EXISTS entity_type VARCHAR(100);
-      ALTER TABLE attachments ADD COLUMN IF NOT EXISTS entity_id INTEGER;
-    `).catch(() => {});
-
     const attachments = await this.attachmentModel.findAll({
       where: { entityType: 'LOGISTICS', entityId: logisticsId },
       order: [['createdAt', 'DESC']],
@@ -729,12 +732,6 @@ export class LogisticsService {
     if (!logistics) {
       throw new NotFoundException('Logistics record not found');
     }
-
-    // Ensure entity_type and entity_id columns exist on attachments table
-    await this.sequelize.query(`
-      ALTER TABLE attachments ADD COLUMN IF NOT EXISTS entity_type VARCHAR(100);
-      ALTER TABLE attachments ADD COLUMN IF NOT EXISTS entity_id INTEGER;
-    `).catch(() => {});
 
     return await this.sequelize.transaction(async (transaction) => {
       // 1. Create central attachment row via central engine

@@ -65,6 +65,22 @@ export class FreightQuote extends Model<FreightQuote> {
   declare containerType: string;
 
   @AllowNull(true)
+  @Column({ field: 'truck_type', type: DataType.STRING(50) })
+  declare truckType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'truck_capacity', type: DataType.STRING(50) })
+  declare truckCapacity: string;
+
+  @AllowNull(true)
+  @Column({ field: 'wagon_type', type: DataType.STRING(50) })
+  declare wagonType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'wagon_capacity', type: DataType.STRING(50) })
+  declare wagonCapacity: string;
+
+  @AllowNull(true)
   @Column({ field: 'shipping_line', type: DataType.STRING(150) })
   declare shippingLine: string;
 

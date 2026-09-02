@@ -113,6 +113,22 @@ export class CreateFreightQuoteDto {
   @IsOptional()
   @IsString()
   containerSize?: string;
+
+  @IsOptional()
+  @IsString()
+  truckType?: string;
+
+  @IsOptional()
+  @IsString()
+  truckCapacity?: string;
+
+  @IsOptional()
+  @IsString()
+  wagonType?: string;
+
+  @IsOptional()
+  @IsString()
+  wagonCapacity?: string;
 }
 
 export class UpdateFreightQuoteDto extends CreateFreightQuoteDto {}

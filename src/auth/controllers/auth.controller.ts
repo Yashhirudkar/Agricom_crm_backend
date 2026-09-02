@@ -101,7 +101,7 @@ export class AuthController {
       if (!client) throw new UnauthorizedException('Client not found');
 
       const allCompanies = (await this.userCompanyModel.sequelize.query(
-        `SELECT id, name, "logoUrl", status FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
+        `SELECT id, name, "logoUrl", status, country FROM "companies" WHERE "clientId" = :clientId AND "isActive" = true;`,
         {
           replacements: { clientId: client.id },
           type: 'SELECT',
@@ -112,6 +112,7 @@ export class AuthController {
         id: c.id,
         name: c.name,
         logoUrl: c.logoUrl,
+        country: c.country || null,
         role: { id: 0, name: 'Client Admin' },
         status: c.status || 'Active',
       }));
@@ -127,8 +128,9 @@ export class AuthController {
             id: activeWorkspace.id,
             name: activeWorkspace.name,
             logoUrl: activeWorkspace.logoUrl || null,
+            country: activeWorkspace.country || null,
           }
-        : { name: 'Agricom', logoUrl: null };
+        : { name: 'Agricom', logoUrl: null, country: null };
 
       return {
         id: client.id,
@@ -267,12 +269,13 @@ export class AuthController {
             id: userCompany.company.id,
             name: userCompany.company.name,
             logoUrl: userCompany.company.logoUrl,
+            country: userCompany.company.country || null,
           };
         } else {
           // For super admin switching to a workspace not in userCompanies
           if (type === 'super_admin') {
             const targetCompany = (await this.userCompanyModel.sequelize.query(
-              `SELECT id, name, "logoUrl" FROM "companies" WHERE id = :companyId LIMIT 1;`,
+              `SELECT id, name, "logoUrl", country FROM "companies" WHERE id = :companyId LIMIT 1;`,
               { replacements: { companyId: activeCompanyId }, type: 'SELECT' },
             )) as any[];
             if (targetCompany.length > 0) {
@@ -292,8 +295,9 @@ export class AuthController {
           id: activeCompanyDetails.id,
           name: activeCompanyDetails.name,
           logoUrl: activeCompanyDetails.logoUrl || null,
+          country: activeCompanyDetails.country || null,
         }
-      : { name: 'Agricom', logoUrl: null };
+      : { name: 'Agricom', logoUrl: null, country: null };
 
     const prefs = await this.profileService.getPreferences(userId).catch(() => null);
 

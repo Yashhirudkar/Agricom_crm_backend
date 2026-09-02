@@ -64,6 +64,22 @@ export class CreateEnquiryDto {
 
   @IsOptional()
   @IsString()
+  originZipCode?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationZipCode?: string;
+
+  @IsOptional()
+  @IsString()
+  originStationCode?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationStationCode?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(10)
   bidCurrency?: string;
 
