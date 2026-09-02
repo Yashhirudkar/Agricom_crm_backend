@@ -23,6 +23,7 @@ import { QueryPartnerDto } from './dto/query-partner.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 import { RbacService } from '../../rbac/services/rbac.service';
 
@@ -62,7 +63,17 @@ export class PartnerController {
   }
 
   @Post()
-  @RequirePermission('partner:create')
+  @RequireAnyPermission(
+    'partner:create',
+    'logistics:create',
+    'logistics:update',
+    'enquiry:create',
+    'enquiry:update',
+    'sales-contract:create',
+    'sales-contract:update',
+    'purchase-contract:create',
+    'purchase-contract:update',
+  )
   @AuditLog({ entityType: 'Partner', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createPartnerDto: CreatePartnerDto, @Req() req: any) {
@@ -121,14 +132,54 @@ export class PartnerController {
   }
 
   @Get('countries')
-  @RequirePermission('partner:view')
+  @RequireAnyPermission(
+    'partner:view',
+    'partner:read',
+    'logistics:view',
+    'logistics:read',
+    'enquiry:read',
+    'enquiry:view',
+    'sales-contract:read',
+    'sales-contract:view',
+    'quotation:read',
+    'quotation:view',
+    'purchase-contract:read',
+    'purchase-contract:view',
+  )
   async getCountries() {
     const countries = await this.partnerService.getDistinctCountries();
     return { success: true, data: countries };
   }
 
   @Get(':id')
-  @RequirePermission('partner:view')
+  @RequireAnyPermission(
+    'partner:view',
+    'partner:read',
+    'logistics:view',
+    'logistics:read',
+    'logistics:create',
+    'logistics:update',
+    'enquiry:view',
+    'enquiry:read',
+    'enquiry:create',
+    'enquiry:update',
+    'quotation:view',
+    'quotation:read',
+    'quotation:create',
+    'quotation:update',
+    'sales-contract:view',
+    'sales-contract:read',
+    'sales-contract:create',
+    'sales-contract:update',
+    'purchase-contract:view',
+    'purchase-contract:read',
+    'purchase-contract:create',
+    'purchase-contract:update',
+    'shipment:view',
+    'shipment:read',
+    'follow_up:view',
+    'follow_up:read',
+  )
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const item = await this.partnerService.findOne(id);
 
@@ -136,7 +187,13 @@ export class PartnerController {
   }
 
   @Patch(':id')
-  @RequirePermission('partner:update')
+  @RequireAnyPermission(
+    'partner:update',
+    'logistics:update',
+    'enquiry:update',
+    'sales-contract:update',
+    'purchase-contract:update',
+  )
   @AuditLog({ entityType: 'Partner', action: 'UPDATE' })
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -152,7 +209,13 @@ export class PartnerController {
   }
 
   @Put(':id')
-  @RequirePermission('partner:update')
+  @RequireAnyPermission(
+    'partner:update',
+    'logistics:update',
+    'enquiry:update',
+    'sales-contract:update',
+    'purchase-contract:update',
+  )
   @AuditLog({ entityType: 'Partner', action: 'UPDATE' })
   async updatePut(
     @Param('id', ParseIntPipe) id: number,

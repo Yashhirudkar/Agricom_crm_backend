@@ -21,6 +21,7 @@ import { QueryPartnerRoleDto } from './dto/query-partner-role.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 import { RbacService } from '../../rbac/services/rbac.service';
 
@@ -43,7 +44,6 @@ export class PartnerRoleController {
   // Lightweight options endpoint — returns partner roles filtered by user's RBAC role access.
   // Used for dropdowns in partner forms and filter selectors.
   @Get('options')
-  @RequirePermission('partner:read')
   async findOptions(@Query('limit') limit?: string, @Req() req?: any) {
     // Super admin: return all
     if (req?.user?.type === 'super_admin') {
@@ -66,7 +66,20 @@ export class PartnerRoleController {
   }
 
   @Get()
-  @RequirePermission('partnerrole:view')
+  @RequireAnyPermission(
+    'partnerrole:view',
+    'partnerrole:read',
+    'partner:view',
+    'partner:read',
+    'logistics:view',
+    'logistics:read',
+    'enquiry:view',
+    'enquiry:read',
+    'sales-contract:view',
+    'sales-contract:read',
+    'purchase-contract:view',
+    'purchase-contract:read',
+  )
   async findAll(@Query() query: QueryPartnerRoleDto) {
     const result = await this.partnerRoleService.findAll(query);
 
@@ -74,7 +87,20 @@ export class PartnerRoleController {
   }
 
   @Get(':id')
-  @RequirePermission('partnerrole:view')
+  @RequireAnyPermission(
+    'partnerrole:view',
+    'partnerrole:read',
+    'partner:view',
+    'partner:read',
+    'logistics:view',
+    'logistics:read',
+    'enquiry:view',
+    'enquiry:read',
+    'sales-contract:view',
+    'sales-contract:read',
+    'purchase-contract:view',
+    'purchase-contract:read',
+  )
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const item = await this.partnerRoleService.findOne(id);
 
