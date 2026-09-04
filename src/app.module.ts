@@ -103,6 +103,12 @@ import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts
 import { Enquiry } from './enquiries/models/enquiry.model';
 import { Logistics } from './logistics/models/logistics.model';
 import { FreightQuote } from './logistics/models/freight-quote.model';
+import { MonthlyStockSummary } from './logistics/models/monthly-stock-summary.model';
+import { MonthlyStockSummaryCountry } from './logistics/models/monthly-stock-summary-country.model';
+import { MonthlyStockSection } from './logistics/models/monthly-stock-section.model';
+import { MonthlyStockSectionColumn } from './logistics/models/monthly-stock-section-column.model';
+import { MonthlyStockSectionRow } from './logistics/models/monthly-stock-section-row.model';
+import { MonthlyStockRowCell } from './logistics/models/monthly-stock-row-cell.model';
 import { LogisticsModule } from './logistics/logistics.module';
 
 import { TasksModule } from './tasks/tasks.module';
@@ -298,6 +304,12 @@ import {
             QuotationSequence,
             Logistics,
             FreightQuote,
+            MonthlyStockSummary,
+            MonthlyStockSummaryCountry,
+            MonthlyStockSection,
+            MonthlyStockSectionColumn,
+            MonthlyStockSectionRow,
+            MonthlyStockRowCell,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
