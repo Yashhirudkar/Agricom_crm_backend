@@ -416,6 +416,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       monthlyStockSummaryId: summaryId,
       sectionName: dto.sectionName,
       displayOrder: dto.displayOrder ?? maxOrder + 10,
+      ...(dto.layoutX !== undefined && { layoutX: dto.layoutX }),
+      ...(dto.layoutY !== undefined && { layoutY: dto.layoutY }),
+      ...(dto.layoutWidth !== undefined && { layoutWidth: dto.layoutWidth }),
+      ...(dto.layoutHeight !== undefined && { layoutHeight: dto.layoutHeight }),
     });
 
     const columnsToCreate = dto.presetColumns && dto.presetColumns.length > 0

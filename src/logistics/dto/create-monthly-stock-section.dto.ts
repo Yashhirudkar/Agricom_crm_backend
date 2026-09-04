@@ -23,6 +23,26 @@ export class CreateSectionDto {
   @IsArray()
   @IsString({ each: true })
   presetColumns?: string[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  layoutX?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  layoutY?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  layoutWidth?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  layoutHeight?: number;
 }
 
 export class UpdateSectionDto {
