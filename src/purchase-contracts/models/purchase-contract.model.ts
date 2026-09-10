@@ -14,15 +14,16 @@ import {
   HasMany,
 } from 'sequelize-typescript';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
+import { Partner } from '../../masters/partner/partner.model';
+import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
+import { PurchaseContractItem } from './purchase-contract-item.model';
 import { PurchaseContractShipment } from './purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contract-activity.model';
 import { PurchaseContractAttachment } from './purchase-contract-attachment.model';
 
 /**
- * Purchase Contract is an EXECUTION contract generated from an existing Sales Contract.
- * Contract number is derived at runtime as: PC-{salesContract.contractNumber}
- * No financial data stored here — always aggregated from SalesContractShipment joins.
+ * Purchase Contract execution / manual trade contract.
  */
 @Table({
   tableName: 'purchase_contracts',
@@ -30,6 +31,9 @@ import { PurchaseContractAttachment } from './purchase-contract-attachment.model
   indexes: [
     { fields: ['sales_contract_id'] },
     { fields: ['status'] },
+    { fields: ['purchase_type'] },
+    { fields: ['buyer_id'] },
+    { fields: ['seller_id'] },
   ],
 })
 export class PurchaseContract extends Model<PurchaseContract> {
@@ -39,27 +43,62 @@ export class PurchaseContract extends Model<PurchaseContract> {
   declare id: number;
 
   @ForeignKey(() => SalesContract)
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'sales_contract_id', type: DataType.INTEGER })
   declare salesContractId: number;
 
   @BelongsTo(() => SalesContract)
   declare salesContract: SalesContract;
 
-  /**
-   * Status lifecycle: Draft → In Progress → Awaiting Documents → Ready for Dispatch → Completed → Closed
-   *                         (any early state) → Cancelled
-   */
   @Default('Draft')
   @AllowNull(false)
   @Column({ type: DataType.STRING(30) })
   declare status: string;
 
-
+  @Default('SC')
+  @AllowNull(false)
+  @Column({ field: 'purchase_type', type: DataType.ENUM('SC', 'MTT') })
+  declare purchaseType: string;
 
   @AllowNull(true)
-  @Column({ field: 'purchase_type', type: DataType.STRING(30) })
-  declare purchaseType: string;
+  @Column({ field: 'contract_number', type: DataType.STRING(100) })
+  declare contractNumber: string;
+
+  @ForeignKey(() => Partner)
+  @AllowNull(true)
+  @Column({ field: 'buyer_id', type: DataType.INTEGER })
+  declare buyerId: number;
+
+  @BelongsTo(() => Partner, 'buyerId')
+  declare buyer: Partner;
+
+  @ForeignKey(() => Partner)
+  @AllowNull(true)
+  @Column({ field: 'seller_id', type: DataType.INTEGER })
+  declare sellerId: number;
+
+  @BelongsTo(() => Partner, 'sellerId')
+  declare seller: Partner;
+
+  @ForeignKey(() => PaymentTerm)
+  @AllowNull(true)
+  @Column({ field: 'payment_term_id', type: DataType.INTEGER })
+  declare paymentTermId: number;
+
+  @BelongsTo(() => PaymentTerm)
+  declare paymentTerm: PaymentTerm;
+
+  @ForeignKey(() => Partner)
+  @AllowNull(true)
+  @Column({ field: 'broker_id', type: DataType.INTEGER })
+  declare brokerId: number;
+
+  @BelongsTo(() => Partner, 'brokerId')
+  declare broker: Partner;
+
+  @AllowNull(true)
+  @Column({ field: 'broker_commission', type: DataType.STRING(100) })
+  declare brokerCommission: string;
 
   /** Optional seller reference contract number */
   @AllowNull(true)
@@ -113,6 +152,10 @@ export class PurchaseContract extends Model<PurchaseContract> {
   declare deliveryPlace: string;
 
   @AllowNull(true)
+  @Column({ field: 'dispatch_date', type: DataType.DATEONLY })
+  declare dispatchDate: string;
+
+  @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
 
@@ -129,6 +172,9 @@ export class PurchaseContract extends Model<PurchaseContract> {
   declare updatedAt: Date;
 
   // ─── Associations ─────────────────────────────────────────────────────────────
+  @HasMany(() => PurchaseContractItem)
+  declare items: PurchaseContractItem[];
+
   @HasMany(() => PurchaseContractShipment)
   declare shipmentLinks: PurchaseContractShipment[];
 

@@ -26,6 +26,7 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 import { LogisticsService } from '../services/logistics.service';
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
 import { CreateFreightQuoteDto, UpdateFreightQuoteDto } from '../dto/create-freight-quote.dto';
+import { CreateChargeMasterDto } from '../dto/create-charge-master.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 
@@ -34,7 +35,55 @@ import { RequireAnyPermission } from '../../rbac/decorators/require-any-permissi
 export class LogisticsController {
   constructor(private readonly service: LogisticsService) {}
 
-  // ─── Queue List ──────────────────────────────────────────────────────────────
+  // ─── Charge Master Endpoints ──────────────────────────────────────────────────
+  @Get('charge-master')
+  @RequireAnyPermission('logistics:view', 'enquiry:read')
+  async getChargeMaster(@Query('mode') mode?: string) {
+    return this.service.getChargeMaster(mode);
+  }
+
+  @Post('charge-master')
+  @RequirePermission('logistics:update')
+  @HttpCode(HttpStatus.CREATED)
+  async createChargeMaster(@Body() dto: CreateChargeMasterDto) {
+    return this.service.createChargeMaster(dto);
+  }
+
+  // ─── All Freight Quotes (Centralized Repository) ──────────────────────────
+  @Get('quotes')
+  @RequirePermission('logistics:view')
+  async getAllFreightQuotes(
+    @Query() query: {
+      search?: string;
+      transportMode?: string;
+      isPreferred?: string;
+      status?: string;
+      product?: string;
+      origin?: string;
+      destination?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: string;
+      limit?: string;
+      sortBy?: string;
+      sortDir?: string;
+    },
+    @Req() req: any,
+  ) {
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    return this.service.getAllFreightQuotes(
+      {
+        ...query,
+        isPreferred: query.isPreferred === 'true' ? true : query.isPreferred === 'false' ? false : undefined,
+        page: query.page ? parseInt(query.page, 10) : 1,
+        limit: query.limit ? parseInt(query.limit, 10) : 15,
+      },
+      companyId,
+    );
+  }
+
+
   @Get()
   @RequirePermission('logistics:view')
   async findQueue(@Query() query: QueryLogisticsDto, @Req() req: any) {

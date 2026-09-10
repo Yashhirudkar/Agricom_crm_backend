@@ -45,8 +45,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   await sequelize.query(`
     ALTER TABLE purchase_contracts
+    ALTER COLUMN sales_contract_id DROP NOT NULL,
     ADD COLUMN IF NOT EXISTS purchase_type VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS contract_number VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS buyer_id INTEGER,
+    ADD COLUMN IF NOT EXISTS seller_id INTEGER,
     ADD COLUMN IF NOT EXISTS seller_contract_no VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS payment_term_id INTEGER,
+    ADD COLUMN IF NOT EXISTS broker_id INTEGER,
+    ADD COLUMN IF NOT EXISTS broker_commission VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS dispatch_date DATE,
     ADD COLUMN IF NOT EXISTS notes TEXT,
     ADD COLUMN IF NOT EXISTS terms JSONB DEFAULT '[]',
     ADD COLUMN IF NOT EXISTS quantity VARCHAR(100),
@@ -58,6 +66,28 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     ADD COLUMN IF NOT EXISTS marking VARCHAR(100),
     ADD COLUMN IF NOT EXISTS incoterm VARCHAR(100),
     ADD COLUMN IF NOT EXISTS delivery_place VARCHAR(255);
+
+    CREATE TABLE IF NOT EXISTS purchase_contract_items (
+      id SERIAL PRIMARY KEY,
+      purchase_contract_id INTEGER NOT NULL REFERENCES purchase_contracts(id) ON DELETE CASCADE,
+      product_id INTEGER,
+      product_name VARCHAR(255),
+      quantity DECIMAL(12, 2),
+      product_quality VARCHAR(255),
+      packing VARCHAR(100),
+      bag_type VARCHAR(100),
+      bag_spec VARCHAR(100),
+      stitching VARCHAR(100),
+      marking VARCHAR(100),
+      rate_per_mt DECIMAL(12, 2),
+      total_amount DECIMAL(14, 2),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    ALTER TABLE purchase_contract_shipments
+    ADD COLUMN IF NOT EXISTS purchase_contract_item_id INTEGER,
+    ADD COLUMN IF NOT EXISTS allocated_quantity DECIMAL(12, 2);
   `);
 
   await sequelize.query(`

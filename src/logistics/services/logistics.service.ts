@@ -9,6 +9,8 @@ import { Op, QueryTypes } from 'sequelize';
 
 import { Logistics } from '../models/logistics.model';
 import { FreightQuote } from '../models/freight-quote.model';
+import { FreightChargeMaster } from '../models/freight-charge-master.model';
+import { FreightQuoteCharge } from '../models/freight-quote-charge.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { EnquiryStatus } from '../../enquiries/enquiry.constants';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
@@ -22,6 +24,7 @@ import { User } from '../../users/models/user.model';
 
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
 import { CreateFreightQuoteDto } from '../dto/create-freight-quote.dto';
+import { CreateChargeMasterDto } from '../dto/create-charge-master.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 
 import { PartnerContact } from '../../masters/partner/partner-contact.model';
@@ -34,6 +37,10 @@ export class LogisticsService {
     private readonly logisticsModel: typeof Logistics,
     @InjectModel(FreightQuote)
     private readonly quoteModel: typeof FreightQuote,
+    @InjectModel(FreightChargeMaster)
+    private readonly chargeMasterModel: typeof FreightChargeMaster,
+    @InjectModel(FreightQuoteCharge)
+    private readonly quoteChargeModel: typeof FreightQuoteCharge,
     @InjectModel(Enquiry)
     private readonly enquiryModel: typeof Enquiry,
     @InjectModel(SalesContract)
@@ -175,7 +182,257 @@ export class LogisticsService {
     };
   }
 
+  /**
+   * Get ALL freight quotes across all logistics records — centralized repository view.
+   */
+  async getAllFreightQuotes(
+    query: {
+      search?: string;
+      transportMode?: string;
+      isPreferred?: boolean;
+      status?: string;
+      product?: string;
+      origin?: string;
+      destination?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortDir?: string;
+    },
+    companyId: number = 1,
+  ) {
+    const {
+      search,
+      transportMode,
+      isPreferred,
+      status,
+      product,
+      origin,
+      destination,
+      dateFrom,
+      dateTo,
+      page = 1,
+      limit = 15,
+      sortBy = 'createdAt',
+      sortDir = 'DESC',
+    } = query;
 
+    const quoteWhereConditions: any[] = [];
+
+    // ── 1. Preferred / Rejected / Status Filtering ─────────────────────────
+    if (isPreferred !== undefined && isPreferred !== null) {
+      quoteWhereConditions.push({ isPreferred });
+    }
+
+    if (status && status !== 'all') {
+      const st = status.toLowerCase();
+      if (st === 'preferred') {
+        quoteWhereConditions.push({ isPreferred: true });
+      } else if (st === 'rejected') {
+        quoteWhereConditions.push({ isRejected: true });
+      } else if (st === 'expired') {
+        quoteWhereConditions.push({ validityDate: { [Op.lt]: new Date() } });
+      } else if (st === 'active') {
+        quoteWhereConditions.push({
+          isPreferred: false,
+          isRejected: false,
+          [Op.or]: [
+            { validityDate: null },
+            { validityDate: { [Op.gte]: new Date() } },
+          ],
+        });
+      } else if (st === 'draft') {
+        quoteWhereConditions.push({ status: { [Op.iLike]: 'draft' } });
+      } else if (st === 'submitted') {
+        quoteWhereConditions.push({ status: { [Op.iLike]: 'submitted' } });
+      }
+    }
+
+    // ── 2. Date Range Filtering (createdAt) ─────────────────────────────────
+    if (dateFrom || dateTo) {
+      const dateCond: any = {};
+      if (dateFrom) {
+        dateCond[Op.gte] = new Date(dateFrom);
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        dateCond[Op.lte] = toDate;
+      }
+      quoteWhereConditions.push({ createdAt: dateCond });
+    }
+
+    // ── 3. Database Search Filter ───────────────────────────────────────────
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      quoteWhereConditions.push({
+        [Op.or]: [
+          { quoteNumber: { [Op.iLike]: s } },
+          { '$seller.entity_name$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.enquiry_no$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.product.name$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.origin_city$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.origin_port$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.destination_city$': { [Op.iLike]: s } },
+          { '$logistics.enquiry.destination_port$': { [Op.iLike]: s } },
+        ],
+      });
+    }
+
+    const quoteWhere = quoteWhereConditions.length > 0 ? { [Op.and]: quoteWhereConditions } : {};
+
+    // ── 4. Transport Mode Filter ────────────────────────────────────────────
+    const logisticsWhere: any = {};
+    if (transportMode && transportMode !== 'All') {
+      logisticsWhere.transportMode = transportMode;
+    }
+
+    // ── 5. Origin & Destination Filters ─────────────────────────────────────
+    const enquiryWhereConditions: any[] = [];
+    if (origin && origin !== 'all') {
+      const orig = origin.trim();
+      enquiryWhereConditions.push({
+        [Op.or]: [
+          { originCity: { [Op.iLike]: `%${orig}%` } },
+          { originPort: { [Op.iLike]: `%${orig}%` } },
+          { originState: { [Op.iLike]: `%${orig}%` } },
+        ],
+      });
+    }
+    if (destination && destination !== 'all') {
+      const dest = destination.trim();
+      enquiryWhereConditions.push({
+        [Op.or]: [
+          { destinationCity: { [Op.iLike]: `%${dest}%` } },
+          { destinationPort: { [Op.iLike]: `%${dest}%` } },
+          { destinationState: { [Op.iLike]: `%${dest}%` } },
+        ],
+      });
+    }
+    const enquiryWhere = enquiryWhereConditions.length > 0 ? { [Op.and]: enquiryWhereConditions } : undefined;
+
+    // ── 6. Product Filter ───────────────────────────────────────────────────
+    const productWhere: any = {};
+    if (product && product !== 'all') {
+      productWhere.name = { [Op.iLike]: `%${product.trim()}%` };
+    }
+
+    // ── 7. Order Map ────────────────────────────────────────────────────────
+    const orderMap: Record<string, string> = {
+      freightAmount: 'freight_amount',
+      transitDays: 'transit_days',
+      validityDate: 'validity_date',
+      createdAt: 'created_at',
+    };
+    const orderCol = orderMap[sortBy] || 'created_at';
+    const orderDir = (sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // ── 8. Single SQL Query Execution ───────────────────────────────────────
+    const { rows, count } = await this.quoteModel.findAndCountAll({
+      where: quoteWhere,
+      include: [
+        { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+        { model: FreightQuoteCharge, as: 'charges' },
+        {
+          model: Logistics,
+          as: 'logistics',
+          where: Object.keys(logisticsWhere).length > 0 ? logisticsWhere : undefined,
+          required: true,
+          attributes: ['id', 'logisticsNumber', 'transportMode', 'mode', 'status'],
+          include: [
+            {
+              model: Enquiry,
+              as: 'enquiry',
+              where: enquiryWhere,
+              required: true,
+              attributes: [
+                'id', 'enquiryNo', 'originCity', 'originState', 'originPort',
+                'destinationCity', 'destinationState', 'destinationPort',
+                'originCountryId', 'destinationCountry',
+              ],
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  where: Object.keys(productWhere).length > 0 ? productWhere : undefined,
+                  required: Object.keys(productWhere).length > 0,
+                  attributes: ['id', 'name'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [[orderCol, orderDir]],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+      distinct: true,
+      subQuery: false,
+    });
+
+    return {
+      data: rows,
+      total: count,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(count / Number(limit)),
+    };
+  }
+
+
+  /**
+   * Get charge types master list (optionally filtered by shipment mode).
+   */
+  async getChargeMaster(mode?: string) {
+    const where: any = { isActive: true };
+    if (mode && mode.trim()) {
+      where.mode = { [Op.iLike]: mode.trim() };
+    }
+    return this.chargeMasterModel.findAll({
+      where,
+      order: [
+        ['displayOrder', 'ASC'],
+        ['chargeName', 'ASC'],
+      ],
+    });
+  }
+
+  /**
+   * Create a new custom charge type in Charge Master with duplicate name check per mode.
+   */
+  async createChargeMaster(dto: CreateChargeMasterDto) {
+    const mode = dto.mode.trim();
+    const chargeName = dto.chargeName.trim();
+
+    // Check duplicate within same mode
+    const existing = await this.chargeMasterModel.findOne({
+      where: {
+        mode: { [Op.iLike]: mode },
+        chargeName: { [Op.iLike]: chargeName },
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException(
+        `Charge type "${chargeName}" already exists for ${mode} transport.`
+      );
+    }
+
+    const chargeCode =
+      dto.chargeCode?.trim().toUpperCase() ||
+      chargeName.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 15);
+
+    return this.chargeMasterModel.create({
+      mode,
+      chargeName,
+      chargeCode,
+      displayOrder: dto.displayOrder ?? 99,
+      isDefault: dto.isDefault ?? false,
+      isActive: true,
+    } as any);
+  }
 
   /**
    * Get detail logistics workspace of an enquiry.
@@ -198,12 +455,18 @@ export class LogisticsService {
         {
           model: FreightQuote,
           as: 'quotes',
-          include: [{ model: Partner, as: 'seller' }],
+          include: [
+            { model: Partner, as: 'seller' },
+            { model: FreightQuoteCharge, as: 'charges' },
+          ],
         },
         {
           model: FreightQuote,
           as: 'selectedFreight',
-          include: [{ model: Partner, as: 'seller' }],
+          include: [
+            { model: Partner, as: 'seller' },
+            { model: FreightQuoteCharge, as: 'charges' },
+          ],
         },
       ],
       order: [[{ model: FreightQuote, as: 'quotes' }, 'createdAt', 'DESC']],
@@ -262,12 +525,18 @@ export class LogisticsService {
           {
             model: FreightQuote,
             as: 'quotes',
-            include: [{ model: Partner, as: 'seller' }],
+            include: [
+              { model: Partner, as: 'seller' },
+              { model: FreightQuoteCharge, as: 'charges' },
+            ],
           },
           {
             model: FreightQuote,
             as: 'selectedFreight',
-            include: [{ model: Partner, as: 'seller' }],
+            include: [
+              { model: Partner, as: 'seller' },
+              { model: FreightQuoteCharge, as: 'charges' },
+            ],
           },
         ],
       });
@@ -310,6 +579,17 @@ export class LogisticsService {
     }
 
     return await this.sequelize.transaction(async (transaction) => {
+      // Validate and calculate itemized charges
+      let calculatedFreightAmount = dto.freightAmount;
+      if (dto.charges && dto.charges.length > 0) {
+        calculatedFreightAmount = dto.charges.reduce(
+          (sum, item) => sum + Number(item.amount || 0),
+          0
+        );
+      } else if (!dto.freightAmount || dto.freightAmount <= 0) {
+        throw new BadRequestException('At least one freight charge line item is required.');
+      }
+
       // Generate FQ/YYYY/###### number via sequence
       await this.sequelize.query(
         `CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`,
@@ -326,12 +606,26 @@ export class LogisticsService {
       const quote = await this.quoteModel.create(
         {
           ...dto,
+          freightAmount: calculatedFreightAmount,
           quoteNumber,
           logisticsId,
           createdBy: user?.userId,
         } as any,
         { transaction }
       );
+
+      // Persist charge line items
+      if (dto.charges && dto.charges.length > 0) {
+        const chargeRows = dto.charges.map((c, idx) => ({
+          quoteId: quote.id,
+          chargeMasterId: c.chargeMasterId || null,
+          chargeName: c.chargeName,
+          amount: c.amount,
+          remarks: c.remarks || null,
+          displayOrder: c.displayOrder ?? idx + 1,
+        }));
+        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+      }
 
       // Auto-sync manual contact to Partner Master if provided
       await this.syncContactToPartner(
@@ -365,10 +659,16 @@ export class LogisticsService {
         entityType: 'Logistics',
         entityId: logistics.id,
         action: 'QUOTE_ADDED',
-        newValue: { quoteNumber, sellerId: dto.sellerId, freightAmount: dto.freightAmount },
+        newValue: { quoteNumber, sellerId: dto.sellerId, freightAmount: calculatedFreightAmount },
       });
 
-      return quote;
+      return this.quoteModel.findByPk(quote.id, {
+        include: [
+          { model: Partner, as: 'seller' },
+          { model: FreightQuoteCharge, as: 'charges' },
+        ],
+        transaction,
+      });
     });
   }
 
@@ -390,17 +690,49 @@ export class LogisticsService {
     }
 
     await this.sequelize.transaction(async (transaction) => {
+      // Validate and calculate itemized charges
+      let calculatedFreightAmount = dto.freightAmount;
+      if (dto.charges && dto.charges.length > 0) {
+        calculatedFreightAmount = dto.charges.reduce(
+          (sum, item) => sum + Number(item.amount || 0),
+          0
+        );
+      } else if (!dto.freightAmount || dto.freightAmount <= 0) {
+        throw new BadRequestException('At least one freight charge line item is required.');
+      }
+
       // Increment version placeholder
       const newVersion = (quote.version || 1) + 1;
 
       await quote.update(
         {
           ...dto,
+          freightAmount: calculatedFreightAmount,
           version: newVersion,
           updatedBy: user?.userId,
         } as any,
         { transaction }
       );
+
+      // Re-create charges line items
+      if (dto.charges !== undefined) {
+        await this.quoteChargeModel.destroy({
+          where: { quoteId: quote.id },
+          transaction,
+        });
+
+        if (dto.charges && dto.charges.length > 0) {
+          const chargeRows = dto.charges.map((c, idx) => ({
+            quoteId: quote.id,
+            chargeMasterId: c.chargeMasterId || null,
+            chargeName: c.chargeName,
+            amount: c.amount,
+            remarks: c.remarks || null,
+            displayOrder: c.displayOrder ?? idx + 1,
+          }));
+          await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+        }
+      }
 
       // Auto-sync manual contact to Partner Master if provided
       await this.syncContactToPartner(
@@ -421,7 +753,12 @@ export class LogisticsService {
       });
     });
 
-    return quote.reload({ include: [{ model: Partner, as: 'seller' }] });
+    return quote.reload({
+      include: [
+        { model: Partner, as: 'seller' },
+        { model: FreightQuoteCharge, as: 'charges' },
+      ],
+    });
   }
 
   /**

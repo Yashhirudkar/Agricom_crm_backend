@@ -6,7 +6,33 @@ import {
   IsDateString,
   IsNumber,
   Min,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class FreightQuoteChargeDto {
+  @IsOptional()
+  @IsInt()
+  chargeMasterId?: number;
+
+  @IsNotEmpty({ message: 'Charge Type is required.' })
+  @IsString()
+  chargeName: string;
+
+  @IsNotEmpty({ message: 'Amount is required.' })
+  @IsNumber()
+  @Min(0.01, { message: 'Amount must be greater than zero.' })
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @IsOptional()
+  @IsInt()
+  displayOrder?: number;
+}
 
 export class CreateFreightQuoteDto {
   @IsNotEmpty()
@@ -41,10 +67,10 @@ export class CreateFreightQuoteDto {
   @IsString()
   contactNumber?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  freightAmount: number;
+  freightAmount?: number;
 
   @IsOptional()
   @IsString()
@@ -129,6 +155,12 @@ export class CreateFreightQuoteDto {
   @IsOptional()
   @IsString()
   wagonCapacity?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FreightQuoteChargeDto)
+  charges?: FreightQuoteChargeDto[];
 }
 
 export class UpdateFreightQuoteDto extends CreateFreightQuoteDto {}

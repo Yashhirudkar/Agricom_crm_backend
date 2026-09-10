@@ -3,6 +3,8 @@ import { SequelizeModule } from '@nestjs/sequelize';
 
 import { Logistics } from './models/logistics.model';
 import { FreightQuote } from './models/freight-quote.model';
+import { FreightChargeMaster } from './models/freight-charge-master.model';
+import { FreightQuoteCharge } from './models/freight-quote-charge.model';
 import { MonthlyStockSummary } from './models/monthly-stock-summary.model';
 import { MonthlyStockSummaryCountry } from './models/monthly-stock-summary-country.model';
 import { MonthlyStockSection } from './models/monthly-stock-section.model';
@@ -31,6 +33,8 @@ import { RbacModule } from '../rbac/modules/rbac.module';
     SequelizeModule.forFeature([
       Logistics,
       FreightQuote,
+      FreightChargeMaster,
+      FreightQuoteCharge,
       MonthlyStockSummary,
       MonthlyStockSummaryCountry,
       MonthlyStockSection,

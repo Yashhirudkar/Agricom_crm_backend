@@ -95,6 +95,7 @@ import { SalesContractDocument } from './sales-contracts/models/sales-contract-d
 import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
 import { Attachment } from './attachments/models/attachment.model';
 import { PurchaseContract } from './purchase-contracts/models/purchase-contract.model';
+import { PurchaseContractItem } from './purchase-contracts/models/purchase-contract-item.model';
 import { PurchaseContractShipment } from './purchase-contracts/models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contracts/models/purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contracts/models/purchase-contract-activity.model';
@@ -103,6 +104,8 @@ import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts
 import { Enquiry } from './enquiries/models/enquiry.model';
 import { Logistics } from './logistics/models/logistics.model';
 import { FreightQuote } from './logistics/models/freight-quote.model';
+import { FreightChargeMaster } from './logistics/models/freight-charge-master.model';
+import { FreightQuoteCharge } from './logistics/models/freight-quote-charge.model';
 import { MonthlyStockSummary } from './logistics/models/monthly-stock-summary.model';
 import { MonthlyStockSummaryCountry } from './logistics/models/monthly-stock-summary-country.model';
 import { MonthlyStockSection } from './logistics/models/monthly-stock-section.model';
@@ -260,6 +263,7 @@ import {
             SalesContractDocumentFile,
             Attachment,
             PurchaseContract,
+            PurchaseContractItem,
             PurchaseContractShipment,
             PurchaseContractRequiredDocument,
             PurchaseContractActivity,
@@ -304,6 +308,8 @@ import {
             QuotationSequence,
             Logistics,
             FreightQuote,
+            FreightChargeMaster,
+            FreightQuoteCharge,
             MonthlyStockSummary,
             MonthlyStockSummaryCountry,
             MonthlyStockSection,

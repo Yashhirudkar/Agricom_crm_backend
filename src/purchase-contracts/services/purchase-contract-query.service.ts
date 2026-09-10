@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { PurchaseContract } from '../models/purchase-contract.model';
+import { PurchaseContractItem } from '../models/purchase-contract-item.model';
 import { PurchaseContractShipment } from '../models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from '../models/purchase-contract-required-document.model';
 import { PurchaseContractAttachment } from '../models/purchase-contract-attachment.model';
@@ -66,11 +67,12 @@ export class PurchaseContractQueryService {
     const { rows, count } = await this.model.findAndCountAll({
       where: whereClause,
       include: [
+        { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+        { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         {
           model: SalesContract,
           as: 'salesContract',
-          where: Object.keys(salesContractWhere).length > 0 ? salesContractWhere : undefined,
-          required: Object.keys(salesContractWhere).length > 0,
+          required: false,
           attributes: ['id', 'contractNumber', 'financialYear', 'buyerId', 'currencyCode'],
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
@@ -87,7 +89,7 @@ export class PurchaseContractQueryService {
     const data = await Promise.all(
       rows.map(async (pc) => {
         const json: any = pc.toJSON();
-        json.contractNumber = `PC-${pc.salesContract?.contractNumber ?? pc.salesContractId}`;
+        json.contractNumber = pc.contractNumber || (pc.salesContract ? `PC-${pc.salesContract.contractNumber}` : `PC-${pc.id}`);
         json.shipmentCount = await this.shipmentLinkModel.count({ where: { purchaseContractId: pc.id } });
         return json;
       }),
@@ -106,9 +108,21 @@ export class PurchaseContractQueryService {
   async findOneWithDetail(id: number) {
     const pc = await this.model.findByPk(id, {
       include: [
+        { model: Partner, as: 'buyer' },
+        { model: Partner, as: 'seller' },
+        { model: Partner, as: 'broker' },
+        { model: PaymentTerm, as: 'paymentTerm' },
+        {
+          model: PurchaseContractItem,
+          as: 'items',
+          include: [
+            { model: Product, as: 'product', attributes: ['id', 'name'] },
+          ],
+        },
         {
           model: SalesContract,
           as: 'salesContract',
+          required: false,
           include: [
             { model: Partner, as: 'buyer' },
             { model: Partner, as: 'seller' },
@@ -142,7 +156,7 @@ export class PurchaseContractQueryService {
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
     const json: any = pc.toJSON();
-    json.contractNumber = `PC-${pc.salesContract?.contractNumber ?? pc.salesContractId}`;
+    json.contractNumber = pc.contractNumber || (pc.salesContract ? `PC-${pc.salesContract.contractNumber}` : `PC-${pc.id}`);
     if (!json.terms || json.terms.length === 0) {
       json.terms = pc.salesContract?.terms || [];
     }

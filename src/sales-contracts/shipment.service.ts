@@ -22,7 +22,7 @@ export class ShipmentService {
     private readonly contractModel: typeof SalesContract,
     @Inject(forwardRef(() => PurchaseContractService))
     private readonly purchaseContractService: PurchaseContractService,
-  ) {}
+  ) { }
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
     if (status === 'Delivered') {

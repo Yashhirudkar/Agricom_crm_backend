@@ -244,7 +244,7 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
     await this.countryModel.bulkCreate(countryData);
 
-    // If duplicating from sourceSummaryId, copy all section & column structures
+    // If duplicating from sourceSummaryId, deep-copy sections, columns, rows & cells
     if (sourceSummaryId) {
       const sourceSummary = await this.summaryModel.findOne({
         where: { id: sourceSummaryId },
@@ -252,12 +252,20 @@ export class MonthlyStockSummaryService implements OnModuleInit {
           {
             model: MonthlyStockSection,
             as: 'sections',
-            include: [{ model: MonthlyStockSectionColumn, as: 'columns' }],
+            include: [
+              { model: MonthlyStockSectionColumn, as: 'columns' },
+              {
+                model: MonthlyStockSectionRow,
+                as: 'rows',
+                include: [{ model: MonthlyStockRowCell, as: 'cells' }],
+              },
+            ],
           },
         ],
         order: [
           [{ model: MonthlyStockSection, as: 'sections' }, 'displayOrder', 'ASC'],
           [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionColumn, as: 'columns' }, 'displayOrder', 'ASC'],
+          [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionRow, as: 'rows' }, 'rowOrder', 'ASC'],
         ],
       });
 
@@ -267,16 +275,50 @@ export class MonthlyStockSummaryService implements OnModuleInit {
             monthlyStockSummaryId: newRecord.id,
             sectionName: sec.sectionName,
             displayOrder: sec.displayOrder,
+            layoutX: sec.layoutX,
+            layoutY: sec.layoutY,
+            layoutWidth: sec.layoutWidth,
+            layoutHeight: sec.layoutHeight,
           });
 
+          // Map old column ID → new column ID for cell linking
+          const columnIdMap = new Map<number, number>();
+
           if (sec.columns && sec.columns.length > 0) {
-            const colData = sec.columns.map((c, idx) => ({
-              sectionId: newSection.id,
-              columnName: c.columnName,
-              columnKey: `col_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
-              displayOrder: c.displayOrder || idx + 1,
-            }));
-            await this.columnModel.bulkCreate(colData);
+            for (const c of sec.columns) {
+              const newCol = await this.columnModel.create({
+                sectionId: newSection.id,
+                columnName: c.columnName,
+                columnKey: `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                displayOrder: c.displayOrder,
+              });
+              columnIdMap.set(c.id, newCol.id);
+            }
+          }
+
+          // Copy rows and their cells
+          if (sec.rows && sec.rows.length > 0) {
+            for (const row of sec.rows) {
+              const newRow = await this.rowModel.create({
+                sectionId: newSection.id,
+                rowOrder: row.rowOrder,
+                isTotalRow: row.isTotalRow,
+              });
+
+              if (row.cells && row.cells.length > 0) {
+                const cellData = row.cells
+                  .filter((cell) => columnIdMap.has(cell.columnId))
+                  .map((cell) => ({
+                    rowId: newRow.id,
+                    columnId: columnIdMap.get(cell.columnId),
+                    value: cell.value || '',
+                  }));
+
+                if (cellData.length > 0) {
+                  await this.cellModel.bulkCreate(cellData);
+                }
+              }
+            }
           }
         }
       }

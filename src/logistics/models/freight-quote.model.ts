@@ -13,9 +13,11 @@ import {
   DeletedAt,
   ForeignKey,
   BelongsTo,
+  HasMany,
 } from 'sequelize-typescript';
 import { Logistics } from './logistics.model';
 import { Partner } from '../../masters/partner/partner.model';
+import { FreightQuoteCharge } from './freight-quote-charge.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -198,6 +200,9 @@ export class FreightQuote extends Model<FreightQuote> {
   @DeletedAt
   @Column({ field: 'deleted_at' })
   declare deletedAt: Date;
+
+  @HasMany(() => FreightQuoteCharge, 'quoteId')
+  declare charges: FreightQuoteCharge[];
 
   // Runtime total amount getter (combining freight, fuel, and additional charges)
   get totalAmount(): number {

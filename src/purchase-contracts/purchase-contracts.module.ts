@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 
 import { PurchaseContract } from './models/purchase-contract.model';
+import { PurchaseContractItem } from './models/purchase-contract-item.model';
 import { PurchaseContractShipment } from './models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './models/purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './models/purchase-contract-activity.model';
@@ -27,6 +28,7 @@ import { SalesContractsModule } from '../sales-contracts/sales-contracts.module'
   imports: [
     SequelizeModule.forFeature([
       PurchaseContract,
+      PurchaseContractItem,
       PurchaseContractShipment,
       PurchaseContractRequiredDocument,
       PurchaseContractActivity,

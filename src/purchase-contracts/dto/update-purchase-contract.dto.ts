@@ -17,7 +17,28 @@ export class UpdatePurchaseContractDto {
   purchaseType?: any;
 
   @IsOptional()
+  contractNumber?: any;
+
+  @IsOptional()
+  buyerId?: any;
+
+  @IsOptional()
+  sellerId?: any;
+
+  @IsOptional()
   sellerContractNo?: any;
+
+  @IsOptional()
+  paymentTermId?: any;
+
+  @IsOptional()
+  brokerId?: any;
+
+  @IsOptional()
+  brokerCommission?: any;
+
+  @IsOptional()
+  dispatchDate?: any;
 
   @IsOptional()
   notes?: any;
@@ -54,6 +75,12 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   status?: any;
+
+  @IsOptional()
+  items?: any[];
+
+  @IsOptional()
+  shipmentAllocations?: any[];
 
   @IsOptional()
   shipmentIds?: any;
