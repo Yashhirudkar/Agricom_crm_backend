@@ -437,4 +437,197 @@ export class AttendanceCronService {
       this.logger.error('Failed to execute absent marking cron job', error);
     }
   }
+
+  /**
+   * Periodic cron job running every 5 minutes to automatically check out employees 
+   * 1 hour after their Office End Time if they forgot to check out.
+   */
+  @Cron('*/5 * * * *')
+  async processAutoCheckout() {
+    try {
+      // Find active records with open check-ins
+      const openRecords = await this.recordModel.findAll({
+        where: {
+          checkInTime: { [Op.ne]: null },
+          checkOutTime: null,
+          attendanceState: { [Op.in]: [AttendanceState.WORKING, AttendanceState.ON_BREAK] },
+          isPayrollLocked: false,
+        },
+      });
+
+      if (openRecords.length === 0) {
+        return;
+      }
+
+      // Batch prefetch shifts and policies
+      const shifts = await this.shiftModel.findAll();
+      const shiftsMap = new Map(shifts.map((s) => [s.id, s]));
+
+      const policies = await this.policyModel.findAll();
+      const policiesMap = new Map(policies.map((p) => [p.companyId, p]));
+
+      const employeeIds = [...new Set(openRecords.map((r) => r.employeeId))];
+      const employees = await this.employeeModel.findAll({
+        where: { id: { [Op.in]: employeeIds } },
+        include: [Branch],
+      });
+      const employeesMap = new Map(employees.map((e) => [e.id, e]));
+
+      const mutatedRecords: AttendanceRecord[] = [];
+      const now = new Date();
+
+      for (const record of openRecords) {
+        const employee = employeesMap.get(record.employeeId);
+        if (!employee) continue;
+
+        const timezone = employee.branch?.timezone || 'Asia/Kolkata';
+
+        // Current time in employee timezone
+        const todayDateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+        const currentTimeStr = now.toLocaleTimeString('en-US', {
+          hour12: false,
+          timeZone: timezone,
+        });
+        const [currH, currM] = currentTimeStr.split(':').map(Number);
+        const currentMins = currH * 60 + currM;
+
+        // Determine shift end time
+        const shift = record.shiftId ? shiftsMap.get(record.shiftId) : null;
+        const policy = policiesMap.get(employee.companyId);
+
+        let shiftEndTimeStr = '18:00';
+        if (shift?.endTime) {
+          shiftEndTimeStr = shift.endTime;
+        } else if (policy?.defaultShiftEndTime) {
+          shiftEndTimeStr = policy.defaultShiftEndTime;
+        }
+
+        // Calculate 1 hour post Office End Time threshold
+        const shiftEndMins = this.policyEngineService.timeStrToMinutes(shiftEndTimeStr, '18:00');
+        let autoCheckoutThresholdMins = shiftEndMins + 60; // 1 hour post shift end
+
+        if (policy?.autoCheckoutTime && policy.autoCheckoutTime !== '23:59') {
+          const customAutoMins = this.policyEngineService.timeStrToMinutes(policy.autoCheckoutTime, '23:59');
+          autoCheckoutThresholdMins = Math.min(autoCheckoutThresholdMins, customAutoMins);
+        }
+
+        const isPastDate = record.date < todayDateStr;
+        const isPastThresholdToday = record.date === todayDateStr && currentMins >= autoCheckoutThresholdMins;
+
+        if (isPastDate || isPastThresholdToday) {
+          // Night shift safety: if check-in is less than 2 hours old, skip
+          const checkInAgeMs = now.getTime() - new Date(record.checkInTime).getTime();
+          if (checkInAgeMs < 2 * 60 * 60 * 1000) {
+            continue;
+          }
+
+          const tzOffsetMs = this.getTzOffsetMs(timezone);
+          const checkOutTimeVal = new Date(
+            new Date(`${record.date}T${shiftEndTimeStr}:00Z`).getTime() - tzOffsetMs,
+          );
+
+          // Make sure checkOutTimeVal is not before checkInTime
+          const checkInTime = new Date(record.checkInTime);
+          if (checkOutTimeVal.getTime() <= checkInTime.getTime()) {
+            checkOutTimeVal.setTime(checkInTime.getTime() + 60 * 1000);
+          }
+
+          // If employee was ON_BREAK, close open break log at checkOutTimeVal
+          if (record.attendanceState === AttendanceState.ON_BREAK) {
+            try {
+              await this.recordModel.sequelize.query(
+                `INSERT INTO "attendance_logs" ("employeeId", "attendanceRecordId", "actionType", "timestamp", "metadata", "createdAt")
+                 VALUES (:employeeId, :recordId, 'BREAK_END', :timestamp, :metadata, NOW());`,
+                {
+                  replacements: {
+                    employeeId: employee.id,
+                    recordId: record.id,
+                    timestamp: checkOutTimeVal,
+                    metadata: JSON.stringify({
+                      autoClosed: true,
+                      reason: 'Closed open break at auto checkout',
+                    }),
+                  },
+                  type: QueryTypes.INSERT,
+                },
+              );
+            } catch (breakLogErr) {
+              this.logger.error(`Failed to close open break for employee ${employee.id}`, breakLogErr);
+            }
+          }
+
+          // Evaluate policy status
+          const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
+            employee.id,
+            employee.companyId,
+            record.date,
+            record.checkInTime,
+            checkOutTimeVal,
+            shift,
+            policy || null,
+            [],
+            timezone,
+          );
+
+          // Update record: force overtimeHours = 0 for auto-checkout
+          await record.update({
+            checkOutTime: checkOutTimeVal,
+            totalHours: evalResult.netWorkingHours,
+            overtimeHours: 0,
+            attendanceStatus: evalResult.attendanceStatus,
+            attendanceState: AttendanceState.CHECKED_OUT,
+          });
+
+          // Log auto checkout audit event
+          const triggerLocalTimeStr = now.toLocaleTimeString('en-US', {
+            hour12: true,
+            timeZone: timezone,
+          });
+          const recordedCheckoutTimeStr = checkOutTimeVal.toLocaleTimeString('en-US', {
+            hour12: true,
+            timeZone: timezone,
+          });
+
+          try {
+            await this.recordModel.sequelize.query(
+              `INSERT INTO "attendance_logs" ("employeeId", "attendanceRecordId", "actionType", "timestamp", "metadata", "createdAt")
+               VALUES (:employeeId, :recordId, 'CHECK_OUT', :timestamp, :metadata, NOW());`,
+              {
+                replacements: {
+                  employeeId: employee.id,
+                  recordId: record.id,
+                  timestamp: checkOutTimeVal,
+                  metadata: JSON.stringify({
+                    reason: 'System auto checkout due to missed checkout',
+                    triggeredAt: triggerLocalTimeStr,
+                    recordedCheckoutTime: recordedCheckoutTimeStr,
+                  }),
+                },
+                type: QueryTypes.INSERT,
+              },
+            );
+          } catch (logErr) {
+            this.logger.error(`Failed to create auto checkout audit log for employee ${employee.id}`, logErr);
+          }
+
+          mutatedRecords.push(record);
+          this.logger.log(
+            `Employee ID ${employee.id}: Auto checked-out (triggered at ${triggerLocalTimeStr}, recorded checkOutTime: ${checkOutTimeVal.toISOString()}).`,
+          );
+        }
+      }
+
+      // Emit WebSocket updates
+      for (const record of mutatedRecords) {
+        try {
+          this.attendanceGateway.emitAttendanceUpdate('auto_checkout', record);
+        } catch (err) {
+          this.logger.error(`Failed to emit auto checkout socket update for employee ${record.employeeId}`, err);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Failed to execute auto checkout cron job', error);
+    }
+  }
 }
+
