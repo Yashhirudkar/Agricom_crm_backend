@@ -109,3 +109,21 @@ export class GetLeaveRequestsFilterDto {
   @IsString()
   month?: string;
 }
+
+export class GetPaginatedLeaveRequestsDto {
+  /** Tab: PENDING or HISTORY (APPROVED | REJECTED | CANCELLED) */
+  @IsEnum(['PENDING', 'HISTORY'])
+  @IsOptional()
+  tab?: 'PENDING' | 'HISTORY';
+
+  /** Opaque base64url-encoded cursor from previous page */
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  /** Page size, server enforces max=50, default=30 */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+}

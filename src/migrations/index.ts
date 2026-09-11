@@ -21,6 +21,7 @@ import * as phase20 from './phase-20-monthly-stock-sections';
 import * as phase21 from './phase-21-mtt-purchase-contracts';
 import * as phase22 from './phase-22-freight-dynamic-charges';
 import * as phase23 from './phase-23-freight-management-nav';
+import * as phase24 from './phase-24-leave-cursor-indexes';
 
 
 export interface MigrationPhase {
@@ -59,6 +60,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase21,
   phase22,
   phase23,
+  phase24,
 ];
 
 

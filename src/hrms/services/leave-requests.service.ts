@@ -599,4 +599,22 @@ export class LeaveRequestsService {
   ): Promise<any> {
     return this.queryService.getMonthlyLeaveSummary(companyId, query);
   }
+
+  async getLeaveRequestsPaginated(
+    companyId: number,
+    tab: 'PENDING' | 'HISTORY',
+    cursor?: string,
+    limit?: number,
+  ): Promise<any> {
+    return this.queryService.getLeaveRequestsPaginated(
+      companyId,
+      tab,
+      cursor,
+      limit,
+    );
+  }
+
+  async getManagerSummaryStats(companyId: number): Promise<any> {
+    return this.queryService.getManagerSummaryStats(companyId);
+  }
 }

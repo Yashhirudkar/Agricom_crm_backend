@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import {
@@ -17,6 +21,62 @@ import { Department } from '../../companies/models/department.model';
 import { Designation } from '../models/designation.model';
 import { User } from '../../users/models/user.model';
 import { GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
+
+/** ------------------------------------------------------------------ *
+ *  Cursor encoding / decoding helpers
+ * ------------------------------------------------------------------ */
+
+interface CursorPayload {
+  createdAt: string; // ISO 8601 string
+  id: number;
+}
+
+function encodeCursor(payload: CursorPayload): string {
+  return Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
+}
+
+/**
+ * Decode & strictly validate an opaque cursor.
+ * Throws BadRequestException on any malformed / tampered input.
+ */
+function decodeCursor(raw: string): CursorPayload {
+  let json: string;
+  try {
+    json = Buffer.from(raw, 'base64url').toString('utf-8');
+  } catch {
+    throw new BadRequestException('Invalid pagination cursor');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new BadRequestException('Invalid pagination cursor');
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('createdAt' in parsed) ||
+    !('id' in parsed)
+  ) {
+    throw new BadRequestException('Invalid pagination cursor');
+  }
+
+  const { createdAt, id } = parsed as Record<string, unknown>;
+
+  // Validate ISO date
+  if (typeof createdAt !== 'string' || isNaN(Date.parse(createdAt))) {
+    throw new BadRequestException('Invalid pagination cursor: bad date');
+  }
+
+  // Validate id — must be a safe positive integer
+  if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0) {
+    throw new BadRequestException('Invalid pagination cursor: bad id');
+  }
+
+  return { createdAt: createdAt as string, id: id as number };
+}
 
 @Injectable()
 export class LeaveRequestsQueryService {
@@ -491,6 +551,275 @@ export class LeaveRequestsQueryService {
         total: totalCount,
         totalPages,
       },
+    };
+  }
+
+  // ------------------------------------------------------------------ //
+  //  Cursor-based paginated endpoint for Manager Approvals page         //
+  // ------------------------------------------------------------------ //
+
+  /**
+   * Returns a page of leave requests using keyset / cursor pagination.
+   *
+   * - PENDING tab  → status = 'PENDING'
+   * - HISTORY tab  → status IN ('APPROVED', 'REJECTED', 'CANCELLED')
+   *
+   * Ordering is always:  createdAt DESC, id DESC
+   * Max page size:       50   (server-enforced)
+   * Default page size:   30
+   */
+  async getLeaveRequestsPaginated(
+    companyId: number,
+    tab: 'PENDING' | 'HISTORY',
+    cursor?: string,
+    rawLimit?: number,
+  ): Promise<{
+    items: any[];
+    pagination: { nextCursor: string | null; hasMore: boolean };
+  }> {
+    // Server-side cap — never trust the client's requested limit
+    const limit = Math.min(Math.max(1, rawLimit ?? 30), 50);
+    const fetchLimit = limit + 1; // fetch one extra to detect hasMore
+
+    // Build WHERE clause
+    const where: any = { companyId };
+
+    if (tab === 'PENDING') {
+      where.status = LeaveRequestStatus.PENDING;
+    } else {
+      // HISTORY = all settled statuses (matches frontend: status !== 'PENDING')
+      where.status = {
+        [Op.in]: [
+          LeaveRequestStatus.APPROVED,
+          LeaveRequestStatus.REJECTED,
+          LeaveRequestStatus.CANCELLED,
+        ],
+      };
+    }
+
+    // Decode & apply cursor for keyset navigation
+    if (cursor) {
+      const decoded = decodeCursor(cursor); // throws 400 on invalid input
+      const cursorDate = decoded.createdAt;
+      const cursorId = decoded.id;
+
+      // Keyset condition:
+      //   (createdAt < cursorDate)
+      //   OR (createdAt = cursorDate AND id < cursorId)
+      where[Op.and] = [
+        {
+          [Op.or]: [
+            { createdAt: { [Op.lt]: new Date(cursorDate) } },
+            {
+              [Op.and]: [
+                { createdAt: new Date(cursorDate) },
+                { id: { [Op.lt]: cursorId } },
+              ],
+            },
+          ],
+        },
+      ];
+    }
+
+    // Only select fields actually required by the card UI
+    // Avoids SELECT * and keeps payloads small
+    const rows = await this.leaveRequestModel.findAll({
+      where,
+      limit: fetchLimit,
+      attributes: [
+        'id',
+        'companyId',
+        'employeeId',
+        'leaveTypeId',
+        'fromDate',
+        'toDate',
+        'totalDays',
+        'isHalfDay',
+        'halfDayType',
+        'reason',
+        'status',
+        'attachmentPath',
+        'mimeType',
+        'rejectedReason',
+        'createdAt',
+        'updatedAt',
+      ],
+      include: [
+        {
+          model: Employee,
+          attributes: [
+            'id',
+            'firstName',
+            'lastName',
+            'email',
+            'employeeCode',
+          ],
+        },
+        {
+          model: LeaveType,
+          attributes: ['id', 'name', 'code', 'isPaid'],
+        },
+        {
+          model: LeaveApprovalStep,
+          include: [
+            {
+              model: Employee,
+              as: 'approver',
+              attributes: ['id', 'firstName', 'lastName'],
+            },
+          ],
+        },
+        {
+          model: LeaveApprovalLog,
+          include: [
+            {
+              model: User,
+              as: 'performer',
+              attributes: ['id', 'name'],
+            },
+          ],
+        },
+      ],
+      // Stable deterministic order — matches partial index columns
+      order: [
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+    });
+
+    const hasMore = rows.length > limit;
+    if (hasMore) rows.pop(); // remove the extra sentinel record
+
+    // Derive approver name from audit log (same logic as existing getLeaveRequests)
+    const items = rows.map((row) => {
+      const plain = row.get({ plain: true });
+
+      let approverName: string | null = null;
+      let approverId: number | null = null;
+      let approvedAt: string | null = null;
+
+      if (
+        plain.status === LeaveRequestStatus.APPROVED ||
+        plain.status === LeaveRequestStatus.REJECTED
+      ) {
+        const actionLog = plain.approvalLogs?.find(
+          (log: any) => log.action === 'APPROVED' || log.action === 'REJECTED',
+        );
+        if (actionLog) {
+          approverId = actionLog.performedBy;
+          approvedAt = actionLog.createdAt instanceof Date
+            ? actionLog.createdAt.toISOString()
+            : String(actionLog.createdAt);
+          approverName = actionLog.performer?.name ?? 'Former User';
+        }
+      }
+
+      return { ...plain, approverId, approverName, approvedAt };
+    });
+
+    // Build next cursor from the last returned item
+    let nextCursor: string | null = null;
+    if (hasMore && items.length > 0) {
+      const last = items[items.length - 1];
+      nextCursor = encodeCursor({
+        createdAt: new Date(last.createdAt).toISOString(),
+        id: last.id,
+      });
+    }
+
+    return {
+      items,
+      pagination: { nextCursor, hasMore },
+    };
+  }
+
+  // ------------------------------------------------------------------ //
+  //  Manager summary stats — independent from infinite-scroll pages     //
+  // ------------------------------------------------------------------ //
+
+  /**
+   * Returns aggregated summary card data for the Manager Analytics page.
+   * These counts must NOT come from the currently-loaded infinite-scroll
+   * pages — they are always company-wide.
+   *
+   * Uses COUNT aggregations on indexed columns only.
+   * Does NOT run on every scroll request — called once and cached by the
+   * frontend (React Query staleTime).
+   */
+  async getManagerSummaryStats(companyId: number): Promise<{
+    onLeaveToday: number;
+    totalRequests: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    totalLeaveDays: number;
+  }> {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // All counts run as separate indexed COUNT queries — never COUNT(*)
+    // on a full-table scan.
+
+    const [totalRequests, approved, pending, rejected] = await Promise.all([
+      this.leaveRequestModel.count({ where: { companyId } }),
+
+      this.leaveRequestModel.count({
+        where: { companyId, status: LeaveRequestStatus.APPROVED },
+      }),
+
+      this.leaveRequestModel.count({
+        where: { companyId, status: LeaveRequestStatus.PENDING },
+      }),
+
+      this.leaveRequestModel.count({
+        where: {
+          companyId,
+          status: {
+            [Op.in]: [
+              LeaveRequestStatus.REJECTED,
+              LeaveRequestStatus.CANCELLED,
+            ],
+          },
+        },
+      }),
+    ]);
+
+    // On-leave today: employees with APPROVED leave that spans today
+    const todayOnLeave = await this.leaveRequestModel.findAll({
+      where: {
+        companyId,
+        status: LeaveRequestStatus.APPROVED,
+        fromDate: { [Op.lte]: todayStr },
+        toDate: { [Op.gte]: todayStr },
+      },
+      attributes: ['employeeId'],
+    });
+    const onLeaveToday = new Set(todayOnLeave.map((r) => r.employeeId)).size;
+
+    // Total approved leave days — SUM on indexed column
+    const [leaveDaysResult] = await this.leaveRequestModel.sequelize.query<{
+      total: string;
+    }>(
+      `SELECT COALESCE(SUM("totalDays"), 0)::text AS total
+       FROM leave_requests
+       WHERE "companyId" = :companyId
+         AND status = 'APPROVED'`,
+      {
+        replacements: { companyId },
+        type: 'SELECT' as any,
+      },
+    );
+
+    const totalLeaveDays = parseFloat(
+      (leaveDaysResult as any)?.total ?? '0',
+    );
+
+    return {
+      onLeaveToday,
+      totalRequests,
+      approved,
+      pending,
+      rejected,
+      totalLeaveDays,
     };
   }
 }

@@ -25,6 +25,7 @@ import {
   RejectLeaveDto,
   CancelLeaveDto,
   GetLeaveRequestsFilterDto,
+  GetPaginatedLeaveRequestsDto,
 } from '../dto/leave-requests.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
@@ -153,6 +154,40 @@ export class LeaveRequestsController {
   ) {
     const companyId = this.getCompanyId(req);
     return this.leaveRequestsService.getMonthlyLeaveSummary(companyId, query);
+  }
+
+  // ------------------------------------------------------------------
+  //  Cursor-based paginated endpoint — for Manager Approvals infinite
+  //  scroll. Must appear BEFORE :id to avoid route conflict.
+  // ------------------------------------------------------------------
+
+  @Get('paginated')
+  @RequirePermission('leave:approve')
+  async getLeaveRequestsPaginated(
+    @Query() query: GetPaginatedLeaveRequestsDto,
+    @Request() req,
+  ) {
+    const companyId = this.getCompanyId(req);
+    const tab = query.tab ?? 'PENDING';
+    const cursor = query.cursor;
+    const limit = query.limit;
+    return this.leaveRequestsService.getLeaveRequestsPaginated(
+      companyId,
+      tab,
+      cursor,
+      limit,
+    );
+  }
+
+  // ------------------------------------------------------------------
+  //  Manager summary stats — independent aggregations for summary cards
+  // ------------------------------------------------------------------
+
+  @Get('manager-stats')
+  @RequirePermission('leave:approve')
+  async getManagerSummaryStats(@Request() req) {
+    const companyId = this.getCompanyId(req);
+    return this.leaveRequestsService.getManagerSummaryStats(companyId);
   }
 
   @Get(':id')
