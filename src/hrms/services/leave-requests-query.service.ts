@@ -265,7 +265,7 @@ export class LeaveRequestsQueryService {
             },
           ],
         },
-        { model: LeaveApprovalLog },
+        { model: LeaveApprovalLog, as: 'logs' },
       ],
       order: [
         [{ model: LeaveApprovalLog, as: 'logs' } as any, 'createdAt', 'DESC'],

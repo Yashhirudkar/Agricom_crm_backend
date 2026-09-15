@@ -141,6 +141,6 @@ export class LeaveRequest extends Model<LeaveRequest> {
   @HasMany(() => LeaveApprovalStep)
   declare approvalSteps: LeaveApprovalStep[];
 
-  @HasMany(() => LeaveApprovalLog)
+  @HasMany(() => LeaveApprovalLog, { as: 'logs' })
   declare approvalLogs: LeaveApprovalLog[];
 }
