@@ -12,7 +12,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreatePartnerContactDto {
   @IsString()
@@ -21,24 +21,28 @@ export class CreatePartnerContactDto {
   name: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(100)
-  designation?: string;
+  designation?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(50)
-  phone?: string;
+  phone?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsEmail()
   @MaxLength(255)
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(50)
-  communicationType?: string;
+  communicationType?: string | null;
 
   @IsOptional()
   @IsBoolean()
@@ -62,59 +66,68 @@ export class CreatePartnerDto {
   country: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : Number(value)))
   @IsInt()
   @Min(1900)
   @Max(new Date().getFullYear())
-  @Type(() => Number)
-  yearOfEstablishment?: number;
+  yearOfEstablishment?: number | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(1000)
-  address?: string;
+  address?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(100)
-  city?: string;
+  city?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(300)
-  website?: string;
+  website?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsEmail()
   @MaxLength(255)
-  contactEmail?: string;
+  contactEmail?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(50)
-  taxId?: string;
+  taxId?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(50)
-  panNo?: string;
+  panNo?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(50)
-  innNo?: string;
+  innNo?: string | null;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(100)
-  financialStatus?: string;
+  financialStatus?: string | null;
 
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
-  productNotes?: string;
+  productNotes?: string | null;
 
   @IsOptional()
   @IsArray()

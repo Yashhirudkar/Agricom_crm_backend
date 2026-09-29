@@ -115,6 +115,7 @@ export class PartnerService {
 
     if (dto.address) dto.address = dto.address.trim();
     if (dto.city) dto.city = dto.city.trim();
+    if (dto.contactEmail) dto.contactEmail = dto.contactEmail.trim().toLowerCase();
 
     await this.validateForeignKeys(
       dto.partnerRoleId,
@@ -461,6 +462,9 @@ export class PartnerService {
     }
     if (dto.city) {
       dto.city = dto.city.trim();
+    }
+    if (dto.contactEmail) {
+      dto.contactEmail = dto.contactEmail.trim().toLowerCase();
     }
 
     if (dto.partnerRoleId || dto.productIds) {
