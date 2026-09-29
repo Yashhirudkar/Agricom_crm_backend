@@ -296,6 +296,7 @@ export class EnquiriesService {
           customerName:  (partner as any)?.entityName  || undefined,
           product:       (product as any)?.name         || undefined,
           quantity:      enquiry.quantity  != null ? String(enquiry.quantity)           : undefined,
+          quantityUnit:  'MT',
           origin:        origin            || undefined,
           destination:   destination       || undefined,
           shipmentDate:  enquiry.shipmentDate            || undefined,
