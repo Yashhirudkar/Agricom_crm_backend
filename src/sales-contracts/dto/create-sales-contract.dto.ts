@@ -30,12 +30,12 @@ export class CreateSalesContractItemDto {
 
   @IsNotEmpty()
   @IsNumber()
-  @Min(0.01)
+  @Min(0)
   unitPrice: number;
 
   @IsNotEmpty()
   @IsNumber()
-  @Min(0.01)
+  @Min(0)
   amount: number;
 
   @IsNotEmpty()
@@ -151,35 +151,35 @@ export class CreateSalesContractDto {
   @IsInt()
   brokerId?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  currencyCode: string;
+  currencyCode?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  @Min(0.01)
-  totalQuantity: number;
+  @Min(0)
+  totalQuantity?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  @Min(0.01)
-  totalAmount: number;
+  @Min(0)
+  totalAmount?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
-  shipmentTypeId: number;
+  shipmentTypeId?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
-  paymentTermId: number;
+  paymentTermId?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  originCountry: string;
+  originCountry?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  destinationCountry: string;
+  destinationCountry?: string;
 
   @IsOptional()
   @IsString()
