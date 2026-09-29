@@ -240,7 +240,7 @@ export class EnquiriesService {
     );
 
     const normalized = this.normalizeLogisticsPayload(dto);
-    this.validateLogistics(normalized);
+    // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Pre-fetch relation names outside the transaction to keep it short
     const [partner, product, creator] = await Promise.all([
@@ -463,7 +463,7 @@ export class EnquiriesService {
     // Merge current values with incoming update payload for complete state validation
     const merged = { ...enquiry.toJSON(), ...dto };
     const normalizedMerged = this.normalizeLogisticsPayload(merged);
-    this.validateLogistics(normalizedMerged);
+    // this.validateLogistics(normalizedMerged); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Apply normalization to actual delta properties for DB update
     const normalizedDto = this.normalizeLogisticsPayload(dto);

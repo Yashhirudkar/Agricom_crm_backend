@@ -65,7 +65,7 @@ export class LeaveRequestsWorkflowService {
     private readonly conflictService: AttendanceConflictService,
     private readonly notificationsService: NotificationsService,
     private readonly leaveCalculationService: LeaveCalculationService,
-  ) {}
+  ) { }
 
   async approveLeave(
     requestId: number,
@@ -614,7 +614,7 @@ export class LeaveRequestsWorkflowService {
                 const resourceName = ra.resource?.name;
                 const actionName = ra.name?.toLowerCase();
                 if (!resourceName || !actionName) return false;
-                
+
                 let res = resourceName;
                 let act = actionName;
                 if (res === 'manager' && act === 'approve_leave') {
@@ -647,7 +647,7 @@ export class LeaveRequestsWorkflowService {
                   where: { roleId: roleIds },
                   attributes: ['userId'],
                 });
-                
+
                 const globalUserIds = globalUserRoles.map((ur: any) => ur.userId);
                 if (globalUserIds.length > 0) {
                   const companyProfile = await this.employeeModel.sequelize.models.Company.findByPk(emp.companyId);
