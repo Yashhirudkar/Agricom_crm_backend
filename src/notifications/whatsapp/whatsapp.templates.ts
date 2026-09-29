@@ -62,6 +62,7 @@ export class WhatsAppTemplates {
     const lines: string[] = ['🌾 *New Enquiry Created*\n\n'];
 
     lines.push(WhatsAppTemplates.line('Enquiry No', data.enquiryNo));
+    lines.push(WhatsAppTemplates.line('Created By', data.createdByName));
     lines.push(WhatsAppTemplates.line('Customer', data.customerName));
     lines.push(WhatsAppTemplates.line('Product', data.product));
 
@@ -83,7 +84,6 @@ export class WhatsAppTemplates {
       lines.push(WhatsAppTemplates.line('Bid', bidStr));
     }
 
-    lines.push(WhatsAppTemplates.line('Created By', data.createdByName));
     lines.push(WhatsAppTemplates.line('Created At', WhatsAppTemplates.formatDate(data.createdAt)));
 
     return lines.filter((l) => l !== '').join('');
