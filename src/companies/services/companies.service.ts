@@ -16,6 +16,8 @@ import {
   INDUSTRY_TYPES,
   COMPANY_SIZES,
 } from '../../constants/company-options';
+import { NotificationDispatchService } from '../../notifications/services/notification-dispatch.service';
+import { NotificationChannel, NotificationTemplate } from '../../notifications/notification.types';
 
 @Injectable()
 export class CompaniesService {
@@ -25,6 +27,7 @@ export class CompaniesService {
     @InjectModel(Client)
     private readonly clientModel: typeof Client,
     private readonly auditService: AuditService,
+    private readonly notificationDispatchService: NotificationDispatchService,
   ) {}
 
   // ─── Create ──────────────────────────────────────────────────────────────
@@ -83,6 +86,12 @@ export class CompaniesService {
       establishedYear: data.establishedYear ?? null,
       isActive: data.isActive !== undefined ? data.isActive : true,
       status: 'Active',
+      
+      ...(actor?.type === 'super_admin' && {
+        whatsappEnabled: data.whatsappEnabled ?? false,
+        whatsappGroupId: data.whatsappGroupId ?? null,
+        whatsappGroupName: data.whatsappGroupName ?? null,
+      }),
     });
 
     if (actor) {
@@ -165,6 +174,10 @@ export class CompaniesService {
       }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
       ...(data.status !== undefined && { status: data.status }),
+      
+      ...(actor?.type === 'super_admin' && data.whatsappEnabled !== undefined && { whatsappEnabled: data.whatsappEnabled }),
+      ...(actor?.type === 'super_admin' && data.whatsappGroupId !== undefined && { whatsappGroupId: data.whatsappGroupId }),
+      ...(actor?.type === 'super_admin' && data.whatsappGroupName !== undefined && { whatsappGroupName: data.whatsappGroupName }),
     });
 
     const updated = await company.reload();
@@ -347,5 +360,25 @@ export class CompaniesService {
         totalPages: Math.ceil(count / parsedLimit),
       },
     };
+  }
+
+  // ─── Test Message ─────────────────────────────────────────────────────────
+
+  async sendTestMessage(id: number, clientId: number | null) {
+    const company = await this.getCompanyById(id, clientId);
+    if (!company.whatsappEnabled) {
+      throw new ConflictException('WhatsApp notifications are disabled for this company');
+    }
+
+    await this.notificationDispatchService.send({
+      channel: NotificationChannel.WHATSAPP,
+      template: NotificationTemplate.TEST_MESSAGE,
+      companyId: company.id,
+      payload: {
+        companyName: company.name,
+      },
+    });
+
+    return { success: true, message: 'Test message requested. Check notification logs for status.' };
   }
 }

@@ -13,12 +13,14 @@ import { AuditLog } from '../../audit/models/audit-log.model';
 import { User } from '../../users/models/user.model';
 import { AttendanceRecord } from '../../attendance/models/attendance-record.model';
 import { AttendancePolicyEngineService } from '../../attendance/services/attendance-policy-engine.service';
+import { NotificationsModule } from '../../notifications/notifications.module';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Company, CompanyHrPolicy, AuditLog, User, AttendanceRecord]),
     RbacModule,
     AuditModule,
+    NotificationsModule,
   ],
   controllers: [CompaniesController, CompanyHrPoliciesController],
   providers: [CompaniesService, CompanyHrPoliciesService, AttendancePolicyEngineService],

@@ -138,6 +138,21 @@ export class CreateCompanyDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  // WhatsApp
+  @IsOptional()
+  @IsBoolean()
+  whatsappEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  whatsappGroupId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  whatsappGroupName?: string;
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
@@ -260,6 +275,21 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  // WhatsApp
+  @IsOptional()
+  @IsBoolean()
+  whatsappEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  whatsappGroupId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  whatsappGroupName?: string;
 }
 
 // ─── Delete ──────────────────────────────────────────────────────────────────

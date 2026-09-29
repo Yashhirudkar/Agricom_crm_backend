@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -20,6 +21,8 @@ import { buildSearchQuery } from '../masters/common/search.helper';
 import { buildPaginatedResponse } from '../masters/common/response.helper';
 import { AuditService } from '../audit/services/audit.service';
 import { EnquiryShipmentMode } from './enquiry.constants';
+import { NotificationDispatchService } from '../notifications/services/notification-dispatch.service';
+import { NotificationChannel, NotificationTemplate, NotificationRecipient } from '../notifications/notification.types';
 
 const INCLUDE_RELATIONS = [
   {
@@ -52,6 +55,8 @@ const INCLUDE_RELATIONS = [
 
 @Injectable()
 export class EnquiriesService {
+  private readonly logger = new Logger(EnquiriesService.name);
+
   constructor(
     @InjectModel(Enquiry)
     private readonly enquiryModel: typeof Enquiry,
@@ -65,6 +70,7 @@ export class EnquiriesService {
     private readonly packingTypeModel: typeof PackingType,
     private sequelize: Sequelize,
     private readonly auditService: AuditService,
+    private readonly notificationDispatchService: NotificationDispatchService,
   ) {}
 
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
@@ -236,20 +242,77 @@ export class EnquiriesService {
     const normalized = this.normalizeLogisticsPayload(dto);
     this.validateLogistics(normalized);
 
-    return await this.sequelize.transaction(async (transaction) => {
-      const enquiryNo = await this.generateEnquiryNumber(transaction);
+    // Pre-fetch relation names outside the transaction to keep it short
+    const [partner, product, creator] = await Promise.all([
+      normalized.partnerId
+        ? this.partnerModel.findByPk(normalized.partnerId, { attributes: ['id', 'entityName'] })
+        : Promise.resolve(null),
+      normalized.productId
+        ? this.productModel.findByPk(normalized.productId, { attributes: ['id', 'name'] })
+        : Promise.resolve(null),
+      user?.userId
+        ? this.sequelize.query('SELECT name FROM users WHERE id = ?', {
+            replacements: [user.userId],
+            type: QueryTypes.SELECT,
+          }).then((res: any) => res[0])
+        : Promise.resolve(null),
+    ]);
 
-      const enquiry = await this.enquiryModel.create(
-        {
-          ...normalized,
-          enquiryNo,
-          createdBy: user?.userId,
-        },
+    // ── DB transaction ────────────────────────────────────────────────────────
+    const enquiry = await this.sequelize.transaction(async (transaction) => {
+      const enquiryNo = await this.generateEnquiryNumber(transaction);
+      return this.enquiryModel.create(
+        { ...normalized, enquiryNo, createdBy: user?.userId },
         { transaction },
       );
-
-      return enquiry;
     });
+
+    // ── Fire-and-forget notification ──────────────────────────────────────────
+    // Runs AFTER transaction commits.
+    // Any failure is caught by dispatch service and logged to notification_logs.
+    // This line NEVER throws — enquiry creation is always unaffected.
+    const origin =
+      enquiry.originPort ||
+      [enquiry.originCity, enquiry.originState, enquiry.originCountryId]
+        .filter(Boolean)
+        .join(', ');
+
+    const destination =
+      enquiry.destinationPort ||
+      [enquiry.destinationCity, enquiry.destinationState, enquiry.destinationCountry]
+        .filter(Boolean)
+        .join(', ');
+
+    this.notificationDispatchService
+      .send({
+        channel:    NotificationChannel.WHATSAPP,
+        template:   NotificationTemplate.NEW_ENQUIRY,
+        recipient:  NotificationRecipient.SALES_GROUP,
+        entityType: 'Enquiry',
+        entityId:   enquiry.id,
+        companyId:  user?.companyId || null,
+        payload: {
+          enquiryNo:     enquiry.enquiryNo,
+          customerName:  (partner as any)?.entityName  || undefined,
+          product:       (product as any)?.name         || undefined,
+          quantity:      enquiry.quantity  != null ? String(enquiry.quantity)           : undefined,
+          origin:        origin            || undefined,
+          destination:   destination       || undefined,
+          shipmentDate:  enquiry.shipmentDate            || undefined,
+          bid:           enquiry.buyingInterest != null ? String(enquiry.buyingInterest) : undefined,
+          bidCurrency:   enquiry.bidCurrency             || undefined,
+          createdByName: (creator as any)?.name          || undefined,
+          createdAt:     new Date(),
+        },
+      })
+      .catch((err) =>
+        this.logger.error(
+          `[Notification] Unhandled error for ${enquiry.enquiryNo}: ${err?.message}`,
+          err?.stack,
+        ),
+      );
+
+    return enquiry;
   }
 
   async findAll(query: QueryEnquiryDto) {

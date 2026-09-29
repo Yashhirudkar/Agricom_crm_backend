@@ -173,6 +173,25 @@ export class Company extends Model<Company> {
   @Column({ type: DataType.STRING(50) })
   declare status: string; // 'Active' | 'Inactive' | 'Archived'
 
+  // ── WhatsApp Config ────────────────────────────────────────────────────────
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare whatsappEnabled: boolean;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare whatsappGroupId: string | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare whatsappGroupName: string | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATE })
+  declare whatsappConnectedAt: Date | null;
+
   // ── Timestamps ─────────────────────────────────────────────────────────────
 
   @CreatedAt

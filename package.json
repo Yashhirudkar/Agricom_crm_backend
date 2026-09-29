@@ -44,6 +44,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.27",
     "@types/compression": "^1.8.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "airport-data-js": "^3.1.0",
     "airports-json": "^1.0.0",
     "bcryptjs": "^3.0.3",

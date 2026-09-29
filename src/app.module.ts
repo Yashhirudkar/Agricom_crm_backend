@@ -119,6 +119,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module';
 import { LocationsModule } from './locations/locations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { Notification } from './notifications/models/notification.model';
+import { NotificationLog } from './notifications/models/notification-log.model';
 import { FollowUpManagementModule } from './follow-up-management/follow-up-management.module';
 import { QuotationsModule } from './quotations/quotations.module';
 import { Quotation } from './quotations/models/quotation.model';
@@ -281,6 +282,7 @@ import {
             TaskLabel,
             TaskLabelMap,
             Notification,
+            NotificationLog,
             Conversation,
             ConversationSetting,
             ConversationMember,

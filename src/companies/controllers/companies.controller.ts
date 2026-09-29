@@ -13,6 +13,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -64,6 +65,7 @@ export class CompaniesController {
       clientId: req.user.clientId || null,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      type: req.user.type,
     };
     if (req.user.type === 'super_admin') {
       if (!dto.clientId) {
@@ -86,6 +88,7 @@ export class CompaniesController {
       clientId: req.user.clientId || null,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      type: req.user.type,
     };
     const clientId = req.user.type === 'super_admin' ? null : req.user.clientId;
     return this.companiesService.updateCompany(dto.id, clientId, dto, actor);
@@ -100,6 +103,7 @@ export class CompaniesController {
       clientId: req.user.clientId || null,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
+      type: req.user.type,
     };
     const clientId = req.user.type === 'super_admin' ? null : req.user.clientId;
     return this.companiesService.deleteCompany(dto.id, clientId, actor);
@@ -229,5 +233,16 @@ export class CompaniesController {
     }
 
     return { success: true, url: `/uploads/company/favicons/${file.filename}` };
+  }
+
+  @Post('UpdateCompany/:id/test-whatsapp')
+  @RequirePermission('companies:update')
+  @HttpCode(HttpStatus.OK)
+  async sendTestMessage(@Request() req, @Param('id', ParseIntPipe) id: number) {
+    if (req.user.type !== 'super_admin') {
+      throw new ForbiddenException('Only platform super admin can test WhatsApp configuration');
+    }
+    const clientId = null; // since super admin
+    return this.companiesService.sendTestMessage(id, clientId);
   }
 }

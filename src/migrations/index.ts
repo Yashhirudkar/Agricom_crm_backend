@@ -22,7 +22,10 @@ import * as phase21 from './phase-21-mtt-purchase-contracts';
 import * as phase22 from './phase-22-freight-dynamic-charges';
 import * as phase23 from './phase-23-freight-management-nav';
 import * as phase24 from './phase-24-leave-cursor-indexes';
-
+import * as phase25 from './phase-25-cargo-availability';
+import * as phase26 from './phase-26-custom-locations';
+import * as phase27 from './phase-27-notification-logs';
+import * as phase28 from './phase-28-company-whatsapp';
 
 export interface MigrationPhase {
   phase: string;
@@ -34,7 +37,6 @@ export interface MigrationPhase {
 /**
  * All migration phases in dependency order.
  * Each phase only depends on tables created in previous phases.
- *
  */
 export const ALL_PHASES: MigrationPhase[] = [
   phase01,
@@ -61,6 +63,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase22,
   phase23,
   phase24,
+  phase25,
+  phase26,
+  phase27,
+  phase28,
 ];
-
-
