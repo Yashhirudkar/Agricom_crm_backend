@@ -113,6 +113,14 @@ import { MonthlyStockSectionColumn } from './logistics/models/monthly-stock-sect
 import { MonthlyStockSectionRow } from './logistics/models/monthly-stock-section-row.model';
 import { MonthlyStockRowCell } from './logistics/models/monthly-stock-row-cell.model';
 import { LogisticsModule } from './logistics/logistics.module';
+import { CargoAvailabilityModule } from './cargo-availability/cargo-availability.module';
+import {
+  CargoAvailability,
+  CargoReadiness,
+  CargoShipmentAllocation,
+  CargoLoading,
+  CargoDocument,
+} from './cargo-availability/models';
 
 import { TasksModule } from './tasks/tasks.module';
 import { EnquiriesModule } from './enquiries/enquiries.module';
@@ -318,6 +326,11 @@ import {
             MonthlyStockSectionColumn,
             MonthlyStockSectionRow,
             MonthlyStockRowCell,
+            CargoAvailability,
+            CargoReadiness,
+            CargoShipmentAllocation,
+            CargoLoading,
+            CargoDocument,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -350,6 +363,7 @@ import {
     ChatModule,
     QuotationsModule,
     LogisticsModule,
+    CargoAvailabilityModule,
   ],
   providers: [
     {
