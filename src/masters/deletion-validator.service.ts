@@ -13,7 +13,7 @@ export class DeletionValidatorService {
     private readonly partnerModel: typeof Partner,
     @InjectModel(PartnerProduct)
     private readonly partnerProductModel: typeof PartnerProduct,
-  ) {}
+  ) { }
 
   async validateCategoryDelete(categoryId: number): Promise<void> {
     const productCount = await this.productModel.count({

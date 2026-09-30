@@ -20,6 +20,12 @@ export class ShipmentService {
     private readonly shipmentModel: typeof SalesContractShipment,
     @InjectModel(SalesContract)
     private readonly contractModel: typeof SalesContract,
+    @InjectModel(SalesContractItem)
+    private readonly itemModel: typeof SalesContractItem,
+    @InjectModel(SalesContractDocument)
+    private readonly docModel: typeof SalesContractDocument,
+    @InjectModel(SalesContractDocumentFile)
+    private readonly docFileModel: typeof SalesContractDocumentFile,
     @Inject(forwardRef(() => PurchaseContractService))
     private readonly purchaseContractService: PurchaseContractService,
   ) { }
@@ -86,7 +92,7 @@ export class ShipmentService {
 
     const whereClause: any = {};
     const contractWhereClause: any = {};
-    
+
     if (companyId) {
       contractWhereClause.companyId = companyId;
     }
@@ -162,6 +168,15 @@ export class ShipmentService {
       ];
     }
 
+    // 5b. Product filter (via subquery on sales_contract_items to prevent cartesian duplication)
+    if (productId) {
+      contractWhereClause.id = {
+        [Op.in]: Sequelize.literal(
+          `(SELECT sales_contract_id FROM sales_contract_items WHERE product_id = ${Number(productId)})`,
+        ),
+      };
+    }
+
     // 6. Search across multiple tables
     if (search) {
       whereClause[Op.or] = [
@@ -171,33 +186,16 @@ export class ShipmentService {
       ];
     }
 
-    // Includes
+    // Strictly 1:1 Includes: 1 shipment = 1 SQL row (eliminates pagination bugs)
     const includes: any[] = [
       {
         model: SalesContract,
         as: 'salesContract',
-        where: contractWhereClause,
+        where: Object.keys(contractWhereClause).length > 0 ? contractWhereClause : undefined,
         required: true,
         include: [
           { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
           { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
-          {
-            model: SalesContractItem,
-            as: 'items',
-            required: productId ? true : false,
-            where: productId ? { productId } : undefined,
-            include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
-          },
-          {
-            model: SalesContractDocument,
-            as: 'documents',
-            include: [{ model: TradeDocument, as: 'tradeDocument', attributes: ['id', 'name', 'mandatoryByDefault'] }],
-          },
-          {
-            model: SalesContractDocumentFile,
-            as: 'documentFiles',
-            attributes: ['id', 'tradeDocumentId', 'attachmentId'],
-          },
         ],
       },
     ];
@@ -233,36 +231,89 @@ export class ShipmentService {
       order,
     });
 
+    const contractIds = Array.from(
+      new Set(rows.map((s) => s.salesContractId || s.salesContract?.id).filter(Boolean)),
+    );
+
+    const itemsByContract = new Map<number, any[]>();
+    const docsByContract = new Map<number, any[]>();
+    const filesByContract = new Map<number, any[]>();
+
+    if (contractIds.length > 0) {
+      const [items, documents, documentFiles] = await Promise.all([
+        this.itemModel.findAll({
+          where: { salesContractId: { [Op.in]: contractIds } },
+          include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+        }),
+        this.docModel.findAll({
+          where: { salesContractId: { [Op.in]: contractIds } },
+          include: [{ model: TradeDocument, as: 'tradeDocument', attributes: ['id', 'name', 'mandatoryByDefault'] }],
+        }),
+        this.docFileModel.findAll({
+          where: { salesContractId: { [Op.in]: contractIds } },
+          attributes: ['id', 'salesContractId', 'tradeDocumentId', 'attachmentId'],
+        }),
+      ]);
+
+      for (const item of items) {
+        const cid = (item as any).salesContractId;
+        if (!itemsByContract.has(cid)) itemsByContract.set(cid, []);
+        itemsByContract.get(cid)!.push(item);
+      }
+
+      for (const doc of documents) {
+        const cid = (doc as any).salesContractId;
+        if (!docsByContract.has(cid)) docsByContract.set(cid, []);
+        docsByContract.get(cid)!.push(doc);
+      }
+
+      for (const file of documentFiles) {
+        const cid = (file as any).salesContractId;
+        if (!filesByContract.has(cid)) filesByContract.set(cid, []);
+        filesByContract.get(cid)!.push(file);
+      }
+    }
+
     const data = rows.map((shipment) => {
       const json = (shipment.toJSON ? shipment.toJSON() : { ...shipment }) as any;
+      const contractId = json.salesContractId || json.salesContract?.id;
+      const contractItems = itemsByContract.get(contractId) || [];
+      const contractDocs = docsByContract.get(contractId) || [];
+      const contractFiles = filesByContract.get(contractId) || [];
+
+      if (json.salesContract) {
+        json.salesContract.items = contractItems;
+        json.salesContract.documents = contractDocs;
+        json.salesContract.documentFiles = contractFiles;
+      }
+
       // Dynamic timeline object injection
       json.timeline = this.calculateTimeline(json.shipmentDate, json.status);
 
       // Extract products list for grid ease
-      json.products = json.salesContract?.items?.map((item: any) => ({
+      json.products = contractItems.map((item: any) => ({
         id: item.product?.id,
         name: item.product?.name,
-      })) || [];
+      }));
 
       // Calculate document progress
-      const mandatoryDocs = json.salesContract?.documents?.filter((doc: any) => doc.isMandatory) || [];
-      const uploadedFiles = json.salesContract?.documentFiles || [];
+      const mandatoryDocs = contractDocs.filter((doc: any) => doc.isMandatory);
       const uploadedMandatoryCount = mandatoryDocs.filter((doc: any) =>
-        uploadedFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId),
+        contractFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId),
       ).length;
 
       json.documentProgress = {
         total: mandatoryDocs.length,
         uploaded: uploadedMandatoryCount,
         percentage: mandatoryDocs.length > 0 ? Math.round((uploadedMandatoryCount / mandatoryDocs.length) * 100) : 100,
-        checklist: json.salesContract?.documents?.map((doc: any) => {
-          const hasFile = uploadedFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId);
+        checklist: contractDocs.map((doc: any) => {
+          const hasFile = contractFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId);
           return {
             name: doc.tradeDocument?.name || 'Document',
             isMandatory: doc.isMandatory,
             uploaded: hasFile,
           };
-        }) || [],
+        }),
       };
 
       return json;
@@ -299,6 +350,37 @@ export class ShipmentService {
     let totalContainers = 0;
     let totalQuantity = 0;
 
+    const contractIds = Array.from(
+      new Set(shipments.map((s) => s.salesContractId || s.salesContract?.id).filter(Boolean)),
+    );
+
+    const docsByContract = new Map<number, any[]>();
+    const filesByContract = new Map<number, any[]>();
+
+    if (contractIds.length > 0) {
+      const [documents, documentFiles] = await Promise.all([
+        this.docModel.findAll({
+          where: { salesContractId: { [Op.in]: contractIds } },
+        }),
+        this.docFileModel.findAll({
+          where: { salesContractId: { [Op.in]: contractIds } },
+          attributes: ['id', 'salesContractId', 'tradeDocumentId'],
+        }),
+      ]);
+
+      for (const doc of documents) {
+        const cid = (doc as any).salesContractId;
+        if (!docsByContract.has(cid)) docsByContract.set(cid, []);
+        docsByContract.get(cid)!.push(doc);
+      }
+
+      for (const file of documentFiles) {
+        const cid = (file as any).salesContractId;
+        if (!filesByContract.has(cid)) filesByContract.set(cid, []);
+        filesByContract.get(cid)!.push(file);
+      }
+    }
+
     for (const s of shipments) {
       const dateStr = s.shipmentDate.toString();
       const status = s.status;
@@ -324,12 +406,12 @@ export class ShipmentService {
       }
 
       // Check document completeness
-      const contract = s.salesContract;
-      if (contract) {
-        const mandatoryDocs = contract.documents?.filter((doc) => doc.isMandatory) || [];
-        const uploadedFiles = contract.documentFiles || [];
-        const missingMandatory = mandatoryDocs.some((doc) =>
-          !uploadedFiles.some((file) => file.tradeDocumentId === doc.tradeDocumentId),
+      const cid = s.salesContractId || s.salesContract?.id;
+      if (cid) {
+        const mandatoryDocs = (docsByContract.get(cid) || []).filter((doc: any) => doc.isMandatory);
+        const uploadedFiles = filesByContract.get(cid) || [];
+        const missingMandatory = mandatoryDocs.some((doc: any) =>
+          !uploadedFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId),
         );
         if (missingMandatory) {
           pendingDocsCount++;
