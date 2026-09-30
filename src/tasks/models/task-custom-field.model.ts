@@ -12,6 +12,8 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { Client } from '../../clients/models/client.model';
+import { Company } from '../../companies/models/company.model';
+
 
 export enum TaskCustomFieldType {
   TEXT = 'TEXT',
@@ -26,6 +28,15 @@ export enum TaskCustomFieldType {
   timestamps: true,
 })
 export class TaskCustomField extends Model<TaskCustomField> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

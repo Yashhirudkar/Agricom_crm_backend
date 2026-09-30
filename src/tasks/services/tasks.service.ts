@@ -55,10 +55,10 @@ export class TasksService {
     private readonly notificationsService: NotificationsService,
   ) { }
 
-  async findAll(clientId: number, userId: number, query: TaskQueryDto) {
+  async findAll(clientId: number, companyId: number, userId: number, query: TaskQueryDto) {
     // Inject userId into query for presets that need it
     (query as any).userId = userId;
-    const result = await this.taskQueryRepo.findAndCountAll(clientId, query);
+    const result = await this.taskQueryRepo.findAndCountAll(clientId, companyId, query);
 
     // Enrich with sync health/due status
     const enrichedData = result.data.map((task) => {
@@ -88,8 +88,8 @@ export class TasksService {
     };
   }
 
-  async findOne(id: number, clientId: number) {
-    const task = await this.taskQueryRepo.getDetailHydrated(id, clientId);
+  async findOne(id: number, clientId: number, companyId: number) {
+    const task = await this.taskQueryRepo.getDetailHydrated(id, clientId, companyId);
     if (!task) throw new NotFoundException('Task not found');
 
     const isCompleted = task.status?.isCompleted || false;
@@ -109,9 +109,9 @@ export class TasksService {
     };
   }
 
-  async getStatuses(clientId: number) {
+  async getStatuses(clientId: number, companyId: number) {
     let statuses = await this.statusModel.findAll({
-      where: { clientId },
+      where: { clientId, companyId },
       order: [['order', 'ASC']],
     });
 
@@ -131,7 +131,7 @@ export class TasksService {
       if (missingStatuses.length > 0) {
         await this.statusModel.bulkCreate(missingStatuses);
         statuses = await this.statusModel.findAll({
-          where: { clientId },
+          where: { clientId, companyId },
           order: [['order', 'ASC']],
         });
       }
@@ -140,9 +140,9 @@ export class TasksService {
     return statuses;
   }
 
-  async getPriorities(clientId: number) {
+  async getPriorities(clientId: number, companyId: number) {
     let priorities = await this.priorityModel.findAll({
-      where: { clientId },
+      where: { clientId, companyId },
       order: [['order', 'ASC']],
     } as any);
 
@@ -161,7 +161,7 @@ export class TasksService {
       if (missingPriorities.length > 0) {
         await this.priorityModel.bulkCreate(missingPriorities);
         priorities = await this.priorityModel.findAll({
-          where: { clientId },
+          where: { clientId, companyId },
           order: [['order', 'ASC']],
         } as any);
       }
@@ -170,7 +170,7 @@ export class TasksService {
     return priorities;
   }
 
-  async create(clientId: number, userId: number, dto: CreateTaskDto) {
+  async create(clientId: number, companyId: number, userId: number, dto: CreateTaskDto) {
     const transaction = await this.sequelize.transaction();
     try {
       // 1. Generate Task Code safely
@@ -267,7 +267,7 @@ export class TasksService {
         resolvedPriorityId = priority.id;
       } else if (dto.priorityId) {
         const priority = await this.priorityModel.findOne({
-          where: { id: dto.priorityId, [Op.or]: [{ clientId }, { clientId: null }] },
+          where: { id: dto.priorityId, [Op.or]: [{ clientId, companyId }, { clientId: null }] },
         });
         if (!priority)
           throw new NotFoundException(
@@ -291,7 +291,7 @@ export class TasksService {
       }
 
       // 3. Create Task
-      const taskPayload: any = {
+      const taskPayload: any = { companyId,
         ...dto,
         statusId: resolvedStatusId,
         priorityId: resolvedPriorityId,
@@ -312,6 +312,7 @@ export class TasksService {
         await this.taskRepo.setAssignees(
           task.id,
           clientId,
+          companyId,
           dto.assigneeIds,
           userId,
           transaction,
@@ -321,6 +322,7 @@ export class TasksService {
         await this.taskRepo.setLabels(
           task.id,
           clientId,
+          companyId,
           dto.labelIds,
           transaction,
         );
@@ -355,6 +357,7 @@ export class TasksService {
   async update(
     id: number,
     clientId: number,
+    companyId: number,
     userId: number,
     dto: UpdateTaskDto,
   ) {
@@ -363,6 +366,7 @@ export class TasksService {
       const oldTask = await this.taskRepo.findByIdAndClient(
         id,
         clientId,
+        companyId,
         transaction,
       );
       if (!oldTask) throw new NotFoundException('Task not found');
@@ -386,7 +390,7 @@ export class TasksService {
         const priority = await this.priorityModel.findOne({
           where: {
             id: dto.priorityId,
-            [Op.or]: [{ clientId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }]
           },
         });
         if (!priority) throw new NotFoundException('Priority not found');
@@ -404,7 +408,7 @@ export class TasksService {
         const status = await this.statusModel.findOne({
           where: {
             id: dto.statusId,
-            [Op.or]: [{ clientId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }]
           },
         });
         if (!status) throw new NotFoundException('Status not found');
@@ -414,7 +418,7 @@ export class TasksService {
         const ownerUser = await this.userModel.findOne({
           where: {
             id: dto.ownerId,
-            [Op.or]: [{ clientId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }]
           },
           transaction,
         });
@@ -425,7 +429,7 @@ export class TasksService {
         const count = await this.userModel.count({
           where: {
             id: { [Op.in]: dto.assigneeIds },
-            [Op.or]: [{ clientId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }]
           },
         });
         if (count !== dto.assigneeIds.length)
@@ -449,6 +453,7 @@ export class TasksService {
       const [affectedCount, [updatedTask]] = await this.taskRepo.update(
         id,
         clientId,
+        companyId,
         updatePayload,
         transaction,
       );
@@ -458,6 +463,7 @@ export class TasksService {
         await this.taskRepo.setAssignees(
           id,
           clientId,
+          companyId,
           dto.assigneeIds,
           userId,
           transaction,
@@ -513,18 +519,20 @@ export class TasksService {
   async archive(
     id: number,
     clientId: number,
+    companyId: number,
     userId: number,
     dto: ArchiveTaskDto,
   ) {
     const transaction = await this.sequelize.transaction();
     try {
-      const task = await this.taskRepo.findByIdAndClient(id, clientId, transaction);
+      const task = await this.taskRepo.findByIdAndClient(id, clientId, companyId, transaction);
       if (!task) throw new NotFoundException('Task not found');
 
       const isArchived = dto.isArchived ?? true;
       await this.taskRepo.update(
         id,
         clientId,
+        companyId,
         {
           isArchived,
           archivedAt: isArchived ? new Date() : null,
@@ -561,12 +569,13 @@ export class TasksService {
     }
   }
 
-  async delete(id: number, clientId: number, userId: number) {
+  async delete(id: number, clientId: number, companyId: number, userId: number) {
     const transaction = await this.sequelize.transaction();
     try {
       const task = await this.taskRepo.findByIdAndClient(
         id,
         clientId,
+        companyId,
         transaction,
       );
       if (!task) throw new NotFoundException('Task not found');
@@ -577,7 +586,7 @@ export class TasksService {
         throw new ForbiddenException('Only the task owner is allowed to delete this task.');
       }
 
-      await this.taskRepo.softDelete(id, clientId, transaction);
+      await this.taskRepo.softDelete(id, clientId, companyId, transaction);
       await this.activityService.logEvent(
         id,
         clientId,
@@ -606,11 +615,11 @@ export class TasksService {
     }
   }
 
-  async restore(id: number, clientId: number, userId: number) {
+  async restore(id: number, clientId: number, companyId: number, userId: number) {
     const transaction = await this.sequelize.transaction();
     try {
       const task = await this.taskModel.findOne({
-        where: { id, clientId },
+        where: { id, clientId, companyId },
         paranoid: false,
         transaction,
       });
@@ -705,13 +714,13 @@ export class TasksService {
     }
   }
 
-  private buildBulkWhere(clientId: number, dto: any, userId?: number): any {
+  private buildBulkWhere(clientId: number, companyId: number, dto: any, userId?: number): any {
     if (dto.selectAll) {
       const filters = { ...dto.filters };
       if (userId && (filters.userId === undefined || filters.userId === null)) {
         filters.userId = userId;
       }
-      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, filters);
+      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, companyId, filters);
       
       if (dto.excludedIds && dto.excludedIds.length > 0) {
         where.id = { [Op.notIn]: dto.excludedIds };
@@ -749,15 +758,16 @@ export class TasksService {
     } else {
       return {
         clientId,
+        companyId,
         id: { [Op.in]: dto.ids || [] }
       };
     }
   }
 
-  async bulkArchive(clientId: number, userId: number, dto: BulkArchiveDto) {
+  async bulkArchive(clientId: number, companyId: number, userId: number, dto: BulkArchiveDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto, userId);
+      const where = this.buildBulkWhere(clientId, companyId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,
@@ -779,7 +789,7 @@ export class TasksService {
           archivedById: isArchived ? userId : null,
         },
         {
-          where: { id: { [Op.in]: matchedIds }, clientId },
+          where: { id: { [Op.in]: matchedIds }, clientId, companyId },
           transaction,
         }
       );
@@ -802,10 +812,10 @@ export class TasksService {
     }
   }
 
-  async bulkChangeStatus(clientId: number, userId: number, dto: BulkStatusDto) {
+  async bulkChangeStatus(clientId: number, companyId: number, userId: number, dto: BulkStatusDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto, userId);
+      const where = this.buildBulkWhere(clientId, companyId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,
@@ -829,7 +839,7 @@ export class TasksService {
       }
 
       const status = await this.statusModel.findOne({
-        where: { id: dto.statusId, clientId },
+        where: { id: dto.statusId, clientId, companyId },
         transaction,
       });
       if (!status) throw new NotFoundException('Status not found');
@@ -840,7 +850,7 @@ export class TasksService {
           version: Sequelize.literal('"version" + 1'),
         },
         {
-          where: { id: { [Op.in]: matchedIds }, clientId },
+          where: { id: { [Op.in]: matchedIds }, clientId, companyId },
           transaction,
         }
       );
@@ -863,10 +873,10 @@ export class TasksService {
     }
   }
 
-  async bulkDelete(clientId: number, userId: number, dto: BulkActionDto) {
+  async bulkDelete(clientId: number, companyId: number, userId: number, dto: BulkActionDto) {
     const transaction = await this.sequelize.transaction();
     try {
-      const where = this.buildBulkWhere(clientId, dto, userId);
+      const where = this.buildBulkWhere(clientId, companyId, dto, userId);
       
       const tasks = await this.taskModel.findAll({
         where,
@@ -882,7 +892,7 @@ export class TasksService {
       }
 
       await this.taskModel.destroy({
-        where: { id: { [Op.in]: matchedIds }, clientId },
+        where: { id: { [Op.in]: matchedIds }, clientId, companyId },
         transaction,
       });
 

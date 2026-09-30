@@ -49,6 +49,25 @@ export class PurchaseContractService {
     private readonly sequelize: Sequelize,
   ) {}
 
+  private async validateForeignKeys(companyId: number, dto: any) {
+    if (dto.buyerId) {
+      const buyer = await Partner.findOne({ where: { id: dto.buyerId, companyId } });
+      if (!buyer) throw new BadRequestException('Buyer not found or does not belong to company');
+    }
+    if (dto.sellerId) {
+      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+    }
+    if (dto.brokerId) {
+      const broker = await Partner.findOne({ where: { id: dto.brokerId, companyId } });
+      if (!broker) throw new BadRequestException('Broker not found or does not belong to company');
+    }
+    if (dto.paymentTermId) {
+      const pt = await PaymentTerm.findOne({ where: { id: dto.paymentTermId, companyId } });
+      if (!pt) throw new BadRequestException('Payment Term not found or does not belong to company');
+    }
+  }
+
   /**
    * Auto-create flow: Called by ShipmentService after first shipment save.
    * Idempotent — if PC already exists for this sales contract, returns it.
@@ -58,7 +77,7 @@ export class PurchaseContractService {
 
     if (!pc) {
       const salesContract = await this.salesContractModel.findByPk(salesContractId, {
-        attributes: ['id', 'contractNumber'],
+        attributes: ['id', 'contractNumber', 'companyId'],
       });
       if (!salesContract) throw new NotFoundException('Sales Contract not found');
 
@@ -68,6 +87,7 @@ export class PurchaseContractService {
         status: 'Draft',
         createdBy: userId ?? null,
         updatedBy: userId ?? null,
+        companyId: salesContract.companyId,
       } as any);
 
       await this.activityService.log(
@@ -109,10 +129,12 @@ export class PurchaseContractService {
       let pc: PurchaseContract;
 
       if (dto.salesContractId) {
-        const salesContract = await this.salesContractModel.findByPk(dto.salesContractId);
-        if (!salesContract) throw new NotFoundException('Sales Contract not found');
+        const salesContract = await this.salesContractModel.findOne({ where: { id: dto.salesContractId, companyId: user?.companyId } });
+        if (!salesContract) throw new NotFoundException('Sales Contract not found or does not belong to company');
         pc = await this.ensureExists(dto.salesContractId, user?.userId, dto.shipmentIds);
       } else {
+        await this.validateForeignKeys(user?.companyId, dto);
+
         // Manual MTT creation flow
         const count = await this.model.count({ where: { purchaseType: 'MTT' } });
         const autoNo = `PC-MTT-${String(count + 1001).padStart(6, '0')}`;
@@ -138,6 +160,7 @@ export class PurchaseContractService {
           status: 'Draft',
           createdBy: user?.userId,
           updatedBy: user?.userId,
+          companyId: user?.companyId || null,
         } as any);
 
         await this.activityService.log(
@@ -206,8 +229,11 @@ export class PurchaseContractService {
     });
   }
 
-  async findOne(id: number): Promise<PurchaseContract> {
-    const pc = await this.model.findByPk(id, {
+  async findOne(id: number, companyId?: number): Promise<PurchaseContract> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const pc = await this.model.findOne({
+      where,
       include: [
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
@@ -232,7 +258,9 @@ export class PurchaseContractService {
   }
 
   async update(id: number, dto: UpdatePurchaseContractDto, user: any): Promise<PurchaseContract> {
-    const pc = await this.findOne(id);
+    const pc = await this.findOne(id, user?.companyId);
+    await this.validateForeignKeys(user?.companyId, dto);
+    
     const { shipmentIds, shipmentAllocations, items, shipmentScheduleData, ...updateData } = dto;
 
     const sanitizeData: any = {};
@@ -339,7 +367,7 @@ export class PurchaseContractService {
   }
 
   async updateStatus(id: number, dto: UpdatePurchaseContractStatusDto, user: any): Promise<PurchaseContract> {
-    const pc = await this.findOne(id);
+    const pc = await this.findOne(id, user?.companyId);
     const currentStatus = pc.status;
     const nextStatus = dto.status;
 
@@ -392,7 +420,7 @@ export class PurchaseContractService {
   }
 
   async remove(id: number, user: any): Promise<{ success: boolean }> {
-    const pc = await this.findOne(id);
+    const pc = await this.findOne(id, user?.companyId);
     if (!['Draft', 'Cancelled'].includes(pc.status)) {
       throw new BadRequestException('Only Draft or Cancelled Purchase Contracts can be deleted');
     }

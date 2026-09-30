@@ -82,6 +82,7 @@ export class LogisticsService {
     // Exclude cancelled enquiries (show NEW, PENDING, CONFIRMED, CLOSED, etc.)
     const whereConditions: any[] = [
       { status: { [Op.notIn]: ['CANCELLED'] } },
+      { companyId },
     ];
 
     // ── Mode Filter (case-insensitive, null-safe) ─────────────────────────────
@@ -289,8 +290,8 @@ export class LogisticsService {
       logisticsWhere.transportMode = transportMode;
     }
 
-    // ── 5. Origin & Destination Filters ─────────────────────────────────────
-    const enquiryWhereConditions: any[] = [];
+    // ── 5. Origin & Destination Filters & Company Isolation ──
+    const enquiryWhereConditions: any[] = [{ companyId }];
     if (origin && origin !== 'all') {
       const orig = origin.trim();
       enquiryWhereConditions.push({
@@ -439,7 +440,8 @@ export class LogisticsService {
    * Auto-creates the Logistics record if missing.
    */
   async getDetails(enquiryId: string, companyId: number = 1) {
-    const enquiry = await this.enquiryModel.findByPk(enquiryId, {
+    const enquiry = await this.enquiryModel.findOne({
+      where: { id: enquiryId, companyId },
       include: [
         { model: Partner, as: 'partner' },
         { model: Product, as: 'product' },
@@ -578,6 +580,11 @@ export class LogisticsService {
       throw new NotFoundException('Logistics record not found');
     }
 
+    if (dto.sellerId) {
+      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+    }
+
     return await this.sequelize.transaction(async (transaction) => {
       // Validate and calculate itemized charges
       let calculatedFreightAmount = dto.freightAmount;
@@ -687,6 +694,11 @@ export class LogisticsService {
     });
     if (!quote) {
       throw new NotFoundException('Freight quote not found');
+    }
+
+    if (dto.sellerId) {
+      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
     }
 
     await this.sequelize.transaction(async (transaction) => {

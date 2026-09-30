@@ -37,14 +37,14 @@ export class PaymentTermController {
 
   @Get()
   @RequirePermission('payment-term:view')
-  async findAll(@Query() query: QueryPaymentTermDto) {
-    return await this.service.findAll(query);
+  async findAll(@Query() query: QueryPaymentTermDto, @Req() req: any) {
+    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get(':id')
   @RequirePermission('payment-term:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
@@ -69,7 +69,7 @@ export class PaymentTermController {
   @RequirePermission('payment-term:force_delete')
   @AuditLog({ entityType: 'PaymentTerm', action: 'FORCE_DELETE' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  removePermanent(@Param('id', ParseIntPipe) id: number) {
-    return this.service.removePermanent(id);
+  removePermanent(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.service.removePermanent(id, req.user?.companyId);
   }
 }

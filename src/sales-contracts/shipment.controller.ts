@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   HttpStatus,
   HttpCode,
+  Req,
 } from '@nestjs/common';
 import { ShipmentService } from './shipment.service';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
@@ -24,14 +25,14 @@ export class ShipmentController {
 
   @Get()
   @RequirePermission('shipments:view')
-  async findAll(@Query() query: QueryShipmentDto) {
-    return await this.service.findAll(query);
+  async findAll(@Query() query: QueryShipmentDto, @Req() req: any) {
+    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get('stats')
   @RequirePermission('shipments:view')
-  async getStats(@Query() query: QueryShipmentDto) {
-    return await this.service.getStats(query);
+  async getStats(@Query() query: QueryShipmentDto, @Req() req: any) {
+    return await this.service.getStats({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Patch(':id')
@@ -40,7 +41,8 @@ export class ShipmentController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShipmentDto,
+    @Req() req: any,
   ) {
-    return await this.service.update(id, dto);
+    return await this.service.update(id, dto, req.user);
   }
 }

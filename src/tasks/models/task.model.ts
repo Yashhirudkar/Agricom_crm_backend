@@ -22,6 +22,8 @@ import { TaskComment } from './task-comment.model';
 import { TaskAttachment } from './task-attachment.model';
 import { TaskLabelMap } from './task-label-map.model';
 import { HasMany } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'tasks',
@@ -41,6 +43,15 @@ import { HasMany } from 'sequelize-typescript';
   ],
 })
 export class Task extends Model<Task> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

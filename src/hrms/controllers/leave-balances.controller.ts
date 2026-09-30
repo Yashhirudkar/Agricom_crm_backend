@@ -19,13 +19,6 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 export class LeaveBalancesController {
   constructor(private readonly leaveBalancesService: LeaveBalancesService) { }
 
-  private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
-    if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
-    }
-    return parseInt(companyId, 10);
-  }
 
   @Get('employee/:employeeId')
   @RequirePermission('leave:create')
@@ -34,7 +27,8 @@ export class LeaveBalancesController {
     @Query('year') yearParam: string,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       type: req.user.type || null,

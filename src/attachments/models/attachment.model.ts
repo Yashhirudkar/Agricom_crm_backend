@@ -9,7 +9,10 @@ import {
   CreatedAt,
   UpdatedAt,
   DeletedAt,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'attachments',
@@ -62,9 +65,13 @@ export class Attachment extends Model<Attachment> {
   @Column({ field: 'uploaded_by', type: DataType.INTEGER })
   declare uploadedBy: number;
 
+  @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
   declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
 
   @CreatedAt
   @Column({ field: 'created_at' })

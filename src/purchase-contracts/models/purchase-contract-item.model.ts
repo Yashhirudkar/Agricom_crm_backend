@@ -15,6 +15,7 @@ import {
 import { PurchaseContract } from './purchase-contract.model';
 import { Product } from '../../masters/product/product.model';
 import { PurchaseContractShipment } from './purchase-contract-shipment.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'purchase_contract_items',
@@ -25,6 +26,14 @@ import { PurchaseContractShipment } from './purchase-contract-shipment.model';
   ],
 })
 export class PurchaseContractItem extends Model<PurchaseContractItem> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

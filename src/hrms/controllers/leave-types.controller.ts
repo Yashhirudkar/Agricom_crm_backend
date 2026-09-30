@@ -25,13 +25,6 @@ import { CreateLeaveTypeDto, UpdateLeaveTypeDto } from '../dto/leave-types.dto';
 export class LeaveTypesController {
   constructor(private readonly leaveTypesService: LeaveTypesService) {}
 
-  private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
-    if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
-    }
-    return parseInt(companyId, 10);
-  }
 
   private getActor(req: any) {
     return {
@@ -47,7 +40,8 @@ export class LeaveTypesController {
   @RequirePermission('leave_types:create')
   @HttpCode(HttpStatus.CREATED)
   createLeaveType(@Body() dto: CreateLeaveTypeDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.leaveTypesService.createLeaveType(companyId, dto, actor);
   }
@@ -56,7 +50,8 @@ export class LeaveTypesController {
   @Get('for-apply')
   @RequirePermission('leave:create')
   getLeaveTypesForEmployee(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.leaveTypesService.getLeaveTypes(companyId, {
       page: 1,
       limit: 200,
@@ -71,7 +66,8 @@ export class LeaveTypesController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.leaveTypesService.getLeaveTypes(companyId, {
       search,
       page: page ? parseInt(page, 10) : 1,
@@ -82,7 +78,8 @@ export class LeaveTypesController {
   @Get(':id')
   @RequirePermission('leave:read')
   getLeaveTypeById(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.leaveTypesService.getLeaveTypeById(id, companyId);
   }
 
@@ -93,7 +90,8 @@ export class LeaveTypesController {
     @Body() dto: UpdateLeaveTypeDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.leaveTypesService.updateLeaveType(id, companyId, dto, actor);
   }
@@ -101,7 +99,8 @@ export class LeaveTypesController {
   @Delete(':id')
   @RequirePermission('leave_types:delete')
   deleteLeaveType(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.leaveTypesService.deleteLeaveType(id, companyId, actor);
   }

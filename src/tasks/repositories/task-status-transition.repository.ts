@@ -11,9 +11,9 @@ export class TaskStatusTransitionRepository {
     private readonly model: typeof TaskStatusTransition,
   ) {}
 
-  async findAllByClient(clientId: number): Promise<TaskStatusTransition[]> {
+  async findAllByClient(clientId: number, companyId: number): Promise<TaskStatusTransition[]> {
     return this.model.findAll({
-      where: { clientId },
+      where: { clientId, companyId },
       include: [
         { model: TaskStatus, as: 'fromStatus' },
         { model: TaskStatus, as: 'toStatus' },
@@ -23,14 +23,15 @@ export class TaskStatusTransitionRepository {
 
   async isAllowed(
     clientId: number,
+    companyId: number,
     fromStatusId: number,
     toStatusId: number,
   ): Promise<boolean> {
-    const rules = await this.model.count({ where: { clientId } });
+    const rules = await this.model.count({ where: { clientId, companyId } });
     if (rules === 0) return true; // No rules configured → allow all
 
     const match = await this.model.findOne({
-      where: { clientId, fromStatusId, toStatusId },
+      where: { clientId, companyId, fromStatusId, toStatusId },
     });
     return !!match;
   }
@@ -42,7 +43,7 @@ export class TaskStatusTransitionRepository {
     return this.model.create(data, { transaction });
   }
 
-  async delete(id: number, clientId: number): Promise<number> {
-    return this.model.destroy({ where: { id, clientId } });
+  async delete(id: number, clientId: number, companyId: number): Promise<number> {
+    return this.model.destroy({ where: { id, clientId, companyId } });
   }
 }

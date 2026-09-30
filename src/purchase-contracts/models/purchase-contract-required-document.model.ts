@@ -14,6 +14,7 @@ import {
 import { PurchaseContract } from './purchase-contract.model';
 import { TradeDocument } from '../../masters/trade-document/trade-document.model';
 import { Attachment } from '../../attachments/models/attachment.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Tracks which trade documents are required for this Purchase Contract
@@ -28,6 +29,14 @@ import { Attachment } from '../../attachments/models/attachment.model';
   ],
 })
 export class PurchaseContractRequiredDocument extends Model<PurchaseContractRequiredDocument> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

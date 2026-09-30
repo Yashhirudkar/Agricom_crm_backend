@@ -21,11 +21,12 @@ export class PartnerRoleService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreatePartnerRoleDto): Promise<PartnerRole> {
+  async create(dto: CreatePartnerRoleDto, user?: any): Promise<PartnerRole> {
+    const companyId: number = user?.companyId;
     const normalizedName = dto.name.trim().toUpperCase();
 
     const existing = await this.partnerRoleModel.findOne({
-      where: { name: normalizedName },
+      where: { name: normalizedName, companyId },
     });
 
     if (existing) {
@@ -34,23 +35,19 @@ export class PartnerRoleService {
       );
     }
 
-    const payload = {
-      ...dto,
-      name: normalizedName,
-    };
-
-    if (payload.description) {
-      payload.description = payload.description.trim();
-    }
+    const payload: any = { ...dto, name: normalizedName, companyId };
+    if (payload.description) payload.description = payload.description.trim();
 
     return this.partnerRoleModel.create(payload);
   }
 
-  async findAll(query: QueryPartnerRoleDto & { allowedIds?: number[] | null }) {
+  async findAll(query: QueryPartnerRoleDto & { allowedIds?: number[] | null; companyId?: number }) {
     const { search, isActive, page = 1, limit = 10, allowedIds } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
 
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
@@ -91,40 +88,39 @@ export class PartnerRoleService {
     };
   }
 
-  async findOne(id: number): Promise<PartnerRole> {
-    const partnerRole = await this.partnerRoleModel.findOne({
-      where: { id, isActive: true },
-    });
+  async findOne(id: number, companyId?: number): Promise<PartnerRole> {
+    const where: any = { id, isActive: true };
+    if (companyId) where.companyId = companyId;
+    const partnerRole = await this.partnerRoleModel.findOne({ where });
     if (!partnerRole) {
       throw new NotFoundException('Partner Role not found');
     }
     return partnerRole;
   }
 
-  async findOneActive(id: number): Promise<PartnerRole> {
-    return this.findOne(id);
+  async findOneActive(id: number, companyId?: number): Promise<PartnerRole> {
+    return this.findOne(id, companyId);
   }
 
-  async findOneAnyState(id: number): Promise<PartnerRole> {
-    const partnerRole = await this.partnerRoleModel.findByPk(id);
+  async findOneAnyState(id: number, companyId?: number): Promise<PartnerRole> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const partnerRole = await this.partnerRoleModel.findOne({ where });
     if (!partnerRole) {
       throw new NotFoundException('Partner Role not found');
     }
     return partnerRole;
   }
 
-  async update(id: number, dto: UpdatePartnerRoleDto): Promise<PartnerRole> {
-    const partnerRole = await this.findOneActive(id);
+  async update(id: number, dto: UpdatePartnerRoleDto, user?: any): Promise<PartnerRole> {
+    const companyId = user?.companyId;
+    const partnerRole = await this.findOneActive(id, companyId);
 
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
-
-      const existing = await this.partnerRoleModel.findOne({
-        where: {
-          name: normalizedName,
-          id: { [Op.ne]: id },
-        },
-      });
+      const where: any = { name: normalizedName, id: { [Op.ne]: id } };
+      if (companyId) where.companyId = companyId;
+      const existing = await this.partnerRoleModel.findOne({ where });
 
       if (existing) {
         throw new BadRequestException(
@@ -144,7 +140,7 @@ export class PartnerRoleService {
   }
 
   async restore(id: number, user: any): Promise<PartnerRole> {
-    const partnerRole = await this.findOneAnyState(id);
+    const partnerRole = await this.findOneAnyState(id, user?.companyId);
     const oldIsActive = partnerRole.isActive;
     await partnerRole.update({ isActive: true });
 
@@ -163,7 +159,7 @@ export class PartnerRoleService {
   }
 
   async remove(id: number, reason?: string, user?: any): Promise<PartnerRole> {
-    const partnerRole = await this.findOneActive(id);
+    const partnerRole = await this.findOneActive(id, user?.companyId);
     await partnerRole.update({ isActive: false });
 
     if (user) {
@@ -188,7 +184,7 @@ export class PartnerRoleService {
   }
 
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
-    const partnerRole = await this.findOneAnyState(id);
+    const partnerRole = await this.findOneAnyState(id, user?.companyId);
     await this.deletionValidator.validatePartnerRoleDelete(id);
 
     const oldValue = {

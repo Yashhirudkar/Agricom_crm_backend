@@ -12,6 +12,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { Partner } from './partner.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'partner_dnb_reports',
@@ -23,6 +24,14 @@ import { Partner } from './partner.model';
   ],
 })
 export class PartnerDnbReport extends Model<PartnerDnbReport> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

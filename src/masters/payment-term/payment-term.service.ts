@@ -21,8 +21,11 @@ export class PaymentTermService {
     if (dto.code) dto.code = dto.code.trim().toUpperCase();
     if (dto.name) dto.name = dto.name.trim();
 
+    const whereCondition: any = { code: dto.code };
+    if (user?.companyId) whereCondition.companyId = user.companyId;
+
     const existing = await this.model.findOne({
-      where: { code: dto.code },
+      where: whereCondition,
     });
 
     if (existing) {
@@ -32,11 +35,12 @@ export class PaymentTermService {
     return this.model.create({
       ...dto,
       createdBy: user?.userId,
-    });
+      companyId: user?.companyId,
+    } as any);
   }
 
-  async findAll(query: QueryPaymentTermDto) {
-    const { search, status, page = 1, limit = 10 } = query;
+  async findAll(query: QueryPaymentTermDto & { companyId?: number }) {
+    const { search, status, page = 1, limit = 10, companyId } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
@@ -48,6 +52,9 @@ export class PaymentTermService {
     }
     if (status !== undefined) {
       whereClause.status = status;
+    }
+    if (companyId) {
+      whereClause.companyId = companyId;
     }
 
     const { rows, count } = await this.model.findAndCountAll({
@@ -66,9 +73,12 @@ export class PaymentTermService {
     };
   }
 
-  async findOne(id: number): Promise<PaymentTerm> {
+  async findOne(id: number, companyId?: number): Promise<PaymentTerm> {
+    const whereCondition: any = { id, status: 'Active' };
+    if (companyId) whereCondition.companyId = companyId;
+    
     const item = await this.model.findOne({
-      where: { id, status: 'Active' },
+      where: whereCondition,
     });
     if (!item) {
       throw new NotFoundException('Payment Term not found');
@@ -77,12 +87,14 @@ export class PaymentTermService {
   }
 
   async update(id: number, dto: UpdatePaymentTermDto, user: any): Promise<PaymentTerm> {
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, user?.companyId);
 
     if (dto.code) {
       dto.code = dto.code.trim().toUpperCase();
+      const checkCond: any = { code: dto.code, id: { [Op.ne]: id } };
+      if (user?.companyId) checkCond.companyId = user.companyId;
       const existing = await this.model.findOne({
-        where: { code: dto.code, id: { [Op.ne]: id } },
+        where: checkCond,
       });
       if (existing) {
         throw new BadRequestException('Payment Term Code already exists');
@@ -101,13 +113,13 @@ export class PaymentTermService {
   }
 
   async remove(id: number, user?: any): Promise<PaymentTerm> {
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, user?.companyId);
     await item.update({ status: 'Inactive', updatedBy: user?.userId });
     return item.reload();
   }
 
-  async removePermanent(id: number): Promise<void> {
-    const item = await this.findOne(id);
+  async removePermanent(id: number, companyId?: number): Promise<void> {
+    const item = await this.findOne(id, companyId);
     await item.destroy();
   }
 }

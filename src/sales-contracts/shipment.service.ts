@@ -81,10 +81,15 @@ export class ShipmentService {
       shipmentYear,
       shipmentDateFrom,
       shipmentDateTo,
+      companyId,
     } = query;
 
     const whereClause: any = {};
     const contractWhereClause: any = {};
+    
+    if (companyId) {
+      contractWhereClause.companyId = companyId;
+    }
 
     // 1. Shipment Date range
     if (shipmentDateFrom || shipmentDateTo) {
@@ -344,12 +349,16 @@ export class ShipmentService {
     };
   }
 
-  async update(id: number, dto: UpdateShipmentDto) {
+  async update(id: number, dto: UpdateShipmentDto, user?: any) {
     const shipment = await this.shipmentModel.findByPk(id, {
       include: [{ model: SalesContract, as: 'salesContract' }],
     });
 
     if (!shipment) {
+      throw new NotFoundException('Shipment not found');
+    }
+    
+    if (user?.companyId && shipment.salesContract?.companyId !== user.companyId) {
       throw new NotFoundException('Shipment not found');
     }
 
@@ -391,7 +400,7 @@ export class ShipmentService {
     // Safe to call multiple times — returns existing PC if already created.
     await this.purchaseContractService.ensureExists(
       shipment.salesContractId,
-      undefined, // userId not available here without req injection — logged as system
+      user?.userId,
     ).catch((err) => {
       // Non-blocking: PC creation failure must not break shipment update
       console.error('[ShipmentService] ensureExists failed (non-fatal):', err?.message);

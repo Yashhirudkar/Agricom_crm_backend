@@ -12,8 +12,11 @@ import {
   Unique,
   Index,
   HasMany,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
 import { PartnerRoleDynamicConfig } from './partner-role-dynamic-config.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'partner_roles',
@@ -21,6 +24,14 @@ import { PartnerRoleDynamicConfig } from './partner-role-dynamic-config.model';
   indexes: [{ fields: ['is_active'] }],
 })
 export class PartnerRole extends Model<PartnerRole> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

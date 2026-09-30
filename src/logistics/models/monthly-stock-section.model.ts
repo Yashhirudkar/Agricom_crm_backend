@@ -17,6 +17,7 @@ import {
 import { MonthlyStockSummary } from './monthly-stock-summary.model';
 import { MonthlyStockSectionColumn } from './monthly-stock-section-column.model';
 import { MonthlyStockSectionRow } from './monthly-stock-section-row.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'monthly_stock_sections',
@@ -24,6 +25,14 @@ import { MonthlyStockSectionRow } from './monthly-stock-section-row.model';
   paranoid: true,
 })
 export class MonthlyStockSection extends Model<MonthlyStockSection> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

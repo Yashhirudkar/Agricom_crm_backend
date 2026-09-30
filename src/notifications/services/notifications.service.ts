@@ -23,8 +23,9 @@ export interface CreateNotificationDto {
   referenceType: string;
   referenceId: number;
   title: string;
-  payload: any;
   category?: string;
+  companyId?: number;
+  payload?: any;
 }
 
 @Injectable()
@@ -166,6 +167,7 @@ export class NotificationsService {
           payload: dto.payload,
           isRead: false,
           category,
+          companyId: dto.companyId,
         });
 
         createdNotifications.push(notif);
@@ -180,17 +182,25 @@ export class NotificationsService {
     return createdNotifications;
   }
 
-  async findAll(userId: number): Promise<Notification[]> {
+  async findAll(userId: number, companyId?: number): Promise<Notification[]> {
+    const whereClause: any = { userId };
+    if (companyId) {
+      whereClause.companyId = companyId;
+    }
     return this.notificationModel.findAll({
-      where: { userId },
+      where: whereClause,
       order: [['createdAt', 'DESC']],
       limit: 100,
     });
   }
 
-  async markAsRead(id: number, userId: number): Promise<Notification> {
+  async markAsRead(id: number, userId: number, companyId?: number): Promise<Notification> {
+    const whereClause: any = { id, userId };
+    if (companyId) {
+      whereClause.companyId = companyId;
+    }
     const notif = await this.notificationModel.findOne({
-      where: { id, userId },
+      where: whereClause,
     });
 
     if (!notif) {
@@ -202,11 +212,15 @@ export class NotificationsService {
     return notif;
   }
 
-  async markAllRead(userId: number): Promise<{ success: boolean; count: number }> {
+  async markAllRead(userId: number, companyId?: number): Promise<{ success: boolean; count: number }> {
+    const whereClause: any = { userId, isRead: false };
+    if (companyId) {
+      whereClause.companyId = companyId;
+    }
     const [affectedCount] = await this.notificationModel.update(
       { isRead: true },
       {
-        where: { userId, isRead: false },
+        where: whereClause,
       },
     );
 
@@ -214,7 +228,7 @@ export class NotificationsService {
   }
 
   async findAllAdmin(
-    clientId?: number,
+    companyId?: number,
     page: number = 1,
     limit: number = 15,
     search?: string,
@@ -222,8 +236,8 @@ export class NotificationsService {
     status?: string,
   ): Promise<{ rows: Notification[]; count: number }> {
     const where: any = {};
-    if (clientId !== undefined && clientId !== null) {
-      where['$user.clientId$'] = clientId;
+    if (companyId !== undefined && companyId !== null) {
+      where.companyId = companyId;
     }
 
     if (type && type !== 'ALL') {
@@ -261,13 +275,19 @@ export class NotificationsService {
     return { rows, count };
   }
 
-  async findUsersSettings(clientId?: number) {
+  async findUsersSettings(companyId?: number) {
     const where: any = { isActive: true };
-    if (clientId !== undefined && clientId !== null) {
-      where.clientId = clientId;
+    const include: any[] = [];
+    if (companyId !== undefined && companyId !== null) {
+      include.push({
+        model: UserCompany,
+        where: { companyId },
+        required: true
+      });
     }
     const users = await this.userModel.findAll({
       where,
+      include,
       attributes: ['id', 'name', 'email', 'avatarUrl', 'status'],
       order: [['name', 'ASC']],
     });

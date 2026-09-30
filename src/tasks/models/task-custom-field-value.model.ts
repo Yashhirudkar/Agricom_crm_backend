@@ -13,12 +13,23 @@ import {
 import { Client } from '../../clients/models/client.model';
 import { Task } from './task.model';
 import { TaskCustomField } from './task-custom-field.model';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'task_custom_field_values',
   timestamps: true,
 })
 export class TaskCustomFieldValue extends Model<TaskCustomFieldValue> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

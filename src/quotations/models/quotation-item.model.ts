@@ -16,6 +16,7 @@ import type { Quotation } from './quotation.model';
 import { Product } from '../../masters/product/product.model';
 import { BagSpecification } from '../../masters/bag-specs/models/bag-specification.model';
 import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'quotation_items',
@@ -23,6 +24,14 @@ import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
   indexes: [{ fields: ['quotation_id'] }, { fields: ['product_id'] }],
 })
 export class QuotationItem extends Model<QuotationItem> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

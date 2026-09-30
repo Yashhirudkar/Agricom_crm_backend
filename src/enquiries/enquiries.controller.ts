@@ -37,14 +37,15 @@ export class EnquiriesController {
 
   @Get()
   @RequirePermission('enquiry:view')
-  findAll(@Query() query: QueryEnquiryDto) {
+  findAll(@Query() query: QueryEnquiryDto, @Req() req: any) {
+    (query as any).companyId = req.user?.companyId;
     return this.enquiriesService.findAll(query);
   }
 
   @Get(':id')
   @RequirePermission('enquiry:view')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.enquiriesService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.enquiriesService.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')

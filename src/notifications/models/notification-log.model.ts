@@ -10,7 +10,10 @@ import {
   CreatedAt,
   UpdatedAt,
   Index,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Status state machine:
@@ -40,6 +43,15 @@ export class NotificationLog extends Model<NotificationLog> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Index
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
 
   // ─── Entity context ─────────────────────────────────────────────────────────
 

@@ -88,6 +88,7 @@ export class EnquiriesService {
   }
 
   private async validateForeignKeys(
+    companyId: number,
     partnerRoleId?: number,
     partnerId?: number,
     productId?: number,
@@ -95,25 +96,25 @@ export class EnquiriesService {
   ) {
     if (partnerRoleId) {
       const role = await this.partnerRoleModel.findOne({
-        where: { id: partnerRoleId, isActive: true },
+        where: { id: partnerRoleId, isActive: true, companyId },
       });
       if (!role) throw new BadRequestException('Partner Role not found or inactive');
     }
     if (partnerId) {
       const partner = await this.partnerModel.findOne({
-        where: { id: partnerId, isActive: true },
+        where: { id: partnerId, isActive: true, companyId },
       });
       if (!partner) throw new BadRequestException('Partner not found or inactive');
     }
     if (productId) {
       const product = await this.productModel.findOne({
-        where: { id: productId, isActive: true },
+        where: { id: productId, isActive: true, companyId },
       });
       if (!product) throw new BadRequestException('Product not found or inactive');
     }
     if (packingTypeId) {
       const packing = await this.packingTypeModel.findOne({
-        where: { id: packingTypeId, isActive: true },
+        where: { id: packingTypeId, isActive: true, companyId },
       });
       if (!packing) throw new BadRequestException('Packing Type not found or inactive');
     }
@@ -232,7 +233,9 @@ export class EnquiriesService {
   }
 
   async create(dto: CreateEnquiryDto, user: any): Promise<Enquiry> {
+    const companyId: number = user?.companyId;
     await this.validateForeignKeys(
+      companyId,
       dto.partnerRoleId,
       dto.partnerId,
       dto.productId,
@@ -243,12 +246,15 @@ export class EnquiriesService {
     // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Pre-fetch relation names outside the transaction to keep it short
-    const [partner, product, creator] = await Promise.all([
+    const [partner, product, packingType, creator] = await Promise.all([
       normalized.partnerId
         ? this.partnerModel.findByPk(normalized.partnerId, { attributes: ['id', 'entityName'] })
         : Promise.resolve(null),
       normalized.productId
         ? this.productModel.findByPk(normalized.productId, { attributes: ['id', 'name'] })
+        : Promise.resolve(null),
+      normalized.packingTypeId
+        ? this.packingTypeModel.findByPk(normalized.packingTypeId, { attributes: ['id', 'name'] })
         : Promise.resolve(null),
       user?.userId
         ? this.sequelize.query('SELECT name FROM users WHERE id = ?', {
@@ -262,7 +268,7 @@ export class EnquiriesService {
     const enquiry = await this.sequelize.transaction(async (transaction) => {
       const enquiryNo = await this.generateEnquiryNumber(transaction);
       return this.enquiryModel.create(
-        { ...normalized, enquiryNo, createdBy: user?.userId },
+        { ...normalized, enquiryNo, createdBy: user?.userId, companyId },
         { transaction },
       );
     });
@@ -295,10 +301,13 @@ export class EnquiriesService {
           enquiryNo:     enquiry.enquiryNo,
           customerName:  (partner as any)?.entityName  || undefined,
           product:       (product as any)?.name         || undefined,
+          purity:        enquiry.purity                 || undefined,
           quantity:      enquiry.quantity  != null ? String(enquiry.quantity)           : undefined,
           quantityUnit:  'MT',
+          packingType:   (packingType as any)?.name     || undefined,
           origin:        origin            || undefined,
           destination:   destination       || undefined,
+          shipmentType:  enquiry.shipmentType || undefined,
           shipmentDate:  enquiry.shipmentDate            || undefined,
           bid:           enquiry.buyingInterest != null ? String(enquiry.buyingInterest) : undefined,
           bidCurrency:   enquiry.bidCurrency             || undefined,
@@ -386,7 +395,7 @@ export class EnquiriesService {
     }
 
     const { rows, count } = await this.enquiryModel.findAndCountAll({
-      where: whereClause,
+      where: { ...whereClause, companyId: (query as any).companyId },
       limit: finalLimit,
       offset,
       order: [['createdAt', 'DESC']],
@@ -434,8 +443,11 @@ export class EnquiriesService {
     return buildPaginatedResponse(mappedRows, count, page || 1, finalLimit);
   }
 
-  async findOne(id: string): Promise<Enquiry> {
-    const enquiry = await this.enquiryModel.findByPk(id, {
+  async findOne(id: string, companyId?: number): Promise<Enquiry> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const enquiry = await this.enquiryModel.findOne({
+      where,
       include: INCLUDE_RELATIONS,
     });
     if (!enquiry) {
@@ -445,7 +457,8 @@ export class EnquiriesService {
   }
 
   async update(id: string, dto: UpdateEnquiryDto, user: any): Promise<Enquiry> {
-    const enquiry = await this.findOne(id);
+    const companyId: number = user?.companyId;
+    const enquiry = await this.findOne(id, companyId);
 
     if (
       dto.partnerRoleId ||
@@ -454,6 +467,7 @@ export class EnquiriesService {
       dto.packingTypeId
     ) {
       await this.validateForeignKeys(
+        companyId,
         dto.partnerRoleId,
         dto.partnerId,
         dto.productId,
@@ -483,7 +497,7 @@ export class EnquiriesService {
   }
 
   async remove(id: string, reason?: string, user?: any): Promise<void> {
-    const enquiry = await this.findOne(id);
+    const enquiry = await this.findOne(id, user?.companyId);
 
     const oldValue = {
       ...enquiry.toJSON(),

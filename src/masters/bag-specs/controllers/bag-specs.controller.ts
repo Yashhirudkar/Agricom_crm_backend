@@ -12,6 +12,7 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { BagSpecsService } from '../services/bag-specs.service';
 import { CreateBagTypeDto } from '../dto/create-bag-type.dto';
@@ -35,10 +36,10 @@ export class BagSpecsController {
 
   @Get('bag-types')
   @RequirePermission('bagspec:view')
-  findAllBagTypes(@Query('isActive') isActive?: string) {
+  findAllBagTypes(@Query('isActive') isActive?: string, @Req() req?: any) {
     const active =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
-    return this.bagSpecsService.findAllBagTypes(active);
+    return this.bagSpecsService.findAllBagTypes(active, req?.user?.companyId);
   }
 
   @Get('stitching-types')
@@ -68,8 +69,8 @@ export class BagSpecsController {
   @Post('bag-types')
   @RequirePermission('bagspec:create')
   @HttpCode(HttpStatus.CREATED)
-  createBagType(@Body() dto: CreateBagTypeDto) {
-    return this.bagSpecsService.createBagType(dto);
+  createBagType(@Body() dto: CreateBagTypeDto, @Req() req?: any) {
+    return this.bagSpecsService.createBagType(dto, req?.user?.companyId);
   }
 
   @Patch('bag-types/:id')
@@ -77,38 +78,39 @@ export class BagSpecsController {
   updateBagType(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateBagTypeDto,
+    @Req() req?: any,
   ) {
-    return this.bagSpecsService.updateBagType(id, dto);
+    return this.bagSpecsService.updateBagType(id, dto, req?.user?.companyId);
   }
 
   @Delete('bag-types/:id')
   @RequirePermission('bagspec:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteBagType(@Param('id', ParseIntPipe) id: number) {
-    return this.bagSpecsService.deleteBagType(id);
+  deleteBagType(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
+    return this.bagSpecsService.deleteBagType(id, req?.user?.companyId);
   }
 
   // ─── PACKING TYPES ────────────────────────────────────────────────────────
 
   // Lightweight options endpoint — accessible to any logged-in user
   @Get('packing-types/options')
-  findPackingTypeOptions() {
-    return this.bagSpecsService.findAllPackingTypes(true);
+  findPackingTypeOptions(@Req() req?: any) {
+    return this.bagSpecsService.findAllPackingTypes(true, req?.user?.companyId);
   }
 
   @Get('packing-types')
   @RequirePermission('bagspec:view')
-  findAllPackingTypes(@Query('isActive') isActive?: string) {
+  findAllPackingTypes(@Query('isActive') isActive?: string, @Req() req?: any) {
     const active =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
-    return this.bagSpecsService.findAllPackingTypes(active);
+    return this.bagSpecsService.findAllPackingTypes(active, req?.user?.companyId);
   }
 
   @Post('packing-types')
   @RequirePermission('bagspec:create')
   @HttpCode(HttpStatus.CREATED)
-  createPackingType(@Body() dto: CreatePackingTypeDto) {
-    return this.bagSpecsService.createPackingType(dto);
+  createPackingType(@Body() dto: CreatePackingTypeDto, @Req() req?: any) {
+    return this.bagSpecsService.createPackingType(dto, req?.user?.companyId);
   }
 
   @Patch('packing-types/:id')
@@ -116,36 +118,37 @@ export class BagSpecsController {
   updatePackingType(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePackingTypeDto,
+    @Req() req?: any,
   ) {
-    return this.bagSpecsService.updatePackingType(id, dto);
+    return this.bagSpecsService.updatePackingType(id, dto, req?.user?.companyId);
   }
 
   @Delete('packing-types/:id')
   @RequirePermission('bagspec:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deletePackingType(@Param('id', ParseIntPipe) id: number) {
-    return this.bagSpecsService.deletePackingType(id);
+  deletePackingType(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
+    return this.bagSpecsService.deletePackingType(id, req?.user?.companyId);
   }
 
   // ─── BAG SPECIFICATIONS ───────────────────────────────────────────────────
 
   @Get('bag-specifications')
   @RequirePermission('bagspec:view')
-  findAllSpecs(@Query() query: QueryBagSpecDto) {
-    return this.bagSpecsService.findAllSpecs(query);
+  findAllSpecs(@Query() query: QueryBagSpecDto, @Req() req?: any) {
+    return this.bagSpecsService.findAllSpecs({ ...query, companyId: req?.user?.companyId } as any);
   }
 
   @Get('bag-specifications/:id')
   @RequirePermission('bagspec:view')
-  findOneSpec(@Param('id', ParseIntPipe) id: number) {
-    return this.bagSpecsService.findOneSpec(id);
+  findOneSpec(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
+    return this.bagSpecsService.findOneSpec(id, req?.user?.companyId);
   }
 
   @Post('bag-specifications')
   @RequirePermission('bagspec:create')
   @HttpCode(HttpStatus.CREATED)
-  createSpec(@Body() dto: CreateBagSpecDto) {
-    return this.bagSpecsService.createSpec(dto);
+  createSpec(@Body() dto: CreateBagSpecDto, @Req() req?: any) {
+    return this.bagSpecsService.createSpec(dto, req?.user?.companyId);
   }
 
   @Patch('bag-specifications/:id')
@@ -153,22 +156,23 @@ export class BagSpecsController {
   updateSpec(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateBagSpecDto,
+    @Req() req?: any,
   ) {
-    return this.bagSpecsService.updateSpec(id, dto);
+    return this.bagSpecsService.updateSpec(id, dto, req?.user?.companyId);
   }
 
   @Delete('bag-specifications/:id')
   @RequirePermission('bagspec:delete')
-  deleteSpec(@Param('id', ParseIntPipe) id: number) {
-    return this.bagSpecsService.deleteSpec(id);
+  deleteSpec(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
+    return this.bagSpecsService.deleteSpec(id, req?.user?.companyId);
   }
 
   // ─── PRODUCT PACKAGING ASSIGNMENTS ───────────────────────────────────────
 
   @Get('products/:id/packaging')
   @RequirePermission('product:view')
-  getProductPackaging(@Param('id', ParseIntPipe) id: number) {
-    return this.bagSpecsService.getProductPackaging(id);
+  getProductPackaging(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
+    return this.bagSpecsService.getProductPackaging(id, req?.user?.companyId);
   }
 
   @Put('products/:id/packaging')
@@ -176,7 +180,8 @@ export class BagSpecsController {
   assignProductPackaging(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignPackagingDto,
+    @Req() req?: any,
   ) {
-    return this.bagSpecsService.assignProductPackaging(id, dto);
+    return this.bagSpecsService.assignProductPackaging(id, dto, req?.user?.companyId);
   }
 }

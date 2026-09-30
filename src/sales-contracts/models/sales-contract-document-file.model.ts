@@ -14,6 +14,7 @@ import {
 import { SalesContract } from './sales-contract.model';
 import { TradeDocument } from '../../masters/trade-document/trade-document.model';
 import { Attachment } from '../../attachments/models/attachment.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'sales_contract_document_files',
@@ -27,6 +28,14 @@ import { Attachment } from '../../attachments/models/attachment.model';
   ],
 })
 export class SalesContractDocumentFile extends Model<SalesContractDocumentFile> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

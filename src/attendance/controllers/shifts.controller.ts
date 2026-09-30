@@ -24,33 +24,29 @@ import { CreateShiftDto, UpdateShiftDto } from '../dto/shift.dto';
 export class ShiftsController {
   constructor(private readonly shiftsService: ShiftsService) {}
 
-  private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
-    if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
-    }
-    return parseInt(companyId, 10);
-  }
 
   @Post()
   @RequirePermission('attendance_shifts:create')
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateShiftDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.shiftsService.createShift(companyId, dto);
   }
 
   @Get()
   @RequirePermission('attendance_activity:read')
   findAll(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.shiftsService.getShifts(companyId);
   }
 
   @Get(':id')
   @RequirePermission('attendance_activity:read')
   findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.shiftsService.getShiftById(id, companyId);
   }
 
@@ -61,14 +57,16 @@ export class ShiftsController {
     @Body() dto: UpdateShiftDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.shiftsService.updateShift(id, companyId, dto);
   }
 
   @Delete(':id')
   @RequirePermission('attendance_shifts:delete')
   remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.shiftsService.deleteShift(id, companyId);
   }
 }

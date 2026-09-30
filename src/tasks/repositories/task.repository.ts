@@ -22,11 +22,12 @@ export class TaskRepository {
   async update(
     id: number,
     clientId: number,
+    companyId: number,
     data: Partial<Task>,
     transaction?: Transaction,
   ): Promise<[number, Task[]]> {
     return this.taskModel.update(data, {
-      where: { id, clientId },
+      where: { id, clientId, companyId },
       returning: true,
       transaction,
     });
@@ -35,10 +36,11 @@ export class TaskRepository {
   async findByIdAndClient(
     id: number,
     clientId: number,
+    companyId: number,
     transaction?: Transaction,
   ): Promise<Task | null> {
     return this.taskModel.findOne({
-      where: { id, clientId },
+      where: { id, clientId, companyId },
       transaction,
     });
   }
@@ -46,10 +48,11 @@ export class TaskRepository {
   async softDelete(
     id: number,
     clientId: number,
+    companyId: number,
     transaction?: Transaction,
   ): Promise<number> {
     return this.taskModel.destroy({
-      where: { id, clientId },
+      where: { id, clientId, companyId },
       transaction,
     });
   }
@@ -57,18 +60,20 @@ export class TaskRepository {
   async setAssignees(
     taskId: number,
     clientId: number,
+    companyId: number,
     assigneeIds: number[],
     assignedById: number,
     transaction?: Transaction,
   ): Promise<void> {
     await this.taskAssigneeModel.destroy({
-      where: { taskId, clientId },
+      where: { taskId, clientId, companyId },
       transaction,
     });
     if (assigneeIds && assigneeIds.length > 0) {
       const records = assigneeIds.map((userId) => ({
         taskId,
         clientId,
+        companyId,
         userId: userId,
         assignedById,
       }));
@@ -79,17 +84,19 @@ export class TaskRepository {
   async setLabels(
     taskId: number,
     clientId: number,
+    companyId: number,
     labelIds: number[],
     transaction?: Transaction,
   ): Promise<void> {
     await this.taskLabelMapModel.destroy({
-      where: { taskId, clientId },
+      where: { taskId, clientId, companyId },
       transaction,
     });
     if (labelIds && labelIds.length > 0) {
       const records = labelIds.map((labelId) => ({
         taskId,
         clientId,
+        companyId,
         labelId,
       }));
       await this.taskLabelMapModel.bulkCreate(records, { transaction });

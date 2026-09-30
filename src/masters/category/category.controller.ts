@@ -32,23 +32,24 @@ export class CategoryController {
   @RequirePermission('category:create')
   @AuditLog({ entityType: 'Category', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createCategoryDto: CreateCategoryDto) {
-    return this.categoryService.create(createCategoryDto);
+  create(@Body() createCategoryDto: CreateCategoryDto, @Req() req: any) {
+    return this.categoryService.create(createCategoryDto, req.user);
   }
 
   @Get()
   @RequirePermission('category:view')
-  async findAll(@Query() query: QueryCategoryDto) {
-    const result = await this.categoryService.findAll(query);
-
+  async findAll(@Query() query: QueryCategoryDto, @Req() req: any) {
+    const result = await this.categoryService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
     return result;
   }
 
   @Get(':id')
   @RequirePermission('category:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const category = await this.categoryService.findOne(id);
-
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const category = await this.categoryService.findOne(id, req.user?.companyId);
     return category;
   }
 
@@ -58,8 +59,9 @@ export class CategoryController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateCategoryDto: UpdateCategoryDto,
+    @Req() req: any,
   ) {
-    return this.categoryService.update(id, updateCategoryDto);
+    return this.categoryService.update(id, updateCategoryDto, req.user);
   }
 
   @Patch(':id/restore')

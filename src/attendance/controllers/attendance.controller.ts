@@ -46,17 +46,11 @@ export class AttendanceController {
   @Get('policy')
   @RequirePermission('attendance_activity:read')
   async getAttendancePolicy(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.policyEngineService.getCompanyPolicy(companyId);
   }
 
-  private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
-    if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
-    }
-    return parseInt(companyId, 10);
-  }
 
   private async getEmployeeId(req: any): Promise<number | null> {
     if (req.user.employeeId) {
@@ -79,7 +73,8 @@ export class AttendanceController {
   @HttpCode(HttpStatus.OK)
   @AuditLog({ entityType: 'AttendanceRecord', action: 'CREATE' })
   async checkIn(@Body() dto: CheckInDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = await this.getEmployeeId(req);
     return this.attendanceService.checkIn(employeeId, companyId, dto);
   }
@@ -89,7 +84,8 @@ export class AttendanceController {
   @HttpCode(HttpStatus.OK)
   @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async checkOut(@Body() dto: CheckOutDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = await this.getEmployeeId(req);
     return this.attendanceService.checkOut(employeeId, companyId, dto);
   }
@@ -99,7 +95,8 @@ export class AttendanceController {
   @HttpCode(HttpStatus.OK)
   @AuditLog({ entityType: 'AttendanceLog', action: 'CREATE' })
   async startBreak(@Body() dto: BreakStartDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = await this.getEmployeeId(req);
     return this.attendanceService.breakStart(employeeId, companyId, dto);
   }
@@ -109,7 +106,8 @@ export class AttendanceController {
   @HttpCode(HttpStatus.OK)
   @AuditLog({ entityType: 'AttendanceLog', action: 'UPDATE' })
   async endBreak(@Body() dto: BreakEndDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = await this.getEmployeeId(req);
     return this.attendanceService.breakEnd(employeeId, companyId, dto);
   }
@@ -121,7 +119,8 @@ export class AttendanceController {
     @Query('endDate') endDate: string,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = req.user.employeeId;
     if (!employeeId) {
       return []; // Return empty array if admin has no profile
@@ -139,7 +138,8 @@ export class AttendanceController {
     @Query('employeeId') employeeId: number,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.attendanceService.getCompanyAttendance(companyId, {
       date,
       employeeId,
@@ -149,7 +149,8 @@ export class AttendanceController {
   @Get('corrections')
   @RequirePermission('attendance_regularization:read')
   async getPendingCorrections(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.attendanceService.getPendingCorrections(companyId);
   }
 
@@ -164,7 +165,8 @@ export class AttendanceController {
     @Query('endDate') endDate: string,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.attendanceService.getRegularizationHistory(companyId, {
       page,
       limit,
@@ -179,7 +181,8 @@ export class AttendanceController {
   @RequirePermission('attendance_regularization:create')
   @AuditLog({ entityType: 'AttendanceException', action: 'CREATE' })
   async requestCorrection(@Body() dto: RequestCorrectionDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const employeeId = await this.getEmployeeId(req);
     return this.attendanceService.requestCorrection(employeeId, companyId, dto);
   }
@@ -192,7 +195,8 @@ export class AttendanceController {
     @Body() dto: ResolveCorrectionDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const approverEmployeeId = req.user.employeeId;
     return this.attendanceService.approveCorrection(
       id,
@@ -211,10 +215,12 @@ export class AttendanceController {
     @Body() dto: ResolveCorrectionDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const approverEmployeeId = await this.getEmployeeId(req);
     return this.attendanceService.rejectCorrection(
       id,
+      companyId,
       approverEmployeeId,
       req.user.type,
       dto,
@@ -225,7 +231,8 @@ export class AttendanceController {
   @RequirePermission('attendance_regularization:override')
   @AuditLog({ entityType: 'AttendanceRecord', action: 'UPDATE' })
   async manualAttendance(@Body() dto: ManualAttendanceDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const adminEmployeeId = await this.getEmployeeId(req);
     return this.attendanceService.manualAttendance(
       companyId,
@@ -244,7 +251,8 @@ export class AttendanceController {
     @Query('limit') limit: string,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     let targetEmployeeId = employeeId ? parseInt(employeeId, 10) : undefined;
     if (employeeId === 'all') {
       targetEmployeeId = undefined; // View all
@@ -275,7 +283,8 @@ export class AttendanceController {
     @Body() dto: AssignShiftDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.attendanceService.assignShift(
       employeeId,
       companyId,
@@ -297,7 +306,8 @@ export class AttendanceController {
     },
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const adminEmployeeId = await this.getEmployeeId(req);
     return this.attendanceService.manualOverride(
       id,
@@ -310,7 +320,8 @@ export class AttendanceController {
   @Get('exceptions/conflicts')
   @RequirePermission('attendance:view')
   async getConflicts(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.conflictService.getConflicts(companyId);
   }
 
@@ -331,7 +342,8 @@ export class AttendanceController {
     @Body() dto: { resolution: string; remarks: string },
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const userId = req.user.userId || req.user.id;
 
     // Validate permission for action (attendance_override or attendance_regularization_override or admin)

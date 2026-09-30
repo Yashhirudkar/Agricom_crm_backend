@@ -70,7 +70,7 @@ export class FinancialYearService {
     };
   }
 
-  async findOne(id: number): Promise<FinancialYear> {
+  async findOne(id: number, companyId?: number): Promise<FinancialYear> {
     const item = await this.model.findOne({
       where: { id, status: 'Active' },
     });
@@ -81,7 +81,7 @@ export class FinancialYearService {
   }
 
   async update(id: number, dto: UpdateFinancialYearDto, user: any): Promise<FinancialYear> {
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, user?.companyId);
 
     if (dto.year) {
       dto.year = dto.year.trim();
@@ -112,13 +112,13 @@ export class FinancialYearService {
   }
 
   async remove(id: number, user?: any): Promise<FinancialYear> {
-    const item = await this.findOne(id);
+    const item = await this.findOne(id, user?.companyId);
     await item.update({ status: 'Inactive', updatedBy: user?.userId });
     return item.reload();
   }
 
-  async removePermanent(id: number): Promise<void> {
-    const item = await this.findOne(id);
+  async removePermanent(id: number, companyId?: number): Promise<void> {
+    const item = await this.findOne(id, companyId);
     await item.destroy();
   }
 }

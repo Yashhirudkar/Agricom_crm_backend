@@ -10,12 +10,23 @@ import {
   UpdatedAt,
 } from 'sequelize-typescript';
 import { Client } from '../../clients/models/client.model';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'task_labels',
   timestamps: true,
 })
 export class TaskLabel extends Model<TaskLabel> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

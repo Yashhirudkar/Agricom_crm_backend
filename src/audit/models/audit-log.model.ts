@@ -44,6 +44,15 @@ export class AuditLog extends Model<AuditLog> {
   @BelongsTo(() => Company, { onDelete: 'SET NULL' })
   declare company: Company;
 
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Index
+  @Column({ type: DataType.INTEGER })
+  declare targetCompanyId: number;
+
+  @BelongsTo(() => Company, { foreignKey: 'targetCompanyId', constraints: false })
+  declare targetCompany: Company;
+
   @ForeignKey(() => User)
   @AllowNull(true)
   @Index
@@ -80,6 +89,10 @@ export class AuditLog extends Model<AuditLog> {
   @AllowNull(true)
   @Column({ type: DataType.STRING(255) })
   declare userAgent: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare requestPath: string;
 
   @CreatedAt
   declare createdAt: Date;

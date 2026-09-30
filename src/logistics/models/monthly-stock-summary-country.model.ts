@@ -11,6 +11,7 @@ import {
   CreatedAt,
   UpdatedAt,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 import type { MonthlyStockSummary } from './monthly-stock-summary.model';
 
 @Table({
@@ -18,6 +19,14 @@ import type { MonthlyStockSummary } from './monthly-stock-summary.model';
   timestamps: true,
 })
 export class MonthlyStockSummaryCountry extends Model<MonthlyStockSummaryCountry> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

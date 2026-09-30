@@ -10,7 +10,10 @@ import {
   CreatedAt,
   UpdatedAt,
   Unique,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'shipment_types',
@@ -18,6 +21,14 @@ import {
   indexes: [{ fields: ['status'] }],
 })
 export class ShipmentType extends Model<ShipmentType> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

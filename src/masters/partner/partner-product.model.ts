@@ -5,9 +5,12 @@ import {
   DataType,
   ForeignKey,
   CreatedAt,
+  BelongsTo,
+  AllowNull,
 } from 'sequelize-typescript';
 import { Partner } from './partner.model';
 import { Product } from '../product/product.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'partner_products',
@@ -20,6 +23,14 @@ import { Product } from '../product/product.model';
   ],
 })
 export class PartnerProduct extends Model<PartnerProduct> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({ type: DataType.INTEGER, primaryKey: true, autoIncrement: true })
   declare id: number;
 

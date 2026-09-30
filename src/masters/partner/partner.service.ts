@@ -110,7 +110,8 @@ export class PartnerService {
     }
   }
 
-  async create(dto: CreatePartnerDto): Promise<Partner> {
+  async create(dto: CreatePartnerDto, user?: any): Promise<Partner> {
+    const companyId: number = user?.companyId;
     const normalizedName = dto.entityName.trim().toUpperCase();
 
     if (dto.address) dto.address = dto.address.trim();
@@ -128,6 +129,7 @@ export class PartnerService {
         {
           ...partnerData,
           entityName: normalizedName,
+          companyId,
         },
         { transaction },
       );
@@ -158,11 +160,13 @@ export class PartnerService {
     });
   }
 
-  async findAll(query: QueryPartnerDto & { allowedPartnerRoleIds?: number[] }) {
+  async findAll(query: QueryPartnerDto & { allowedPartnerRoleIds?: number[]; companyId?: number }) {
     const { search, isActive, partnerRoleId, country, dnbRiskFactor, page, limit, allowedPartnerRoleIds } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {};
+    // Tenant isolation — always scope to active company
+    if (query.companyId) whereClause.companyId = query.companyId;
 
     if (search && search.trim()) {
       const searchTrim = search.trim();
@@ -334,8 +338,11 @@ export class PartnerService {
     limit?: number;
     page?: number;
     includeContacts?: boolean;
+    companyId?: number;
   }): Promise<{ data: { id: number; entityName: string; contacts?: any[] }[]; total: number; page: number; totalPages: number }> {
     const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
+    // Tenant isolation
+    if (params.companyId) where.companyId = params.companyId;
 
     if (params.partnerRoleId) {
       where.partnerRoleId = params.partnerRoleId;
@@ -414,9 +421,11 @@ export class PartnerService {
     };
   }
 
-  async findOne(id: number): Promise<Partner> {
+  async findOne(id: number, companyId?: number): Promise<Partner> {
+    const where: any = { id, isActive: true };
+    if (companyId) where.companyId = companyId;
     const partner = await this.partnerModel.findOne({
-      where: { id, isActive: true },
+      where,
       include: INCLUDE_RELATIONS,
     });
     if (!partner) {
@@ -425,24 +434,28 @@ export class PartnerService {
     return partner;
   }
 
-  async getDistinctCountries(): Promise<string[]> {
+  async getDistinctCountries(companyId?: number): Promise<string[]> {
+    const where: any = { isActive: true };
+    if (companyId) where.companyId = companyId;
     const results = await this.partnerModel.findAll({
       attributes: [
         [Sequelize.fn('DISTINCT', Sequelize.col('country')), 'country']
       ],
-      where: { isActive: true },
+      where,
       raw: true,
     });
     return results.map((r: any) => r.country).filter(Boolean).sort();
   }
 
-  async findOneActive(id: number): Promise<Partner> {
-    return this.findOne(id);
+  async findOneActive(id: number, companyId?: number): Promise<Partner> {
+    return this.findOne(id, companyId);
   }
 
-  async findOneAnyState(id: number): Promise<Partner> {
+  async findOneAnyState(id: number, companyId?: number): Promise<Partner> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
     const partner = await this.partnerModel.findOne({
-      where: { id },
+      where,
       include: INCLUDE_RELATIONS,
     });
     if (!partner) {
@@ -451,8 +464,9 @@ export class PartnerService {
     return partner;
   }
 
-  async update(id: number, dto: UpdatePartnerDto): Promise<Partner> {
-    const partner = await this.findOneAnyState(id);
+  async update(id: number, dto: UpdatePartnerDto, user?: any): Promise<Partner> {
+    const companyId: number = user?.companyId;
+    const partner = await this.findOneAnyState(id, companyId);
 
     if (dto.entityName) {
       dto.entityName = dto.entityName.trim().toUpperCase();
@@ -516,7 +530,7 @@ export class PartnerService {
   }
 
   async restore(id: number, user: any): Promise<Partner> {
-    const partner = await this.findOneAnyState(id);
+    const partner = await this.findOneAnyState(id, user?.companyId);
     const oldIsActive = partner.isActive;
     await partner.update({ isActive: true });
 
@@ -535,7 +549,7 @@ export class PartnerService {
   }
 
   async remove(id: number, reason?: string, user?: any): Promise<Partner> {
-    const partner = await this.findOneActive(id);
+    const partner = await this.findOneActive(id, user?.companyId);
     await partner.update({ isActive: false });
 
     if (user) {
@@ -560,7 +574,7 @@ export class PartnerService {
   }
 
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
-    const partner = await this.findOneAnyState(id);
+    const partner = await this.findOneAnyState(id, user?.companyId);
 
     const oldValue = {
       ...partner.toJSON(),

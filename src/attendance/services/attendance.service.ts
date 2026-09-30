@@ -547,12 +547,14 @@ export class AttendanceService {
   // 7. Reject Correction Request
   async rejectCorrection(
     exceptionId: number,
+    companyId: number,
     approverEmployeeId: number,
     approverType: string,
     dto: ResolveCorrectionDto,
   ): Promise<AttendanceException> {
     return this.regularizationService.rejectCorrection(
       exceptionId,
+      companyId,
       approverEmployeeId,
       approverType,
       dto,

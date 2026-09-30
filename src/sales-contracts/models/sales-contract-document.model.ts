@@ -14,12 +14,21 @@ import {
 } from 'sequelize-typescript';
 import { SalesContract } from './sales-contract.model';
 import { TradeDocument } from '../../masters/trade-document/trade-document.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'sales_contract_documents',
   timestamps: true,
 })
 export class SalesContractDocument extends Model<SalesContractDocument> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

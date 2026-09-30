@@ -29,6 +29,7 @@ interface CustomRequest {
     id?: number | string;
     sub?: number | string;
     type?: string;
+    companyId?: number;
   };
 }
 
@@ -52,23 +53,24 @@ export class QuotationController {
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateQuotationDto, @Req() req: CustomRequest) {
     const userId = this.getUserId(req);
-    return this.quotationService.create(dto, userId);
+    const companyId = req.user?.companyId;
+    return this.quotationService.create(dto, userId, companyId);
   }
 
   // ─── LIST ─────────────────────────────────────────────────────────────────
 
   @Get()
   @RequirePermission('quotation:view')
-  async findAll(@Query() query: QueryQuotationDto) {
-    return this.quotationService.findAll(query);
+  async findAll(@Query() query: QueryQuotationDto, @Req() req: CustomRequest) {
+    return this.quotationService.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   // ─── GET ONE ──────────────────────────────────────────────────────────────
 
   @Get(':id')
   @RequirePermission('quotation:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.quotationService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: CustomRequest) {
+    return this.quotationService.findOne(id, undefined, req.user?.companyId);
   }
 
   // ─── UPDATE ───────────────────────────────────────────────────────────────
@@ -81,7 +83,8 @@ export class QuotationController {
     @Req() req: CustomRequest,
   ) {
     const userId = this.getUserId(req);
-    return this.quotationService.update(id, dto, userId);
+    const companyId = req.user?.companyId;
+    return this.quotationService.update(id, dto, userId, companyId);
   }
 
   // ─── SOFT DELETE ──────────────────────────────────────────────────────────
@@ -94,6 +97,7 @@ export class QuotationController {
     @Req() req: CustomRequest,
   ) {
     const userId = this.getUserId(req);
-    return this.quotationService.softDelete(id, userId);
+    const companyId = req.user?.companyId;
+    return this.quotationService.softDelete(id, userId, companyId);
   }
 }

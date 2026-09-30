@@ -18,6 +18,7 @@ import { Partner } from '../../masters/partner/partner.model';
 import { PartnerFollowUp } from '../../masters/partner/partner-followup.model';
 import { User } from '../../users/models/user.model';
 import type { QuotationItem } from './quotation-item.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Quotation status lifecycle.
@@ -50,6 +51,14 @@ export type QuotationStatus = typeof QUOTATION_STATUSES[number];
   ],
 })
 export class Quotation extends Model<Quotation> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

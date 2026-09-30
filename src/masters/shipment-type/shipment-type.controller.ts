@@ -35,22 +35,21 @@ export class ShipmentTypeController {
     return this.service.create(dto, req.user);
   }
 
-  // Lightweight options endpoint — accessible to any logged-in user
   @Get('options')
-  async findOptions() {
-    return this.service.findAll({ status: 'Active', limit: 100, page: 1 } as any);
+  async findOptions(@Req() req: any) {
+    return this.service.findAll({ status: 'Active', limit: 100, page: 1, companyId: req.user?.companyId } as any);
   }
 
   @Get()
   @RequirePermission('shipment-type:view')
-  async findAll(@Query() query: QueryShipmentTypeDto) {
-    return await this.service.findAll(query);
+  async findAll(@Query() query: QueryShipmentTypeDto, @Req() req: any) {
+    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get(':id')
   @RequirePermission('shipment-type:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
@@ -75,7 +74,7 @@ export class ShipmentTypeController {
   @RequirePermission('shipment-type:force_delete')
   @AuditLog({ entityType: 'ShipmentType', action: 'FORCE_DELETE' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  removePermanent(@Param('id', ParseIntPipe) id: number) {
-    return this.service.removePermanent(id);
+  removePermanent(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.service.removePermanent(id, req.user?.companyId);
   }
 }

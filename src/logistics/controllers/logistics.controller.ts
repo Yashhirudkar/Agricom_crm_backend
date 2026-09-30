@@ -70,8 +70,7 @@ export class LogisticsController {
     },
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.getAllFreightQuotes(
       {
         ...query,
@@ -87,8 +86,7 @@ export class LogisticsController {
   @Get()
   @RequirePermission('logistics:view')
   async findQueue(@Query() query: QueryLogisticsDto, @Req() req: any) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.findQueue(query, companyId);
   }
 
@@ -96,8 +94,7 @@ export class LogisticsController {
   @Get('enquiry/:enquiryId')
   @RequireAnyPermission('logistics:view', 'enquiry:read')  // Enquiry users can view logistics in read-only mode
   async getDetails(@Param('enquiryId') enquiryId: string, @Req() req: any) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.getDetails(enquiryId, companyId);
   }
 
@@ -110,8 +107,7 @@ export class LogisticsController {
     @Body() dto: CreateFreightQuoteDto,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.createFreightQuote(id, dto, req.user, companyId);
   }
 
@@ -124,8 +120,7 @@ export class LogisticsController {
     @Body() dto: UpdateFreightQuoteDto,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.updateFreightQuote(id, quoteId, dto, req.user, companyId);
   }
 
@@ -137,8 +132,7 @@ export class LogisticsController {
     @Param('quoteId', ParseIntPipe) quoteId: number,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.deleteFreightQuote(id, quoteId, req.user, companyId);
   }
 
@@ -150,8 +144,7 @@ export class LogisticsController {
     @Param('quoteId', ParseIntPipe) quoteId: number,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.setPreferredQuote(id, quoteId, req.user, companyId);
   }
 
@@ -163,8 +156,7 @@ export class LogisticsController {
     @Body() dto: UpdateLogisticsStatusDto,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.updateStatus(id, dto, req.user, companyId);
   }
 
@@ -173,8 +165,7 @@ export class LogisticsController {
   @RequirePermission('logistics:update')
   @HttpCode(HttpStatus.CREATED)
   async generateShipment(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.generateShipment(id, req.user, companyId);
   }
 
@@ -195,8 +186,7 @@ export class LogisticsController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.uploadAttachment(id, category, file, req.user, companyId);
   }
 
@@ -208,8 +198,7 @@ export class LogisticsController {
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = req.user?.companyId;
     return this.service.deleteAttachment(id, attachmentId, req.user, companyId);
   }
 

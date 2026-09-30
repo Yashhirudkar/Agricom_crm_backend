@@ -39,7 +39,7 @@ export class TaskQueryRepository {
     }
   }
 
-  buildWhereClause(clientId: number, query: TaskQueryDto): { where: any; filterCompleted: boolean | undefined } {
+  buildWhereClause(clientId: number, companyId: number, query: TaskQueryDto): { where: any; filterCompleted: boolean | undefined } {
     const {
       search,
       statusIds,
@@ -59,7 +59,7 @@ export class TaskQueryRepository {
       createdAtEnd,
     } = query;
 
-    const where: any = { clientId };
+    const where: any = { clientId, companyId };
 
     // Strict boolean handling
     if (query.preset === 'archived_tasks') {
@@ -194,7 +194,7 @@ export class TaskQueryRepository {
     return { where, filterCompleted };
   }
 
-  async findAndCountAll(clientId: number, query: TaskQueryDto) {
+  async findAndCountAll(clientId: number, companyId: number, query: TaskQueryDto) {
     const {
       limit = 30,
       sortBy = 'createdAt',
@@ -203,7 +203,7 @@ export class TaskQueryRepository {
       cursor,
     } = query;
 
-    const { where, filterCompleted } = this.buildWhereClause(clientId, query);
+    const { where, filterCompleted } = this.buildWhereClause(clientId, companyId, query);
 
     // Apply cursor condition if provided
     if (cursor) {
@@ -380,9 +380,9 @@ export class TaskQueryRepository {
     };
   }
 
-  async getDetailHydrated(id: number, clientId: number) {
+  async getDetailHydrated(id: number, clientId: number, companyId: number) {
     return this.taskModel.findOne({
-      where: { id, clientId },
+      where: { id, clientId, companyId },
       include: [
         { model: TaskStatus, required: false },
         { model: TaskPriority, required: false },

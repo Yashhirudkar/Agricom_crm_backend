@@ -12,6 +12,8 @@ import {
 import { Client } from '../../clients/models/client.model';
 import { User } from '../../users/models/user.model';
 import { Task } from './task.model';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'task_attachments',
@@ -19,6 +21,15 @@ import { Task } from './task.model';
   updatedAt: false, // Attachments generally don't change, they are deleted or uploaded
 })
 export class TaskAttachment extends Model<TaskAttachment> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

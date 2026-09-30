@@ -97,10 +97,39 @@ export class QuotationService {
     private readonly sequelize: Sequelize,
     private readonly quotationNumberService: QuotationNumberService,
   ) {}
+  private async validateForeignKeys(companyId: number, dto: any) {
+    if (dto.buyerId) {
+      const buyer = await Partner.findOne({ where: { id: dto.buyerId, companyId } });
+      if (!buyer) throw new BadRequestException('Buyer not found or does not belong to company');
+    }
+    if (dto.importerId) {
+      const importer = await Partner.findOne({ where: { id: dto.importerId, companyId } });
+      if (!importer) throw new BadRequestException('Importer not found or does not belong to company');
+    }
+    if (dto.items && dto.items.length > 0) {
+      for (const item of dto.items) {
+        if (item.productId) {
+          const prod = await Product.findOne({ where: { id: item.productId, companyId } });
+          if (!prod) throw new BadRequestException('Product not found or does not belong to company');
+        }
+        if (item.packagingId) {
+          const bagType = await BagType.findOne({ where: { id: item.packagingId, companyId } });
+          if (!bagType) throw new BadRequestException('Packaging/Bag Type not found or does not belong to company');
+        }
+        if (item.packingTypeId) {
+          const pack = await PackingType.findOne({ where: { id: item.packingTypeId, companyId } });
+          if (!pack) throw new BadRequestException('Packing Type not found or does not belong to company');
+        }
+      }
+    }
+  }
 
   // ─── CREATE ───────────────────────────────────────────────────────────────
 
-  async create(dto: CreateQuotationDto, userId: number): Promise<Quotation> {
+  async create(dto: CreateQuotationDto, userId: number, companyId?: number): Promise<Quotation> {
+    if (companyId) {
+      await this.validateForeignKeys(companyId, dto);
+    }
     return this.sequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
       async (tx) => {
@@ -125,6 +154,7 @@ export class QuotationService {
             generatedBy: userId,
             generatedAt: new Date(),
             createdBy: userId,
+            companyId: companyId ?? null,
           } as any,
           { transaction: tx },
         );
@@ -162,18 +192,20 @@ export class QuotationService {
         );
 
         // 5. Return fully-loaded quotation with all associations
-        return this.findOne(quotation.id, tx);
+        return this.findOne(quotation.id, undefined, companyId);
       },
     );
   }
 
   // ─── READ (LIST) ──────────────────────────────────────────────────────────
 
-  async findAll(query: QueryQuotationDto) {
+  async findAll(query: QueryQuotationDto & { companyId?: number }) {
     const { buyerId, importerId, status, search, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = { deletedAt: null };
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
 
     if (buyerId) whereClause.buyerId = buyerId;
     if (importerId) whereClause.importerId = importerId;
@@ -209,9 +241,11 @@ export class QuotationService {
 
   // ─── READ (SINGLE) ────────────────────────────────────────────────────────
 
-  async findOne(id: number, transaction?: Transaction): Promise<Quotation> {
+  async findOne(id: number, transaction?: Transaction, companyId?: number): Promise<Quotation> {
+    const where: any = { id, deletedAt: null };
+    if (companyId) where.companyId = companyId;
     const quotation = await this.quotationModel.findOne({
-      where: { id, deletedAt: null },
+      where,
       include: [
         ...QUOTATION_INCLUDE,
         {
@@ -235,13 +269,18 @@ export class QuotationService {
     id: number,
     dto: UpdateQuotationDto,
     userId: number,
+    companyId?: number,
   ): Promise<Quotation> {
-    const quotation = await this.quotationModel.findOne({
-      where: { id, deletedAt: null },
-    });
+    const where: any = { id, deletedAt: null };
+    if (companyId) where.companyId = companyId;
+    const quotation = await this.quotationModel.findOne({ where });
 
     if (!quotation) {
       throw new NotFoundException(`Quotation #${id} not found`);
+    }
+
+    if (companyId) {
+      await this.validateForeignKeys(companyId, dto);
     }
 
     const allowedStatuses = [
@@ -266,10 +305,10 @@ export class QuotationService {
 
   // ─── SOFT DELETE ──────────────────────────────────────────────────────────
 
-  async softDelete(id: number, userId: number): Promise<{ success: boolean; message: string }> {
-    const quotation = await this.quotationModel.findOne({
-      where: { id, deletedAt: null },
-    });
+  async softDelete(id: number, userId: number, companyId?: number): Promise<{ success: boolean; message: string }> {
+    const where: any = { id, deletedAt: null };
+    if (companyId) where.companyId = companyId;
+    const quotation = await this.quotationModel.findOne({ where });
 
     if (!quotation) {
       throw new NotFoundException(`Quotation #${id} not found`);

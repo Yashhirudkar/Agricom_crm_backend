@@ -37,14 +37,14 @@ export class TradeDocumentController {
 
   @Get()
   @RequirePermission('trade-document:view')
-  async findAll(@Query() query: QueryTradeDocumentDto) {
-    return await this.service.findAll(query);
+  async findAll(@Query() query: QueryTradeDocumentDto, @Req() req: any) {
+    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get(':id')
   @RequirePermission('trade-document:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
@@ -69,7 +69,7 @@ export class TradeDocumentController {
   @RequirePermission('trade-document:force_delete')
   @AuditLog({ entityType: 'TradeDocument', action: 'FORCE_DELETE' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  removePermanent(@Param('id', ParseIntPipe) id: number) {
-    return this.service.removePermanent(id);
+  removePermanent(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.service.removePermanent(id, req.user?.companyId);
   }
 }

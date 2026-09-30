@@ -37,8 +37,8 @@ export class PartnerRoleController {
   @RequirePermission('partnerrole:create')
   @AuditLog({ entityType: 'PartnerRole', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createPartnerRoleDto: CreatePartnerRoleDto) {
-    return this.partnerRoleService.create(createPartnerRoleDto);
+  create(@Body() createPartnerRoleDto: CreatePartnerRoleDto, @Req() req: any) {
+    return this.partnerRoleService.create(createPartnerRoleDto, req.user);
   }
 
   // Lightweight options endpoint — returns partner roles filtered by user's RBAC role access.
@@ -60,7 +60,8 @@ export class PartnerRoleController {
     const result = await this.partnerRoleService.findAll({
       limit: limit ? parseInt(limit) : 100,
       isActive: true,
-      allowedIds, // null = unrestricted
+      allowedIds,
+      companyId: req?.user?.companyId,
     } as any);
     return result;
   }
@@ -80,9 +81,11 @@ export class PartnerRoleController {
     'purchase-contract:view',
     'purchase-contract:read',
   )
-  async findAll(@Query() query: QueryPartnerRoleDto) {
-    const result = await this.partnerRoleService.findAll(query);
-
+  async findAll(@Query() query: QueryPartnerRoleDto, @Req() req: any) {
+    const result = await this.partnerRoleService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
     return result;
   }
 
@@ -101,9 +104,8 @@ export class PartnerRoleController {
     'purchase-contract:view',
     'purchase-contract:read',
   )
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const item = await this.partnerRoleService.findOne(id);
-
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const item = await this.partnerRoleService.findOne(id, req.user?.companyId);
     return item;
   }
 
@@ -113,8 +115,9 @@ export class PartnerRoleController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePartnerRoleDto: UpdatePartnerRoleDto,
+    @Req() req: any,
   ) {
-    return this.partnerRoleService.update(id, updatePartnerRoleDto);
+    return this.partnerRoleService.update(id, updatePartnerRoleDto, req.user);
   }
 
   @Patch(':id/restore')

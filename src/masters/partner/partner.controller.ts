@@ -82,7 +82,7 @@ export class PartnerController {
       req.user,
       req.activeCompanyId,
     );
-    return this.partnerService.create(createPartnerDto);
+    return this.partnerService.create(createPartnerDto, req.user);
   }
 
   @Get()
@@ -104,7 +104,10 @@ export class PartnerController {
       }
     }
 
-    const result = await this.partnerService.findAll(query);
+    const result = await this.partnerService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
     return result;
   }
 
@@ -119,6 +122,7 @@ export class PartnerController {
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('includeContacts') includeContacts?: string,
+    @Req() req?: any,
   ) {
     return this.partnerService.findOptions({
       partnerRoleId: partnerRoleId ? parseInt(partnerRoleId, 10) : undefined,
@@ -128,6 +132,7 @@ export class PartnerController {
       limit: limit ? parseInt(limit, 10) : 10,
       page: page ? parseInt(page, 10) : 1,
       includeContacts: includeContacts === 'true',
+      companyId: req?.user?.companyId,
     });
   }
 
@@ -146,8 +151,8 @@ export class PartnerController {
     'purchase-contract:read',
     'purchase-contract:view',
   )
-  async getCountries() {
-    const countries = await this.partnerService.getDistinctCountries();
+  async getCountries(@Req() req: any) {
+    const countries = await this.partnerService.getDistinctCountries(req.user?.companyId);
     return { success: true, data: countries };
   }
 
@@ -180,9 +185,8 @@ export class PartnerController {
     'follow_up:view',
     'follow_up:read',
   )
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const item = await this.partnerService.findOne(id);
-
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const item = await this.partnerService.findOne(id, req.user?.companyId);
     return item;
   }
 
@@ -205,7 +209,7 @@ export class PartnerController {
       req.user,
       req.activeCompanyId,
     );
-    return this.partnerService.update(id, updatePartnerDto);
+    return this.partnerService.update(id, updatePartnerDto, req.user);
   }
 
   @Put(':id')

@@ -26,7 +26,7 @@ import { RateLimit } from '../../profile/guards/rate-limit.guard';
 import { ChangePasswordDto } from '../../profile/dto/change-password.dto';
 import { Put } from '@nestjs/common';
 import { SystemService } from '../../system/services/system.service';
-
+import { AuditService } from '../../audit/services/audit.service';
 import { FollowUpNotificationService } from '../../follow-up-management/services/follow-up-notification.service';
 
 @Controller('auth')
@@ -40,6 +40,7 @@ export class AuthController {
     private readonly profileService: ProfileService,
     private readonly systemService: SystemService,
     private readonly followUpNotificationService: FollowUpNotificationService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Post('login')
@@ -482,11 +483,31 @@ export class AuthController {
           },
         )) as any[];
         if (targetCompany.length === 0) {
+          await this.auditService.writeLog({
+            clientId: null,
+            companyId,
+            userId,
+            entityType: 'CompanySwitch',
+            entityId: companyId,
+            action: 'FORBIDDEN_TENANT_ACCESS',
+            newValue: { message: `Client Admin attempted to switch to unauthorized company ${companyId}` },
+            ipAddress: req.ip,
+          });
           throw new ForbiddenException(
             'Company does not belong to your client organization',
           );
         }
       } else {
+        await this.auditService.writeLog({
+          clientId: null,
+          companyId,
+          userId,
+          entityType: 'CompanySwitch',
+          entityId: companyId,
+          action: 'FORBIDDEN_TENANT_ACCESS',
+          newValue: { message: `User attempted to switch to unauthorized company ${companyId}` },
+          ipAddress: req.ip,
+        });
         throw new ForbiddenException(
           'You do not belong to this company workspace',
         );
@@ -500,6 +521,30 @@ export class AuthController {
       });
       this.followUpNotificationService.checkAndSendUserReminders(req.user.userId, companyId)
         .catch((err) => console.error('Failed to trigger workspace reminders:', err));
+    }
+
+    if (req.user.type === 'super_admin' && !membership) {
+      await this.auditService.writeLog({
+        clientId: null,
+        companyId,
+        userId,
+        entityType: 'CompanySwitch',
+        entityId: companyId,
+        action: 'SUPER_ADMIN_TENANT_BYPASS',
+        newValue: { message: `Super Admin accessed tenant ${companyId}` },
+        ipAddress: req.ip,
+      });
+    } else {
+      await this.auditService.writeLog({
+        clientId: null,
+        companyId,
+        userId,
+        entityType: 'CompanySwitch',
+        entityId: companyId,
+        action: 'COMPANY_SWITCH',
+        newValue: { message: `User switched active workspace to ${companyId}` },
+        ipAddress: req.ip,
+      });
     }
 
     return {

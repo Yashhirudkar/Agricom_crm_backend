@@ -49,16 +49,64 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Session has been revoked or expired');
     }
 
-    const companyId = req.headers['x-company-id'];
+    const requestedCompanyId = req.headers['x-company-id'];
+    let validCompanyId: number | null = null;
+
+    if (requestedCompanyId) {
+      const parsedCompanyId = parseInt(requestedCompanyId, 10);
+      
+      // Super Admin bypass
+      if (payload.type === 'super_admin') {
+        const companyCheck = (await this.userSessionModel.sequelize.query(
+          `SELECT id, "clientId" FROM "companies" WHERE id = :companyId AND "isActive" = true LIMIT 1;`,
+          {
+            replacements: { companyId: parsedCompanyId },
+            type: 'SELECT',
+          }
+        )) as any[];
+        
+        if (companyCheck && companyCheck.length > 0) {
+          validCompanyId = parsedCompanyId;
+          payload.clientId = companyCheck[0].clientId;
+        } else {
+          throw new UnauthorizedException('Requested company does not exist or is inactive.');
+        }
+      } else {
+        // Normal user validation
+        const userCompanyCheck = (await this.userSessionModel.sequelize.query(
+          `
+          SELECT uc."companyId", c."clientId"
+          FROM "user_companies" uc
+          JOIN "companies" c ON c.id = uc."companyId"
+          WHERE uc."userId" = :userId 
+            AND uc."companyId" = :companyId 
+            AND uc.status = 'Active' 
+            AND c."isActive" = true 
+          LIMIT 1;
+          `,
+          {
+            replacements: { userId: payload.userId, companyId: parsedCompanyId },
+            type: 'SELECT',
+          }
+        )) as any[];
+
+        if (userCompanyCheck && userCompanyCheck.length > 0) {
+          validCompanyId = parsedCompanyId;
+          payload.clientId = userCompanyCheck[0].clientId;
+        } else {
+          throw new UnauthorizedException('You do not have access to this company or it is inactive.');
+        }
+      }
+    }
 
     let employeeId: number | null = null;
     if (payload.userId) {
       let queryStr = `SELECT id FROM "employees" WHERE "userId" = :userId`;
       const replacements: any = { userId: payload.userId };
 
-      if (companyId) {
+      if (validCompanyId) {
         queryStr += ` AND "companyId" = :companyId`;
-        replacements.companyId = parseInt(companyId, 10);
+        replacements.companyId = validCompanyId;
       }
       queryStr += ` LIMIT 1;`;
 
@@ -73,9 +121,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         let fallbackQueryStr = `SELECT id FROM "employees" WHERE "email" = :email AND "userId" IS NULL`;
         const fallbackReplacements: any = { email: payload.email };
 
-        if (companyId) {
+        if (validCompanyId) {
           fallbackQueryStr += ` AND "companyId" = :companyId`;
-          fallbackReplacements.companyId = parseInt(companyId, 10);
+          fallbackReplacements.companyId = validCompanyId;
         }
         fallbackQueryStr += ` LIMIT 1;`;
 
@@ -100,19 +148,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
+    // Super Admin active clientId is already resolved in the validation block above
     let activeClientId = payload.clientId;
-    if (companyId && payload.type === 'super_admin') {
-      const company = (await this.userSessionModel.sequelize.query(
-        `SELECT "clientId" FROM "companies" WHERE id = :companyId LIMIT 1;`,
-        {
-          replacements: { companyId: parseInt(companyId, 10) },
-          type: 'SELECT',
-        }
-      )) as any[];
-      if (company && company.length > 0) {
-        activeClientId = company[0].clientId;
-      }
-    }
 
     return {
       id: payload.sub,
@@ -123,7 +160,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       type: payload.type,
       sessionId: payload.sessionId,
       employeeId,
-      companyId: companyId ? parseInt(companyId, 10) : null,
+      companyId: validCompanyId,
     };
   }
 }

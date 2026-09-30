@@ -49,13 +49,58 @@ export class SalesContractService implements OnModuleInit {
     // Schema modifications are handled by database migrations (phase-06-sales & phase-07-shipments)
   }
 
+  private async validateForeignKeys(companyId: number, dto: any) {
+    if (dto.buyerId) {
+      const buyer = await Partner.findOne({ where: { id: dto.buyerId, companyId } });
+      if (!buyer) throw new BadRequestException('Buyer not found or does not belong to company');
+    }
+    if (dto.sellerId) {
+      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+    }
+    if (dto.brokerId) {
+      const broker = await Partner.findOne({ where: { id: dto.brokerId, companyId } });
+      if (!broker) throw new BadRequestException('Broker not found or does not belong to company');
+    }
+    if (dto.shipmentTypeId) {
+      const st = await ShipmentType.findOne({ where: { id: dto.shipmentTypeId, companyId } });
+      if (!st) throw new BadRequestException('Shipment Type not found or does not belong to company');
+    }
+    if (dto.paymentTermId) {
+      const pt = await PaymentTerm.findOne({ where: { id: dto.paymentTermId, companyId } });
+      if (!pt) throw new BadRequestException('Payment Term not found or does not belong to company');
+    }
 
+    if (dto.items && dto.items.length > 0) {
+      for (const item of dto.items) {
+        if (item.productId) {
+          const prod = await Product.findOne({ where: { id: item.productId, companyId } });
+          if (!prod) throw new BadRequestException('Product not found or does not belong to company');
+        }
+        if (item.bagTypeId) {
+          const bagType = await BagType.findOne({ where: { id: item.bagTypeId, companyId } });
+          if (!bagType) throw new BadRequestException('Bag Type not found or does not belong to company');
+        }
+        if (item.packingTypeId) {
+          const pack = await PackingType.findOne({ where: { id: item.packingTypeId, companyId } });
+          if (!pack) throw new BadRequestException('Packing Type not found or does not belong to company');
+        }
+        if (item.bagSpecificationId) {
+          const spec = await BagSpecification.findOne({ where: { id: item.bagSpecificationId, companyId } });
+          if (!spec) throw new BadRequestException('Bag Specification not found or does not belong to company');
+        }
+      }
+    }
+  }
 
   async create(dto: CreateSalesContractDto, user: any): Promise<SalesContract> {
-    const existing = await this.model.findOne({ where: { contractNumber: dto.contractNumber } });
+    const companyId: number = user?.companyId;
+    const existing = await this.model.findOne({ where: { contractNumber: dto.contractNumber, companyId } });
     if (existing) {
       throw new BadRequestException(`Contract number "${dto.contractNumber}" already exists.`);
     }
+
+    await this.validateForeignKeys(companyId, dto);
 
     return await this.sequelize.transaction(async (t) => {
 
@@ -79,6 +124,7 @@ export class SalesContractService implements OnModuleInit {
           contractDate: new Date(dto.contractDate),
           status: dto.status || 'Draft',
           createdBy: user?.userId,
+          companyId,
         } as any,
         { transaction: t },
       );
@@ -128,11 +174,13 @@ export class SalesContractService implements OnModuleInit {
     });
   }
 
-  async findAll(query: QuerySalesContractDto) {
+  async findAll(query: QuerySalesContractDto & { companyId?: number }) {
     const { search, status, buyerId, financialYear, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
     if (search) {
       whereClause.contractNumber = { [Op.iLike]: `%${search}%` };
     }
@@ -162,8 +210,11 @@ export class SalesContractService implements OnModuleInit {
     };
   }
 
-  async findOne(id: number): Promise<SalesContract> {
-    const item = await this.model.findByPk(id, {
+  async findOne(id: number, companyId?: number): Promise<SalesContract> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const item = await this.model.findOne({
+      where,
       include: [
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
@@ -189,7 +240,9 @@ export class SalesContractService implements OnModuleInit {
   }
 
   async update(id: number, dto: UpdateSalesContractDto, user: any): Promise<SalesContract> {
-    const contract = await this.findOne(id);
+    const contract = await this.findOne(id, user?.companyId);
+
+    await this.validateForeignKeys(user?.companyId, dto);
 
     await this.sequelize.transaction(async (t) => {
       // Enforce Data Integrity: Recalculate Totals
@@ -391,7 +444,7 @@ export class SalesContractService implements OnModuleInit {
   }
 
   async updateStatus(id: number, dto: UpdateSalesContractStatusDto, user: any): Promise<SalesContract> {
-    const contract = await this.findOne(id);
+    const contract = await this.findOne(id, user?.companyId);
 
     if (dto.status === 'Active') {
       const mandatoryDocs = contract.documents.filter(doc => doc.isMandatory);
@@ -418,16 +471,17 @@ export class SalesContractService implements OnModuleInit {
     return contract.reload();
   }
 
-  async getDistinctFinancialYears(): Promise<string[]> {
+  async getDistinctFinancialYears(companyId?: number): Promise<string[]> {
+    const whereSql = companyId ? `WHERE company_id = ${companyId} AND financial_year IS NOT NULL` : `WHERE financial_year IS NOT NULL`;
     const results = await this.sequelize.query<{ financial_year: string }>(
-      `SELECT DISTINCT financial_year FROM sales_contracts WHERE financial_year IS NOT NULL ORDER BY financial_year DESC`,
+      `SELECT DISTINCT financial_year FROM sales_contracts ${whereSql} ORDER BY financial_year DESC`,
       { type: QueryTypes.SELECT },
     );
     return results.map((r) => r.financial_year);
   }
 
-  async getDocuments(id: number) {
-    const contract = await this.findOne(id);
+  async getDocuments(id: number, companyId?: number) {
+    const contract = await this.findOne(id, companyId);
 
     const mappingFiles = await this.documentFileModel.findAll({
       where: { salesContractId: id },
@@ -531,7 +585,7 @@ export class SalesContractService implements OnModuleInit {
   }
 
   async remove(id: number, user: any): Promise<SalesContract> {
-    const contract = await this.findOne(id);
+    const contract = await this.findOne(id, user?.companyId);
     if (contract.status !== 'Draft' && contract.status !== 'Cancelled') {
       throw new BadRequestException('Only Draft or Cancelled contracts can be deleted');
     }

@@ -9,13 +9,24 @@ import {
   Default,
   CreatedAt,
   UpdatedAt,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'freight_charge_master',
   timestamps: true,
 })
 export class FreightChargeMaster extends Model<FreightChargeMaster> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

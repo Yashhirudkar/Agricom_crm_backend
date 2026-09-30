@@ -13,6 +13,7 @@ import {
 } from 'sequelize-typescript';
 import { PurchaseContract } from './purchase-contract.model';
 import { Attachment } from '../../attachments/models/attachment.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'purchase_contract_attachments',
@@ -23,6 +24,14 @@ import { Attachment } from '../../attachments/models/attachment.model';
   ],
 })
 export class PurchaseContractAttachment extends Model<PurchaseContractAttachment> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

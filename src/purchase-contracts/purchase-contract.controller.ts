@@ -48,15 +48,15 @@ export class PurchaseContractController {
   // ||─── Dashboard ────────────────────────────────────────────────────────────────|||
   @Get('dashboard')
   @RequirePermission('purchase-contracts:view')
-  async getDashboard() {
-    return this.queryService.getDashboard();
+  async getDashboard(@Req() req: any) {
+    return this.queryService.getDashboard(req.user?.companyId);
   }
 
   // ─── List ──────────────────────────────────────────────────────────────────────
   @Get()
   @RequirePermission('purchase-contracts:view')
-  async findAll(@Query() query: QueryPurchaseContractDto) {
-    return this.queryService.findAll(query);
+  async findAll(@Query() query: QueryPurchaseContractDto, @Req() req: any) {
+    return this.queryService.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   // ─── Create (Rocket Button / explicit creation) ────────────────────────────────
@@ -71,22 +71,22 @@ export class PurchaseContractController {
   // ─── Detail ───────────────────────────────────────────────────────────────────
   @Get(':id')
   @RequirePermission('purchase-contracts:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.queryService.findOneWithDetail(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.queryService.findOneWithDetail(id, req.user?.companyId);
   }
 
   // ─── Aggregated Summary ───────────────────────────────────────────────────────
   @Get(':id/summary')
   @RequirePermission('purchase-contracts:view')
-  async getSummary(@Param('id', ParseIntPipe) id: number) {
-    return this.queryService.getSummary(id);
+  async getSummary(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.queryService.getSummary(id, req.user?.companyId);
   }
 
   // ─── Timeline ────────────────────────────────────────────────────────────────
   @Get(':id/timeline')
   @RequirePermission('purchase-contracts:view')
-  async getTimeline(@Param('id', ParseIntPipe) id: number) {
-    return this.queryService.getTimeline(id);
+  async getTimeline(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.queryService.getTimeline(id, req.user?.companyId);
   }
 
   // ─── Update ───────────────────────────────────────────────────────────────────

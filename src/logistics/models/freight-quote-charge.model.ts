@@ -14,12 +14,21 @@ import {
 } from 'sequelize-typescript';
 import { FreightQuote } from './freight-quote.model';
 import { FreightChargeMaster } from './freight-charge-master.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'freight_quote_charges',
   timestamps: true,
 })
 export class FreightQuoteCharge extends Model<FreightQuoteCharge> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

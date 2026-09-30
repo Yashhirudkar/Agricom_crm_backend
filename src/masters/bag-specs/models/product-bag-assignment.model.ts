@@ -9,9 +9,11 @@ import {
   BelongsTo,
   CreatedAt,
   UpdatedAt,
+  AllowNull,
 } from 'sequelize-typescript';
 import { Product } from '../../product/product.model';
 import { BagSpecification } from './bag-specification.model';
+import { Company } from '../../../companies/models/company.model';
 
 @Table({
   tableName: 'product_bag_assignments',
@@ -23,6 +25,14 @@ import { BagSpecification } from './bag-specification.model';
   ],
 })
 export class ProductBagAssignment extends Model<ProductBagAssignment> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

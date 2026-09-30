@@ -21,6 +21,7 @@ import { PurchaseContractShipment } from './purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contract-activity.model';
 import { PurchaseContractAttachment } from './purchase-contract-attachment.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Purchase Contract execution / manual trade contract.
@@ -37,6 +38,14 @@ import { PurchaseContractAttachment } from './purchase-contract-attachment.model
   ],
 })
 export class PurchaseContract extends Model<PurchaseContract> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

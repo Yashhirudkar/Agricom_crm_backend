@@ -12,6 +12,7 @@ import {
 } from 'sequelize-typescript';
 import { PartnerRoleDynamicConfig } from './partner-role-dynamic-config.model';
 import { User } from '../../users/models/user.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Immutable append-only audit trail for schema changes.
@@ -30,6 +31,14 @@ import { User } from '../../users/models/user.model';
   ],
 })
 export class PartnerDynamicConfigHistory extends Model<PartnerDynamicConfigHistory> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

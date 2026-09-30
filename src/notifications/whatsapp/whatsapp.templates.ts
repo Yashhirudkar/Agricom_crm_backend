@@ -44,27 +44,31 @@ export class WhatsAppTemplates {
    *
    * Sample output:
    * ```
-   * 🌾 *New Enquiry Created*
+   * *ENQ-000001*
    *
-   * *Enquiry No:* ENQ-000001
    * *Customer:* ABC Traders
    * *Product:* Wheat
+   * *Purity:* 99.99%
    * *Quantity:* 500 MT
+   * *Packing Type:* 50KG PP Bags
    * *Origin:* Mumbai Port
    * *Destination:* Rotterdam Port
+   * *Shipment Type:* FOB
    * *Shipment Date:* 15 Oct 2026
    * *Bid:* 320 USD
-   * *Created By:* Rahul Sharma
+   * *Created By:* Rahul
    * *Created At:* 26 Sep 2026
    * ```
    */
   static enquiryCreated(data: EnquiryNotificationData): string {
-    const lines: string[] = ['🌾 *New Enquiry Created*\n\n'];
+    const title = data.enquiryNo 
+      ? `*${data.enquiryNo}*\n\n`
+      : '';
+    const lines: string[] = title ? [title] : [];
 
-    lines.push(WhatsAppTemplates.line('Enquiry No', data.enquiryNo));
-    lines.push(WhatsAppTemplates.line('Created By', data.createdByName));
     lines.push(WhatsAppTemplates.line('Customer', data.customerName));
     lines.push(WhatsAppTemplates.line('Product', data.product));
+    lines.push(WhatsAppTemplates.line('Purity', data.purity));
 
     if (data.quantity !== null && data.quantity !== undefined && data.quantity !== '') {
       const qty = data.quantityUnit
@@ -73,8 +77,10 @@ export class WhatsAppTemplates {
       lines.push(WhatsAppTemplates.line('Quantity', qty));
     }
 
+    lines.push(WhatsAppTemplates.line('Packing Type', data.packingType));
     lines.push(WhatsAppTemplates.line('Origin', data.origin));
     lines.push(WhatsAppTemplates.line('Destination', data.destination));
+    lines.push(WhatsAppTemplates.line('Shipment Type', data.shipmentType));
     lines.push(
       WhatsAppTemplates.line('Shipment Date', WhatsAppTemplates.formatDate(data.shipmentDate)),
     );
@@ -84,6 +90,8 @@ export class WhatsAppTemplates {
       lines.push(WhatsAppTemplates.line('Bid', bidStr));
     }
 
+    const createdByFirstName = data.createdByName ? data.createdByName.split(' ')[0] : undefined;
+    lines.push(WhatsAppTemplates.line('Created By', createdByFirstName));
     lines.push(WhatsAppTemplates.line('Created At', WhatsAppTemplates.formatDate(data.createdAt)));
 
     return lines.filter((l) => l !== '').join('');

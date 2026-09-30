@@ -15,6 +15,7 @@ import {
 } from 'sequelize-typescript';
 import { Partner } from './partner.model';
 import { PartnerRoleDynamicConfig } from '../partner-role/partner-role-dynamic-config.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Stores actual field values submitted by a partner for their role's dynamic schema.
@@ -45,6 +46,14 @@ import { PartnerRoleDynamicConfig } from '../partner-role/partner-role-dynamic-c
   ],
 })
 export class PartnerDynamicValues extends Model<PartnerDynamicValues> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

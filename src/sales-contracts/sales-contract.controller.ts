@@ -42,19 +42,19 @@ export class SalesContractController {
 
   @Get()
   @RequirePermission('sales-contract:view')
-  async findAll(@Query() query: QuerySalesContractDto) {
-    return await this.service.findAll(query);
+  async findAll(@Query() query: QuerySalesContractDto, @Req() req: any) {
+    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get('financial-years')
-  async getDistinctFinancialYears() {
-    return await this.service.getDistinctFinancialYears();
+  async getDistinctFinancialYears(@Req() req: any) {
+    return await this.service.getDistinctFinancialYears(req.user?.companyId);
   }
 
   @Get(':id')
   @RequirePermission('sales-contract:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
@@ -88,8 +88,8 @@ export class SalesContractController {
 
   @Get(':id/documents')
   @RequirePermission('sales-contract:view')
-  async getDocuments(@Param('id', ParseIntPipe) id: number) {
-    return await this.service.getDocuments(id);
+  async getDocuments(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.getDocuments(id, req.user?.companyId);
   }
 
   @Post(':id/documents/:tradeDocumentId/upload')
@@ -102,10 +102,9 @@ export class SalesContractController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : null;
+    const companyId: number = req.user?.companyId;
     if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
+      throw new BadRequestException('Company context is required for document upload');
     }
     return await this.service.uploadDocument(id, tradeDocumentId, file, req.user, companyId);
   }

@@ -18,6 +18,7 @@ import {
 import { PartnerRole } from '../partner-role/partner-role.model';
 import { PartnerContact } from './partner-contact.model';
 import { Product } from '../product/product.model';
+import { Company } from '../../companies/models/company.model';
 import { PartnerProduct } from './partner-product.model';
 import { PartnerFollowUp } from './partner-followup.model';
 import { PartnerDnbReport } from './partner-dnb-report.model';
@@ -34,6 +35,14 @@ import { HasOne } from 'sequelize-typescript';
   ],
 })
 export class Partner extends Model<Partner> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

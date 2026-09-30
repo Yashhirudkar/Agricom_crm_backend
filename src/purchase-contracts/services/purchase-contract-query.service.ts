@@ -39,7 +39,7 @@ export class PurchaseContractQueryService {
   ) {}
 
   // ─── LIST ─────────────────────────────────────────────────────────────────────
-  async findAll(query: QueryPurchaseContractDto) {
+  async findAll(query: QueryPurchaseContractDto & { companyId?: number }) {
     const {
       search,
       status,
@@ -55,6 +55,8 @@ export class PurchaseContractQueryService {
     const offset = (Number(page) - 1) * Number(limit);
     const whereClause: any = {};
     const salesContractWhere: any = {};
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
 
     if (status) whereClause.status = status;
     if (salesContractId) whereClause.salesContractId = salesContractId;
@@ -105,8 +107,10 @@ export class PurchaseContractQueryService {
   }
 
   // ─── DETAIL ───────────────────────────────────────────────────────────────────
-  async findOneWithDetail(id: number) {
-    const pc = await this.model.findByPk(id, {
+  async findOneWithDetail(id: number, companyId?: number) {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const pc = await this.model.findOne({ where,
       include: [
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
@@ -190,8 +194,11 @@ export class PurchaseContractQueryService {
   }
 
   // ─── SUMMARY (aggregation via single SQL) ─────────────────────────────────────
-  async getSummary(id: number) {
-    const pc = await this.model.findByPk(id, {
+  async getSummary(id: number, companyId?: number) {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const pc = await this.model.findOne({
+      where,
       include: [
         {
           model: SalesContract,
@@ -240,7 +247,7 @@ export class PurchaseContractQueryService {
     const uploadedDocs = docs.filter((d) => !!d.attachmentId).length;
 
     // Timeline summary
-    const timeline = await this.getTimelineSummary(id);
+    const timeline = await this.getTimelineSummary(id, companyId);
 
     // Health score
     const health = await this.computeHealthScore(id);
@@ -365,8 +372,10 @@ export class PurchaseContractQueryService {
   }
 
   // ─── TIMELINE ─────────────────────────────────────────────────────────────────
-  async getTimeline(id: number) {
-    const pc = await this.model.findByPk(id);
+  async getTimeline(id: number, companyId?: number) {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const pc = await this.model.findOne({ where });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
     const links = await this.shipmentLinkModel.findAll({
@@ -423,7 +432,7 @@ export class PurchaseContractQueryService {
     }));
   }
 
-  private async getTimelineSummary(id: number) {
+  private async getTimelineSummary(id: number, companyId?: number) {
     const todayStr = new Date().toISOString().split('T')[0];
 
     const [summary]: any[] = await this.sequelize.query(
@@ -436,8 +445,9 @@ export class PurchaseContractQueryService {
       FROM purchase_contract_shipments pcs
       JOIN sales_contract_shipments scs ON scs.id = pcs.shipment_id
       WHERE pcs.purchase_contract_id = :id
+      ${companyId ? `AND (SELECT company_id FROM purchase_contracts WHERE id = pcs.purchase_contract_id) = :companyId` : ''}
       `,
-      { replacements: { id, today: todayStr }, type: QueryTypes.SELECT },
+      { replacements: { id, today: todayStr, companyId }, type: QueryTypes.SELECT },
     );
 
     return {
@@ -449,7 +459,11 @@ export class PurchaseContractQueryService {
   }
 
   // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-  async getDashboard() {
+  async getDashboard(companyId?: number) {
+    const replacements: any = {};
+    const companyWhere = companyId ? 'WHERE company_id = :companyId' : '';
+    if (companyId) replacements.companyId = companyId;
+
     const [stats]: any[] = await this.sequelize.query(
       `
       SELECT
@@ -462,8 +476,9 @@ export class PurchaseContractQueryService {
         COUNT(*) FILTER (WHERE status = 'Cancelled')                  AS cancelled,
         COUNT(*) FILTER (WHERE status = 'Draft')                      AS draft
       FROM purchase_contracts
+      ${companyWhere}
       `,
-      { type: QueryTypes.SELECT },
+      { replacements, type: QueryTypes.SELECT },
     );
 
     // Overdue shipments across all contracts
@@ -476,8 +491,9 @@ export class PurchaseContractQueryService {
       JOIN sales_contract_shipments scs ON scs.id = pcs.shipment_id
       JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
       WHERE pc.status NOT IN ('Cancelled','Closed')
+      ${companyId ? 'AND pc.company_id = :companyId' : ''}
       `,
-      { type: QueryTypes.SELECT },
+      { replacements, type: QueryTypes.SELECT },
     );
 
     // Financial aggregation across all active contracts
@@ -493,8 +509,9 @@ export class PurchaseContractQueryService {
       JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
       WHERE pc.status NOT IN ('Cancelled','Closed')
         AND scs.status != 'Cancelled'
+        ${companyId ? 'AND pc.company_id = :companyId' : ''}
       `,
-      { type: QueryTypes.SELECT },
+      { replacements, type: QueryTypes.SELECT },
     );
 
     // Pending documents
@@ -505,8 +522,9 @@ export class PurchaseContractQueryService {
       JOIN purchase_contracts pc ON pc.id = pcrd.purchase_contract_id
       WHERE pcrd.attachment_id IS NULL
         AND pc.status NOT IN ('Cancelled','Closed','Completed')
+        ${companyId ? 'AND pc.company_id = :companyId' : ''}
       `,
-      { type: QueryTypes.SELECT },
+      { replacements, type: QueryTypes.SELECT },
     );
 
     return {

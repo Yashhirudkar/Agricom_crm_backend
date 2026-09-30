@@ -54,7 +54,7 @@ export class TasksController {
     }
     
     const clientId = req.user?.clientId || 1;
-
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     const idempotencyKey = req.headers['idempotency-key'];
 
@@ -64,6 +64,7 @@ export class TasksController {
 
     const task = await this.tasksService.create(
       clientId,
+      companyId,
       userId,
       createTaskDto,
     );
@@ -78,9 +79,8 @@ export class TasksController {
   })
   async findAll(@Req() req: any, @Query() query: TaskQueryDto) {
     const userId = req.user?.id || req.user?.userId || 1;
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
 
     const user = req.user;
     const permissions: Set<string> = req.userPermissions || new Set();
@@ -88,7 +88,7 @@ export class TasksController {
 
     (query as any).hasViewAll = hasViewAll;
 
-    const result = await this.tasksService.findAll(clientId, userId, query);
+    const result = await this.tasksService.findAll(clientId, companyId, userId, query);
     return {
       success: true,
       items: result.items,
@@ -104,13 +104,12 @@ export class TasksController {
   @ApiOperation({ summary: 'List all tasks across workspace (Requires task:view_all permission)' })
   async findAllTasksView(@Req() req: any, @Query() query: TaskQueryDto) {
     const userId = req.user?.id || req.user?.userId || 1;
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
 
     (query as any).hasViewAll = true;
     query.preset = 'all_tasks';
-    const result = await this.tasksService.findAll(clientId, userId, query);
+    const result = await this.tasksService.findAll(clientId, companyId, userId, query);
     return {
       success: true,
       items: result.items,
@@ -126,11 +125,10 @@ export class TasksController {
   @ApiOperation({ summary: 'Bulk archive or unarchive tasks matching filters' })
   async bulkArchive(@Req() req: any, @Body() dto: BulkArchiveDto) {
     const userId = req.user?.id || req.user?.userId || 1;
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkArchive(clientId, userId, dto);
+    const result = await this.tasksService.bulkArchive(clientId, companyId, userId, dto);
     return { success: true, ...result };
   }
 
@@ -140,11 +138,10 @@ export class TasksController {
   @ApiOperation({ summary: 'Bulk change status for tasks matching filters' })
   async bulkChangeStatus(@Req() req: any, @Body() dto: BulkStatusDto) {
     const userId = req.user?.id || req.user?.userId || 1;
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkChangeStatus(clientId, userId, dto);
+    const result = await this.tasksService.bulkChangeStatus(clientId, companyId, userId, dto);
     return { success: true, ...result };
   }
 
@@ -154,11 +151,10 @@ export class TasksController {
   @ApiOperation({ summary: 'Bulk delete tasks matching filters' })
   async bulkDelete(@Req() req: any, @Body() dto: BulkActionDto) {
     const userId = req.user?.id || req.user?.userId || 1;
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkDelete(clientId, userId, dto);
+    const result = await this.tasksService.bulkDelete(clientId, companyId, userId, dto);
     return { success: true, ...result };
   }
 
@@ -167,10 +163,9 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get available task statuses' })
   async getStatuses(@Req() req: any) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
-    const statuses = await this.tasksService.getStatuses(clientId);
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
+    const statuses = await this.tasksService.getStatuses(clientId, companyId);
     return { success: true, data: statuses };
   }
 
@@ -179,10 +174,9 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get available task priorities' })
   async getPriorities(@Req() req: any) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
-    const priorities = await this.tasksService.getPriorities(clientId);
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
+    const priorities = await this.tasksService.getPriorities(clientId, companyId);
     return { success: true, data: priorities };
   }
 
@@ -191,10 +185,9 @@ export class TasksController {
   @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({ summary: 'Get deeply hydrated task details' })
   async findOne(@Req() req: any, @Param('id') id: string) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
-    const task = await this.tasksService.findOne(+id, clientId);
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
+    const task = await this.tasksService.findOne(+id, clientId, companyId);
     return { success: true, data: task };
   }
 
@@ -209,13 +202,13 @@ export class TasksController {
     @Param('id') id: string,
     @Body() updateTaskDto: UpdateTaskDto,
   ) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     const task = await this.tasksService.update(
       +id,
       clientId,
+      companyId,
       userId,
       updateTaskDto,
     );
@@ -231,13 +224,13 @@ export class TasksController {
     @Param('id') id: string,
     @Body() archiveTaskDto: ArchiveTaskDto,
   ) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     const task = await this.tasksService.archive(
       +id,
       clientId,
+      companyId,
       userId,
       archiveTaskDto,
     );
@@ -255,11 +248,10 @@ export class TasksController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Restore a soft-deleted task' })
   async restore(@Req() req: any, @Param('id') id: string) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
-    await this.tasksService.restore(+id, clientId, userId);
+    await this.tasksService.restore(+id, clientId, companyId, userId);
     return { success: true, message: 'Task restored successfully' };
   }
 
@@ -272,16 +264,16 @@ export class TasksController {
     @Param('id') id: string,
     @Body() body: { statusId: number; version: number },
   ) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
 
     // Get current task to check fromStatusId
-    const current = await this.tasksService.findOne(+id, clientId);
+    const current = await this.tasksService.findOne(+id, clientId, companyId);
     if (current.statusId) {
       const allowed = await this.transitionRepo.isAllowed(
         clientId,
+        companyId,
         current.statusId,
         body.statusId,
       );
@@ -292,7 +284,7 @@ export class TasksController {
       }
     }
 
-    const task = await this.tasksService.update(+id, clientId, userId, {
+    const task = await this.tasksService.update(+id, clientId, companyId, userId, {
       statusId: body.statusId,
       version: body.version,
     });
@@ -310,10 +302,9 @@ export class TasksController {
     summary: 'Get all configured status transition rules for this tenant',
   })
   async getTransitions(@Req() req: any) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
-    const rules = await this.transitionRepo.findAllByClient(clientId);
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
+    const rules = await this.transitionRepo.findAllByClient(clientId, companyId);
     return { success: true, data: rules };
   }
 
@@ -322,11 +313,10 @@ export class TasksController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Soft delete a task' })
   async remove(@Req() req: any, @Param('id') id: string) {
-    const jwtClientId = req.user?.clientId || req.user?.lastCompanyId;
-    const headerCompanyId = req.headers['x-company-id'] ? parseInt(req.headers['x-company-id'], 10) : null;
-    const clientId = jwtClientId || headerCompanyId || 1;
+    const clientId = req.user?.clientId || 1;
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
-    await this.tasksService.delete(+id, clientId, userId);
+    await this.tasksService.delete(+id, clientId, companyId, userId);
     return { success: true, message: 'Task deleted successfully' };
   }
 }

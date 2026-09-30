@@ -53,35 +53,32 @@ export class ProductService implements OnModuleInit {
     }
   }
 
-  async create(dto: CreateProductDto): Promise<Product> {
+  async create(dto: CreateProductDto, user?: any): Promise<Product> {
+    const companyId: number = user?.companyId;
     const normalizedName = dto.name.trim().toUpperCase();
 
-    if (dto.qualitySubType) {
-      dto.qualitySubType = dto.qualitySubType.trim();
-    }
-    if (dto.specification) {
-      dto.specification = dto.specification.trim();
-    }
-    if (dto.hsCode) {
-      dto.hsCode = dto.hsCode.trim();
-    }
+    if (dto.qualitySubType) dto.qualitySubType = dto.qualitySubType.trim();
+    if (dto.specification) dto.specification = dto.specification.trim();
+    if (dto.hsCode) dto.hsCode = dto.hsCode.trim();
 
     await this.validateForeignKeys(dto.categoryId);
 
     return this.productModel.create({
       ...dto,
       name: normalizedName,
+      companyId,
     });
   }
 
-  async findAll(query: QueryProductDto) {
-    const { search, isActive, categoryId, country, hsCode, page, limit } =
-      query;
+  async findAll(query: QueryProductDto & { companyId?: number }) {
+    const { search, isActive, categoryId, country, hsCode, page, limit } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
       ...buildSearchQuery(search, ['name', 'hsCode']),
     };
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
 
     if (isActive !== undefined) {
       whereClause.isActive = isActive;
@@ -116,9 +113,11 @@ export class ProductService implements OnModuleInit {
     return buildPaginatedResponse(rows, count, page || 1, finalLimit);
   }
 
-  async findOne(id: number): Promise<Product> {
+  async findOne(id: number, companyId?: number): Promise<Product> {
+    const where: any = { id, isActive: true };
+    if (companyId) where.companyId = companyId;
     const product = await this.productModel.findOne({
-      where: { id, isActive: true },
+      where,
       include: INCLUDE_RELATIONS,
     });
     if (!product) {
@@ -127,13 +126,15 @@ export class ProductService implements OnModuleInit {
     return product;
   }
 
-  async findOneActive(id: number): Promise<Product> {
-    return this.findOne(id);
+  async findOneActive(id: number, companyId?: number): Promise<Product> {
+    return this.findOne(id, companyId);
   }
 
-  async findOneAnyState(id: number): Promise<Product> {
+  async findOneAnyState(id: number, companyId?: number): Promise<Product> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
     const product = await this.productModel.findOne({
-      where: { id },
+      where,
       include: INCLUDE_RELATIONS,
     });
     if (!product) {
@@ -142,8 +143,8 @@ export class ProductService implements OnModuleInit {
     return product;
   }
 
-  async update(id: number, dto: UpdateProductDto): Promise<Product> {
-    const product = await this.findOneActive(id);
+  async update(id: number, dto: UpdateProductDto, user?: any): Promise<Product> {
+    const product = await this.findOneActive(id, user?.companyId);
 
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
@@ -168,7 +169,7 @@ export class ProductService implements OnModuleInit {
   }
 
   async restore(id: number, user: any): Promise<Product> {
-    const product = await this.findOneAnyState(id);
+    const product = await this.findOneAnyState(id, user?.companyId);
     const oldIsActive = product.isActive;
     await product.update({ isActive: true });
 
@@ -187,7 +188,7 @@ export class ProductService implements OnModuleInit {
   }
 
   async remove(id: number, reason?: string, user?: any): Promise<Product> {
-    const product = await this.findOneActive(id);
+    const product = await this.findOneActive(id, user?.companyId);
     await product.update({ isActive: false });
 
     if (user) {
@@ -212,7 +213,7 @@ export class ProductService implements OnModuleInit {
   }
 
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
-    const product = await this.findOneAnyState(id);
+    const product = await this.findOneAnyState(id, user?.companyId);
     await this.deletionValidator.validateProductDelete(id);
 
     const oldValue = {

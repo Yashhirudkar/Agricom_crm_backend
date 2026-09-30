@@ -14,6 +14,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import { User } from '../../users/models/user.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'notifications',
@@ -33,6 +34,15 @@ export class Notification extends Model<Notification> {
 
   @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Index
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
 
   @AllowNull(false)
   @Column({ type: DataType.STRING(50) })

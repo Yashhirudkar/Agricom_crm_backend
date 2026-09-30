@@ -22,10 +22,13 @@ export interface EnquiryNotificationData {
   enquiryNo?: string;
   customerName?: string;
   product?: string;
+  purity?: string;
   quantity?: number | string;
   quantityUnit?: string;
+  packingType?: string;
   origin?: string;
   destination?: string;
+  shipmentType?: string;
   shipmentDate?: string | Date;
   bid?: number | string;
   bidCurrency?: string;

@@ -35,6 +35,7 @@ export class TaskSubtaskService {
   async createSubtask(
     parentId: number,
     clientId: number,
+    companyId: number,
     userId: number,
     dto: CreateTaskDto,
   ): Promise<Task> {
@@ -47,13 +48,14 @@ export class TaskSubtaskService {
     }
 
     dto.parentTaskId = parentId;
-    return this.tasksService.create(clientId, userId, dto);
+    return this.tasksService.create(clientId, companyId, userId, dto);
   }
 
   async updateSubtask(
     parentId: number,
     subtaskId: number,
     clientId: number,
+    companyId: number,
     userId: number,
     dto: any,
   ): Promise<Task> {
@@ -70,13 +72,14 @@ export class TaskSubtaskService {
       throw new NotFoundException('Subtask not found under this parent');
     }
 
-    return this.tasksService.update(subtaskId, clientId, userId, dto);
+    return this.tasksService.update(subtaskId, clientId, companyId, userId, dto);
   }
 
   async deleteSubtask(
     parentId: number,
     subtaskId: number,
     clientId: number,
+    companyId: number,
     userId: number,
   ): Promise<{ success: boolean }> {
     const subtask = await this.taskModel.findOne({
@@ -92,7 +95,7 @@ export class TaskSubtaskService {
       throw new NotFoundException('Subtask not found under this parent');
     }
 
-    return this.tasksService.delete(subtaskId, clientId, userId);
+    return this.tasksService.delete(subtaskId, clientId, companyId, userId);
   }
 
   async reorderSubtasks(

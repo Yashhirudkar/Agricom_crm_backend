@@ -12,6 +12,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { PurchaseContract } from './purchase-contract.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Business timeline / activity log for Purchase Contracts.
@@ -33,6 +34,14 @@ import { PurchaseContract } from './purchase-contract.model';
   ],
 })
 export class PurchaseContractActivity extends Model<PurchaseContractActivity> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

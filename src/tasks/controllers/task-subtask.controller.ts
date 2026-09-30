@@ -59,10 +59,12 @@ export class TaskSubtaskController {
     @Body() dto: CreateTaskDto,
   ) {
     const clientId = this.getClientId(req);
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     const subtask = await this.subtaskService.createSubtask(
       taskId,
       clientId,
+      companyId,
       userId,
       dto,
     );
@@ -94,11 +96,13 @@ export class TaskSubtaskController {
     @Body() dto: any,
   ) {
     const clientId = this.getClientId(req);
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     const subtask = await this.subtaskService.updateSubtask(
       taskId,
       subtaskId,
       clientId,
+      companyId,
       userId,
       dto,
     );
@@ -115,11 +119,13 @@ export class TaskSubtaskController {
     @Param('subtaskId', ParseIntPipe) subtaskId: number,
   ) {
     const clientId = this.getClientId(req);
+    const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
     await this.subtaskService.deleteSubtask(
       taskId,
       subtaskId,
       clientId,
+      companyId,
       userId,
     );
     return { success: true, message: 'Subtask deleted' };

@@ -16,6 +16,7 @@ import {
 } from 'sequelize-typescript';
 import { PartnerRole } from './partner-role.model';
 import { PartnerDynamicConfigHistory } from './partner-dynamic-config-history.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'partner_role_dynamic_configs',
@@ -27,6 +28,14 @@ import { PartnerDynamicConfigHistory } from './partner-dynamic-config-history.mo
   ],
 })
 export class PartnerRoleDynamicConfig extends Model<PartnerRoleDynamicConfig> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

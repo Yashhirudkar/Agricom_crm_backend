@@ -693,6 +693,7 @@ export class AttendanceRegularizationService {
   // 7. Reject Correction Request
   async rejectCorrection(
     exceptionId: number,
+    companyId: number,
     approverEmployeeId: number,
     approverType: string,
     dto: ResolveCorrectionDto,

@@ -12,12 +12,23 @@ import {
 } from 'sequelize-typescript';
 import { Client } from '../../clients/models/client.model';
 import { TaskRecurrence } from './task-recurrence.model';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'task_recurrence_exceptions',
   timestamps: true,
 })
 export class TaskRecurrenceException extends Model<TaskRecurrenceException> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

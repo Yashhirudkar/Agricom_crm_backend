@@ -32,8 +32,8 @@ export class ProductController {
   @RequirePermission('product:create')
   @AuditLog({ entityType: 'Product', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productService.create(createProductDto);
+  create(@Body() createProductDto: CreateProductDto, @Req() req: any) {
+    return this.productService.create(createProductDto, req.user);
   }
 
   // Lightweight options endpoint — accessible to any logged-in user
@@ -43,29 +43,32 @@ export class ProductController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
+    @Req() req?: any,
   ) {
     const result = await this.productService.findAll({
       limit: limit ? parseInt(limit) : 15,
       page: page ? parseInt(page) : 1,
       search: search || undefined,
       isActive: true,
+      companyId: req?.user?.companyId,
     } as any);
     return result;
   }
 
   @Get()
   @RequirePermission('product:view')
-  async findAll(@Query() query: QueryProductDto) {
-    const result = await this.productService.findAll(query);
-
+  async findAll(@Query() query: QueryProductDto, @Req() req: any) {
+    const result = await this.productService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
     return result;
   }
 
   @Get(':id')
   @RequirePermission('product:view')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const item = await this.productService.findOne(id);
-
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const item = await this.productService.findOne(id, req.user?.companyId);
     return item;
   }
 
@@ -75,8 +78,9 @@ export class ProductController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
+    @Req() req: any,
   ) {
-    return this.productService.update(id, updateProductDto);
+    return this.productService.update(id, updateProductDto, req.user);
   }
 
   @Patch(':id/restore')

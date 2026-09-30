@@ -14,6 +14,7 @@ import {
 import { PurchaseContract } from './purchase-contract.model';
 import { PurchaseContractItem } from './purchase-contract-item.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
+import { Company } from '../../companies/models/company.model';
 
 /**
  * Junction table for linking shipments to Purchase Contract & Item.
@@ -30,6 +31,14 @@ import { SalesContractShipment } from '../../sales-contracts/models/sales-contra
   ],
 })
 export class PurchaseContractShipment extends Model<PurchaseContractShipment> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

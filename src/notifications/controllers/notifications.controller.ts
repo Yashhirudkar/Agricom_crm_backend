@@ -26,7 +26,8 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get current user notifications' })
   async findAll(@Req() req: any) {
     const userId = req.user?.id || req.user?.userId;
-    const notifications = await this.notificationsService.findAll(userId);
+    const companyId = req.user?.companyId;
+    const notifications = await this.notificationsService.findAll(userId, companyId);
     return { success: true, data: notifications };
   }
 
@@ -35,7 +36,8 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark a notification as read' })
   async markAsRead(@Req() req: any, @Param('id') id: string) {
     const userId = req.user?.id || req.user?.userId;
-    const notification = await this.notificationsService.markAsRead(+id, userId);
+    const companyId = req.user?.companyId;
+    const notification = await this.notificationsService.markAsRead(+id, userId, companyId);
     return { success: true, data: notification };
   }
 
@@ -44,7 +46,8 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark all user notifications as read' })
   async markAllRead(@Req() req: any) {
     const userId = req.user?.id || req.user?.userId;
-    const result = await this.notificationsService.markAllRead(userId);
+    const companyId = req.user?.companyId;
+    const result = await this.notificationsService.markAllRead(userId, companyId);
     return { success: true, data: result };
   }
 
@@ -60,11 +63,11 @@ export class NotificationsController {
     @Query('status') status?: string,
   ) {
     const isSuperAdmin = req.user.type === 'super_admin';
-    const clientId = isSuperAdmin ? null : req.user.clientId;
+    const companyId = isSuperAdmin ? null : req.user.companyId;
     const pageNum = page ? Math.max(1, Number(page)) : 1;
     const limitNum = limit ? Math.min(100, Math.max(1, Number(limit))) : 15;
     const logs = await this.notificationsService.findAllAdmin(
-      clientId,
+      companyId,
       pageNum,
       limitNum,
       search,
@@ -79,8 +82,8 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Get all users settings for notifications' })
   async findUsersSettings(@Req() req: any) {
     const isSuperAdmin = req.user.type === 'super_admin';
-    const clientId = isSuperAdmin ? null : req.user.clientId;
-    const users = await this.notificationsService.findUsersSettings(clientId);
+    const companyId = isSuperAdmin ? null : req.user.companyId;
+    const users = await this.notificationsService.findUsersSettings(companyId);
     return { success: true, data: users };
   }
 

@@ -11,8 +11,11 @@ import {
   UpdatedAt,
   Unique,
   HasMany,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
 import { BagSpecification } from './bag-specification.model';
+import { Company } from '../../../companies/models/company.model';
 
 @Table({
   tableName: 'bag_types',
@@ -20,6 +23,14 @@ import { BagSpecification } from './bag-specification.model';
   indexes: [{ fields: ['is_active'] }],
 })
 export class BagType extends Model<BagType> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

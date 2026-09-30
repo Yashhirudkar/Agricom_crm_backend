@@ -122,9 +122,12 @@ export class EquipmentOptionService implements OnModuleInit {
     }
   }
 
-  async findAll(category?: string) {
+  async findAll(category?: string, companyId?: number) {
     await this.autoSeedDefaults();
     const where: any = { isActive: true };
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (category && category.trim()) {
       where.category = category.trim().toUpperCase();
     }
@@ -138,7 +141,7 @@ export class EquipmentOptionService implements OnModuleInit {
     });
   }
 
-  async create(dto: { category: string; value: string }) {
+  async create(dto: { category: string; value: string }, companyId?: number) {
     if (!dto.category || !dto.category.trim()) {
       throw new BadRequestException('Category is required');
     }
@@ -154,11 +157,16 @@ export class EquipmentOptionService implements OnModuleInit {
     }
 
     // Case-insensitive duplicate check within same category
+    const whereCondition: any = {
+      category,
+      value: { [Op.iLike]: value },
+    };
+    if (companyId) {
+      whereCondition.companyId = companyId;
+    }
+
     const existing = await this.equipmentOptionModel.findOne({
-      where: {
-        category,
-        value: { [Op.iLike]: value },
-      },
+      where: whereCondition,
     });
 
     if (existing) {
@@ -175,6 +183,7 @@ export class EquipmentOptionService implements OnModuleInit {
       value,
       displayOrder,
       isActive: true,
+      companyId,
     } as any);
   }
 }

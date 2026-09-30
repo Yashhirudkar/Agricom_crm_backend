@@ -21,11 +21,12 @@ export class CategoryService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateCategoryDto): Promise<Category> {
+  async create(dto: CreateCategoryDto, user?: any): Promise<Category> {
+    const companyId: number = user?.companyId;
     const normalizedName = dto.name.trim().toUpperCase();
 
     const existing = await this.categoryModel.findOne({
-      where: { name: normalizedName },
+      where: { name: normalizedName, companyId },
     });
 
     if (existing) {
@@ -34,14 +35,16 @@ export class CategoryService {
       );
     }
 
-    return this.categoryModel.create({ ...dto, name: normalizedName });
+    return this.categoryModel.create({ ...dto, name: normalizedName, companyId });
   }
 
-  async findAll(query: QueryCategoryDto) {
+  async findAll(query: QueryCategoryDto & { companyId?: number }) {
     const { search, isActive, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
+    // Tenant isolation
+    if (query.companyId) whereClause.companyId = query.companyId;
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
@@ -65,39 +68,39 @@ export class CategoryService {
     };
   }
 
-  async findOne(id: number): Promise<Category> {
-    const category = await this.categoryModel.findOne({
-      where: { id, isActive: true },
-    });
+  async findOne(id: number, companyId?: number): Promise<Category> {
+    const where: any = { id, isActive: true };
+    if (companyId) where.companyId = companyId;
+    const category = await this.categoryModel.findOne({ where });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
     return category;
   }
 
-  async findOneActive(id: number): Promise<Category> {
-    return this.findOne(id);
+  async findOneActive(id: number, companyId?: number): Promise<Category> {
+    return this.findOne(id, companyId);
   }
 
-  async findOneAnyState(id: number): Promise<Category> {
-    const category = await this.categoryModel.findByPk(id);
+  async findOneAnyState(id: number, companyId?: number): Promise<Category> {
+    const where: any = { id };
+    if (companyId) where.companyId = companyId;
+    const category = await this.categoryModel.findOne({ where });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
     return category;
   }
 
-  async update(id: number, dto: UpdateCategoryDto): Promise<Category> {
-    const category = await this.findOneActive(id);
+  async update(id: number, dto: UpdateCategoryDto, user?: any): Promise<Category> {
+    const companyId = user?.companyId;
+    const category = await this.findOneActive(id, companyId);
 
     if (dto.name) {
       const normalizedName = dto.name.trim().toUpperCase();
-      const existing = await this.categoryModel.findOne({
-        where: {
-          name: normalizedName,
-          id: { [Op.ne]: id },
-        },
-      });
+      const where: any = { name: normalizedName, id: { [Op.ne]: id } };
+      if (companyId) where.companyId = companyId;
+      const existing = await this.categoryModel.findOne({ where });
 
       if (existing) {
         throw new BadRequestException(
@@ -112,7 +115,7 @@ export class CategoryService {
   }
 
   async restore(id: number, user: any): Promise<Category> {
-    const category = await this.findOneAnyState(id);
+    const category = await this.findOneAnyState(id, user?.companyId);
     const oldIsActive = category.isActive;
     await category.update({ isActive: true });
 
@@ -131,7 +134,7 @@ export class CategoryService {
   }
 
   async remove(id: number, reason?: string, user?: any): Promise<Category> {
-    const category = await this.findOneActive(id);
+    const category = await this.findOneActive(id, user?.companyId);
     await category.update({ isActive: false });
 
     if (user) {
@@ -156,7 +159,7 @@ export class CategoryService {
   }
 
   async removePermanent(id: number, reason: string, user: any): Promise<void> {
-    const category = await this.findOneAnyState(id);
+    const category = await this.findOneAnyState(id, user?.companyId);
     await this.deletionValidator.validateCategoryDelete(id);
 
     const oldValue = {

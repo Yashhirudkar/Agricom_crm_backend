@@ -20,6 +20,7 @@ import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
 import { User } from '../../users/models/user.model';
 import { EnquiryStatus, EnquiryShipmentMode } from '../enquiry.constants';
 import { Logistics } from '../../logistics/models/logistics.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'enquiries',
@@ -34,6 +35,14 @@ import { Logistics } from '../../logistics/models/logistics.model';
   ],
 })
 export class Enquiry extends Model<Enquiry> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @Default(DataType.UUIDV4)
   @Column({ type: DataType.UUID })

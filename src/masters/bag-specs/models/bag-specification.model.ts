@@ -16,6 +16,7 @@ import {
 import { BagType } from './bag-type.model';
 import { PackingType } from './packing-type.model';
 import { ProductBagAssignment } from './product-bag-assignment.model';
+import { Company } from '../../../companies/models/company.model';
 
 @Table({
   tableName: 'bag_specifications',
@@ -27,6 +28,14 @@ import { ProductBagAssignment } from './product-bag-assignment.model';
   ],
 })
 export class BagSpecification extends Model<BagSpecification> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

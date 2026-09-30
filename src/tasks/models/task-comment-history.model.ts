@@ -12,6 +12,8 @@ import {
 import { Client } from '../../clients/models/client.model';
 import { TaskComment } from './task-comment.model';
 import { User } from '../../users/models/user.model';
+import { Company } from '../../companies/models/company.model';
+
 
 @Table({
   tableName: 'task_comment_histories',
@@ -19,6 +21,15 @@ import { User } from '../../users/models/user.model';
   updatedAt: false,
 })
 export class TaskCommentHistory extends Model<TaskCommentHistory> {
+
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @Column({
     type: DataType.INTEGER,
     primaryKey: true,

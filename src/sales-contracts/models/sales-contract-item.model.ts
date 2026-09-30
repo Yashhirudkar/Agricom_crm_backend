@@ -17,12 +17,21 @@ import { Product } from '../../masters/product/product.model';
 import { BagType } from '../../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../../masters/bag-specs/models/bag-specification.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'sales_contract_items',
   timestamps: true,
 })
 export class SalesContractItem extends Model<SalesContractItem> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

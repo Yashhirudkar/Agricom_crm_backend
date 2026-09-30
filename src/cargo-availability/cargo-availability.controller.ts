@@ -22,45 +22,45 @@ export class CargoAvailabilityController {
 
   @Get()
   @RequirePermission('cargo_availability:view')
-  async findAll(@Query() query: any) {
-    return this.service.findAll(query);
+  async findAll(@Query() query: any, @Req() req: any) {
+    return this.service.findAll({ ...query, companyId: req.user?.companyId });
   }
 
   @Get('stats')
   @RequirePermission('cargo_availability:view')
-  async getStats() {
-    return this.service.getStats();
+  async getStats(@Req() req: any) {
+    return this.service.getStats(req.user?.companyId);
   }
 
   @Get('shipment-info/:shipmentId')
   @RequirePermission('cargo_availability:view')
-  async getShipmentInfo(@Param('shipmentId') shipmentId: number) {
-    return this.service.getShipmentInfo(Number(shipmentId));
+  async getShipmentInfo(@Param('shipmentId') shipmentId: number, @Req() req: any) {
+    return this.service.getShipmentInfo(Number(shipmentId), req.user?.companyId);
   }
 
   @Get('by-shipment/:shipmentId')
   @RequirePermission('cargo_availability:view')
-  async getByShipmentId(@Param('shipmentId') shipmentId: number) {
-    return this.service.getByShipmentId(Number(shipmentId));
+  async getByShipmentId(@Param('shipmentId') shipmentId: number, @Req() req: any) {
+    return this.service.getByShipmentId(Number(shipmentId), req.user?.companyId);
   }
 
   @Get('loading')
   @RequirePermission('cargo_availability:view')
-  async findAllLoading() {
-    return this.service.findAllLoading();
+  async findAllLoading(@Req() req: any) {
+    return this.service.findAllLoading(req.user?.companyId);
   }
 
   @Get(':id')
   @RequirePermission('cargo_availability:view')
-  async findOne(@Param('id') id: number) {
-    return this.service.findOne(Number(id));
+  async findOne(@Param('id') id: number, @Req() req: any) {
+    return this.service.findOne(Number(id), req.user?.companyId);
   }
 
   @Post('readiness')
   @RequirePermission('cargo_availability:create')
   async createReadiness(@Body() dto: any, @Req() req: any) {
-    const userId = req.user?.id;
-    return this.service.createReadiness(dto, userId);
+    const user = req.user;
+    return this.service.createReadiness(dto, user?.id, user?.companyId);
   }
 
   @Patch('readiness/:id/approve')
@@ -70,22 +70,22 @@ export class CargoAvailabilityController {
     @Body('status') status: string,
     @Req() req: any,
   ) {
-    const userId = req.user?.id;
-    return this.service.approveReadiness(Number(id), status, userId);
+    const user = req.user;
+    return this.service.approveReadiness(Number(id), status, user?.id, user?.companyId);
   }
 
   @Post('allocations')
   @RequirePermission('cargo_availability:create')
   async createAllocation(@Body() dto: any, @Req() req: any) {
-    const userId = req.user?.id;
-    return this.service.createAllocation(dto, userId);
+    const user = req.user;
+    return this.service.createAllocation(dto, user?.id, user?.companyId);
   }
 
   @Post('loading')
   @RequirePermission('cargo_availability:create')
   async createLoading(@Body() dto: any, @Req() req: any) {
-    const userId = req.user?.id;
-    return this.service.createLoading(dto, userId);
+    const user = req.user;
+    return this.service.createLoading(dto, user?.id, user?.companyId);
   }
 
   @Put('loading/:id')
@@ -95,7 +95,7 @@ export class CargoAvailabilityController {
     @Body() dto: any,
     @Req() req: any,
   ) {
-    const userId = req.user?.id;
-    return this.service.updateLoadingStatus(Number(id), dto, userId);
+    const user = req.user;
+    return this.service.updateLoadingStatus(Number(id), dto, user?.id, user?.companyId);
   }
 }

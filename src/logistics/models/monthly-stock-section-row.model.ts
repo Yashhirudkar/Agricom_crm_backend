@@ -15,6 +15,7 @@ import {
   HasMany,
 } from 'sequelize-typescript';
 import { MonthlyStockRowCell } from './monthly-stock-row-cell.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'monthly_stock_section_rows',
@@ -22,6 +23,14 @@ import { MonthlyStockRowCell } from './monthly-stock-row-cell.model';
   paranoid: true,
 })
 export class MonthlyStockSectionRow extends Model<MonthlyStockSectionRow> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

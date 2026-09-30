@@ -29,13 +29,6 @@ import {
 export class DesignationsController {
   constructor(private readonly designationsService: DesignationsService) {}
 
-  private getCompanyId(req: any): number {
-    const companyId = req.headers['x-company-id'] || req.activeCompanyId;
-    if (!companyId) {
-      throw new BadRequestException('x-company-id header is required');
-    }
-    return parseInt(companyId, 10);
-  }
 
   private getActor(req: any) {
     return {
@@ -50,7 +43,8 @@ export class DesignationsController {
   @RequirePermission('designations:create')
   @HttpCode(HttpStatus.CREATED)
   createDesignation(@Body() dto: CreateDesignationDto, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.designationsService.createDesignation(companyId, dto, actor);
   }
@@ -61,7 +55,8 @@ export class DesignationsController {
     @Query() filterDto: GetDesignationsFilterDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.designationsService.getDesignations(companyId, filterDto);
   }
 
@@ -73,7 +68,8 @@ export class DesignationsController {
     @Query('limit') limit?: string,
     @Query('departmentId') departmentId?: string,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const deptId = departmentId ? parseInt(departmentId, 10) : undefined;
     return this.designationsService.getDesignationsForOptions(
       companyId,
@@ -87,14 +83,16 @@ export class DesignationsController {
   @Get('hierarchy')
   @RequirePermission('designations:read')
   getDesignationHierarchy(@Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.designationsService.getDesignationHierarchy(companyId);
   }
 
   @Get(':id')
   @RequirePermission('designations:read')
   getDesignationById(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     return this.designationsService.getDesignationById(id, companyId);
   }
 
@@ -105,7 +103,8 @@ export class DesignationsController {
     @Body() dto: UpdateDesignationDto,
     @Request() req,
   ) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.designationsService.updateDesignation(
       id,
@@ -118,7 +117,8 @@ export class DesignationsController {
   @Delete(':id')
   @RequirePermission('designations:delete')
   deleteDesignation(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    const companyId = this.getCompanyId(req);
+    const companyId = req.user.companyId;
+    if (!companyId) throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.designationsService.deleteDesignation(id, companyId, actor);
   }

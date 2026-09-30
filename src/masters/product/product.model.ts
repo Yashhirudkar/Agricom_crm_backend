@@ -15,6 +15,7 @@ import {
   BelongsTo,
 } from 'sequelize-typescript';
 import { Category } from '../category/category.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'products',
@@ -28,6 +29,13 @@ import { Category } from '../category/category.model';
   ],
 })
 export class Product extends Model<Product> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

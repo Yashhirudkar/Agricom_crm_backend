@@ -12,12 +12,21 @@ import {
   CreatedAt,
   UpdatedAt,
 } from 'sequelize-typescript';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'monthly_stock_section_columns',
   timestamps: true,
 })
 export class MonthlyStockSectionColumn extends Model<MonthlyStockSectionColumn> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

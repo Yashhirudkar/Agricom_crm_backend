@@ -14,6 +14,7 @@ import {
 } from 'sequelize-typescript';
 import { Partner } from './partner.model';
 import { User } from '../../users/models/user.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'partner_followups',
@@ -21,6 +22,14 @@ import { User } from '../../users/models/user.model';
   indexes: [{ fields: ['partner_id'] }, { fields: ['status'] }, { fields: ['followup_date'] }],
 })
 export class PartnerFollowUp extends Model<PartnerFollowUp> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })

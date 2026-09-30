@@ -19,6 +19,7 @@ import { SalesContractShipment } from '../../sales-contracts/models/sales-contra
 import { Partner } from '../../masters/partner/partner.model';
 import { User } from '../../users/models/user.model';
 import { CargoDocument } from './cargo-document.model';
+import { Company } from '../../companies/models/company.model';
 
 @Table({
   tableName: 'cargo_loading',
@@ -32,6 +33,14 @@ import { CargoDocument } from './cargo-document.model';
   ],
 })
 export class CargoLoading extends Model<CargoLoading> {
+  @ForeignKey(() => Company)
+  @AllowNull(true)
+  @Column({ field: 'company_id', type: DataType.INTEGER })
+  declare companyId: number;
+
+  @BelongsTo(() => Company)
+  declare company: Company;
+
   @PrimaryKey
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
