@@ -27,6 +27,7 @@ import * as phase26 from './phase-26-custom-locations';
 import * as phase27 from './phase-27-notification-logs';
 import * as phase28 from './phase-28-company-whatsapp';
 import * as phase29 from './phase-29-enterprise-multi-tenant';
+import * as phase30 from './phase-30-purchase-contract-payment-fields';
 
 export interface MigrationPhase {
   phase: string;
@@ -69,4 +70,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase27,
   phase28,
   phase29,
+  phase30,
 ];

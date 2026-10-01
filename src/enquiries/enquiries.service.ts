@@ -23,6 +23,9 @@ import { AuditService } from '../audit/services/audit.service';
 import { EnquiryShipmentMode } from './enquiry.constants';
 import { NotificationDispatchService } from '../notifications/services/notification-dispatch.service';
 import { NotificationChannel, NotificationTemplate, NotificationRecipient } from '../notifications/notification.types';
+import { NotificationsGateway } from '../notifications/gateways/notifications.gateway';
+import { NotificationsService, NotificationType } from '../notifications/services/notifications.service';
+import { RbacService } from '../rbac/services/rbac.service';
 
 const INCLUDE_RELATIONS = [
   {
@@ -71,6 +74,9 @@ export class EnquiriesService {
     private sequelize: Sequelize,
     private readonly auditService: AuditService,
     private readonly notificationDispatchService: NotificationDispatchService,
+    private readonly notificationsGateway: NotificationsGateway,
+    private readonly notificationsService: NotificationsService,
+    private readonly rbacService: RbacService,
   ) {}
 
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
@@ -322,6 +328,11 @@ export class EnquiriesService {
         ),
       );
 
+    // ── Transport Management Real-Time Notifications ──────────────────────────
+    this.notifyTransportTeam(enquiry, (product as any)?.name, (partner as any)?.entityName, user?.companyId).catch(err => {
+      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
+    });
+
     return enquiry;
   }
 
@@ -519,6 +530,45 @@ export class EnquiriesService {
         oldValue,
         newValue: null,
       });
+    }
+  }
+
+  async notifyTransportTeam(enquiry: Enquiry, productName: string, buyerName: string, companyId?: number): Promise<void> {
+    if (!enquiry?.id) return;
+    
+    try {
+      // Fetch users with access to the Transport Management page (logistics:read)
+      // Delegating to RbacService directly instead of raw queries in the business layer
+      // The exact resource mapping in the database (phase-15-logistics.ts) is module='logistics', action='VIEW'
+      const userIds = await this.rbacService.getUsersWithPermission('logistics', 'VIEW', companyId || null, enquiry.createdBy);
+
+      if (userIds.length > 0) {
+        const payload = {
+          enquiryId: enquiry.id,
+          enquiryNumber: enquiry.enquiryNo,
+          productName: productName || 'Unknown Product',
+          buyerName: buyerName || 'Unknown Buyer',
+          quantity: enquiry.quantity,
+          createdAt: enquiry.createdAt,
+        };
+
+        for (const uid of userIds) {
+          this.notificationsGateway.emitToUser(uid, 'transport:new-enquiry', payload);
+        }
+
+        await this.notificationsService.createNotification({
+          recipients: userIds,
+          type: NotificationType.ENQUIRY,
+          referenceType: 'transport_new_enquiry',
+          referenceId: 0,
+          title: 'New Transport Request',
+          category: 'SYSTEM',
+          companyId,
+          payload,
+        });
+      }
+    } catch (err) {
+      this.logger.error(`Error notifying transport team: ${err.message}`, err.stack);
     }
   }
 }

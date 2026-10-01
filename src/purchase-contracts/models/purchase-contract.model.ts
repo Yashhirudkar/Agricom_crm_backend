@@ -97,6 +97,26 @@ export class PurchaseContract extends Model<PurchaseContract> {
   @BelongsTo(() => PaymentTerm)
   declare paymentTerm: PaymentTerm;
 
+  @AllowNull(true)
+  @Column({ field: 'payment_terms_text', type: DataType.TEXT })
+  declare paymentTermsText: string;
+
+  @AllowNull(true)
+  @Column({ field: 'advance_percent', type: DataType.DECIMAL(5, 2) })
+  declare advancePercent: number;
+
+  @AllowNull(true)
+  @Column({ field: 'balance_percent', type: DataType.DECIMAL(5, 2) })
+  declare balancePercent: number;
+
+  @AllowNull(true)
+  @Column({ field: 'penalty_percent', type: DataType.DECIMAL(5, 2) })
+  declare penaltyPercent: number;
+
+  @AllowNull(true)
+  @Column({ field: 'payment_due_date', type: DataType.DATEONLY })
+  declare paymentDueDate: string;
+
   @ForeignKey(() => Partner)
   @AllowNull(true)
   @Column({ field: 'broker_id', type: DataType.INTEGER })
@@ -151,10 +171,6 @@ export class PurchaseContract extends Model<PurchaseContract> {
   @AllowNull(true)
   @Column({ type: DataType.STRING(100) })
   declare marking: string;
-
-  @AllowNull(true)
-  @Column({ type: DataType.STRING(100) })
-  declare incoterm: string;
 
   @AllowNull(true)
   @Column({ field: 'delivery_place', type: DataType.STRING(255) })

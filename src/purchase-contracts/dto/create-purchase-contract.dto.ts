@@ -94,7 +94,20 @@ export class CreatePurchaseContractDto {
 
   @IsOptional()
   @IsString()
-  incoterm?: string;
+  paymentTermsText?: string;
+
+  @IsOptional()
+  advancePercent?: number | string;
+
+  @IsOptional()
+  balancePercent?: number | string;
+
+  @IsOptional()
+  penaltyPercent?: number | string;
+
+  @IsOptional()
+  @IsString()
+  paymentDueDate?: string;
 
   @IsOptional()
   @IsString()

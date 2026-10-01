@@ -78,6 +78,23 @@ export class PurchaseContractQueryService {
           attributes: ['id', 'contractNumber', 'financialYear', 'buyerId', 'currencyCode'],
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+            {
+              model: SalesContractItem,
+              as: 'items',
+              attributes: ['id', 'quantity'],
+              include: [
+                { model: Product, as: 'product', attributes: ['id', 'name'] },
+                { model: PackingType, as: 'packingType', attributes: ['id', 'name'] },
+              ],
+            },
+          ],
+        },
+        {
+          model: PurchaseContractItem,
+          as: 'items',
+          attributes: ['id', 'quantity', 'productName', 'packing'],
+          include: [
+            { model: Product, as: 'product', attributes: ['id', 'name'] },
           ],
         },
       ],
@@ -87,12 +104,40 @@ export class PurchaseContractQueryService {
       order: [[sortBy, sortOrder]],
     });
 
-    // Attach derived contract number and shipment count
+    // Attach derived contract number, shipment count, and aggregated financials
     const data = await Promise.all(
       rows.map(async (pc) => {
         const json: any = pc.toJSON();
         json.contractNumber = pc.contractNumber || (pc.salesContract ? `PC-${pc.salesContract.contractNumber}` : `PC-${pc.id}`);
         json.shipmentCount = await this.shipmentLinkModel.count({ where: { purchaseContractId: pc.id } });
+
+        // Product names
+        const scItems: any[] = json.salesContract?.items || json.items || [];
+        const productNames = scItems
+          .map((it: any) => it.product?.name || it.productName)
+          .filter(Boolean);
+        json.productNames = [...new Set(productNames)];
+
+        // Packing
+        const packings = scItems
+          .map((it: any) => it.packingType?.name || it.packing)
+          .filter(Boolean);
+        json.packings = [...new Set(packings)];
+
+        // Total containers & purchase value from linked shipments
+        const [agg]: any[] = await this.sequelize.query(
+          `SELECT
+             COALESCE(SUM(scs.no_of_containers), 0)                                            AS total_containers,
+             COALESCE(SUM(scs.quantity * scs.purchase_rate)
+               FILTER (WHERE scs.purchase_rate IS NOT NULL), 0)                                AS total_purchase_value
+           FROM purchase_contract_shipments pcs
+           JOIN sales_contract_shipments scs ON scs.id = pcs.shipment_id
+           WHERE pcs.purchase_contract_id = :id AND scs.status != 'Cancelled'`,
+          { replacements: { id: pc.id }, type: QueryTypes.SELECT },
+        );
+        json.totalContainers = Number(agg.total_containers);
+        json.totalPurchaseValue = parseFloat(parseFloat(agg.total_purchase_value).toFixed(2));
+
         return json;
       }),
     );

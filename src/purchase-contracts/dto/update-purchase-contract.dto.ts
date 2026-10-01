@@ -32,6 +32,21 @@ export class UpdatePurchaseContractDto {
   paymentTermId?: any;
 
   @IsOptional()
+  paymentTermsText?: any;
+
+  @IsOptional()
+  advancePercent?: any;
+
+  @IsOptional()
+  balancePercent?: any;
+
+  @IsOptional()
+  penaltyPercent?: any;
+
+  @IsOptional()
+  paymentDueDate?: any;
+
+  @IsOptional()
   brokerId?: any;
 
   @IsOptional()
@@ -66,9 +81,6 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   marking?: any;
-
-  @IsOptional()
-  incoterm?: any;
 
   @IsOptional()
   deliveryPlace?: any;

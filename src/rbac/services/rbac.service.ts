@@ -20,7 +20,7 @@ import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
 import { User } from '../../users/models/user.model';
 import { AuditService } from '../../audit/services/audit.service';
 import { AuditContext } from '../../audit/audit.context';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { UserCompany } from '../../users/models/user-company.model';
 import { RolePartnerRoleAccess } from '../../masters/partner-role/role-partner-role-access.model';
 
@@ -45,6 +45,41 @@ export class RbacService {
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
   ) { }
+
+  /**
+   * Retrieves users who possess a specific permission (resource:action)
+   * scoped to a specific company workspace. Also naturally includes Super Admins
+   * and Client Admins (matching the creator's client ID).
+   */
+  async getUsersWithPermission(
+    resourceName: string,
+    actionName: string,
+    companyId: number | null,
+    creatorId: number,
+  ): Promise<number[]> {
+    const query = `
+      SELECT DISTINCT u.id 
+      FROM users u
+      LEFT JOIN user_companies uc ON u.id = uc."userId" AND uc.status = 'Active' ${companyId ? `AND uc."companyId" = ${companyId}` : ''}
+      LEFT JOIN user_roles ur ON u.id = ur."userId"
+      LEFT JOIN roles r1 ON r1.id = uc."roleId"
+      LEFT JOIN roles r2 ON r2.id = ur."roleId"
+      LEFT JOIN role_action_permissions rap ON (rap.role_id = uc."roleId" OR rap.role_id = ur."roleId")
+      LEFT JOIN resource_actions ra ON ra.id = rap.resource_action_id
+      LEFT JOIN module_resources mr ON mr.id = ra.resource_id
+      WHERE (u.email = 'admin@agricom.com') 
+         OR (mr.name = :resourceName AND ra.name = :actionName)
+         OR (r1.name IN ('Admin', 'Client Admin') AND u."clientId" = (SELECT "clientId" FROM users WHERE id = :creatorId))
+         OR (r2.name IN ('Admin', 'Client Admin') AND u."clientId" = (SELECT "clientId" FROM users WHERE id = :creatorId))
+    `;
+    
+    const users: any[] = await this.userModel.sequelize.query(query, {
+      replacements: { resourceName, actionName, creatorId },
+      type: QueryTypes.SELECT,
+    });
+
+    return users.map((u) => u.id).filter(Boolean);
+  }
 
   // ─── Roles ─────────────────────────────────────────────────────────────────
 

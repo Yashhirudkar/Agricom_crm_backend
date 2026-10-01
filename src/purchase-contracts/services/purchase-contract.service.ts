@@ -148,9 +148,13 @@ export class PurchaseContractService {
           sellerId: dto.sellerId || null,
           sellerContractNo: dto.sellerContractNo || null,
           paymentTermId: dto.paymentTermId || null,
+          paymentTermsText: dto.paymentTermsText || null,
+          advancePercent: dto.advancePercent != null ? Number(dto.advancePercent) : null,
+          balancePercent: dto.balancePercent != null ? Number(dto.balancePercent) : null,
+          penaltyPercent: dto.penaltyPercent != null ? Number(dto.penaltyPercent) : null,
+          paymentDueDate: dto.paymentDueDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
-          incoterm: dto.incoterm || null,
           deliveryPlace: dto.deliveryPlace || null,
           dispatchDate: dto.dispatchDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
@@ -270,6 +274,11 @@ export class PurchaseContractService {
     if (updateData.sellerId !== undefined) sanitizeData.sellerId = updateData.sellerId ? Number(updateData.sellerId) : null;
     if (updateData.sellerContractNo !== undefined) sanitizeData.sellerContractNo = updateData.sellerContractNo ? String(updateData.sellerContractNo) : null;
     if (updateData.paymentTermId !== undefined) sanitizeData.paymentTermId = updateData.paymentTermId ? Number(updateData.paymentTermId) : null;
+    if (updateData.paymentTermsText !== undefined) sanitizeData.paymentTermsText = updateData.paymentTermsText ? String(updateData.paymentTermsText) : null;
+    if (updateData.advancePercent !== undefined) sanitizeData.advancePercent = updateData.advancePercent != null ? Number(updateData.advancePercent) : null;
+    if (updateData.balancePercent !== undefined) sanitizeData.balancePercent = updateData.balancePercent != null ? Number(updateData.balancePercent) : null;
+    if (updateData.penaltyPercent !== undefined) sanitizeData.penaltyPercent = updateData.penaltyPercent != null ? Number(updateData.penaltyPercent) : null;
+    if (updateData.paymentDueDate !== undefined) sanitizeData.paymentDueDate = updateData.paymentDueDate ? String(updateData.paymentDueDate) : null;
     if (updateData.brokerId !== undefined) sanitizeData.brokerId = updateData.brokerId ? Number(updateData.brokerId) : null;
     if (updateData.brokerCommission !== undefined) sanitizeData.brokerCommission = updateData.brokerCommission ? String(updateData.brokerCommission) : null;
     if (updateData.dispatchDate !== undefined) sanitizeData.dispatchDate = updateData.dispatchDate ? String(updateData.dispatchDate) : null;
@@ -282,7 +291,6 @@ export class PurchaseContractService {
     if (updateData.bagSpec !== undefined) sanitizeData.bagSpec = updateData.bagSpec ? String(updateData.bagSpec) : null;
     if (updateData.stitching !== undefined) sanitizeData.stitching = updateData.stitching ? String(updateData.stitching) : null;
     if (updateData.marking !== undefined) sanitizeData.marking = updateData.marking ? String(updateData.marking) : null;
-    if (updateData.incoterm !== undefined) sanitizeData.incoterm = updateData.incoterm ? String(updateData.incoterm) : null;
     if (updateData.deliveryPlace !== undefined) sanitizeData.deliveryPlace = updateData.deliveryPlace ? String(updateData.deliveryPlace) : null;
     if (updateData.status !== undefined) sanitizeData.status = String(updateData.status);
 
