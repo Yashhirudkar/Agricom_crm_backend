@@ -139,6 +139,10 @@ export class CreateSalesContractDto {
   @IsDateString()
   contractDate: string;
 
+  @IsOptional()
+  @IsString()
+  contractType?: string;
+
   @IsNotEmpty()
   @IsInt()
   buyerId: number;
