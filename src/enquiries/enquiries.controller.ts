@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -69,5 +70,45 @@ export class EnquiriesController {
     @Req() req?: any,
   ) {
     return this.enquiriesService.remove(id, reason, req?.user);
+  }
+
+  @Get(':id/loading-points')
+  @RequirePermission('enquiry:view')
+  getLoadingPoints(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.enquiriesService.getLoadingPoints(id, req.user?.companyId);
+  }
+
+  @Put(':id/loading-points')
+  @RequirePermission('enquiry:update')
+  updateLoadingPoints(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('loadingPoints') loadingPoints: string[],
+    @Req() req: any,
+  ) {
+    return this.enquiriesService.updateLoadingPoints(
+      id,
+      req.user?.companyId,
+      loadingPoints ?? [],
+    );
+  }
+
+  @Get(':id/destinations')
+  @RequirePermission('enquiry:view')
+  getDestinations(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.enquiriesService.getDestinations(id, req.user?.companyId);
+  }
+
+  @Put(':id/destinations')
+  @RequirePermission('enquiry:update')
+  updateDestinations(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('destinations') destinations: string[],
+    @Req() req: any,
+  ) {
+    return this.enquiriesService.updateDestinations(
+      id,
+      req.user?.companyId,
+      destinations ?? [],
+    );
   }
 }

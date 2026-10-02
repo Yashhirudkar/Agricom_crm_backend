@@ -292,6 +292,29 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.addIndex('role_partner_role_access', ['role_id', 'partner_role_id'], { name: 'role_partner_role_access_unique', unique: true }).catch(() => { });
 
   console.log('✅ Phase 05 - Partners & DNB Reports tables created successfully');
+
+  // --- From phase 14 ---
+  await queryInterface.addColumn('partners', 'product_notes', {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  }).catch(() => { });
+
+  await queryInterface.addColumn('partner_dynamic_values', 'values_json', {
+    type: DataTypes.JSONB,
+    allowNull: false,
+    defaultValue: {},
+  }).catch(() => { });
+
+  await queryInterface.addColumn('partner_dynamic_values', 'schema_version', {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1,
+  }).catch(() => { });
+
+  await queryInterface.addIndex('partner_dynamic_values', ['partner_id', 'config_id'], {
+    name: 'partner_dynamic_values_partner_config_unique',
+    unique: true,
+  }).catch(() => { });
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
@@ -306,5 +329,11 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.dropTable('partner_dynamic_config_history').catch(() => { });
   await queryInterface.dropTable('partner_role_dynamic_configs').catch(() => { });
   await queryInterface.dropTable('partner_roles').catch(() => { });
+  
+  // --- From phase 14 ---
+  await queryInterface.removeColumn('partners', 'product_notes').catch(() => { });
+  await queryInterface.removeColumn('partner_dynamic_values', 'values_json').catch(() => { });
+  await queryInterface.removeColumn('partner_dynamic_values', 'schema_version').catch(() => { });
+
   console.log('✅ Phase 05 - Partners & DNB Reports tables dropped');
 }

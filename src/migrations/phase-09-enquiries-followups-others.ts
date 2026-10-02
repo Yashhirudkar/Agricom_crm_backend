@@ -284,6 +284,27 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.addIndex('notifications', ['createdAt'], { name: 'notifications_created_at' }).catch(() => { });
 
   console.log('✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs created successfully');
+
+  // --- From phase 16 ---
+  await queryInterface.addColumn('enquiries', 'origin_zip_code', {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+  }).catch(() => { });
+
+  await queryInterface.addColumn('enquiries', 'destination_zip_code', {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+  }).catch(() => { });
+
+  await queryInterface.addColumn('enquiries', 'origin_station_code', {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+  }).catch(() => { });
+
+  await queryInterface.addColumn('enquiries', 'destination_station_code', {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+  }).catch(() => { });
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
@@ -294,5 +315,12 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.dropTable('enquiries').catch(() => { });
   await queryInterface.dropTable('holiday_companies').catch(() => { });
   await queryInterface.dropTable('holidays').catch(() => { });
+
+  // --- From phase 16 ---
+  await queryInterface.removeColumn('enquiries', 'origin_zip_code').catch(() => { });
+  await queryInterface.removeColumn('enquiries', 'destination_zip_code').catch(() => { });
+  await queryInterface.removeColumn('enquiries', 'origin_station_code').catch(() => { });
+  await queryInterface.removeColumn('enquiries', 'destination_station_code').catch(() => { });
+
   console.log('✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs dropped');
 }

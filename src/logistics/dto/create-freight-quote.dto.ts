@@ -157,6 +157,10 @@ export class CreateFreightQuoteDto {
   wagonCapacity?: string;
 
   @IsOptional()
+  @IsNumber()
+  routeId?: number;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FreightQuoteChargeDto)

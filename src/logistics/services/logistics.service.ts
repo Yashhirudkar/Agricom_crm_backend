@@ -11,7 +11,10 @@ import { Logistics } from '../models/logistics.model';
 import { FreightQuote } from '../models/freight-quote.model';
 import { FreightChargeMaster } from '../models/freight-charge-master.model';
 import { FreightQuoteCharge } from '../models/freight-quote-charge.model';
+import { LogisticsRoute } from '../models/logistics-route.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
+import { EnquiryLoadingPoint } from '../../enquiries/models/enquiry-loading-point.model';
+import { EnquiryDestination } from '../../enquiries/models/enquiry-destination.model';
 import { EnquiryStatus } from '../../enquiries/enquiry.constants';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
@@ -41,6 +44,8 @@ export class LogisticsService {
     private readonly chargeMasterModel: typeof FreightChargeMaster,
     @InjectModel(FreightQuoteCharge)
     private readonly quoteChargeModel: typeof FreightQuoteCharge,
+    @InjectModel(LogisticsRoute)
+    private readonly logisticsRouteModel: typeof LogisticsRoute,
     @InjectModel(Enquiry)
     private readonly enquiryModel: typeof Enquiry,
     @InjectModel(SalesContract)
@@ -153,6 +158,8 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'partner', attributes: ['id', 'entityName'] },
         { model: Product, as: 'product', attributes: ['id', 'name'] },
+        { model: EnquiryLoadingPoint, as: 'loadingPoints', attributes: ['loadingPoint'] },
+        { model: EnquiryDestination, as: 'destinations', attributes: ['destination'] },
         {
           model: Logistics,
           as: 'logistics',
@@ -445,6 +452,8 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'partner' },
         { model: Product, as: 'product' },
+        { model: EnquiryLoadingPoint, as: 'loadingPoints', attributes: ['loadingPoint'] },
+        { model: EnquiryDestination, as: 'destinations', attributes: ['destination'] },
       ],
     });
     if (!enquiry) {
@@ -469,6 +478,10 @@ export class LogisticsService {
             { model: Partner, as: 'seller' },
             { model: FreightQuoteCharge, as: 'charges' },
           ],
+        },
+        {
+          model: LogisticsRoute,
+          as: 'routes',
         },
       ],
       order: [[{ model: FreightQuote, as: 'quotes' }, 'createdAt', 'DESC']],
@@ -544,11 +557,48 @@ export class LogisticsService {
       });
     }
 
+    // -- Auto-sync Logistics Routes --
+    const origins = enquiry.loadingPoints?.map(l => l.loadingPoint) || [];
+    const destinations = enquiry.destinations?.map(d => d.destination) || [];
+    const expectedRoutes = [];
+    if (origins.length > 0 && destinations.length > 0) {
+      for (const origin of origins) {
+        for (const destination of destinations) {
+          expectedRoutes.push({ origin, destination });
+        }
+      }
+    } else {
+      const o = enquiry.originPort || (enquiry.originCity ? `${enquiry.originCity}${enquiry.originState ? `, ${enquiry.originState}` : ''}` : 'Unknown Origin');
+      const d = enquiry.destinationPort || (enquiry.destinationCity ? `${enquiry.destinationCity}${enquiry.destinationState ? `, ${enquiry.destinationState}` : ''}` : 'Unknown Destination');
+      expectedRoutes.push({ origin: o, destination: d });
+    }
+
+    let existingRoutes = await this.logisticsRouteModel.findAll({ where: { logisticsId: logistics.id } });
+    for (const er of expectedRoutes) {
+      const exists = existingRoutes.find(r => r.origin === er.origin && r.destination === er.destination);
+      if (!exists) {
+        const newRoute = await this.logisticsRouteModel.create({
+          logisticsId: logistics.id,
+          origin: er.origin,
+          destination: er.destination,
+        } as any);
+        existingRoutes.push(newRoute);
+      }
+    }
+    
+    // Attach routes to response
+    logistics.setDataValue('routes', existingRoutes);
+
     // Look up if a SalesContract exists for this enquiry
     const salesContract = await this.salesContractModel.findOne({
       where: { enquiryId },
       attributes: ['id', 'contractNumber'],
     });
+
+    // Mark as viewed if it hasn't been viewed yet
+    if (!logistics.isViewed) {
+      await logistics.update({ isViewed: true });
+    }
 
     // Look up if a shipment has already been generated
     let shipmentId: number | null = null;
@@ -617,6 +667,7 @@ export class LogisticsService {
           quoteNumber,
           logisticsId,
           createdBy: user?.userId,
+          routeId: dto.routeId || null,
         } as any,
         { transaction }
       );
@@ -722,6 +773,7 @@ export class LogisticsService {
           freightAmount: calculatedFreightAmount,
           version: newVersion,
           updatedBy: user?.userId,
+          routeId: dto.routeId || null,
         } as any,
         { transaction }
       );
@@ -864,10 +916,12 @@ export class LogisticsService {
     }
 
     await this.sequelize.transaction(async (transaction) => {
-      // 1. Mark this quote as preferred, others as rejected
+      // 1. Mark this quote as preferred, others on the same route as rejected
+      const routeCondition = quote.routeId ? { routeId: quote.routeId } : {};
+      
       await this.quoteModel.update(
         { isPreferred: false, isRejected: true },
-        { where: { logisticsId }, transaction }
+        { where: { logisticsId, ...routeCondition }, transaction }
       );
 
       await quote.update(

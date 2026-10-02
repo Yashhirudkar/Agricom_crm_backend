@@ -117,5 +117,14 @@ export class CreateEnquiryDto {
   @IsOptional()
   @IsBoolean()
   potentialEnquiry?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  bidType?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 

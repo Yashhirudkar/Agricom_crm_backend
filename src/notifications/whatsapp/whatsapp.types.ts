@@ -32,6 +32,8 @@ export interface EnquiryNotificationData {
   shipmentDate?: string | Date;
   bid?: number | string;
   bidCurrency?: string;
+  bidType?: string;
+  note?: string;
   createdByName?: string;
   createdAt?: Date;
 }

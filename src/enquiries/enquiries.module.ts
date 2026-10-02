@@ -3,6 +3,8 @@ import { SequelizeModule } from '@nestjs/sequelize';
 import { EnquiriesService } from './enquiries.service';
 import { EnquiriesController } from './enquiries.controller';
 import { Enquiry } from './models/enquiry.model';
+import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
+import { EnquiryDestination } from './models/enquiry-destination.model';
 import { MastersModule } from '../masters/masters.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { RbacModule } from '../rbac/modules/rbac.module';
@@ -18,6 +20,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [
     SequelizeModule.forFeature([
       Enquiry,
+      EnquiryLoadingPoint,
+      EnquiryDestination,
       PartnerRole,
       Partner,
       Product,

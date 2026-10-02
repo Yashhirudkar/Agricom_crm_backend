@@ -31,10 +31,10 @@ export class WhatsAppTemplates {
     }
   }
 
-  /** Appends a bold-label line only when value is truthy. */
+  /** Appends a bold-label line. If value is falsy, prints 'None' */
   private static line(label: string, value: string | number | null | undefined): string {
-    if (value === null || value === undefined || value === '') return '';
-    return `*${label}:* ${value}\n`;
+    const displayValue = (value === null || value === undefined || value === '') ? 'None' : value;
+    return `*${label}:* ${displayValue}\n`;
   }
 
   // ─── Templates ──────────────────────────────────────────────────────────────
@@ -70,12 +70,10 @@ export class WhatsAppTemplates {
     lines.push(WhatsAppTemplates.line('Product', data.product));
     lines.push(WhatsAppTemplates.line('Purity', data.purity));
 
-    if (data.quantity !== null && data.quantity !== undefined && data.quantity !== '') {
-      const qty = data.quantityUnit
-        ? `${data.quantity} ${data.quantityUnit}`
-        : String(data.quantity);
-      lines.push(WhatsAppTemplates.line('Quantity', qty));
-    }
+    const qty = (data.quantity !== null && data.quantity !== undefined && data.quantity !== '')
+      ? (data.quantityUnit ? `${data.quantity} ${data.quantityUnit}` : String(data.quantity))
+      : null;
+    lines.push(WhatsAppTemplates.line('Quantity', qty));
 
     lines.push(WhatsAppTemplates.line('Packing Type', data.packingType));
     lines.push(WhatsAppTemplates.line('Origin', data.origin));
@@ -85,16 +83,19 @@ export class WhatsAppTemplates {
       WhatsAppTemplates.line('Shipment Date', WhatsAppTemplates.formatDate(data.shipmentDate)),
     );
 
-    if (data.bid !== null && data.bid !== undefined && data.bid !== '') {
-      const bidStr = data.bidCurrency ? `${data.bid} ${data.bidCurrency}` : String(data.bid);
-      lines.push(WhatsAppTemplates.line('Bid', bidStr));
-    }
+    const amountLabel = data.bidType === 'BID' ? 'Bid Amount' : 'Target';
+    const amountVal = (data.bid !== null && data.bid !== undefined && data.bid !== '')
+      ? (data.bidCurrency ? `${data.bid} ${data.bidCurrency}` : String(data.bid))
+      : null;
+    lines.push(WhatsAppTemplates.line(amountLabel, amountVal));
+
+    lines.push(WhatsAppTemplates.line('Note', data.note));
 
     const createdByFirstName = data.createdByName ? data.createdByName.split(' ')[0] : undefined;
     lines.push(WhatsAppTemplates.line('Created By', createdByFirstName));
     lines.push(WhatsAppTemplates.line('Created At', WhatsAppTemplates.formatDate(data.createdAt)));
 
-    return lines.filter((l) => l !== '').join('');
+    return lines.join('');
   }
 
   /**

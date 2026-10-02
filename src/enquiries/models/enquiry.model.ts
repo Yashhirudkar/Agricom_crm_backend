@@ -12,6 +12,7 @@ import {
   ForeignKey,
   BelongsTo,
   HasOne,
+  HasMany,
 } from 'sequelize-typescript';
 import { PartnerRole } from '../../masters/partner-role/partner-role.model';
 import { Partner } from '../../masters/partner/partner.model';
@@ -21,6 +22,8 @@ import { User } from '../../users/models/user.model';
 import { EnquiryStatus, EnquiryShipmentMode } from '../enquiry.constants';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
+import { EnquiryLoadingPoint } from './enquiry-loading-point.model';
+import { EnquiryDestination } from './enquiry-destination.model';
 
 @Table({
   tableName: 'enquiries',
@@ -181,6 +184,15 @@ export class Enquiry extends Model<Enquiry> {
 
 
   @AllowNull(false)
+  @Default('TARGET')
+  @Column({ field: 'bid_type', type: DataType.STRING(20) })
+  declare bidType: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare note: string;
+
+  @AllowNull(false)
   @Default(EnquiryStatus.NEW)
   @Column({ type: DataType.STRING(50) })
   declare status: string;
@@ -215,4 +227,10 @@ export class Enquiry extends Model<Enquiry> {
 
   @HasOne(() => Logistics)
   declare logistics: Logistics;
+
+  @HasMany(() => EnquiryLoadingPoint)
+  declare loadingPoints: EnquiryLoadingPoint[];
+
+  @HasMany(() => EnquiryDestination)
+  declare destinations: EnquiryDestination[];
 }

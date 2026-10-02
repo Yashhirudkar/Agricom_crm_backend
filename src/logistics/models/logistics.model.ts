@@ -17,6 +17,7 @@ import {
 } from 'sequelize-typescript';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { FreightQuote } from './freight-quote.model';
+import { LogisticsRoute } from './logistics-route.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Company } from '../../companies/models/company.model';
 
@@ -94,6 +95,11 @@ export class Logistics extends Model<Logistics> {
   @Column({ type: DataType.TEXT })
   declare remarks: string;
 
+  @AllowNull(false)
+  @Default(false)
+  @Column({ field: 'is_viewed', type: DataType.BOOLEAN })
+  declare isViewed: boolean;
+
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
@@ -116,6 +122,9 @@ export class Logistics extends Model<Logistics> {
 
   @HasMany(() => FreightQuote)
   declare quotes: FreightQuote[];
+
+  @HasMany(() => LogisticsRoute)
+  declare routes: LogisticsRoute[];
 
   @HasMany(() => SalesContractShipment)
   declare shipments: SalesContractShipment[];

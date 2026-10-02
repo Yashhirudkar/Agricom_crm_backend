@@ -8,6 +8,8 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Op, QueryTypes } from 'sequelize';
 import { Enquiry } from './models/enquiry.model';
+import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
+import { EnquiryDestination } from './models/enquiry-destination.model';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { UpdateEnquiryDto } from './dto/update-enquiry.dto';
 import { QueryEnquiryDto } from './dto/query-enquiry.dto';
@@ -63,6 +65,10 @@ export class EnquiriesService {
   constructor(
     @InjectModel(Enquiry)
     private readonly enquiryModel: typeof Enquiry,
+    @InjectModel(EnquiryLoadingPoint)
+    private readonly enquiryLoadingPointModel: typeof EnquiryLoadingPoint,
+    @InjectModel(EnquiryDestination)
+    private readonly enquiryDestinationModel: typeof EnquiryDestination,
     @InjectModel(PartnerRole)
     private readonly partnerRoleModel: typeof PartnerRole,
     @InjectModel(Partner)
@@ -317,6 +323,8 @@ export class EnquiriesService {
           shipmentDate:  enquiry.shipmentDate            || undefined,
           bid:           enquiry.buyingInterest != null ? String(enquiry.buyingInterest) : undefined,
           bidCurrency:   enquiry.bidCurrency             || undefined,
+          bidType:       enquiry.bidType                 || undefined,
+          note:          enquiry.note                    || undefined,
           createdByName: (creator as any)?.name          || undefined,
           createdAt:     new Date(),
         },
@@ -327,11 +335,6 @@ export class EnquiriesService {
           err?.stack,
         ),
       );
-
-    // ── Transport Management Real-Time Notifications ──────────────────────────
-    this.notifyTransportTeam(enquiry, (product as any)?.name, (partner as any)?.entityName, user?.companyId).catch(err => {
-      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
-    });
 
     return enquiry;
   }
@@ -446,6 +449,8 @@ export class EnquiriesService {
       originStationCode: row.originStationCode,
       destinationStationCode: row.destinationStationCode,
       bidCurrency: row.bidCurrency,
+      bidType: row.bidType || 'TARGET',
+      note: row.note || null,
       createdBy: row.createdBy,
       createdByName: row.creator?.name || null,
       creator: row.creator ? { id: row.creator.id, name: row.creator.name, email: row.creator.email } : null,
@@ -504,7 +509,19 @@ export class EnquiriesService {
       );
     });
 
-    return enquiry.reload({ include: INCLUDE_RELATIONS });
+    const updatedEnquiry = await enquiry.reload({ include: INCLUDE_RELATIONS });
+
+    // ── Transport Management Real-Time Notifications ──────────────────────────
+    this.notifyTransportTeam(
+      updatedEnquiry,
+      (updatedEnquiry.product as any)?.name,
+      (updatedEnquiry.partner as any)?.entityName,
+      user?.companyId
+    ).catch(err => {
+      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
+    });
+
+    return updatedEnquiry;
   }
 
   async remove(id: string, reason?: string, user?: any): Promise<void> {
@@ -531,6 +548,88 @@ export class EnquiriesService {
         newValue: null,
       });
     }
+  }
+
+  async getLoadingPoints(enquiryId: string, companyId: number): Promise<string[]> {
+    const points = await this.enquiryLoadingPointModel.findAll({
+      where: { enquiryId, companyId },
+      order: [['createdAt', 'ASC']],
+      attributes: ['loadingPoint'],
+    });
+    return points.map((p) => p.loadingPoint);
+  }
+
+  async updateLoadingPoints(
+    enquiryId: string,
+    companyId: number,
+    loadingPoints: string[],
+  ): Promise<string[]> {
+    // Verify enquiry belongs to this company
+    const enquiry = await this.findOne(enquiryId, companyId);
+
+    // Filter out blank entries
+    const cleaned = loadingPoints.map((s) => s.trim()).filter(Boolean);
+
+    await this.sequelize.transaction(async (transaction) => {
+      // Delete existing loading points for this enquiry
+      await this.enquiryLoadingPointModel.destroy({
+        where: { enquiryId, companyId },
+        transaction,
+      });
+
+      // Bulk insert the new ones
+      if (cleaned.length > 0) {
+        await this.enquiryLoadingPointModel.bulkCreate(
+          cleaned.map((loadingPoint) => ({ enquiryId, companyId, loadingPoint })),
+          { transaction },
+        );
+      }
+    });
+
+    // ── Transport Management Real-Time Notifications ──────────────────────────
+    this.notifyTransportTeam(
+      enquiry,
+      (enquiry.product as any)?.name,
+      (enquiry.partner as any)?.entityName,
+      companyId
+    ).catch(err => {
+      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
+    });
+
+    return cleaned;
+  }
+
+  async getDestinations(enquiryId: string, companyId: number): Promise<string[]> {
+    const rows = await this.enquiryDestinationModel.findAll({
+      where: { enquiryId, companyId },
+      order: [['createdAt', 'ASC']],
+      attributes: ['destination'],
+    });
+    return rows.map((r) => r.destination);
+  }
+
+  async updateDestinations(
+    enquiryId: string,
+    companyId: number,
+    destinations: string[],
+  ): Promise<string[]> {
+    await this.findOne(enquiryId, companyId);
+    const cleaned = destinations.map((s) => s.trim()).filter(Boolean);
+
+    await this.sequelize.transaction(async (transaction) => {
+      await this.enquiryDestinationModel.destroy({
+        where: { enquiryId, companyId },
+        transaction,
+      });
+      if (cleaned.length > 0) {
+        await this.enquiryDestinationModel.bulkCreate(
+          cleaned.map((destination) => ({ enquiryId, companyId, destination })),
+          { transaction },
+        );
+      }
+    });
+
+    return cleaned;
   }
 
   async notifyTransportTeam(enquiry: Enquiry, productName: string, buyerName: string, companyId?: number): Promise<void> {

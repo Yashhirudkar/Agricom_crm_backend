@@ -102,8 +102,11 @@ import { PurchaseContractActivity } from './purchase-contracts/models/purchase-c
 import { PurchaseContractAttachment } from './purchase-contracts/models/purchase-contract-attachment.model';
 import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts.module';
 import { Enquiry } from './enquiries/models/enquiry.model';
+import { EnquiryLoadingPoint } from './enquiries/models/enquiry-loading-point.model';
+import { EnquiryDestination } from './enquiries/models/enquiry-destination.model';
 import { Logistics } from './logistics/models/logistics.model';
 import { FreightQuote } from './logistics/models/freight-quote.model';
+import { LogisticsRoute } from './logistics/models/logistics-route.model';
 import { FreightChargeMaster } from './logistics/models/freight-charge-master.model';
 import { FreightQuoteCharge } from './logistics/models/freight-quote-charge.model';
 import { MonthlyStockSummary } from './logistics/models/monthly-stock-summary.model';
@@ -278,6 +281,8 @@ import {
             PurchaseContractActivity,
             PurchaseContractAttachment,
             Enquiry,
+            EnquiryLoadingPoint,
+            EnquiryDestination,
             Task,
             TaskSequence,
             TaskStatus,
@@ -317,6 +322,7 @@ import {
             QuotationItem,
             QuotationSequence,
             Logistics,
+            LogisticsRoute,
             FreightQuote,
             FreightChargeMaster,
             FreightQuoteCharge,

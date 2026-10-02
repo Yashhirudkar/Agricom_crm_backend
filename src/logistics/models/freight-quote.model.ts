@@ -16,6 +16,7 @@ import {
   HasMany,
 } from 'sequelize-typescript';
 import { Logistics } from './logistics.model';
+import { LogisticsRoute } from './logistics-route.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { FreightQuoteCharge } from './freight-quote-charge.model';
 import { Company } from '../../companies/models/company.model';
@@ -209,6 +210,14 @@ export class FreightQuote extends Model<FreightQuote> {
   @DeletedAt
   @Column({ field: 'deleted_at' })
   declare deletedAt: Date;
+
+  @ForeignKey(() => LogisticsRoute)
+  @AllowNull(true)
+  @Column({ field: 'route_id', type: DataType.INTEGER })
+  declare routeId: number;
+
+  @BelongsTo(() => LogisticsRoute, 'routeId')
+  declare routeRel: LogisticsRoute;
 
   @HasMany(() => FreightQuoteCharge, 'quoteId')
   declare charges: FreightQuoteCharge[];

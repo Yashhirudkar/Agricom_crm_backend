@@ -298,6 +298,30 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   );
 
   console.log('✅ Phase 03 - Attendance & Leave Management tables created successfully');
+
+  // --- From phase 12 ---
+  await queryInterface.sequelize.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_leave_approval_logs_action') THEN
+        ALTER TYPE "enum_leave_approval_logs_action" ADD VALUE IF NOT EXISTS 'RECALCULATED';
+      END IF;
+    END
+    $$;
+  `).catch(() => {});
+
+  // --- From phase 24 ---
+  await queryInterface.sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_lr_company_pending_cursor
+    ON leave_requests ("companyId", "createdAt" DESC, id DESC)
+    WHERE status = 'PENDING';
+  `).catch(() => {});
+
+  await queryInterface.sequelize.query(`
+    CREATE INDEX IF NOT EXISTS idx_lr_company_history_cursor
+    ON leave_requests ("companyId", "createdAt" DESC, id DESC)
+    WHERE status <> 'PENDING';
+  `).catch(() => {});
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
@@ -308,5 +332,10 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.dropTable('attendance_logs').catch(() => { });
   await queryInterface.dropTable('attendance_records').catch(() => { });
   await queryInterface.dropTable('company_break_policies').catch(() => { });
+  
+  // --- From phase 24 ---
+  await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_lr_company_pending_cursor;`).catch(() => {});
+  await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_lr_company_history_cursor;`).catch(() => {});
+
   console.log('✅ Phase 03 - Attendance & Leave Management tables dropped');
 }
