@@ -37,6 +37,12 @@ export class WhatsAppTemplates {
     return `*${label}:* ${displayValue}\n`;
   }
 
+  private static formatNumber(value: string | number | null | undefined): string | null {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    return !isNaN(num) ? String(num) : String(value);
+  }
+
   // ─── Templates ──────────────────────────────────────────────────────────────
 
   /**
@@ -70,8 +76,9 @@ export class WhatsAppTemplates {
     lines.push(WhatsAppTemplates.line('Product', data.product));
     lines.push(WhatsAppTemplates.line('Purity', data.purity));
 
-    const qty = (data.quantity !== null && data.quantity !== undefined && data.quantity !== '')
-      ? (data.quantityUnit ? `${data.quantity} ${data.quantityUnit}` : String(data.quantity))
+    const qtyVal = WhatsAppTemplates.formatNumber(data.quantity);
+    const qty = qtyVal !== null
+      ? (data.quantityUnit ? `${qtyVal} ${data.quantityUnit}` : qtyVal)
       : null;
     lines.push(WhatsAppTemplates.line('Quantity', qty));
 
@@ -84,8 +91,9 @@ export class WhatsAppTemplates {
     );
 
     const amountLabel = data.bidType === 'BID' ? 'Bid Amount' : 'Target';
-    const amountVal = (data.bid !== null && data.bid !== undefined && data.bid !== '')
-      ? (data.bidCurrency ? `${data.bid} ${data.bidCurrency}` : String(data.bid))
+    const amountValNum = WhatsAppTemplates.formatNumber(data.bid);
+    const amountVal = amountValNum !== null
+      ? (data.bidCurrency ? `${amountValNum} ${data.bidCurrency}` : amountValNum)
       : null;
     lines.push(WhatsAppTemplates.line(amountLabel, amountVal));
 
