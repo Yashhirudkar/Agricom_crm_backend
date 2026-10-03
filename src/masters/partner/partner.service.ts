@@ -334,6 +334,7 @@ export class PartnerService {
     partnerRoleId?: number;
     roleName?: string;
     search?: string;
+    allowedPrefixes?: string[];
     isActive?: boolean;
     limit?: number;
     page?: number;
@@ -346,6 +347,11 @@ export class PartnerService {
 
     if (params.partnerRoleId) {
       where.partnerRoleId = params.partnerRoleId;
+    }
+    if (params.allowedPrefixes && params.allowedPrefixes.length > 0) {
+      where.entityName = {
+        [Op.or]: params.allowedPrefixes.map(p => ({ [Op.iLike]: `${p.trim()}%` }))
+      };
     }
     if (params.search && params.search.trim()) {
       const searchTrim = params.search.trim();

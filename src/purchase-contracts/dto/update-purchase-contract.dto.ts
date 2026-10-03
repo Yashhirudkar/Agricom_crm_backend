@@ -47,6 +47,9 @@ export class UpdatePurchaseContractDto {
   paymentDueDate?: any;
 
   @IsOptional()
+  unloadingDate?: any;
+
+  @IsOptional()
   brokerId?: any;
 
   @IsOptional()
@@ -54,6 +57,9 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   dispatchDate?: any;
+
+  @IsOptional()
+  dispatchToDate?: any;
 
   @IsOptional()
   notes?: any;

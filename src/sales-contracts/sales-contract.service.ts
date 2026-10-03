@@ -194,6 +194,10 @@ export class SalesContractService implements OnModuleInit {
         { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
         { model: SalesContractDocument, attributes: ['id'] },
         { model: SalesContractDocumentFile, attributes: ['id'] },
+        {
+          model: SalesContractItem,
+          include: [{ model: Product, attributes: ['name'] }],
+        },
       ],
       distinct: true,
       limit: Number(limit),

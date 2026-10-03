@@ -111,11 +111,19 @@ export class CreatePurchaseContractDto {
 
   @IsOptional()
   @IsString()
+  unloadingDate?: string;
+
+  @IsOptional()
+  @IsString()
   deliveryPlace?: string;
 
   @IsOptional()
   @IsString()
   dispatchDate?: string;
+
+  @IsOptional()
+  @IsString()
+  dispatchToDate?: string;
 
   @IsOptional()
   @IsInt()
@@ -160,6 +168,10 @@ export class CreatePurchaseContractDto {
   @IsOptional()
   @IsArray()
   terms?: string[];
+
+  @IsOptional()
+  @IsString()
+  currencyCode?: string;
 
   @IsOptional()
   @IsArray()

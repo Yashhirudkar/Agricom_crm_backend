@@ -21,6 +21,7 @@ import { QueryProductDto } from './dto/query-product.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -56,7 +57,7 @@ export class ProductController {
   }
 
   @Get()
-  @RequirePermission('product:view')
+  @RequireAnyPermission('product:view', 'sales_contract:view', 'enquiry:view')
   async findAll(@Query() query: QueryProductDto, @Req() req: any) {
     const result = await this.productService.findAll({
       ...query,
@@ -66,7 +67,7 @@ export class ProductController {
   }
 
   @Get(':id')
-  @RequirePermission('product:view')
+  @RequireAnyPermission('product:view', 'sales_contract:view', 'enquiry:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const item = await this.productService.findOne(id, req.user?.companyId);
     return item;

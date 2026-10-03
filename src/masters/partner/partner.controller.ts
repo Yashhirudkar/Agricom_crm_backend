@@ -122,12 +122,14 @@ export class PartnerController {
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('includeContacts') includeContacts?: string,
+    @Query('allowedPrefixes') allowedPrefixes?: string,
     @Req() req?: any,
   ) {
     return this.partnerService.findOptions({
       partnerRoleId: partnerRoleId ? parseInt(partnerRoleId, 10) : undefined,
       roleName,
       search,
+      allowedPrefixes: allowedPrefixes ? allowedPrefixes.split(',') : undefined,
       isActive: true,
       limit: limit ? parseInt(limit, 10) : 10,
       page: page ? parseInt(page, 10) : 1,

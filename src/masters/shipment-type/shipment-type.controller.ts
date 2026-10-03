@@ -20,6 +20,7 @@ import { QueryShipmentTypeDto } from './dto/query-shipment-type.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -41,13 +42,13 @@ export class ShipmentTypeController {
   }
 
   @Get()
-  @RequirePermission('shipment-type:view')
+  @RequireAnyPermission('shipment-type:view', 'sales_contract:view', 'enquiry:view')
   async findAll(@Query() query: QueryShipmentTypeDto, @Req() req: any) {
     return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get(':id')
-  @RequirePermission('shipment-type:view')
+  @RequireAnyPermission('shipment-type:view', 'sales_contract:view', 'enquiry:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user?.companyId);
   }

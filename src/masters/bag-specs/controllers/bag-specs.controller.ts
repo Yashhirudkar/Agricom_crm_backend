@@ -26,6 +26,7 @@ import { AssignPackagingDto } from '../dto/assign-packaging.dto';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../../rbac/decorators/require-any-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters')
@@ -35,7 +36,7 @@ export class BagSpecsController {
   // ─── BAG TYPES ────────────────────────────────────────────────────────────
 
   @Get('bag-types')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllBagTypes(@Query('isActive') isActive?: string, @Req() req?: any) {
     const active =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
@@ -43,7 +44,7 @@ export class BagSpecsController {
   }
 
   @Get('stitching-types')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllStitchingTypes() {
     return [
       { id: 1, name: 'Double Folded Machine Stitched' },
@@ -55,7 +56,7 @@ export class BagSpecsController {
   }
 
   @Get('marking-types')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllMarkingTypes() {
     return [
       { id: 1, name: 'Standard Export Shipping Marks' },
@@ -99,7 +100,7 @@ export class BagSpecsController {
   }
 
   @Get('packing-types')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllPackingTypes(@Query('isActive') isActive?: string, @Req() req?: any) {
     const active =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
@@ -133,13 +134,13 @@ export class BagSpecsController {
   // ─── BAG SPECIFICATIONS ───────────────────────────────────────────────────
 
   @Get('bag-specifications')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllSpecs(@Query() query: QueryBagSpecDto, @Req() req?: any) {
     return this.bagSpecsService.findAllSpecs({ ...query, companyId: req?.user?.companyId } as any);
   }
 
   @Get('bag-specifications/:id')
-  @RequirePermission('bagspec:view')
+  @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findOneSpec(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
     return this.bagSpecsService.findOneSpec(id, req?.user?.companyId);
   }

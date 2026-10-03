@@ -20,6 +20,7 @@ import { QueryPaymentTermDto } from './dto/query-payment-term.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -36,13 +37,13 @@ export class PaymentTermController {
   }
 
   @Get()
-  @RequirePermission('payment-term:view')
+  @RequireAnyPermission('payment-term:view', 'sales_contract:view', 'enquiry:view')
   async findAll(@Query() query: QueryPaymentTermDto, @Req() req: any) {
     return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
   }
 
   @Get(':id')
-  @RequirePermission('payment-term:view')
+  @RequireAnyPermission('payment-term:view', 'sales_contract:view', 'enquiry:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user?.companyId);
   }

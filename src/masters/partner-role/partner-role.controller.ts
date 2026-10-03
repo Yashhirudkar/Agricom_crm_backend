@@ -76,8 +76,10 @@ export class PartnerRoleController {
     'logistics:read',
     'enquiry:view',
     'enquiry:read',
+    'sales_contract:view',
     'sales-contract:view',
     'sales-contract:read',
+    'purchase_contract:view',
     'purchase-contract:view',
     'purchase-contract:read',
   )
@@ -99,8 +101,10 @@ export class PartnerRoleController {
     'logistics:read',
     'enquiry:view',
     'enquiry:read',
+    'sales_contract:view',
     'sales-contract:view',
     'sales-contract:read',
+    'purchase_contract:view',
     'purchase-contract:view',
     'purchase-contract:read',
   )

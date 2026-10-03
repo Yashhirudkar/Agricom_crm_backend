@@ -21,6 +21,7 @@ import { QueryEnquiryDto } from './dto/query-enquiry.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../audit/decorators/audit-log.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -37,20 +38,20 @@ export class EnquiriesController {
   }
 
   @Get()
-  @RequirePermission('enquiry:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
   findAll(@Query() query: QueryEnquiryDto, @Req() req: any) {
     (query as any).companyId = req.user?.companyId;
     return this.enquiriesService.findAll(query);
   }
 
   @Get(':id')
-  @RequirePermission('enquiry:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
-  @RequirePermission('enquiry:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
   @AuditLog({ entityType: 'Enquiry', action: 'UPDATE' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -61,7 +62,7 @@ export class EnquiriesController {
   }
 
   @Delete(':id')
-  @RequirePermission('enquiry:delete')
+  @RequireAnyPermission('enquiry:delete', 'sales_contract:delete')
   @AuditLog({ entityType: 'Enquiry', action: 'DELETE' })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
@@ -73,13 +74,13 @@ export class EnquiriesController {
   }
 
   @Get(':id/loading-points')
-  @RequirePermission('enquiry:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
   getLoadingPoints(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.getLoadingPoints(id, req.user?.companyId);
   }
 
   @Put(':id/loading-points')
-  @RequirePermission('enquiry:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
   updateLoadingPoints(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('loadingPoints') loadingPoints: string[],
@@ -93,13 +94,13 @@ export class EnquiriesController {
   }
 
   @Get(':id/destinations')
-  @RequirePermission('enquiry:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
   getDestinations(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.getDestinations(id, req.user?.companyId);
   }
 
   @Put(':id/destinations')
-  @RequirePermission('enquiry:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
   updateDestinations(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('destinations') destinations: string[],

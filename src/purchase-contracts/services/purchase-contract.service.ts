@@ -15,6 +15,8 @@ import { SalesContractShipment } from '../../sales-contracts/models/sales-contra
 import { Partner } from '../../masters/partner/partner.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
+import { SalesContractItem } from '../../sales-contracts/models/sales-contract-item.model';
+import { Product } from '../../masters/product/product.model';
 import { CreatePurchaseContractDto } from '../dto/create-purchase-contract.dto';
 import { UpdatePurchaseContractDto, UpdatePurchaseContractStatusDto } from '../dto/update-purchase-contract.dto';
 import { PurchaseContractActivityService, PC_ACTIONS } from './purchase-contract-activity.service';
@@ -77,13 +79,14 @@ export class PurchaseContractService {
 
     if (!pc) {
       const salesContract = await this.salesContractModel.findByPk(salesContractId, {
-        attributes: ['id', 'contractNumber', 'companyId'],
+        attributes: ['id', 'contractNumber', 'companyId', 'sellerId'],
       });
       if (!salesContract) throw new NotFoundException('Sales Contract not found');
 
       pc = await this.model.create({
         salesContractId,
         purchaseType: 'SC',
+        buyerId: salesContract.sellerId || null,
         status: 'Draft',
         createdBy: userId ?? null,
         updatedBy: userId ?? null,
@@ -153,10 +156,12 @@ export class PurchaseContractService {
           balancePercent: dto.balancePercent != null ? Number(dto.balancePercent) : null,
           penaltyPercent: dto.penaltyPercent != null ? Number(dto.penaltyPercent) : null,
           paymentDueDate: dto.paymentDueDate || null,
+          unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
           deliveryPlace: dto.deliveryPlace || null,
           dispatchDate: dto.dispatchDate || null,
+          dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
           productQuality: dto.productQuality || null,
           notes: dto.notes || null,
@@ -243,7 +248,11 @@ export class PurchaseContractService {
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
         { model: PaymentTerm, as: 'paymentTerm' },
-        { model: PurchaseContractItem, as: 'items' },
+        { 
+          model: PurchaseContractItem, 
+          as: 'items',
+          include: [{ model: Product, as: 'product' }]
+        },
         {
           model: SalesContract,
           as: 'salesContract',
@@ -253,6 +262,11 @@ export class PurchaseContractService {
             { model: Partner, as: 'broker' },
             { model: ShipmentType, as: 'shipmentType' },
             { model: PaymentTerm, as: 'paymentTerm' },
+            {
+              model: SalesContractItem,
+              as: 'items',
+              include: [{ model: Product, as: 'product' }]
+            }
           ],
         },
       ],
@@ -279,9 +293,11 @@ export class PurchaseContractService {
     if (updateData.balancePercent !== undefined) sanitizeData.balancePercent = updateData.balancePercent != null ? Number(updateData.balancePercent) : null;
     if (updateData.penaltyPercent !== undefined) sanitizeData.penaltyPercent = updateData.penaltyPercent != null ? Number(updateData.penaltyPercent) : null;
     if (updateData.paymentDueDate !== undefined) sanitizeData.paymentDueDate = updateData.paymentDueDate ? String(updateData.paymentDueDate) : null;
+    if (updateData.unloadingDate !== undefined) sanitizeData.unloadingDate = updateData.unloadingDate ? String(updateData.unloadingDate) : null;
     if (updateData.brokerId !== undefined) sanitizeData.brokerId = updateData.brokerId ? Number(updateData.brokerId) : null;
     if (updateData.brokerCommission !== undefined) sanitizeData.brokerCommission = updateData.brokerCommission ? String(updateData.brokerCommission) : null;
     if (updateData.dispatchDate !== undefined) sanitizeData.dispatchDate = updateData.dispatchDate ? String(updateData.dispatchDate) : null;
+    if (updateData.dispatchToDate !== undefined) sanitizeData.dispatchToDate = updateData.dispatchToDate ? String(updateData.dispatchToDate) : null;
     if (updateData.notes !== undefined) sanitizeData.notes = updateData.notes ? String(updateData.notes) : null;
     if (updateData.terms !== undefined) sanitizeData.terms = Array.isArray(updateData.terms) ? updateData.terms : [];
     if (updateData.quantity !== undefined) sanitizeData.quantity = updateData.quantity != null ? String(updateData.quantity) : null;

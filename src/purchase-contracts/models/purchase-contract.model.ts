@@ -129,6 +129,10 @@ export class PurchaseContract extends Model<PurchaseContract> {
   @Column({ field: 'broker_commission', type: DataType.STRING(100) })
   declare brokerCommission: string;
 
+  @AllowNull(true)
+  @Column({ field: 'currency_code', type: DataType.STRING(10) })
+  declare currencyCode: string;
+
   /** Optional seller reference contract number */
   @AllowNull(true)
   @Column({ field: 'seller_contract_no', type: DataType.STRING(100) })
@@ -179,6 +183,14 @@ export class PurchaseContract extends Model<PurchaseContract> {
   @AllowNull(true)
   @Column({ field: 'dispatch_date', type: DataType.DATEONLY })
   declare dispatchDate: string;
+
+  @AllowNull(true)
+  @Column({ field: 'dispatch_to_date', type: DataType.DATEONLY })
+  declare dispatchToDate: string;
+
+  @AllowNull(true)
+  @Column({ field: 'unloading_date', type: DataType.DATEONLY })
+  declare unloadingDate: string;
 
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })

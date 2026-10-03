@@ -351,6 +351,7 @@ export class EnquiriesService {
       originCountryId,
       shipmentType,
       potentialEnquiry,
+      withoutSalesContract,
       page,
       limit,
     } = query;
@@ -394,6 +395,12 @@ export class EnquiriesService {
     if (shipmentType) whereClause.shipmentType = shipmentType;
     if (potentialEnquiry !== undefined) whereClause.potentialEnquiry = potentialEnquiry;
 
+    if (withoutSalesContract) {
+      whereClause.id = {
+        [Op.notIn]: Sequelize.literal(`(SELECT enquiry_id FROM sales_contracts WHERE enquiry_id IS NOT NULL AND company_id = ${(query as any).companyId})`),
+      };
+    }
+
     if (dateFrom && dateTo) {
       whereClause.enquiryDate = {
         [Op.between]: [dateFrom, dateTo],
@@ -412,7 +419,7 @@ export class EnquiriesService {
       where: { ...whereClause, companyId: (query as any).companyId },
       limit: finalLimit,
       offset,
-      order: [['createdAt', 'DESC']],
+      order: [['enquiryDate', 'DESC'], ['createdAt', 'DESC']],
       include: INCLUDE_RELATIONS,
       distinct: true,
       subQuery: false,

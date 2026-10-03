@@ -26,6 +26,8 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
       await this.syncHrPoliciesSidebarItem();
       await this.syncShipmentsSidebarItem();
+      await this.syncSalesContractsSidebarItem();
+      await this.syncConfirmedOrdersSidebarItem();
     } catch (error) {
       this.logger.error('Failed to seed or sync sidebar structure', error);
     }
@@ -624,6 +626,140 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync Shipments sidebar item', err);
+    }
+  }
+
+  private async syncSalesContractsSidebarItem() {
+    try {
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/sales-contracts' },
+      });
+
+      if (items.length > 0) {
+        let itemId: number | null = null;
+        for (const item of items) {
+          let modified = false;
+          if (item.permission_link !== 'sales_contracts:read') {
+            item.permission_link = 'sales_contracts:read';
+            modified = true;
+          }
+          if (item.is_active !== true) {
+            item.is_active = true;
+            modified = true;
+          }
+          if (modified) {
+            await item.save();
+            this.logger.log(`Updated Sales Contracts sidebar item`);
+          }
+          itemId = item.id;
+        }
+
+        const seq = this.sidebarItemModel.sequelize;
+        if (itemId && seq) {
+          const clients = (await seq.query(`SELECT id FROM clients;`, {
+            type: 'SELECT',
+          })) as any[];
+
+          for (const client of clients) {
+            try {
+              const existing = (await seq.query(
+                `SELECT id FROM client_item_access WHERE client_id = :clientId AND item_id = :itemId LIMIT 1;`,
+                { replacements: { clientId: client.id, itemId }, type: 'SELECT' }
+              )) as any[];
+
+              if (existing.length === 0) {
+                await seq.query(
+                  `INSERT INTO client_item_access (client_id, item_id, "created_at")
+                   VALUES (:clientId, :itemId, NOW());`,
+                  { replacements: { clientId: client.id, itemId } }
+                );
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Sales Contracts sidebar item', err);
+    }
+  }
+
+  private async syncConfirmedOrdersSidebarItem() {
+    try {
+      let salesFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Sales' },
+      });
+
+      if (!salesFolder) {
+        return;
+      }
+
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/sales-contracts/confirmed-orders' },
+      });
+
+      let itemId: number | null = null;
+
+      if (items.length === 0) {
+        const newItem = await this.sidebarItemModel.create({
+          name: 'Confirmed Orders',
+          route: '/sales-contracts/confirmed-orders',
+          icon_name: 'FileCheck',
+          folder_id: salesFolder.id,
+          sort_order: 15,
+          is_active: true,
+          permission_link: 'sales_contracts:read', // same permission as sales contracts
+        } as any);
+
+        itemId = newItem.id;
+        this.logger.log('Created /sales-contracts/confirmed-orders sidebar item');
+      } else {
+        for (const item of items) {
+          let modified = false;
+          if (item.permission_link !== 'sales_contracts:read') {
+            item.permission_link = 'sales_contracts:read';
+            modified = true;
+          }
+          if (item.is_active !== true) {
+            item.is_active = true;
+            modified = true;
+          }
+          if (modified) {
+            await item.save();
+            this.logger.log(`Updated Confirmed Orders sidebar item`);
+          }
+          itemId = item.id;
+        }
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      if (itemId && seq) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          try {
+            const existing = (await seq.query(
+              `SELECT id FROM client_item_access WHERE client_id = :clientId AND item_id = :itemId LIMIT 1;`,
+              { replacements: { clientId: client.id, itemId }, type: 'SELECT' }
+            )) as any[];
+
+            if (existing.length === 0) {
+              await seq.query(
+                `INSERT INTO client_item_access (client_id, item_id, "created_at")
+                 VALUES (:clientId, :itemId, NOW());`,
+                { replacements: { clientId: client.id, itemId } }
+              );
+            }
+          } catch (e) {
+            // Ignore
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Confirmed Orders sidebar item', err);
     }
   }
 }
