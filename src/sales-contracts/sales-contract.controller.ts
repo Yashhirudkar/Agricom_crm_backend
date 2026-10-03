@@ -51,6 +51,40 @@ export class SalesContractController {
     return await this.service.getDistinctFinancialYears(req.user?.companyId);
   }
 
+  /**
+   * Preview the next auto-generated contract number.
+   * Only applicable to Agricom Impex / Agricom Impex Pvt Ltd sellers.
+   * Returns null for all other sellers.
+   *
+   * The prefix includes the buyer's first initial: <BuyerInitial><SellerCode>
+   *
+   * NOTE: This is for UI display only. The final contract number is always
+   * regenerated atomically on the backend during contract creation.
+   */
+  @Get('next-number')
+  @RequirePermission('sales-contract:view')
+  async getNextContractNumber(
+    @Query('sellerId') sellerIdStr: string,
+    @Query('buyerId') buyerIdStr: string,
+    @Query('financialYear') financialYear: string,
+    @Req() req: any,
+  ) {
+    if (!sellerIdStr || !buyerIdStr || !financialYear) {
+      throw new BadRequestException('sellerId, buyerId and financialYear are required.');
+    }
+    const sellerId = parseInt(sellerIdStr, 10);
+    const buyerId = parseInt(buyerIdStr, 10);
+    if (isNaN(sellerId) || isNaN(buyerId)) {
+      throw new BadRequestException('sellerId and buyerId must be valid integers.');
+    }
+    const result = await this.service.getNextContractNumber(sellerId, buyerId, financialYear);
+    if (result === null) {
+      // Not an Agricom seller — return null so frontend knows no auto-number applies
+      return { contractNo: null };
+    }
+    return result;
+  }
+
   @Get(':id')
   @RequirePermission('sales-contract:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {

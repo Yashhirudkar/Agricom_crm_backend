@@ -22,6 +22,7 @@ import * as phase30 from './phase-30-combined-migrations';
 import * as phase31 from './phase-31-purchase-contract-currency';
 import * as phase32 from './phase-32-purchase-contract-dispatch-to';
 import * as phase33 from './phase-33-purchase-contract-unloading-date';
+import * as phase34 from './phase-34-sales-contract-number-unique';
 
 export interface MigrationPhase {
   phase: string;
@@ -59,4 +60,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase31,
   phase32,
   phase33,
+  phase34,
 ];

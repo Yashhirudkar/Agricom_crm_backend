@@ -131,9 +131,9 @@ export class CreateSalesContractDto {
   @Matches(/^\d{4}-\d{4}$/, { message: 'financialYear must be in YYYY-YYYY format' })
   financialYear: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  contractNumber: string;
+  contractNumber?: string;
 
   @IsNotEmpty()
   @IsDateString()
