@@ -132,6 +132,19 @@ export class SalesContractService implements OnModuleInit {
       }
     }
 
+    // Prevent converting the same Confirmed Order into multiple Sales Contracts
+    if (dto.enquiryId) {
+      const alreadyConverted = await this.model.findOne({
+        where: { enquiryId: dto.enquiryId, companyId },
+        attributes: ['id', 'contractNumber'],
+      });
+      if (alreadyConverted) {
+        throw new BadRequestException(
+          `This order is already converted to Sales Contract "${alreadyConverted.contractNumber}".`,
+        );
+      }
+    }
+
     await this.validateForeignKeys(companyId, dto);
 
     return await this.sequelize.transaction(async (t) => {

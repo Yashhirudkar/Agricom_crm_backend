@@ -443,6 +443,14 @@ export class PurchaseContractService {
     return pc.reload();
   }
 
+  async clearDrafts(user: any): Promise<{ count: number }> {
+    const where: any = { status: 'Draft' };
+    if (user?.companyId) where.companyId = user.companyId;
+
+    const count = await this.model.destroy({ where });
+    return { count };
+  }
+
   async remove(id: number, user: any): Promise<{ success: boolean }> {
     const pc = await this.findOne(id, user?.companyId);
     if (!['Draft', 'Cancelled'].includes(pc.status)) {

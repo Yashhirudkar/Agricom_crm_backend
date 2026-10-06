@@ -113,6 +113,14 @@ export class PurchaseContractController {
     return this.service.updateStatus(id, dto, req.user);
   }
 
+  // ─── Clear Drafts ──────────────────────────────────────────────────────────
+  @Delete('clear-drafts')
+  @RequirePermission('purchase-contracts:delete')
+  @AuditLog({ entityType: 'PurchaseContract', action: 'CLEAR_DRAFTS' })
+  async clearDrafts(@Req() req: any) {
+    return this.service.clearDrafts(req.user);
+  }
+
   // ─── Cancel / Delete ──────────────────────────────────────────────────────────
   @Delete(':id')
   @RequirePermission('purchase-contracts:delete')
