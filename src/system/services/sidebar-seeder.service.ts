@@ -28,6 +28,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       await this.syncShipmentsSidebarItem();
       await this.syncSalesContractsSidebarItem();
       await this.syncConfirmedOrdersSidebarItem();
+      await this.syncRemoveOrdersSidebarItem();
     } catch (error) {
       this.logger.error('Failed to seed or sync sidebar structure', error);
     }
@@ -409,7 +410,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
         },
         {
           name: 'Orders',
-          route: '/enquiries/view-orders',
+          route: '/sales-contracts/confirmed-orders',
           icon_name: 'FileSpreadsheet',
           folder_id: enquiriesFolder.id,
           sort_order: 20,
@@ -687,11 +688,11 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
   private async syncConfirmedOrdersSidebarItem() {
     try {
-      let salesFolder = await this.sidebarFolderModel.findOne({
-        where: { name: 'Sales' },
+      let enquiriesFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Enquiries' },
       });
 
-      if (!salesFolder) {
+      if (!enquiriesFolder) {
         return;
       }
 
@@ -703,22 +704,38 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
       if (items.length === 0) {
         const newItem = await this.sidebarItemModel.create({
-          name: 'Confirmed Orders',
+          name: 'Orders',
           route: '/sales-contracts/confirmed-orders',
-          icon_name: 'FileCheck',
-          folder_id: salesFolder.id,
-          sort_order: 15,
+          icon_name: 'FileSpreadsheet',
+          folder_id: enquiriesFolder.id,
+          sort_order: 20,
           is_active: true,
-          permission_link: 'sales_contracts:read', // same permission as sales contracts
+          permission_link: 'enquiries:read',
         } as any);
 
         itemId = newItem.id;
-        this.logger.log('Created /sales-contracts/confirmed-orders sidebar item');
+        this.logger.log('Created /sales-contracts/confirmed-orders sidebar item in Enquiries as Orders');
       } else {
         for (const item of items) {
           let modified = false;
-          if (item.permission_link !== 'sales_contracts:read') {
-            item.permission_link = 'sales_contracts:read';
+          if (item.name !== 'Orders') {
+            item.name = 'Orders';
+            modified = true;
+          }
+          if (item.folder_id !== enquiriesFolder.id) {
+            item.folder_id = enquiriesFolder.id;
+            modified = true;
+          }
+          if (item.icon_name !== 'FileSpreadsheet') {
+            item.icon_name = 'FileSpreadsheet';
+            modified = true;
+          }
+          if (item.sort_order !== 20) {
+            item.sort_order = 20;
+            modified = true;
+          }
+          if (item.permission_link !== 'enquiries:read') {
+            item.permission_link = 'enquiries:read';
             modified = true;
           }
           if (item.is_active !== true) {
@@ -727,7 +744,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           }
           if (modified) {
             await item.save();
-            this.logger.log(`Updated Confirmed Orders sidebar item`);
+            this.logger.log(`Updated Confirmed Orders sidebar item to Orders under Enquiries`);
           }
           itemId = item.id;
         }
@@ -748,9 +765,22 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
             if (existing.length === 0) {
               await seq.query(
-                `INSERT INTO client_item_access (client_id, item_id, "created_at")
-                 VALUES (:clientId, :itemId, NOW());`,
+                `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
+                 VALUES (:clientId, :itemId, NOW(), NOW());`,
                 { replacements: { clientId: client.id, itemId } }
+              );
+            }
+            
+            // Also ensure client has access to Enquiries folder
+            const existingFolder = (await seq.query(
+              `SELECT id FROM client_folder_access WHERE client_id = :clientId AND folder_id = :folderId LIMIT 1;`,
+              { replacements: { clientId: client.id, folderId: enquiriesFolder.id }, type: 'SELECT' }
+            )) as any[];
+            if (existingFolder.length === 0) {
+              await seq.query(
+                `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
+                 VALUES (:clientId, :folderId, NOW(), NOW());`,
+                { replacements: { clientId: client.id, folderId: enquiriesFolder.id } }
               );
             }
           } catch (e) {
@@ -760,6 +790,23 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync Confirmed Orders sidebar item', err);
+    }
+  }
+
+  private async syncRemoveOrdersSidebarItem() {
+    try {
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/enquiries/view-orders' },
+      });
+      for (const item of items) {
+        if (item.is_active !== false) {
+          item.is_active = false;
+          await item.save();
+          this.logger.log(`Disabled Orders sidebar item`);
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to disable Orders sidebar item', err);
     }
   }
 }
