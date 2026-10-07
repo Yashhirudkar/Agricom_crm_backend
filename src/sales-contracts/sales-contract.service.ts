@@ -273,7 +273,7 @@ export class SalesContractService implements OnModuleInit {
       distinct: true,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['createdAt', 'DESC']],
+      order: [['contractDate', 'DESC'], ['createdAt', 'DESC']],
     });
 
     return {
