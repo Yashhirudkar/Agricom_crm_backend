@@ -88,6 +88,14 @@ export class CreatePurchaseContractDto {
   sellerContractNo?: string;
 
   @IsOptional()
+  @IsString()
+  specificationNo?: string;
+
+  @IsOptional()
+  @IsString()
+  specificationDate?: string;
+
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
   paymentTermId?: number;

@@ -81,6 +81,12 @@ export class CreatePartnerDto {
   @IsOptional()
   @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @MaxLength(1000)
+  loadingAddress?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined ? null : typeof value === 'string' ? value.trim() : value))
+  @IsString()
   @MaxLength(100)
   city?: string | null;
 

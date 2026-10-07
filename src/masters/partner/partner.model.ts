@@ -96,6 +96,10 @@ export class Partner extends Model<Partner> {
   declare address: string;
 
   @AllowNull(true)
+  @Column({ field: 'loading_address', type: DataType.STRING(1000) })
+  declare loadingAddress: string;
+
+  @AllowNull(true)
   @Column({ type: DataType.STRING(100) })
   declare city: string;
 

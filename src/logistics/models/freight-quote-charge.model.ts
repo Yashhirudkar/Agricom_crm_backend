@@ -14,6 +14,7 @@ import {
 } from 'sequelize-typescript';
 import { FreightQuote } from './freight-quote.model';
 import { FreightChargeMaster } from './freight-charge-master.model';
+import { FreightQuoteContainerRate } from './freight-quote-container-rate.model';
 import { Company } from '../../companies/models/company.model';
 
 @Table({
@@ -41,6 +42,14 @@ export class FreightQuoteCharge extends Model<FreightQuoteCharge> {
 
   @BelongsTo(() => FreightQuote, { foreignKey: 'quoteId', onDelete: 'CASCADE' })
   declare quote: FreightQuote;
+
+  @ForeignKey(() => FreightQuoteContainerRate)
+  @AllowNull(true)
+  @Column({ field: 'container_rate_id', type: DataType.INTEGER })
+  declare containerRateId: number;
+
+  @BelongsTo(() => FreightQuoteContainerRate, { foreignKey: 'containerRateId', onDelete: 'CASCADE' })
+  declare containerRate: FreightQuoteContainerRate;
 
   @ForeignKey(() => FreightChargeMaster)
   @AllowNull(true)

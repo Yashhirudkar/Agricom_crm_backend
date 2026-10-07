@@ -55,14 +55,7 @@ export class ConversationMember extends Model<ConversationMember> {
   @AllowNull(false)
   @Default(MemberRole.MEMBER)
   @Column({
-    type: DataType.ENUM(
-      MemberRole.OWNER,
-      MemberRole.ADMIN,
-      MemberRole.MODERATOR,
-      MemberRole.MEMBER,
-      MemberRole.VIEWER,
-      MemberRole.GUEST,
-    ),
+    type: DataType.STRING(50),
   })
   declare role: MemberRole;
 

@@ -34,6 +34,22 @@ export class FreightQuoteChargeDto {
   displayOrder?: number;
 }
 
+export class FreightQuoteContainerRateDto {
+  @IsNotEmpty()
+  @IsString()
+  containerType: string;
+
+  @IsNotEmpty()
+  @IsString()
+  containerSize: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FreightQuoteChargeDto)
+  charges?: FreightQuoteChargeDto[];
+}
+
 export class CreateFreightQuoteDto {
   @IsNotEmpty()
   @IsDateString()
@@ -161,10 +177,28 @@ export class CreateFreightQuoteDto {
   routeId?: number;
 
   @IsOptional()
+  @IsNumber()
+  productId?: number;
+
+  @IsOptional()
+  @IsString()
+  loadingPoint?: string;
+
+  @IsOptional()
+  @IsString()
+  destination?: string;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FreightQuoteChargeDto)
   charges?: FreightQuoteChargeDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FreightQuoteContainerRateDto)
+  containerRates?: FreightQuoteContainerRateDto[];
 }
 
 export class UpdateFreightQuoteDto extends CreateFreightQuoteDto {}

@@ -164,6 +164,8 @@ export class PurchaseContractService {
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
           productQuality: dto.productQuality || null,
+          specificationNo: dto.specificationNo || null,
+          specificationDate: dto.specificationDate || null,
           notes: dto.notes || null,
           terms: Array.isArray(dto.terms) ? dto.terms : [],
           status: 'Draft',
@@ -308,6 +310,8 @@ export class PurchaseContractService {
     if (updateData.stitching !== undefined) sanitizeData.stitching = updateData.stitching ? String(updateData.stitching) : null;
     if (updateData.marking !== undefined) sanitizeData.marking = updateData.marking ? String(updateData.marking) : null;
     if (updateData.deliveryPlace !== undefined) sanitizeData.deliveryPlace = updateData.deliveryPlace ? String(updateData.deliveryPlace) : null;
+    if (updateData.specificationNo !== undefined) sanitizeData.specificationNo = updateData.specificationNo ? String(updateData.specificationNo) : null;
+    if (updateData.specificationDate !== undefined) sanitizeData.specificationDate = updateData.specificationDate ? String(updateData.specificationDate) : null;
     if (updateData.status !== undefined) sanitizeData.status = String(updateData.status);
 
     await pc.update({ ...sanitizeData, updatedBy: user?.userId });

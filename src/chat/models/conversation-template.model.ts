@@ -46,12 +46,7 @@ export class ConversationTemplate extends Model<ConversationTemplate> {
   @AllowNull(false)
   @Default(ConversationType.CHANNEL)
   @Column({
-    type: DataType.ENUM(
-      ConversationType.CHANNEL,
-      ConversationType.DEPARTMENT,
-      ConversationType.ANNOUNCEMENT,
-      ConversationType.GROUP,
-    ),
+    type: DataType.STRING(50),
   })
   declare type: ConversationType;
 

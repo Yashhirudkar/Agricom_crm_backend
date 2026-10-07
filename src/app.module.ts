@@ -109,6 +109,7 @@ import { FreightQuote } from './logistics/models/freight-quote.model';
 import { LogisticsRoute } from './logistics/models/logistics-route.model';
 import { FreightChargeMaster } from './logistics/models/freight-charge-master.model';
 import { FreightQuoteCharge } from './logistics/models/freight-quote-charge.model';
+import { FreightQuoteContainerRate } from './logistics/models/freight-quote-container-rate.model';
 import { MonthlyStockSummary } from './logistics/models/monthly-stock-summary.model';
 import { MonthlyStockSummaryCountry } from './logistics/models/monthly-stock-summary-country.model';
 import { MonthlyStockSection } from './logistics/models/monthly-stock-section.model';
@@ -325,6 +326,7 @@ import {
             LogisticsRoute,
             FreightQuote,
             FreightChargeMaster,
+            FreightQuoteContainerRate,
             FreightQuoteCharge,
             MonthlyStockSummary,
             MonthlyStockSummaryCountry,

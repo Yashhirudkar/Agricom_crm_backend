@@ -41,7 +41,7 @@ export class ConversationPermissionOverride extends Model<ConversationPermission
 
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM(...Object.values(PrincipalType)),
+    type: DataType.STRING(50),
   })
   declare principalType: PrincipalType; // 'ROLE', 'EMPLOYEE', 'DEPARTMENT', etc.
 

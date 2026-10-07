@@ -181,6 +181,14 @@ export class PurchaseContract extends Model<PurchaseContract> {
   declare deliveryPlace: string;
 
   @AllowNull(true)
+  @Column({ field: 'specification_no', type: DataType.STRING(100) })
+  declare specificationNo: string;
+
+  @AllowNull(true)
+  @Column({ field: 'specification_date', type: DataType.DATEONLY })
+  declare specificationDate: string;
+
+  @AllowNull(true)
   @Column({ field: 'dispatch_date', type: DataType.DATEONLY })
   declare dispatchDate: string;
 

@@ -20,6 +20,8 @@ import { LogisticsRoute } from './logistics-route.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { FreightQuoteCharge } from './freight-quote-charge.model';
 import { Company } from '../../companies/models/company.model';
+import { FreightQuoteContainerRate } from './freight-quote-container-rate.model';
+import { Product } from '../../masters/product/product.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -45,12 +47,33 @@ export class FreightQuote extends Model<FreightQuote> {
   declare quoteNumber: string;
 
   @ForeignKey(() => Logistics)
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'logistics_id', type: DataType.INTEGER })
   declare logisticsId: number;
 
   @BelongsTo(() => Logistics, { foreignKey: 'logisticsId', constraints: false })
   declare logistics: Logistics;
+
+  @AllowNull(false)
+  @Default(false)
+  @Column({ field: 'is_direct', type: DataType.BOOLEAN })
+  declare isDirect: boolean;
+
+  @ForeignKey(() => Product)
+  @AllowNull(true)
+  @Column({ field: 'product_id', type: DataType.INTEGER })
+  declare productId: number;
+
+  @BelongsTo(() => Product, 'productId')
+  declare product: Product;
+
+  @AllowNull(true)
+  @Column({ field: 'loading_point', type: DataType.STRING(255) })
+  declare loadingPoint: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare destination: string;
 
   @AllowNull(false)
   @Column({ field: 'quote_date', type: DataType.DATEONLY })
@@ -221,6 +244,9 @@ export class FreightQuote extends Model<FreightQuote> {
 
   @HasMany(() => FreightQuoteCharge, 'quoteId')
   declare charges: FreightQuoteCharge[];
+
+  @HasMany(() => FreightQuoteContainerRate, 'quoteId')
+  declare containerRates: FreightQuoteContainerRate[];
 
   // Runtime total amount getter (combining freight, fuel, and additional charges)
   get totalAmount(): number {

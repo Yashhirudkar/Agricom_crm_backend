@@ -11,6 +11,7 @@ import { Logistics } from '../models/logistics.model';
 import { FreightQuote } from '../models/freight-quote.model';
 import { FreightChargeMaster } from '../models/freight-charge-master.model';
 import { FreightQuoteCharge } from '../models/freight-quote-charge.model';
+import { FreightQuoteContainerRate } from '../models/freight-quote-container-rate.model';
 import { LogisticsRoute } from '../models/logistics-route.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { EnquiryLoadingPoint } from '../../enquiries/models/enquiry-loading-point.model';
@@ -44,6 +45,8 @@ export class LogisticsService {
     private readonly chargeMasterModel: typeof FreightChargeMaster,
     @InjectModel(FreightQuoteCharge)
     private readonly quoteChargeModel: typeof FreightQuoteCharge,
+    @InjectModel(FreightQuoteContainerRate)
+    private readonly containerRateModel: typeof FreightQuoteContainerRate,
     @InjectModel(LogisticsRoute)
     private readonly logisticsRouteModel: typeof LogisticsRoute,
     @InjectModel(Enquiry)
@@ -62,6 +65,20 @@ export class LogisticsService {
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
   ) { }
+
+  async fixDb() {
+    try {
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "is_direct" BOOLEAN DEFAULT false;`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "product_id" INTEGER;`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "loading_point" VARCHAR(255);`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "logistics_id" DROP NOT NULL;`);
+      return { success: true, message: "Columns added successfully!" };
+    } catch (error) {
+      console.error(error);
+      return { success: false, error: error.message };
+    }
+  }
 
   /**
    * Get confirmed enquiries for the logistics queue, joined with logistics workspace.
@@ -343,11 +360,12 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         { model: FreightQuoteCharge, as: 'charges' },
+        { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
         {
           model: Logistics,
           as: 'logistics',
           where: Object.keys(logisticsWhere).length > 0 ? logisticsWhere : undefined,
-          required: true,
+          required: false,
           attributes: ['id', 'logisticsNumber', 'transportMode', 'mode', 'status'],
           include: [
             {
@@ -372,6 +390,11 @@ export class LogisticsService {
             },
           ],
         },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['id', 'name'],
+        }
       ],
       order: [[orderCol, orderDir]],
       limit: Number(limit),
@@ -469,6 +492,7 @@ export class LogisticsService {
           include: [
             { model: Partner, as: 'seller' },
             { model: FreightQuoteCharge, as: 'charges' },
+            { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
           ],
         },
         {
@@ -477,6 +501,7 @@ export class LogisticsService {
           include: [
             { model: Partner, as: 'seller' },
             { model: FreightQuoteCharge, as: 'charges' },
+            { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
           ],
         },
         {
@@ -543,6 +568,7 @@ export class LogisticsService {
             include: [
               { model: Partner, as: 'seller' },
               { model: FreightQuoteCharge, as: 'charges' },
+              { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
             ],
           },
           {
@@ -551,6 +577,7 @@ export class LogisticsService {
             include: [
               { model: Partner, as: 'seller' },
               { model: FreightQuoteCharge, as: 'charges' },
+              { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
             ],
           },
         ],
@@ -636,15 +663,23 @@ export class LogisticsService {
     }
 
     return await this.sequelize.transaction(async (transaction) => {
-      // Validate and calculate itemized charges
-      let calculatedFreightAmount = dto.freightAmount;
-      if (dto.charges && dto.charges.length > 0) {
+      // Calculate overall freight amount from containerRates or legacy charges
+      let calculatedFreightAmount = dto.freightAmount || 0;
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        calculatedFreightAmount = 0;
+        for (const cr of dto.containerRates) {
+          if (cr.charges && cr.charges.length > 0) {
+            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            calculatedFreightAmount += crSum;
+          }
+        }
+      } else if (dto.charges && dto.charges.length > 0) {
         calculatedFreightAmount = dto.charges.reduce(
           (sum, item) => sum + Number(item.amount || 0),
           0
         );
       } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-        throw new BadRequestException('At least one freight charge line item is required.');
+        throw new BadRequestException('At least one freight charge or container rate is required.');
       }
 
       // Generate FQ/YYYY/###### number via sequence
@@ -672,10 +707,35 @@ export class LogisticsService {
         { transaction }
       );
 
-      // Persist charge line items
-      if (dto.charges && dto.charges.length > 0) {
+      // Persist container rates and their charges
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        for (const cr of dto.containerRates) {
+          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
+          const createdCr = await this.containerRateModel.create({
+            quoteId: quote.id,
+            containerType: cr.containerType,
+            containerSize: cr.containerSize,
+            freightAmount: crSum,
+          } as any, { transaction });
+
+          if (cr.charges && cr.charges.length > 0) {
+            const chargeRows = cr.charges.map((c, idx) => ({
+              quoteId: quote.id,
+              containerRateId: createdCr.id,
+              chargeMasterId: c.chargeMasterId || null,
+              chargeName: c.chargeName,
+              amount: c.amount,
+              remarks: c.remarks || null,
+              displayOrder: c.displayOrder ?? idx + 1,
+            }));
+            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+          }
+        }
+      } else if (dto.charges && dto.charges.length > 0) {
+        // Legacy flat charges support
         const chargeRows = dto.charges.map((c, idx) => ({
           quoteId: quote.id,
+          containerRateId: null,
           chargeMasterId: c.chargeMasterId || null,
           chargeName: c.chargeName,
           amount: c.amount,
@@ -723,7 +783,125 @@ export class LogisticsService {
       return this.quoteModel.findByPk(quote.id, {
         include: [
           { model: Partner, as: 'seller' },
+          { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
           { model: FreightQuoteCharge, as: 'charges' },
+        ],
+        transaction,
+      });
+    });
+  }
+
+  /**
+   * Create a direct freight quote without an enquiry/logistics workspace.
+   */
+  async createDirectFreightQuote(dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
+    if (dto.sellerId) {
+      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+    }
+
+    return await this.sequelize.transaction(async (transaction) => {
+      let calculatedFreightAmount = dto.freightAmount || 0;
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        calculatedFreightAmount = 0;
+        for (const cr of dto.containerRates) {
+          if (cr.charges && cr.charges.length > 0) {
+            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            calculatedFreightAmount += crSum;
+          }
+        }
+      } else if (dto.charges && dto.charges.length > 0) {
+        calculatedFreightAmount = dto.charges.reduce(
+          (sum, item) => sum + Number(item.amount || 0),
+          0
+        );
+      } else if (!dto.freightAmount || dto.freightAmount <= 0) {
+        throw new BadRequestException('At least one freight charge or container rate is required.');
+      }
+
+      await this.sequelize.query(
+        `CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`,
+        { transaction }
+      );
+      const [seqRes]: any = await this.sequelize.query(
+        `SELECT nextval('freight_quotes_no_seq')`,
+        { type: QueryTypes.SELECT, transaction } as any
+      );
+      const nextVal = parseInt(seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1', 10);
+      const currentYear = new Date().getFullYear();
+      const quoteNumber = `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
+
+      const quote = await this.quoteModel.create(
+        {
+          ...dto,
+          freightAmount: calculatedFreightAmount,
+          quoteNumber,
+          isDirect: true,
+          companyId,
+          createdBy: user?.userId,
+        } as any,
+        { transaction }
+      );
+
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        for (const cr of dto.containerRates) {
+          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
+          const createdCr = await this.containerRateModel.create({
+            quoteId: quote.id,
+            containerType: cr.containerType,
+            containerSize: cr.containerSize,
+            freightAmount: crSum,
+          } as any, { transaction });
+
+          if (cr.charges && cr.charges.length > 0) {
+            const chargeRows = cr.charges.map((c, idx) => ({
+              quoteId: quote.id,
+              containerRateId: createdCr.id,
+              chargeMasterId: c.chargeMasterId || null,
+              chargeName: c.chargeName,
+              amount: c.amount,
+              remarks: c.remarks || null,
+              displayOrder: c.displayOrder ?? idx + 1,
+            }));
+            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+          }
+        }
+      } else if (dto.charges && dto.charges.length > 0) {
+        const chargeRows = dto.charges.map((c, idx) => ({
+          quoteId: quote.id,
+          containerRateId: null,
+          chargeMasterId: c.chargeMasterId || null,
+          chargeName: c.chargeName,
+          amount: c.amount,
+          remarks: c.remarks || null,
+          displayOrder: c.displayOrder ?? idx + 1,
+        }));
+        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+      }
+
+      await this.syncContactToPartner(
+        dto.sellerId,
+        dto.contactPerson,
+        dto.contactNumber,
+        transaction
+      );
+
+      await this.auditService.writeLog({
+        clientId: null,
+        companyId,
+        userId: user?.userId,
+        entityType: 'FreightQuote',
+        entityId: quote.id,
+        action: 'DIRECT_QUOTE_ADDED',
+        newValue: { quoteNumber, sellerId: dto.sellerId, freightAmount: calculatedFreightAmount },
+      });
+
+      return this.quoteModel.findByPk(quote.id, {
+        include: [
+          { model: Partner, as: 'seller' },
+          { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+          { model: FreightQuoteCharge, as: 'charges' },
+          { model: Product, as: 'product' },
         ],
         transaction,
       });
@@ -753,15 +931,23 @@ export class LogisticsService {
     }
 
     await this.sequelize.transaction(async (transaction) => {
-      // Validate and calculate itemized charges
-      let calculatedFreightAmount = dto.freightAmount;
-      if (dto.charges && dto.charges.length > 0) {
+      // Calculate overall freight amount from containerRates or legacy charges
+      let calculatedFreightAmount = dto.freightAmount || 0;
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        calculatedFreightAmount = 0;
+        for (const cr of dto.containerRates) {
+          if (cr.charges && cr.charges.length > 0) {
+            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            calculatedFreightAmount += crSum;
+          }
+        }
+      } else if (dto.charges && dto.charges.length > 0) {
         calculatedFreightAmount = dto.charges.reduce(
           (sum, item) => sum + Number(item.amount || 0),
           0
         );
       } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-        throw new BadRequestException('At least one freight charge line item is required.');
+        throw new BadRequestException('At least one freight charge or container rate is required.');
       }
 
       // Increment version placeholder
@@ -778,24 +964,50 @@ export class LogisticsService {
         { transaction }
       );
 
-      // Re-create charges line items
-      if (dto.charges !== undefined) {
-        await this.quoteChargeModel.destroy({
-          where: { quoteId: quote.id },
-          transaction,
-        });
+      // Re-create charges and container rates line items
+      await this.quoteChargeModel.destroy({
+        where: { quoteId: quote.id },
+        transaction,
+      });
+      await this.containerRateModel.destroy({
+        where: { quoteId: quote.id },
+        transaction,
+      });
 
-        if (dto.charges && dto.charges.length > 0) {
-          const chargeRows = dto.charges.map((c, idx) => ({
+      if (dto.containerRates && dto.containerRates.length > 0) {
+        for (const cr of dto.containerRates) {
+          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
+          const createdCr = await this.containerRateModel.create({
             quoteId: quote.id,
-            chargeMasterId: c.chargeMasterId || null,
-            chargeName: c.chargeName,
-            amount: c.amount,
-            remarks: c.remarks || null,
-            displayOrder: c.displayOrder ?? idx + 1,
-          }));
-          await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+            containerType: cr.containerType,
+            containerSize: cr.containerSize,
+            freightAmount: crSum,
+          } as any, { transaction });
+
+          if (cr.charges && cr.charges.length > 0) {
+            const chargeRows = cr.charges.map((c, idx) => ({
+              quoteId: quote.id,
+              containerRateId: createdCr.id,
+              chargeMasterId: c.chargeMasterId || null,
+              chargeName: c.chargeName,
+              amount: c.amount,
+              remarks: c.remarks || null,
+              displayOrder: c.displayOrder ?? idx + 1,
+            }));
+            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+          }
         }
+      } else if (dto.charges && dto.charges.length > 0) {
+        const chargeRows = dto.charges.map((c, idx) => ({
+          quoteId: quote.id,
+          containerRateId: null,
+          chargeMasterId: c.chargeMasterId || null,
+          chargeName: c.chargeName,
+          amount: c.amount,
+          remarks: c.remarks || null,
+          displayOrder: c.displayOrder ?? idx + 1,
+        }));
+        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
       }
 
       // Auto-sync manual contact to Partner Master if provided
@@ -820,6 +1032,7 @@ export class LogisticsService {
     return quote.reload({
       include: [
         { model: Partner, as: 'seller' },
+        { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
         { model: FreightQuoteCharge, as: 'charges' },
       ],
     });

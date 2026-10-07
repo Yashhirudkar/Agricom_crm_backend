@@ -6,6 +6,7 @@ import { FreightQuote } from './models/freight-quote.model';
 import { LogisticsRoute } from './models/logistics-route.model';
 import { FreightChargeMaster } from './models/freight-charge-master.model';
 import { FreightQuoteCharge } from './models/freight-quote-charge.model';
+import { FreightQuoteContainerRate } from './models/freight-quote-container-rate.model';
 import { MonthlyStockSummary } from './models/monthly-stock-summary.model';
 import { MonthlyStockSummaryCountry } from './models/monthly-stock-summary-country.model';
 import { MonthlyStockSection } from './models/monthly-stock-section.model';
@@ -37,6 +38,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       LogisticsRoute,
       FreightChargeMaster,
       FreightQuoteCharge,
+      FreightQuoteContainerRate,
       MonthlyStockSummary,
       MonthlyStockSummaryCountry,
       MonthlyStockSection,

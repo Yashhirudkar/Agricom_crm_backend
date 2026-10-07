@@ -35,6 +35,11 @@ import { RequireAnyPermission } from '../../rbac/decorators/require-any-permissi
 export class LogisticsController {
   constructor(private readonly service: LogisticsService) {}
 
+  @Get('fix-db')
+  async fixDb() {
+    return this.service.fixDb();
+  }
+
   // ─── Charge Master Endpoints ──────────────────────────────────────────────────
   @Get('charge-master')
   @RequireAnyPermission('logistics:view', 'enquiry:read')
@@ -96,6 +101,18 @@ export class LogisticsController {
   async getDetails(@Param('enquiryId') enquiryId: string, @Req() req: any) {
     const companyId = req.user?.companyId;
     return this.service.getDetails(enquiryId, companyId);
+  }
+
+  // ─── Add Direct Freight Quote ────────────────────────────────────────────────
+  @Post('direct-quotes')
+  @RequirePermission('logistics:update')
+  @HttpCode(HttpStatus.CREATED)
+  async createDirectFreightQuote(
+    @Body() dto: CreateFreightQuoteDto,
+    @Req() req: any,
+  ) {
+    const companyId = req.user?.companyId;
+    return this.service.createDirectFreightQuote(dto, req.user, companyId);
   }
 
   // ─── Add Freight Quote ───────────────────────────────────────────────────────

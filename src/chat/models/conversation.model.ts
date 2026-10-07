@@ -90,7 +90,7 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(ConversationType.GROUP)
   @Column({
-    type: DataType.ENUM(ConversationType.DIRECT, ConversationType.GROUP, ConversationType.CHANNEL),
+    type: DataType.STRING(50),
   })
   declare type: ConversationType;
 
@@ -120,21 +120,21 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(VisibilityType.MEMBERS_ONLY)
   @Column({
-    type: DataType.ENUM(...Object.values(VisibilityType)),
+    type: DataType.STRING(50),
   })
   declare visibility: VisibilityType;
 
   @AllowNull(false)
   @Default(ConversationClassification.INTERNAL)
   @Column({
-    type: DataType.ENUM(...Object.values(ConversationClassification)),
+    type: DataType.STRING(50),
   })
   declare classification: ConversationClassification;
 
   @AllowNull(false)
   @Default(EnterpriseSecurityLevel.STANDARD)
   @Column({
-    type: DataType.ENUM(...Object.values(EnterpriseSecurityLevel)),
+    type: DataType.STRING(50),
   })
   declare enterpriseSecurityLevel: EnterpriseSecurityLevel;
 
@@ -146,49 +146,49 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(ActionPolicy.MEMBER)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare invitePolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare removeMemberPolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare renamePolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare iconPolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare descPolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare archivePolicy: ActionPolicy;
 
   @AllowNull(false)
   @Default(ActionPolicy.OWNER)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare deletePolicy: ActionPolicy;
 
@@ -220,21 +220,21 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(NotificationPrivacy.MEMBERS_ONLY)
   @Column({
-    type: DataType.ENUM(...Object.values(NotificationPrivacy)),
+    type: DataType.STRING(50),
   })
   declare notificationPrivacy: NotificationPrivacy;
 
   @AllowNull(false)
   @Default(TypingVisibility.MEMBERS_ONLY)
   @Column({
-    type: DataType.ENUM(...Object.values(TypingVisibility)),
+    type: DataType.STRING(50),
   })
   declare typingVisibility: TypingVisibility;
 
   @AllowNull(false)
   @Default(PresenceVisibility.EVERYONE)
   @Column({
-    type: DataType.ENUM(...Object.values(PresenceVisibility)),
+    type: DataType.STRING(50),
   })
   declare presenceVisibility: PresenceVisibility;
 
@@ -246,7 +246,7 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(ExportPolicy.ADMIN)
   @Column({
-    type: DataType.ENUM(...Object.values(ExportPolicy)),
+    type: DataType.STRING(50),
   })
   declare exportPolicy: ExportPolicy;
 
@@ -297,7 +297,7 @@ export class Conversation extends Model<Conversation> {
   @AllowNull(false)
   @Default(PostingPolicy.EVERYONE)
   @Column({
-    type: DataType.ENUM(...Object.values(PostingPolicy)),
+    type: DataType.STRING(50),
   })
   declare postingPolicy: PostingPolicy;
 

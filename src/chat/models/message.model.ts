@@ -69,13 +69,7 @@ export class Message extends Model<Message> {
   @AllowNull(false)
   @Default(MessageType.TEXT)
   @Column({
-    type: DataType.ENUM(
-      MessageType.TEXT,
-      MessageType.FILE,
-      MessageType.LOCATION,
-      MessageType.POLL,
-      MessageType.SYSTEM,
-    ),
+    type: DataType.STRING(50),
   })
   declare type: MessageType;
 

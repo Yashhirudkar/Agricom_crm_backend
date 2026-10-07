@@ -23,6 +23,10 @@ import * as phase31 from './phase-31-purchase-contract-currency';
 import * as phase32 from './phase-32-purchase-contract-dispatch-to';
 import * as phase33 from './phase-33-purchase-contract-unloading-date';
 import * as phase34 from './phase-34-sales-contract-number-unique';
+import * as phase35 from './phase-35-add-spec-fields-to-purchase-contracts';
+import * as phase36 from './phase-36-add-loading-address-to-partners';
+import * as phase37 from './phase-37-add-freight-container-rates';
+import * as phase38 from './phase-38-add-direct-freight-quotes';
 
 export interface MigrationPhase {
   phase: string;
@@ -61,4 +65,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase32,
   phase33,
   phase34,
+  phase35,
+  phase36,
+  phase37,
+  phase38,
 ];

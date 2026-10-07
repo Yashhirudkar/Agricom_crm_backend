@@ -103,7 +103,7 @@ export class ConversationSetting extends Model<ConversationSetting> {
   @AllowNull(false)
   @Default(ActionPolicy.MEMBER)
   @Column({
-    type: DataType.ENUM(...Object.values(ActionPolicy)),
+    type: DataType.STRING(50),
   })
   declare pinPolicy: ActionPolicy;
 

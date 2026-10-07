@@ -68,7 +68,7 @@ export class ConversationLabel extends Model<ConversationLabel> {
   @AllowNull(false)
   @Default(LabelScope.COMPANY)
   @Column({
-    type: DataType.ENUM(LabelScope.GLOBAL, LabelScope.COMPANY, LabelScope.PERSONAL),
+    type: DataType.STRING(50),
   })
   declare scope: LabelScope;
 

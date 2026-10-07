@@ -58,13 +58,7 @@ export class ScheduledMessage extends Model<ScheduledMessage> {
   @AllowNull(false)
   @Default(MessageType.TEXT)
   @Column({
-    type: DataType.ENUM(
-      MessageType.TEXT,
-      MessageType.FILE,
-      MessageType.LOCATION,
-      MessageType.POLL,
-      MessageType.SYSTEM,
-    ),
+    type: DataType.STRING(50),
   })
   declare type: MessageType;
 
