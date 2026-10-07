@@ -352,6 +352,7 @@ export class EnquiriesService {
       shipmentType,
       potentialEnquiry,
       withoutSalesContract,
+      withoutPurchaseContract,
       page,
       limit,
     } = query;
@@ -399,6 +400,15 @@ export class EnquiriesService {
       whereClause.id = {
         [Op.notIn]: Sequelize.literal(`(SELECT enquiry_id FROM sales_contracts WHERE enquiry_id IS NOT NULL AND company_id = ${(query as any).companyId})`),
       };
+    }
+
+    if (withoutPurchaseContract) {
+      const pcCondition = {
+        [Op.notIn]: Sequelize.literal(`(SELECT sc.enquiry_id FROM purchase_contracts pc JOIN sales_contracts sc ON pc.sales_contract_id = sc.id WHERE sc.enquiry_id IS NOT NULL AND pc.company_id = ${(query as any).companyId})`),
+      };
+      whereClause.id = whereClause.id 
+        ? { [Op.and]: [whereClause.id, pcCondition] }
+        : pcCondition;
     }
 
     if (dateFrom && dateTo) {

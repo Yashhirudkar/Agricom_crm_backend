@@ -601,6 +601,9 @@ export class LogisticsService {
     }
 
     let existingRoutes = await this.logisticsRouteModel.findAll({ where: { logisticsId: logistics.id } });
+    const finalRoutes = [];
+    const expectedRouteKeys = new Set(expectedRoutes.map(r => `${r.origin}:::${r.destination}`));
+
     for (const er of expectedRoutes) {
       const exists = existingRoutes.find(r => r.origin === er.origin && r.destination === er.destination);
       if (!exists) {
@@ -609,12 +612,25 @@ export class LogisticsService {
           origin: er.origin,
           destination: er.destination,
         } as any);
-        existingRoutes.push(newRoute);
+        finalRoutes.push(newRoute);
+      } else {
+        finalRoutes.push(exists);
+      }
+    }
+
+    for (const r of existingRoutes) {
+      if (!expectedRouteKeys.has(`${r.origin}:::${r.destination}`)) {
+        const quotesCount = await this.quoteModel.count({ where: { routeId: r.id } });
+        if (quotesCount === 0) {
+          await r.destroy();
+        } else {
+          finalRoutes.push(r);
+        }
       }
     }
     
     // Attach routes to response
-    logistics.setDataValue('routes', existingRoutes);
+    logistics.setDataValue('routes', finalRoutes);
 
     // Look up if a SalesContract exists for this enquiry
     const salesContract = await this.salesContractModel.findOne({
