@@ -346,6 +346,7 @@ export class EnquiriesService {
       partnerRoleId,
       partnerId,
       productId,
+      createdBy,
       status,
       dateFrom,
       dateTo,
@@ -371,7 +372,8 @@ export class EnquiriesService {
         whereClause[Op.or] = [
            { enquiryNo: { [Op.iLike]: `%${search}%` } },
            { '$partner.entity_name$': { [Op.iLike]: `%${search}%` } },
-           { '$product.name$': { [Op.iLike]: `%${search}%` } }
+           { '$product.name$': { [Op.iLike]: `%${search}%` } },
+           { '$creator.name$': { [Op.iLike]: `%${search}%` } }
         ];
         delete whereClause.enquiryNo;
     }
@@ -379,6 +381,7 @@ export class EnquiriesService {
     if (partnerRoleId) whereClause.partnerRoleId = partnerRoleId;
     if (partnerId) whereClause.partnerId = partnerId;
     if (productId) whereClause.productId = productId;
+    if (createdBy) whereClause.createdBy = createdBy;
     if (status) {
       if (typeof status === 'string') {
         const statuses = status.split(',').map(s => s.trim()).filter(Boolean);

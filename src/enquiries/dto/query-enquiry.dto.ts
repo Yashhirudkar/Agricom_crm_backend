@@ -32,6 +32,11 @@ export class QueryEnquiryDto {
   productId?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  createdBy?: number;
+
+  @IsOptional()
   @IsString()
   status?: string;
 
