@@ -16,6 +16,7 @@ import { AttachmentsService } from '../attachments/services/attachments.service'
 import { Attachment } from '../attachments/models/attachment.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
+import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
 
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
@@ -269,6 +270,11 @@ export class SalesContractService implements OnModuleInit {
           model: SalesContractItem,
           include: [{ model: Product, attributes: ['name'] }],
         },
+        {
+          model: PurchaseContract,
+          attributes: ['id'],
+          required: false,
+        },
       ],
       distinct: true,
       limit: Number(limit),
@@ -276,8 +282,17 @@ export class SalesContractService implements OnModuleInit {
       order: [['contractDate', 'DESC'], ['createdAt', 'DESC']],
     });
 
+    // Attach hasPurchaseContract flag to each row
+    const data = rows.map((row) => {
+      const plain = row.toJSON() as any;
+      plain.hasPurchaseContract = Array.isArray(plain.purchaseContracts)
+        ? plain.purchaseContracts.length > 0
+        : false;
+      return plain;
+    });
+
     return {
-      data: rows,
+      data,
       total: count,
       page: Number(page),
       limit: Number(limit),

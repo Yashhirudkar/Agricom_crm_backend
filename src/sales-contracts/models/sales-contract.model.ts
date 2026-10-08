@@ -24,6 +24,8 @@ import { SalesContractShipment } from './sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contract-document-file.model';
 import { Company } from '../../companies/models/company.model';
+// Forward import to avoid circular dependency issues at runtime
+import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 
 @Table({
   tableName: 'sales_contracts',
@@ -267,4 +269,7 @@ export class SalesContract extends Model<SalesContract> {
 
   @HasMany(() => SalesContractDocumentFile)
   declare documentFiles: SalesContractDocumentFile[];
+
+  @HasMany(() => PurchaseContract)
+  declare purchaseContracts: PurchaseContract[];
 }
