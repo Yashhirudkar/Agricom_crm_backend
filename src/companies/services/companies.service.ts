@@ -92,6 +92,7 @@ export class CompaniesService {
         whatsappGroupId: data.whatsappGroupId ?? null,
         whatsappGroupName: data.whatsappGroupName ?? null,
       }),
+      displayOrder: data.displayOrder ?? 0,
     });
 
     if (actor) {
@@ -178,6 +179,7 @@ export class CompaniesService {
       ...(actor?.type === 'super_admin' && data.whatsappEnabled !== undefined && { whatsappEnabled: data.whatsappEnabled }),
       ...(actor?.type === 'super_admin' && data.whatsappGroupId !== undefined && { whatsappGroupId: data.whatsappGroupId }),
       ...(actor?.type === 'super_admin' && data.whatsappGroupName !== undefined && { whatsappGroupName: data.whatsappGroupName }),
+      ...(data.displayOrder !== undefined && { displayOrder: data.displayOrder }),
     });
 
     const updated = await company.reload();
@@ -250,8 +252,8 @@ export class CompaniesService {
       companyType,
       industryType,
       status,
-      sortField = 'createdAt',
-      sortOrder = 'DESC',
+      sortField = 'displayOrder',
+      sortOrder = 'ASC',
     } = query || {};
 
     if (search) {
@@ -275,7 +277,7 @@ export class CompaniesService {
         { model: Client, attributes: ['id', 'name'] },
         { model: User, attributes: ['id', 'name', 'email'] },
       ],
-      order: [[sortField, sortOrder]],
+      order: [[sortField, sortOrder], ['id', 'DESC']],
       distinct: true,
     };
 
@@ -348,7 +350,7 @@ export class CompaniesService {
       attributes: ['id', 'name'],
       limit: parsedLimit,
       offset: (parsedPage - 1) * parsedLimit,
-      order: [['name', 'ASC']],
+      order: [['displayOrder', 'ASC'], ['name', 'ASC']],
     });
 
     return {

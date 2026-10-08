@@ -181,6 +181,10 @@ export class PurchaseContract extends Model<PurchaseContract> {
   declare deliveryPlace: string;
 
   @AllowNull(true)
+  @Column({ field: 'place_of_loading', type: DataType.STRING(255) })
+  declare placeOfLoading: string;
+
+  @AllowNull(true)
   @Column({ field: 'specification_no', type: DataType.STRING(100) })
   declare specificationNo: string;
 

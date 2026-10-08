@@ -22,6 +22,7 @@ import { FreightQuoteCharge } from './freight-quote-charge.model';
 import { Company } from '../../companies/models/company.model';
 import { FreightQuoteContainerRate } from './freight-quote-container-rate.model';
 import { Product } from '../../masters/product/product.model';
+import { FreightRoute } from './freight-route.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -80,7 +81,7 @@ export class FreightQuote extends Model<FreightQuote> {
   declare quoteDate: Date;
 
   @ForeignKey(() => Partner)
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'seller_id', type: DataType.INTEGER })
   declare sellerId: number;
 
@@ -127,7 +128,7 @@ export class FreightQuote extends Model<FreightQuote> {
   @Column({ field: 'contact_number', type: DataType.STRING(50) })
   declare contactNumber: string;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'freight_amount', type: DataType.DECIMAL(15, 4) })
   declare freightAmount: number;
 
@@ -146,12 +147,12 @@ export class FreightQuote extends Model<FreightQuote> {
   @Column({ field: 'additional_charges', type: DataType.DECIMAL(15, 4) })
   declare additionalCharges: number;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Default(0)
   @Column({ field: 'transit_days', type: DataType.INTEGER })
   declare transitDays: number;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'validity_date', type: DataType.DATEONLY })
   declare validityDate: Date;
 
@@ -248,10 +249,13 @@ export class FreightQuote extends Model<FreightQuote> {
   @HasMany(() => FreightQuoteContainerRate, 'quoteId')
   declare containerRates: FreightQuoteContainerRate[];
 
+  @HasMany(() => FreightRoute, 'quoteId')
+  declare freightRoutes: FreightRoute[];
+
   // Runtime total amount getter (combining freight, fuel, and additional charges)
   get totalAmount(): number {
     return (
-      Number(this.freightAmount) +
+      Number(this.freightAmount || 0) +
       Number(this.fuelCharges || 0) +
       Number(this.additionalCharges || 0)
     );

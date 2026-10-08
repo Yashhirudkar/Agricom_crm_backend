@@ -139,6 +139,10 @@ export class CreateCompanyDto {
   @IsBoolean()
   isActive?: boolean;
 
+  @IsOptional()
+  @IsInt()
+  displayOrder?: number;
+
   // WhatsApp
   @IsOptional()
   @IsBoolean()
@@ -275,6 +279,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsInt()
+  displayOrder?: number;
 
   // WhatsApp
   @IsOptional()

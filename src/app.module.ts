@@ -106,6 +106,8 @@ import { EnquiryLoadingPoint } from './enquiries/models/enquiry-loading-point.mo
 import { EnquiryDestination } from './enquiries/models/enquiry-destination.model';
 import { Logistics } from './logistics/models/logistics.model';
 import { FreightQuote } from './logistics/models/freight-quote.model';
+import { FreightRoute } from './logistics/models/freight-route.model';
+import { FreightRate } from './logistics/models/freight-rate.model';
 import { LogisticsRoute } from './logistics/models/logistics-route.model';
 import { FreightChargeMaster } from './logistics/models/freight-charge-master.model';
 import { FreightQuoteCharge } from './logistics/models/freight-quote-charge.model';
@@ -134,6 +136,7 @@ import { Notification } from './notifications/models/notification.model';
 import { NotificationLog } from './notifications/models/notification-log.model';
 import { FollowUpManagementModule } from './follow-up-management/follow-up-management.module';
 import { QuotationsModule } from './quotations/quotations.module';
+import { ReportsModule } from './reports/reports.module';
 import { Quotation } from './quotations/models/quotation.model';
 import { QuotationItem } from './quotations/models/quotation-item.model';
 import { QuotationSequence } from './quotations/models/quotation-sequence.model';
@@ -325,6 +328,8 @@ import {
             Logistics,
             LogisticsRoute,
             FreightQuote,
+            FreightRoute,
+            FreightRate,
             FreightChargeMaster,
             FreightQuoteContainerRate,
             FreightQuoteCharge,
@@ -372,6 +377,7 @@ import {
     QuotationsModule,
     LogisticsModule,
     CargoAvailabilityModule,
+    ReportsModule,
   ],
   providers: [
     {

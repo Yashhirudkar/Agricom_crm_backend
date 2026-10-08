@@ -73,7 +73,15 @@ export class LogisticsService {
       await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "loading_point" VARCHAR(255);`);
       await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`);
       await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "logistics_id" DROP NOT NULL;`);
-      return { success: true, message: "Columns added successfully!" };
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "seller_id" DROP NOT NULL;`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "freight_amount" DROP NOT NULL;`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "transit_days" DROP NOT NULL;`);
+      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "validity_date" DROP NOT NULL;`);
+      
+      await this.sequelize.models.FreightRoute.sync({ alter: true });
+      await this.sequelize.models.FreightRate.sync({ alter: true });
+      
+      return { success: true, message: "DB updated successfully!" };
     } catch (error) {
       console.error(error);
       return { success: false, error: error.message };
@@ -394,6 +402,11 @@ export class LogisticsService {
           model: Product,
           as: 'product',
           attributes: ['id', 'name'],
+        },
+        {
+          model: this.sequelize.models.FreightRoute,
+          as: 'freightRoutes',
+          include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
         }
       ],
       order: [[orderCol, orderDir]],
@@ -807,9 +820,6 @@ export class LogisticsService {
     });
   }
 
-  /**
-   * Create a direct freight quote without an enquiry/logistics workspace.
-   */
   async createDirectFreightQuote(dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
     if (dto.sellerId) {
       const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
@@ -818,21 +828,26 @@ export class LogisticsService {
 
     return await this.sequelize.transaction(async (transaction) => {
       let calculatedFreightAmount = dto.freightAmount || 0;
-      if (dto.containerRates && dto.containerRates.length > 0) {
-        calculatedFreightAmount = 0;
-        for (const cr of dto.containerRates) {
-          if (cr.charges && cr.charges.length > 0) {
-            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-            calculatedFreightAmount += crSum;
+      
+      const hasRoutes = dto.freightRoutes && dto.freightRoutes.length > 0;
+      
+      if (!hasRoutes) {
+        if (dto.containerRates && dto.containerRates.length > 0) {
+          calculatedFreightAmount = 0;
+          for (const cr of dto.containerRates) {
+            if (cr.charges && cr.charges.length > 0) {
+              const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+              calculatedFreightAmount += crSum;
+            }
           }
+        } else if (dto.charges && dto.charges.length > 0) {
+          calculatedFreightAmount = dto.charges.reduce(
+            (sum, item) => sum + Number(item.amount || 0),
+            0
+          );
+        } else if (!dto.freightAmount || dto.freightAmount <= 0) {
+          throw new BadRequestException('At least one freight charge, container rate, or route rate is required.');
         }
-      } else if (dto.charges && dto.charges.length > 0) {
-        calculatedFreightAmount = dto.charges.reduce(
-          (sum, item) => sum + Number(item.amount || 0),
-          0
-        );
-      } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-        throw new BadRequestException('At least one freight charge or container rate is required.');
       }
 
       await this.sequelize.query(
@@ -859,40 +874,64 @@ export class LogisticsService {
         { transaction }
       );
 
-      if (dto.containerRates && dto.containerRates.length > 0) {
-        for (const cr of dto.containerRates) {
-          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
-          const createdCr = await this.containerRateModel.create({
+      if (hasRoutes) {
+        for (const routeDto of dto.freightRoutes) {
+          const route = await this.sequelize.models.FreightRoute.create({
             quoteId: quote.id,
-            containerType: cr.containerType,
-            containerSize: cr.containerSize,
-            freightAmount: crSum,
+            origin: routeDto.origin,
+            destination: routeDto.destination,
           } as any, { transaction });
-
-          if (cr.charges && cr.charges.length > 0) {
-            const chargeRows = cr.charges.map((c, idx) => ({
-              quoteId: quote.id,
-              containerRateId: createdCr.id,
-              chargeMasterId: c.chargeMasterId || null,
-              chargeName: c.chargeName,
-              amount: c.amount,
-              remarks: c.remarks || null,
-              displayOrder: c.displayOrder ?? idx + 1,
+          
+          if (routeDto.rates && routeDto.rates.length > 0) {
+            const rateRows = routeDto.rates.map(r => ({
+              routeId: (route as any).id,
+              partnerId: r.partnerId,
+              equipment: r.equipment || null,
+              transitDays: r.transitDays || 0,
+              currency: r.currency || 'INR',
+              amount: r.amount,
+              validTill: r.validTill || null,
+              status: r.status || 'Active',
             }));
-            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+            await this.sequelize.models.FreightRate.bulkCreate(rateRows as any, { transaction });
           }
         }
-      } else if (dto.charges && dto.charges.length > 0) {
-        const chargeRows = dto.charges.map((c, idx) => ({
-          quoteId: quote.id,
-          containerRateId: null,
-          chargeMasterId: c.chargeMasterId || null,
-          chargeName: c.chargeName,
-          amount: c.amount,
-          remarks: c.remarks || null,
-          displayOrder: c.displayOrder ?? idx + 1,
-        }));
-        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+      } else {
+        if (dto.containerRates && dto.containerRates.length > 0) {
+          for (const cr of dto.containerRates) {
+            const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
+            const createdCr = await this.containerRateModel.create({
+              quoteId: quote.id,
+              containerType: cr.containerType,
+              containerSize: cr.containerSize,
+              freightAmount: crSum,
+            } as any, { transaction });
+
+            if (cr.charges && cr.charges.length > 0) {
+              const chargeRows = cr.charges.map((c, idx) => ({
+                quoteId: quote.id,
+                containerRateId: createdCr.id,
+                chargeMasterId: c.chargeMasterId || null,
+                chargeName: c.chargeName,
+                amount: c.amount,
+                remarks: c.remarks || null,
+                displayOrder: c.displayOrder ?? idx + 1,
+              }));
+              await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+            }
+          }
+        } else if (dto.charges && dto.charges.length > 0) {
+          const chargeRows = dto.charges.map((c, idx) => ({
+            quoteId: quote.id,
+            containerRateId: null,
+            chargeMasterId: c.chargeMasterId || null,
+            chargeName: c.chargeName,
+            amount: c.amount,
+            remarks: c.remarks || null,
+            displayOrder: c.displayOrder ?? idx + 1,
+          }));
+          await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+        }
       }
 
       await this.syncContactToPartner(
@@ -918,6 +957,94 @@ export class LogisticsService {
           { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
           { model: FreightQuoteCharge, as: 'charges' },
           { model: Product, as: 'product' },
+          { 
+            model: this.sequelize.models.FreightRoute, 
+            as: 'freightRoutes',
+            include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
+          }
+        ],
+        transaction,
+      });
+    });
+  }
+
+  async updateDirectFreightQuote(
+    quoteId: number,
+    dto: CreateFreightQuoteDto,
+    user: any,
+    companyId: number = 1
+  ) {
+    const quote = await this.quoteModel.findOne({
+      where: { id: quoteId, isDirect: true },
+    });
+    if (!quote) throw new NotFoundException('Direct freight quote not found');
+
+    return await this.sequelize.transaction(async (transaction) => {
+      // 1. Update quote basic details
+      await quote.update(
+        {
+          productId: dto.productId,
+          quoteDate: dto.quoteDate,
+          updatedBy: user?.userId,
+        } as any,
+        { transaction }
+      );
+
+      // 2. Clear old routes and rates
+      const oldRoutes = await this.sequelize.models.FreightRoute.findAll({ where: { quoteId: quote.id }, transaction });
+      const oldRouteIds = oldRoutes.map(r => (r as any).id);
+      if (oldRouteIds.length > 0) {
+        await this.sequelize.models.FreightRate.destroy({ where: { routeId: oldRouteIds }, transaction });
+        await this.sequelize.models.FreightRoute.destroy({ where: { quoteId: quote.id }, transaction });
+      }
+
+      // 3. Re-create routes and rates
+      if (dto.freightRoutes && dto.freightRoutes.length > 0) {
+        for (const routeDto of dto.freightRoutes) {
+          const route = await this.sequelize.models.FreightRoute.create({
+            quoteId: quote.id,
+            origin: routeDto.origin,
+            destination: routeDto.destination,
+          } as any, { transaction });
+          
+          if (routeDto.rates && routeDto.rates.length > 0) {
+            const rateRows = routeDto.rates.map(r => ({
+              routeId: (route as any).id,
+              partnerId: r.partnerId,
+              equipment: r.equipment || null,
+              transitDays: r.transitDays || 0,
+              currency: r.currency || 'INR',
+              amount: r.amount,
+              validTill: r.validTill || null,
+              status: r.status || 'Active',
+            }));
+            await this.sequelize.models.FreightRate.bulkCreate(rateRows as any, { transaction });
+          }
+        }
+      }
+
+      // Increment version placeholder
+      const newVersion = (quote.version || 1) + 1;
+      await quote.update({ version: newVersion }, { transaction });
+
+      await this.auditService.writeLog({
+        clientId: null,
+        companyId,
+        userId: user?.userId,
+        entityType: 'FreightQuote',
+        entityId: quote.id,
+        action: 'DIRECT_QUOTE_EDITED',
+        newValue: { quoteNumber: quote.quoteNumber, version: newVersion },
+      });
+
+      return this.quoteModel.findByPk(quote.id, {
+        include: [
+          { model: Product, as: 'product' },
+          { 
+            model: this.sequelize.models.FreightRoute, 
+            as: 'freightRoutes',
+            include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
+          }
         ],
         transaction,
       });

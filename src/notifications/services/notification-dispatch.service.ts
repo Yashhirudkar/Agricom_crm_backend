@@ -187,6 +187,9 @@ export class NotificationDispatchService {
       switch (template) {
         case NotificationTemplate.NEW_ENQUIRY:
           return WhatsAppTemplates.enquiryCreated(payload as any);
+        
+        case NotificationTemplate.ENQUIRY_UPDATED:
+          return WhatsAppTemplates.enquiryUpdated(payload as any);
 
         case NotificationTemplate.TEST_MESSAGE:
           return WhatsAppTemplates.testMessage(payload as any);

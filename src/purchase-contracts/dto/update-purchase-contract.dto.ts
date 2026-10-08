@@ -98,6 +98,9 @@ export class UpdatePurchaseContractDto {
   deliveryPlace?: any;
 
   @IsOptional()
+  placeOfLoading?: any;
+
+  @IsOptional()
   status?: any;
 
   @IsOptional()

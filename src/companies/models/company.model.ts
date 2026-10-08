@@ -173,6 +173,11 @@ export class Company extends Model<Company> {
   @Column({ type: DataType.STRING(50) })
   declare status: string; // 'Active' | 'Inactive' | 'Archived'
 
+  @AllowNull(true)
+  @Default(0)
+  @Column({ type: DataType.INTEGER, field: 'display_order' })
+  declare displayOrder: number | null;
+
   // ── WhatsApp Config ────────────────────────────────────────────────────────
 
   @Default(false)

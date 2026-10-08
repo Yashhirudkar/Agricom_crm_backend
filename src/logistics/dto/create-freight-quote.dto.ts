@@ -55,9 +55,9 @@ export class CreateFreightQuoteDto {
   @IsDateString()
   quoteDate: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
-  sellerId: number;
+  sellerId?: number;
 
   @IsOptional()
   @IsString()
@@ -102,14 +102,14 @@ export class CreateFreightQuoteDto {
   @Min(0)
   additionalCharges?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
   @Min(0)
-  transitDays: number;
+  transitDays?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsDateString()
-  validityDate: string;
+  validityDate?: string;
 
   @IsOptional()
   @IsString()
@@ -194,11 +194,66 @@ export class CreateFreightQuoteDto {
   @Type(() => FreightQuoteChargeDto)
   charges?: FreightQuoteChargeDto[];
 
+
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FreightQuoteContainerRateDto)
   containerRates?: FreightQuoteContainerRateDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FreightRouteDto)
+  freightRoutes?: FreightRouteDto[];
+}
+
+export class FreightRateDto {
+  @IsNotEmpty()
+  @IsInt()
+  partnerId: number;
+
+  @IsOptional()
+  @IsString()
+  equipment?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  transitDays?: number;
+
+  @IsNotEmpty()
+  @IsString()
+  currency: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  amount: number;
+
+  @IsOptional()
+  @IsDateString()
+  validTill?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+}
+
+export class FreightRouteDto {
+  @IsNotEmpty()
+  @IsString()
+  origin: string;
+
+  @IsNotEmpty()
+  @IsString()
+  destination: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FreightRateDto)
+  rates: FreightRateDto[];
 }
 
 export class UpdateFreightQuoteDto extends CreateFreightQuoteDto {}

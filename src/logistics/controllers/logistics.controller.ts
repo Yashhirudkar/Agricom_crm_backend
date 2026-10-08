@@ -115,6 +115,18 @@ export class LogisticsController {
     return this.service.createDirectFreightQuote(dto, req.user, companyId);
   }
 
+  // ─── Edit Direct Freight Quote ────────────────────────────────────────────────
+  @Patch('direct-quotes/:quoteId')
+  @RequirePermission('logistics:update')
+  async updateDirectFreightQuote(
+    @Param('quoteId', ParseIntPipe) quoteId: number,
+    @Body() dto: UpdateFreightQuoteDto,
+    @Req() req: any,
+  ) {
+    const companyId = req.user?.companyId;
+    return this.service.updateDirectFreightQuote(quoteId, dto, req.user, companyId);
+  }
+
   // ─── Add Freight Quote ───────────────────────────────────────────────────────
   @Post(':id/quotes')
   @RequirePermission('logistics:update')

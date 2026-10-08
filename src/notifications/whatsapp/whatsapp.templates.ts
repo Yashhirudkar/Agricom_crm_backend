@@ -31,6 +31,27 @@ export class WhatsAppTemplates {
     }
   }
 
+  private static formatDateTime(value: string | Date | undefined | null): string | null {
+    if (!value) return null;
+    try {
+      const d = typeof value === 'string' ? new Date(value) : value;
+      if (isNaN(d.getTime())) return null;
+      const datePart = d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }).replace(/ /g, '-');
+      const timePart = d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      return `${datePart} ${timePart}`;
+    } catch {
+      return null;
+    }
+  }
+
   /** Appends a bold-label line. If value is falsy, prints 'None' */
   private static line(label: string, value: string | number | null | undefined): string {
     const displayValue = (value === null || value === undefined || value === '') ? 'None' : value;
@@ -101,9 +122,85 @@ export class WhatsAppTemplates {
 
     const createdByFirstName = data.createdByName ? data.createdByName.split(' ')[0] : undefined;
     lines.push(WhatsAppTemplates.line('Created By', createdByFirstName));
-    lines.push(WhatsAppTemplates.line('Created At', WhatsAppTemplates.formatDate(data.createdAt)));
+    lines.push(WhatsAppTemplates.line('Created At', WhatsAppTemplates.formatDateTime(data.createdAt)));
 
     return lines.join('');
+  }
+
+  /**
+   * Enquiry updated notification.
+   */
+  static enquiryUpdated(data: { oldEnquiry: any; newEnquiry: any; updatedByName?: string }): string | null {
+    const { oldEnquiry: oldData, newEnquiry: newData, updatedByName } = data;
+
+    const changes: string[] = [];
+
+    const diff = (label: string, oldVal: any, newVal: any, formatter?: (v: any) => any) => {
+      let o = oldVal;
+      let n = newVal;
+      if (formatter) {
+        o = formatter(o);
+        n = formatter(n);
+      }
+      if (o !== n) {
+        const displayO = (o === null || o === undefined || o === '') ? 'None' : o;
+        const displayN = (n === null || n === undefined || n === '') ? 'None' : n;
+        changes.push(`*${label}:*\n${displayO} → ${displayN}\n`);
+      }
+    };
+
+    // basic comparison
+    diff('Customer', oldData.partner?.entityName, newData.partner?.entityName);
+    diff('Product', oldData.product?.name, newData.product?.name);
+    diff('Packing Type', oldData.packingType?.name, newData.packingType?.name);
+    diff('Purity', oldData.purity, newData.purity);
+    
+    const qtyFormatter = (v: any) => v !== null && v !== undefined ? `${v} MT` : null;
+    diff('Quantity', oldData.quantity, newData.quantity, qtyFormatter);
+
+    const getOrigin = (d: any) => d?.originPort || [d?.originCity, d?.originState, d?.originCountryId].filter(Boolean).join(', ') || null;
+    diff('Origin', getOrigin(oldData), getOrigin(newData));
+
+    const getDest = (d: any) => d?.destinationPort || [d?.destinationCity, d?.destinationState, d?.destinationCountry].filter(Boolean).join(', ') || null;
+    diff('Destination', getDest(oldData), getDest(newData));
+
+    diff('Shipment Type', oldData.shipmentType, newData.shipmentType);
+    diff('Shipment Mode', oldData.shipmentMode, newData.shipmentMode);
+    diff('Shipment Date', oldData.shipmentDate, newData.shipmentDate, WhatsAppTemplates.formatDate);
+
+    const bidFormatter = (v: any, currency: any) => v !== null && v !== undefined ? `${v} ${currency || ''}`.trim() : null;
+    diff('Bid / Target', bidFormatter(oldData.buyingInterest, oldData.bidCurrency), bidFormatter(newData.buyingInterest, newData.bidCurrency));
+    diff('Note', oldData.note, newData.note);
+
+    if (changes.length === 0) {
+      return null; // Don't send if nothing changed
+    }
+
+    // Map newData to EnquiryNotificationData format for enquiryCreated
+    const mappedNewData: EnquiryNotificationData = {
+      enquiryNo:     newData.enquiryNo,
+      customerName:  newData.partner?.entityName,
+      product:       newData.product?.name,
+      purity:        newData.purity,
+      quantity:      newData.quantity,
+      quantityUnit:  'MT',
+      packingType:   newData.packingType?.name,
+      origin:        getOrigin(newData) || undefined,
+      destination:   getDest(newData) || undefined,
+      shipmentType:  newData.shipmentType,
+      shipmentDate:  newData.shipmentDate,
+      bid:           newData.buyingInterest,
+      bidCurrency:   newData.bidCurrency,
+      bidType:       newData.bidType,
+      note:          newData.note,
+      // Map Updated By to Created By temporarily to reuse the template
+      createdByName: updatedByName || 'System',
+      createdAt:     new Date(),
+    };
+
+    let baseMessage = WhatsAppTemplates.enquiryCreated(mappedNewData);
+
+    return baseMessage;
   }
 
   /**

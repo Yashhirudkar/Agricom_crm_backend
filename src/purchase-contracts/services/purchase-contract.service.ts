@@ -160,6 +160,7 @@ export class PurchaseContractService {
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
           deliveryPlace: dto.deliveryPlace || null,
+          placeOfLoading: dto.placeOfLoading || null,
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
@@ -310,6 +311,7 @@ export class PurchaseContractService {
     if (updateData.stitching !== undefined) sanitizeData.stitching = updateData.stitching ? String(updateData.stitching) : null;
     if (updateData.marking !== undefined) sanitizeData.marking = updateData.marking ? String(updateData.marking) : null;
     if (updateData.deliveryPlace !== undefined) sanitizeData.deliveryPlace = updateData.deliveryPlace ? String(updateData.deliveryPlace) : null;
+    if (updateData.placeOfLoading !== undefined) sanitizeData.placeOfLoading = updateData.placeOfLoading ? String(updateData.placeOfLoading) : null;
     if (updateData.specificationNo !== undefined) sanitizeData.specificationNo = updateData.specificationNo ? String(updateData.specificationNo) : null;
     if (updateData.specificationDate !== undefined) sanitizeData.specificationDate = updateData.specificationDate ? String(updateData.specificationDate) : null;
     if (updateData.status !== undefined) sanitizeData.status = String(updateData.status);

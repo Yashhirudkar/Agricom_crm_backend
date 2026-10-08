@@ -21,6 +21,7 @@ export enum NotificationChannel {
  */
 export enum NotificationTemplate {
   NEW_ENQUIRY          = 'NEW_ENQUIRY',
+  ENQUIRY_UPDATED      = 'ENQUIRY_UPDATED',
   NEW_QUOTATION        = 'NEW_QUOTATION',           // future
   NEW_PURCHASE_CONTRACT = 'NEW_PURCHASE_CONTRACT',  // future
   NEW_SALES_CONTRACT   = 'NEW_SALES_CONTRACT',      // future

@@ -27,6 +27,9 @@ import * as phase35 from './phase-35-add-spec-fields-to-purchase-contracts';
 import * as phase36 from './phase-36-add-loading-address-to-partners';
 import * as phase37 from './phase-37-add-freight-container-rates';
 import * as phase38 from './phase-38-add-direct-freight-quotes';
+import * as phase39 from './phase-39-add-display-order-to-companies';
+import * as phase40 from './phase-40-add-place-of-loading-to-purchase-contracts';
+import * as phase41 from './phase-41-add-freight-routes-and-rates';
 
 export interface MigrationPhase {
   phase: string;
@@ -69,4 +72,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase36,
   phase37,
   phase38,
+  phase39,
+  phase40,
+  phase41,
 ];

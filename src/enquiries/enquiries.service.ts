@@ -28,6 +28,7 @@ import { NotificationChannel, NotificationTemplate, NotificationRecipient } from
 import { NotificationsGateway } from '../notifications/gateways/notifications.gateway';
 import { NotificationsService, NotificationType } from '../notifications/services/notifications.service';
 import { RbacService } from '../rbac/services/rbac.service';
+import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
 
 const INCLUDE_RELATIONS = [
   {
@@ -492,6 +493,9 @@ export class EnquiriesService {
   async update(id: string, dto: UpdateEnquiryDto, user: any): Promise<Enquiry> {
     const companyId: number = user?.companyId;
     const enquiry = await this.findOne(id, companyId);
+    
+    // Save old state for update notification differences
+    const oldEnquiryData = enquiry.toJSON();
 
     if (
       dto.partnerRoleId ||
@@ -537,6 +541,34 @@ export class EnquiriesService {
     ).catch(err => {
       this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
     });
+
+    // ── Manual Save & Notify ──────────────────────────────────────────────────
+    if (dto.notifyGroup) {
+      const payload = {
+        oldEnquiry: oldEnquiryData,
+        newEnquiry: updatedEnquiry.toJSON(),
+        updatedByName: user?.name,
+      };
+
+      const changesMessage = WhatsAppTemplates.enquiryUpdated(payload);
+      
+      if (changesMessage) {
+        this.notificationDispatchService.send({
+          channel: NotificationChannel.WHATSAPP,
+          template: NotificationTemplate.ENQUIRY_UPDATED,
+          recipient: NotificationRecipient.SALES_GROUP,
+          entityType: 'Enquiry',
+          entityId: updatedEnquiry.id,
+          companyId: user?.companyId || null,
+          payload, // The template handler inside dispatch service will recreate it or we can just send the generated message? Wait, `send` requires `payload`. Dispatch service calls `WhatsAppTemplates.enquiryUpdated` again.
+        }).catch(err => {
+          this.logger.error(
+            `[Notification] Unhandled error for ${updatedEnquiry.enquiryNo} update: ${err?.message}`,
+            err?.stack,
+          );
+        });
+      }
+    }
 
     return updatedEnquiry;
   }

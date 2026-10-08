@@ -127,6 +127,10 @@ export class CreatePurchaseContractDto {
 
   @IsOptional()
   @IsString()
+  placeOfLoading?: string;
+
+  @IsOptional()
+  @IsString()
   dispatchDate?: string;
 
   @IsOptional()

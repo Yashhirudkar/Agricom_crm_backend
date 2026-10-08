@@ -29,6 +29,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       await this.syncSalesContractsSidebarItem();
       await this.syncConfirmedOrdersSidebarItem();
       await this.syncRemoveOrdersSidebarItem();
+      await this.syncReportsSidebarItem();
     } catch (error) {
       this.logger.error('Failed to seed or sync sidebar structure', error);
     }
@@ -807,6 +808,48 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to disable Orders sidebar item', err);
+    }
+  }
+
+  private async syncReportsSidebarItem() {
+    try {
+      const folder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Reports' },
+      });
+
+      let folderId: number;
+
+      if (!folder) {
+        const newFolder = await this.sidebarFolderModel.create({
+          name: 'Reports',
+          icon_name: 'bar-chart-2',
+          sort_order: 100,
+          is_active: true,
+        });
+        folderId = newFolder.id;
+        this.logger.log('Created Reports sidebar folder');
+      } else {
+        folderId = folder.id;
+      }
+
+      const item = await this.sidebarItemModel.findOne({
+        where: { route: '/reports/sales' },
+      });
+
+      if (!item) {
+        await this.sidebarItemModel.create({
+          name: 'Sales Report',
+          route: '/reports/sales',
+          icon_name: 'trending-up',
+          folder_id: folderId,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'always:allow', // Optional: customize as per RBAC
+        } as any);
+        this.logger.log('Created Sales Report sidebar item');
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Reports sidebar item', err);
     }
   }
 }
