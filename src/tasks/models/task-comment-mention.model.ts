@@ -15,13 +15,11 @@ import { TaskComment } from './task-comment.model';
 import { User } from '../../users/models/user.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_comment_mentions',
   timestamps: true,
 })
 export class TaskCommentMention extends Model<TaskCommentMention> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

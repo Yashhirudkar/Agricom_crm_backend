@@ -41,7 +41,12 @@ export class PartnerRoleService {
     return this.partnerRoleModel.create(payload);
   }
 
-  async findAll(query: QueryPartnerRoleDto & { allowedIds?: number[] | null; companyId?: number }) {
+  async findAll(
+    query: QueryPartnerRoleDto & {
+      allowedIds?: number[] | null;
+      companyId?: number;
+    },
+  ) {
     const { search, isActive, page = 1, limit = 10, allowedIds } = query;
     const offset = (page - 1) * limit;
 
@@ -112,7 +117,11 @@ export class PartnerRoleService {
     return partnerRole;
   }
 
-  async update(id: number, dto: UpdatePartnerRoleDto, user?: any): Promise<PartnerRole> {
+  async update(
+    id: number,
+    dto: UpdatePartnerRoleDto,
+    user?: any,
+  ): Promise<PartnerRole> {
     const companyId = user?.companyId;
     const partnerRole = await this.findOneActive(id, companyId);
 

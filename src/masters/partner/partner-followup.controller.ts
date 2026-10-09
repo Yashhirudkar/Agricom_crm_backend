@@ -20,7 +20,9 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partners/:partnerId/follow-ups')
 export class PartnerFollowUpController {
-  constructor(private readonly partnerFollowUpService: PartnerFollowUpService) {}
+  constructor(
+    private readonly partnerFollowUpService: PartnerFollowUpService,
+  ) {}
 
   @Post()
   @RequirePermission('follow_up:create')
@@ -40,7 +42,11 @@ export class PartnerFollowUpController {
     @Query('entityType') entityType?: string,
     @Query('entityId') entityId?: string,
   ) {
-    return this.partnerFollowUpService.findAll(+partnerId, entityType, entityId ? +entityId : undefined);
+    return this.partnerFollowUpService.findAll(
+      +partnerId,
+      entityType,
+      entityId ? +entityId : undefined,
+    );
   }
 
   @Get(':id')

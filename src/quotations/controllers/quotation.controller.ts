@@ -62,14 +62,20 @@ export class QuotationController {
   @Get()
   @RequirePermission('quotation:view')
   async findAll(@Query() query: QueryQuotationDto, @Req() req: CustomRequest) {
-    return this.quotationService.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return this.quotationService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    });
   }
 
   // ─── GET ONE ──────────────────────────────────────────────────────────────
 
   @Get(':id')
   @RequirePermission('quotation:view')
-  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: CustomRequest) {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: CustomRequest,
+  ) {
     return this.quotationService.findOne(id, undefined, req.user?.companyId);
   }
 

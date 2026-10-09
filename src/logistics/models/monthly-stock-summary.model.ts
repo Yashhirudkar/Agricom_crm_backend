@@ -91,10 +91,15 @@ export class MonthlyStockSummary extends Model<MonthlyStockSummary> {
   @Column({ field: 'deleted_at' })
   declare deletedAt: Date;
 
-  @HasMany(() => MonthlyStockSummaryCountry, { foreignKey: 'summaryId', onDelete: 'CASCADE' })
+  @HasMany(() => MonthlyStockSummaryCountry, {
+    foreignKey: 'summaryId',
+    onDelete: 'CASCADE',
+  })
   declare countries: MonthlyStockSummaryCountry[];
 
-  @HasMany(() => MonthlyStockSection, { foreignKey: 'monthlyStockSummaryId', onDelete: 'CASCADE' })
+  @HasMany(() => MonthlyStockSection, {
+    foreignKey: 'monthlyStockSummaryId',
+    onDelete: 'CASCADE',
+  })
   declare sections: MonthlyStockSection[];
 }
-

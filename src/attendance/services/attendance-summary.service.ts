@@ -6,7 +6,10 @@ import {
   AttendanceState,
 } from '../models/attendance-record.model';
 import { AttendanceLog } from '../models/attendance-log.model';
-import { LeaveRequest, LeaveRequestStatus } from '../../hrms/models/leave-request.model';
+import {
+  LeaveRequest,
+  LeaveRequestStatus,
+} from '../../hrms/models/leave-request.model';
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { Shift } from '../models/shift.model';
@@ -77,7 +80,10 @@ export class AttendanceSummaryService {
     const status = record?.attendanceStatus || null;
     const lateMinutes = Number(record?.lateMinutes || 0);
     let workHours = Number(record?.totalHours || 0);
-    if (record?.attendanceState === AttendanceState.WORKING && record?.checkInTime) {
+    if (
+      record?.attendanceState === AttendanceState.WORKING &&
+      record?.checkInTime
+    ) {
       const calc = this.policyEngineService.calculateWorkingHours(
         record.checkInTime,
         null,
@@ -151,7 +157,9 @@ export class AttendanceSummaryService {
     const workingDays = totalDays - weeklyOff - holiday;
     const attendanceCount = present + halfDay * 0.5;
     const attendancePercentage =
-      workingDays > 0 ? parseFloat(((attendanceCount / workingDays) * 100).toFixed(2)) : 0;
+      workingDays > 0
+        ? parseFloat(((attendanceCount / workingDays) * 100).toFixed(2))
+        : 0;
 
     return {
       present,
@@ -236,7 +244,8 @@ export class AttendanceSummaryService {
     }
 
     const timezone = employee.branch?.timezone || 'Asia/Kolkata';
-    const { todayDateStr, minutesOfDay } = this.helperService.getLocalTimeDetails(timezone);
+    const { todayDateStr, minutesOfDay } =
+      this.helperService.getLocalTimeDetails(timezone);
 
     const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();
@@ -248,7 +257,9 @@ export class AttendanceSummaryService {
         holidayDate: { [Op.between]: [startStr, endStr] },
         isActive: true,
       },
-      include: [{ model: HolidayCompany, where: { companyId }, required: true }],
+      include: [
+        { model: HolidayCompany, where: { companyId }, required: true },
+      ],
     });
     const holidayDates = new Set(holidays.map((h) => h.holidayDate.toString()));
 
@@ -268,14 +279,21 @@ export class AttendanceSummaryService {
     const leaveMap = new Map<string, LeaveRequest>();
     for (const leave of leaves) {
       const start = new Date(
-        new Date(leave.fromDate).getTime() > new Date(startStr).getTime() ? leave.fromDate : startStr,
+        new Date(leave.fromDate).getTime() > new Date(startStr).getTime()
+          ? leave.fromDate
+          : startStr,
       );
       const end = new Date(
-        new Date(leave.toDate).getTime() < new Date(endStr).getTime() ? leave.toDate : endStr,
+        new Date(leave.toDate).getTime() < new Date(endStr).getTime()
+          ? leave.toDate
+          : endStr,
       );
       const curr = new Date(start);
       while (curr <= end) {
-        leaveMap.set(curr.toLocaleDateString('en-CA', { timeZone: 'UTC' }), leave);
+        leaveMap.set(
+          curr.toLocaleDateString('en-CA', { timeZone: 'UTC' }),
+          leave,
+        );
         curr.setDate(curr.getDate() + 1);
       }
     }
@@ -289,7 +307,10 @@ export class AttendanceSummaryService {
       shift = await this.shiftModel.findByPk(employee.shiftId);
     }
     if (!shift) {
-      shift = { weeklyOffDays: defaultWeeklyOffDays, startTime: policy?.defaultShiftStartTime || '00:00' };
+      shift = {
+        weeklyOffDays: defaultWeeklyOffDays,
+        startTime: policy?.defaultShiftStartTime || '00:00',
+      };
     }
 
     // Get database attendance records
@@ -340,7 +361,9 @@ export class AttendanceSummaryService {
 
       const record = recordMap.get(dateStr);
       const matchedLeave = leaveMap.get(dateStr);
-      const isOnLeave = !!matchedLeave || (record && record.attendanceStatus === AttendanceStatus.ON_LEAVE);
+      const isOnLeave =
+        !!matchedLeave ||
+        (record && record.attendanceStatus === AttendanceStatus.ON_LEAVE);
 
       let status: AttendanceStatus = null;
       let workHours = 0;
@@ -350,11 +373,16 @@ export class AttendanceSummaryService {
       let checkOut = null;
       let logs = [];
       let shiftDetails = null;
-      const attendanceState = record ? record.attendanceState : AttendanceState.NOT_CHECKED_IN;
+      const attendanceState = record
+        ? record.attendanceState
+        : AttendanceState.NOT_CHECKED_IN;
 
       if (record) {
         status = record.attendanceStatus;
-        if (record.attendanceState === AttendanceState.WORKING && record.checkInTime) {
+        if (
+          record.attendanceState === AttendanceState.WORKING &&
+          record.checkInTime
+        ) {
           const calc = this.policyEngineService.calculateWorkingHours(
             record.checkInTime,
             null,
@@ -377,7 +405,9 @@ export class AttendanceSummaryService {
       // Apply status resolution rules
       if (dateStr > todayDateStr) {
         if (isOnLeave) {
-          status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+          status = matchedLeave?.isHalfDay
+            ? AttendanceStatus.HALF_DAY
+            : AttendanceStatus.ON_LEAVE;
         } else if (isHoliday) {
           status = AttendanceStatus.HOLIDAY;
         } else if (isWeeklyOff) {
@@ -386,18 +416,26 @@ export class AttendanceSummaryService {
           status = AttendanceStatus.UPCOMING;
         }
       } else if (dateStr === todayDateStr) {
-        if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
+        if (
+          status &&
+          status !== AttendanceStatus.ABSENT &&
+          status !== AttendanceStatus.UPCOMING
+        ) {
           // Keep actual status
         } else if (attendanceState === AttendanceState.WORKING || checkIn) {
           status = null;
         } else if (isOnLeave) {
-          status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+          status = matchedLeave?.isHalfDay
+            ? AttendanceStatus.HALF_DAY
+            : AttendanceStatus.ON_LEAVE;
         } else if (isHoliday) {
           status = AttendanceStatus.HOLIDAY;
         } else if (isWeeklyOff) {
           status = AttendanceStatus.WEEK_OFF;
         } else {
-          const [shStartHour, shStartMin] = (shift.startTime || '00:00').split(':').map(Number);
+          const [shStartHour, shStartMin] = (shift.startTime || '00:00')
+            .split(':')
+            .map(Number);
           const shiftStartMinutes = shStartHour * 60 + shStartMin;
 
           if (minutesOfDay < shiftStartMinutes) {
@@ -407,12 +445,18 @@ export class AttendanceSummaryService {
           }
         }
       } else {
-        if (status && status !== AttendanceStatus.ABSENT && status !== AttendanceStatus.UPCOMING) {
+        if (
+          status &&
+          status !== AttendanceStatus.ABSENT &&
+          status !== AttendanceStatus.UPCOMING
+        ) {
           // Keep actual status
         } else if (attendanceState === AttendanceState.WORKING || checkIn) {
           status = null;
         } else if (isOnLeave) {
-          status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+          status = matchedLeave?.isHalfDay
+            ? AttendanceStatus.HALF_DAY
+            : AttendanceStatus.ON_LEAVE;
         } else if (isHoliday) {
           status = AttendanceStatus.HOLIDAY;
         } else if (isWeeklyOff) {
@@ -425,7 +469,9 @@ export class AttendanceSummaryService {
       const normalizedStatus = this.normalizeLegacyStatus(status);
       const isLate = lateMinutes > 0 || status === 'LATE';
       const employeeStatus = normalizedStatus;
-      const adminStatus = isLate ? `${normalizedStatus}_LATE` : normalizedStatus;
+      const adminStatus = isLate
+        ? `${normalizedStatus}_LATE`
+        : normalizedStatus;
 
       daysDetails.push({
         date: dateStr,

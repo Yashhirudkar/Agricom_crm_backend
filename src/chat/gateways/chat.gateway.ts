@@ -24,7 +24,9 @@ import { SendMessageDto, ReactMessageDto } from '../dto/chat.dto';
     credentials: true,
   },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
+export class ChatGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+{
   @WebSocketServer()
   server: Server;
 
@@ -51,7 +53,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private readonly policyService: PolicyService,
   ) {
     // Periodic cleanup of reaction debounce map every 2 minutes
-    this.debounceCleanupTimer = setInterval(() => this.cleanupDebounceMap(), 2 * 60 * 1000);
+    this.debounceCleanupTimer = setInterval(
+      () => this.cleanupDebounceMap(),
+      2 * 60 * 1000,
+    );
   }
 
   onModuleDestroy() {
@@ -108,7 +113,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         client.handshake.auth?.companyId || client.handshake.query?.companyId;
 
       if (!token) {
-        this.logger.warn(`Connection rejected: Token not found. Socket ID: ${client.id}`);
+        this.logger.warn(
+          `Connection rejected: Token not found. Socket ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
@@ -117,13 +124,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       try {
         payload = this.jwtService.verify(token);
       } catch (jwtErr) {
-        this.logger.warn(`Connection rejected: JWT Verification failed. Socket ID: ${client.id}`);
+        this.logger.warn(
+          `Connection rejected: JWT Verification failed. Socket ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
 
       if (!payload || !payload.userId) {
-        this.logger.warn(`Connection rejected: Invalid payload. Socket ID: ${client.id}`);
+        this.logger.warn(
+          `Connection rejected: Invalid payload. Socket ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
@@ -167,7 +178,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         companyId,
       });
     } catch (err) {
-      this.logger.error(`Handshake connection validation error: ${err.message}`);
+      this.logger.error(
+        `Handshake connection validation error: ${err.message}`,
+      );
       client.disconnect(true);
     }
   }
@@ -234,7 +247,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     if (!data.conversationId) {
-      return { status: 'FAILED', error: 'conversationId parameter is required.' };
+      return {
+        status: 'FAILED',
+        error: 'conversationId parameter is required.',
+      };
     }
 
     try {
@@ -245,7 +261,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         isSuperAdmin,
       );
       if (!isAllowed) {
-        return { status: 'FAILED', error: 'You do not have access to this conversation.' };
+        return {
+          status: 'FAILED',
+          error: 'You do not have access to this conversation.',
+        };
       }
 
       client.join(`conversation-${data.conversationId}`);
@@ -274,14 +293,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userIds: number[] },
   ) {
-    if (!data?.userIds?.length) return { status: 'FAILED', error: 'userIds required.' };
+    if (!data?.userIds?.length)
+      return { status: 'FAILED', error: 'userIds required.' };
 
-    const result: Record<number, { status: string; lastSeen: string | null }> = {};
+    const result: Record<number, { status: string; lastSeen: string | null }> =
+      {};
     for (const uid of data.userIds) {
       const presenceStatus = this.presenceStates.get(uid);
       result[uid] = {
         status: presenceStatus ?? PresenceStatus.OFFLINE,
-        lastSeen: presenceStatus === PresenceStatus.ONLINE ? null : new Date().toISOString(),
+        lastSeen:
+          presenceStatus === PresenceStatus.ONLINE
+            ? null
+            : new Date().toISOString(),
       };
     }
 
@@ -296,7 +320,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const userId = (client as any).userId;
     const companyId = (client as any).companyId;
 
-    if (!userId || !data.status || !Object.values(PresenceStatus).includes(data.status)) {
+    if (
+      !userId ||
+      !data.status ||
+      !Object.values(PresenceStatus).includes(data.status)
+    ) {
       return { status: 'FAILED', error: 'Invalid status parameter.' };
     }
 
@@ -490,7 +518,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       return { status: 'FAILED', error: 'Unauthenticated socket session.' };
     }
 
-    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    const isAllowed = await this.policyService.canJoinSocket(
+      data.conversationId,
+      userId,
+      companyId,
+      isSuperAdmin,
+    );
     if (!isAllowed) {
       return { status: 'FAILED', error: 'Access denied to this conversation.' };
     }
@@ -535,7 +568,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       return { status: 'FAILED', error: 'Unauthenticated socket session.' };
     }
 
-    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    const isAllowed = await this.policyService.canJoinSocket(
+      data.conversationId,
+      userId,
+      companyId,
+      isSuperAdmin,
+    );
     if (!isAllowed) {
       return { status: 'FAILED', error: 'Access denied to this conversation.' };
     }
@@ -571,11 +609,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const isSuperAdmin = (client as any).isSuperAdmin || false;
     if (!userId || !data.conversationId) return;
 
-    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    const isAllowed = await this.policyService.canJoinSocket(
+      data.conversationId,
+      userId,
+      companyId,
+      isSuperAdmin,
+    );
     if (!isAllowed) return;
 
     // Check typing visibility
-    const conversation = await this.conversationService.getConversationById(data.conversationId, companyId);
+    const conversation = await this.conversationService.getConversationById(
+      data.conversationId,
+      companyId,
+    );
     if (conversation && conversation.typingVisibility === 'NOBODY') {
       return;
     }
@@ -615,7 +661,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const isSuperAdmin = (client as any).isSuperAdmin || false;
     if (!userId || !data.conversationId) return;
 
-    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    const isAllowed = await this.policyService.canJoinSocket(
+      data.conversationId,
+      userId,
+      companyId,
+      isSuperAdmin,
+    );
     if (!isAllowed) return;
 
     const timerKey = `${data.conversationId}:${userId}`;
@@ -639,7 +690,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('sync_messages')
   async handleSyncMessages(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { conversationId: number; lastReceivedMessageId: number },
+    @MessageBody()
+    data: { conversationId: number; lastReceivedMessageId: number },
   ) {
     const userId = (client as any).userId;
     const companyId = (client as any).companyId;
@@ -648,7 +700,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       return { status: 'FAILED', error: 'Invalid parameters.' };
     }
 
-    const isAllowed = await this.policyService.canJoinSocket(data.conversationId, userId, companyId, isSuperAdmin);
+    const isAllowed = await this.policyService.canJoinSocket(
+      data.conversationId,
+      userId,
+      companyId,
+      isSuperAdmin,
+    );
     if (!isAllowed) {
       return { status: 'FAILED', error: 'Access denied to this conversation.' };
     }

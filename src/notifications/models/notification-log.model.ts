@@ -22,7 +22,11 @@ import { Company } from '../../companies/models/company.model';
  *   failed    → last attempt failed; worker will retry if retryCount < MAX_WORKER_RETRIES
  *   exhausted → all retries used, no further attempts will be made
  */
-export type NotificationLogStatus = 'pending' | 'success' | 'failed' | 'exhausted';
+export type NotificationLogStatus =
+  | 'pending'
+  | 'success'
+  | 'failed'
+  | 'exhausted';
 
 /**
  * Persistent log of every notification dispatch attempt.

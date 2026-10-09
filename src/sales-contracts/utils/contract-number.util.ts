@@ -24,18 +24,33 @@ import { Sequelize } from 'sequelize-typescript';
  * The SEQUENCE is shared across ALL buyers for the same seller + FY.
  * Buyer initial only affects the prefix, NEVER the sequence lookup.
  */
-const SELLER_CONFIG_MAP: Record<string, { sellerCode: string; initialSequence: number; includeBuyerInitial: boolean }> = {
-  'AGRICOM IMPEX': { sellerCode: 'A', initialSequence: 1, includeBuyerInitial: true },
-  'AGRICOM IMPEX PVT LTD': { sellerCode: 'AGPL', initialSequence: 1501, includeBuyerInitial: false },
+const SELLER_CONFIG_MAP: Record<
+  string,
+  { sellerCode: string; initialSequence: number; includeBuyerInitial: boolean }
+> = {
+  'AGRICOM IMPEX': {
+    sellerCode: 'A',
+    initialSequence: 1,
+    includeBuyerInitial: true,
+  },
+  'AGRICOM IMPEX PVT LTD': {
+    sellerCode: 'AGPL',
+    initialSequence: 1501,
+    includeBuyerInitial: false,
+  },
 };
 
 /**
  * Determine if a seller qualifies for auto-generated contract numbers.
  * Returns the seller config if yes, undefined otherwise.
  */
-export function getAutoContractConfig(
-  sellerName: string,
-): { sellerCode: string; initialSequence: number; includeBuyerInitial: boolean } | undefined {
+export function getAutoContractConfig(sellerName: string):
+  | {
+      sellerCode: string;
+      initialSequence: number;
+      includeBuyerInitial: boolean;
+    }
+  | undefined {
   if (!sellerName) return undefined;
   const normalized = sellerName.trim().toUpperCase();
   return SELLER_CONFIG_MAP[normalized];
@@ -46,7 +61,9 @@ export function getAutoContractConfig(
  */
 export function getBuyerInitial(buyerName: string): string {
   if (!buyerName || !buyerName.trim()) {
-    throw new BadRequestException('Buyer name is required for contract number generation.');
+    throw new BadRequestException(
+      'Buyer name is required for contract number generation.',
+    );
   }
   return buyerName.trim().toUpperCase()[0];
 }
@@ -60,7 +77,11 @@ export function getBuyerInitial(buyerName: string): string {
  *   buyer="EQUAL AGRO",        sellerCode="AGPL" → "EAGPL"
  *   buyer="HORIZON TRADING",   sellerCode="AGPL" → "HAGPL"
  */
-export function buildContractPrefix(buyerName: string, sellerCode: string, includeBuyerInitial: boolean): string {
+export function buildContractPrefix(
+  buyerName: string,
+  sellerCode: string,
+  includeBuyerInitial: boolean,
+): string {
   if (includeBuyerInitial) {
     return getBuyerInitial(buyerName) + sellerCode.toUpperCase();
   }
@@ -111,7 +132,9 @@ export function parseSequenceFromContractNumber(
 
   // Regex: optional buyer-initial letter (if includeBuyerInitial) + sellerCode + optional dot + digits + fySuffix
   // We use ^ and $ to ensure exact match.
-  const prefixPattern = includeBuyerInitial ? `^[A-Z]${scUpper}` : `^${scUpper}`;
+  const prefixPattern = includeBuyerInitial
+    ? `^[A-Z]${scUpper}`
+    : `^${scUpper}`;
   const pattern = new RegExp(`${prefixPattern}\\.?(\\d+)${fySuffix}$`);
   const match = upper.match(pattern);
   if (!match) return null;
@@ -143,7 +166,14 @@ export async function generateNextContractNumber(opts: {
   financialYear: string;
   transaction: Transaction;
 }): Promise<string> {
-  const { sequelize, sellerId, sellerName, buyerName, financialYear, transaction } = opts;
+  const {
+    sequelize,
+    sellerId,
+    sellerName,
+    buyerName,
+    financialYear,
+    transaction,
+  } = opts;
 
   const config = getAutoContractConfig(sellerName);
   if (!config) {
@@ -176,7 +206,12 @@ export async function generateNextContractNumber(opts: {
   // Buyer initial varies per row but sequence is seller-wide — we match by sellerCode pattern.
   let maxSequence: number | null = null;
   for (const row of rows) {
-    const seq = parseSequenceFromContractNumber(row.contract_number, sellerCode, fySuffix, includeBuyerInitial);
+    const seq = parseSequenceFromContractNumber(
+      row.contract_number,
+      sellerCode,
+      fySuffix,
+      includeBuyerInitial,
+    );
     if (seq !== null && (maxSequence === null || seq > maxSequence)) {
       maxSequence = seq;
     }
@@ -186,7 +221,11 @@ export async function generateNextContractNumber(opts: {
   const nextSequence = maxSequence !== null ? maxSequence + 4 : initialSequence;
 
   // Build prefix from buyer initial + seller code
-  const prefix = buildContractPrefix(buyerName, sellerCode, includeBuyerInitial);
+  const prefix = buildContractPrefix(
+    buyerName,
+    sellerCode,
+    includeBuyerInitial,
+  );
 
   // Final contract number format: <prefix>.<sequence><fySuffix>
   return `${prefix}.${nextSequence}${fySuffix}`;

@@ -6,12 +6,18 @@ export const name = 'combined-migrations-30-to-36';
 export async function up(queryInterface: QueryInterface): Promise<void> {
   try {
     // 30 - Purchase Contract Payment Fields
-    const tableInfo = await queryInterface.describeTable('purchase_contracts').catch(() => null);
+    const tableInfo = await queryInterface
+      .describeTable('purchase_contracts')
+      .catch(() => null);
     if (tableInfo && !tableInfo.payment_terms_text) {
-      await queryInterface.addColumn('purchase_contracts', 'payment_terms_text', {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      });
+      await queryInterface.addColumn(
+        'purchase_contracts',
+        'payment_terms_text',
+        {
+          type: DataTypes.TEXT,
+          allowNull: true,
+        },
+      );
     }
     if (tableInfo && !tableInfo.advance_percent) {
       await queryInterface.addColumn('purchase_contracts', 'advance_percent', {
@@ -70,8 +76,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       { ifNotExists: true } as any,
     );
 
-    await queryInterface.addIndex('enquiry_loading_points', ['enquiry_id'], { name: 'elp_enquiry_id_idx' }).catch(() => {});
-    await queryInterface.addIndex('enquiry_loading_points', ['company_id'], { name: 'elp_company_id_idx' }).catch(() => {});
+    await queryInterface
+      .addIndex('enquiry_loading_points', ['enquiry_id'], {
+        name: 'elp_enquiry_id_idx',
+      })
+      .catch(() => {});
+    await queryInterface
+      .addIndex('enquiry_loading_points', ['company_id'], {
+        name: 'elp_company_id_idx',
+      })
+      .catch(() => {});
 
     // 32 - Enquiry Destinations
     await queryInterface.createTable(
@@ -105,11 +119,21 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       { ifNotExists: true } as any,
     );
 
-    await queryInterface.addIndex('enquiry_destinations', ['enquiry_id'], { name: 'ed_enquiry_id_idx' }).catch(() => {});
-    await queryInterface.addIndex('enquiry_destinations', ['company_id'], { name: 'ed_company_id_idx' }).catch(() => {});
+    await queryInterface
+      .addIndex('enquiry_destinations', ['enquiry_id'], {
+        name: 'ed_enquiry_id_idx',
+      })
+      .catch(() => {});
+    await queryInterface
+      .addIndex('enquiry_destinations', ['company_id'], {
+        name: 'ed_company_id_idx',
+      })
+      .catch(() => {});
 
     // 32 / 34 - Freight Quote Route
-    const freightQuotesTableInfo = await queryInterface.describeTable('freight_quotes').catch(() => null);
+    const freightQuotesTableInfo = await queryInterface
+      .describeTable('freight_quotes')
+      .catch(() => null);
     if (freightQuotesTableInfo && !freightQuotesTableInfo.route) {
       await queryInterface.addColumn('freight_quotes', 'route', {
         type: DataTypes.STRING(255),
@@ -118,7 +142,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }
 
     // 33 - Enquiry bid_type and note fields
-    const enquiriesTableInfo = await queryInterface.describeTable('enquiries').catch(() => null);
+    const enquiriesTableInfo = await queryInterface
+      .describeTable('enquiries')
+      .catch(() => null);
     if (enquiriesTableInfo && !enquiriesTableInfo.bid_type) {
       await queryInterface.addColumn('enquiries', 'bid_type', {
         type: DataTypes.STRING(20),
@@ -182,7 +208,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }
 
     // 36 - Logistics is_viewed
-    const logisticsTableInfo = await queryInterface.describeTable('logistics').catch(() => null);
+    const logisticsTableInfo = await queryInterface
+      .describeTable('logistics')
+      .catch(() => null);
     if (logisticsTableInfo && !logisticsTableInfo.is_viewed) {
       await queryInterface.addColumn('logistics', 'is_viewed', {
         type: DataTypes.BOOLEAN,
@@ -201,13 +229,17 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 export async function down(queryInterface: QueryInterface): Promise<void> {
   try {
     // 36
-    const logisticsTableInfo = await queryInterface.describeTable('logistics').catch(() => null);
+    const logisticsTableInfo = await queryInterface
+      .describeTable('logistics')
+      .catch(() => null);
     if (logisticsTableInfo && logisticsTableInfo.is_viewed) {
       await queryInterface.removeColumn('logistics', 'is_viewed');
     }
 
     // 35
-    const freightQuotesTableInfo = await queryInterface.describeTable('freight_quotes').catch(() => null);
+    const freightQuotesTableInfo = await queryInterface
+      .describeTable('freight_quotes')
+      .catch(() => null);
     if (freightQuotesTableInfo && freightQuotesTableInfo.route_id) {
       await queryInterface.removeColumn('freight_quotes', 'route_id');
     }
@@ -218,7 +250,9 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
     }
 
     // 33
-    const enquiriesTableInfo = await queryInterface.describeTable('enquiries').catch(() => null);
+    const enquiriesTableInfo = await queryInterface
+      .describeTable('enquiries')
+      .catch(() => null);
     if (enquiriesTableInfo && enquiriesTableInfo.note) {
       await queryInterface.removeColumn('enquiries', 'note');
     }
@@ -232,13 +266,34 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
     await queryInterface.dropTable('enquiry_loading_points').catch(() => {});
 
     // 30
-    const tableInfo = await queryInterface.describeTable('purchase_contracts').catch(() => null);
-    if (tableInfo && tableInfo.payment_terms_text) await queryInterface.removeColumn('purchase_contracts', 'payment_terms_text');
-    if (tableInfo && tableInfo.advance_percent) await queryInterface.removeColumn('purchase_contracts', 'advance_percent');
-    if (tableInfo && tableInfo.balance_percent) await queryInterface.removeColumn('purchase_contracts', 'balance_percent');
-    if (tableInfo && tableInfo.penalty_percent) await queryInterface.removeColumn('purchase_contracts', 'penalty_percent');
-    if (tableInfo && tableInfo.payment_due_date) await queryInterface.removeColumn('purchase_contracts', 'payment_due_date');
-
+    const tableInfo = await queryInterface
+      .describeTable('purchase_contracts')
+      .catch(() => null);
+    if (tableInfo && tableInfo.payment_terms_text)
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'payment_terms_text',
+      );
+    if (tableInfo && tableInfo.advance_percent)
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'advance_percent',
+      );
+    if (tableInfo && tableInfo.balance_percent)
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'balance_percent',
+      );
+    if (tableInfo && tableInfo.penalty_percent)
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'penalty_percent',
+      );
+    if (tableInfo && tableInfo.payment_due_date)
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'payment_due_date',
+      );
   } catch (error) {
     throw error;
   }

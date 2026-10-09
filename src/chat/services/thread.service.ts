@@ -60,10 +60,13 @@ export class ThreadService {
     });
 
     if (!parent) {
-      throw new NotFoundException('Parent message not found or belongs to another conversation');
+      throw new NotFoundException(
+        'Parent message not found or belongs to another conversation',
+      );
     }
 
-    const conversation = await this.conversationRepository.findByPk(conversationId);
+    const conversation =
+      await this.conversationRepository.findByPk(conversationId);
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
@@ -74,7 +77,11 @@ export class ThreadService {
 
     // Mention parsing
     const parsedMentions = this.mentionService.parseMentions(dto.content);
-    await this.mentionService.validateMentionPermissions(conversationId, actor.id, parsedMentions);
+    await this.mentionService.validateMentionPermissions(
+      conversationId,
+      actor.id,
+      parsedMentions,
+    );
     const mentionedUserIds = await this.mentionService.resolveMentionedUsers(
       conversationId,
       actor.id,
@@ -98,7 +105,7 @@ export class ThreadService {
           isEdited: false,
           version: 1,
           isDeleted: false,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -108,7 +115,9 @@ export class ThreadService {
           messageId: createdReply.id,
           attachmentId: attId,
         }));
-        await this.attachmentRepository.bulkCreate(attachRows as any, { transaction: t });
+        await this.attachmentRepository.bulkCreate(attachRows, {
+          transaction: t,
+        });
       }
 
       // Mentions
@@ -117,7 +126,9 @@ export class ThreadService {
           messageId: createdReply.id,
           userId: uId,
         }));
-        await this.mentionRepository.bulkCreate(mentionRows as any, { transaction: t });
+        await this.mentionRepository.bulkCreate(mentionRows, {
+          transaction: t,
+        });
       }
 
       // Unhide members who had hidden this conversation
@@ -145,16 +156,18 @@ export class ThreadService {
       ],
     });
 
-    threadSummary = await this.getThreadSummary(conversationId, parentMessageId, actor.id);
+    threadSummary = await this.getThreadSummary(
+      conversationId,
+      parentMessageId,
+      actor.id,
+    );
 
     if (unhidMembers) {
       this.eventEmitter.emit(
         ChatEventNames.CONVERSATION_UPDATED,
-        new ConversationUpdatedEvent(
-          conversationId,
-          conversation.companyId,
-          { id: conversationId },
-        ),
+        new ConversationUpdatedEvent(conversationId, conversation.companyId, {
+          id: conversationId,
+        }),
       );
     }
 
@@ -231,7 +244,8 @@ export class ThreadService {
     return {
       parentMessageId,
       replies,
-      nextCursor: replies.length === limit ? replies[replies.length - 1].id : null,
+      nextCursor:
+        replies.length === limit ? replies[replies.length - 1].id : null,
     };
   }
 
@@ -248,7 +262,9 @@ export class ThreadService {
       attributes: ['id', 'senderId', 'createdAt'],
       order: [['id', 'DESC']],
       limit: 50,
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email'] }],
+      include: [
+        { model: User, as: 'sender', attributes: ['id', 'name', 'email'] },
+      ],
     });
 
     const replyCount = await this.messageRepository.count({

@@ -13,7 +13,7 @@ export class LeaveBalancesService {
     private readonly employeeModel: typeof Employee,
     @InjectModel(LeaveType)
     private readonly leaveTypeModel: typeof LeaveType,
-  ) { }
+  ) {}
 
   async getFallbackEmployeeIdForAdmin(
     companyId: number,
@@ -53,9 +53,10 @@ export class LeaveBalancesService {
     return activeLeaveTypes.map((leaveType) => {
       const existing = balanceMap.get(leaveType.id);
 
-      const allocated = leaveType.daysPerYear != null
-        ? Number(leaveType.daysPerYear)
-        : Number(existing?.totalAllocated || 0);
+      const allocated =
+        leaveType.daysPerYear != null
+          ? Number(leaveType.daysPerYear)
+          : Number(existing?.totalAllocated || 0);
 
       const used = Number(existing?.usedDays || 0);
       const pending = Number(existing?.pendingDays || 0);
@@ -104,9 +105,10 @@ export class LeaveBalancesService {
     }
 
     const json = balance.get({ plain: true });
-    const allocated = balance.leaveType && balance.leaveType.daysPerYear != null
-      ? Number(balance.leaveType.daysPerYear)
-      : Number(balance.totalAllocated || 0);
+    const allocated =
+      balance.leaveType && balance.leaveType.daysPerYear != null
+        ? Number(balance.leaveType.daysPerYear)
+        : Number(balance.totalAllocated || 0);
     const used = Number(balance.usedDays || 0);
     const pending = Number(balance.pendingDays || 0);
     const carryForward = Number(balance.carryForwardDays || 0);

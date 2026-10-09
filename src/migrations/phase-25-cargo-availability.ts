@@ -10,7 +10,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'cargo_availability',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       purchase_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -29,8 +34,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'products', key: 'id' },
         onDelete: 'RESTRICT',
       },
-      purchase_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Pending Readiness' },
+      purchase_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Pending Readiness',
+      },
       created_at: { type: DataTypes.DATE, allowNull: false },
       updated_at: { type: DataTypes.DATE, allowNull: false },
     },
@@ -47,7 +60,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'cargo_readiness',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       cargo_availability_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -62,8 +80,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
       warehouse_name: { type: DataTypes.STRING(255), allowNull: true },
       ready_date: { type: DataTypes.DATEONLY, allowNull: false },
-      ready_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-      bag_bulk: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Bag' },
+      ready_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      bag_bulk: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Bag',
+      },
       uom: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'MT' },
       lot_number: { type: DataTypes.STRING(100), allowNull: true },
       batch_number: { type: DataTypes.STRING(100), allowNull: true },
@@ -76,7 +102,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       qc_remarks: { type: DataTypes.TEXT, allowNull: true },
       remarks: { type: DataTypes.TEXT, allowNull: true },
       internal_notes: { type: DataTypes.TEXT, allowNull: true },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Draft' },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Draft',
+      },
       created_by: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -106,7 +136,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'cargo_shipment_allocations',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       cargo_availability_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -119,8 +154,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'sales_contract_shipments', key: 'id' },
         onDelete: 'CASCADE',
       },
-      allocated_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Active' },
+      allocated_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Active',
+      },
       allocated_by: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -143,7 +186,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'cargo_loading',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       cargo_availability_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -178,27 +226,75 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       transporter: { type: DataTypes.STRING(255), allowNull: true },
       license_number: { type: DataTypes.STRING(100), allowNull: true },
       vehicle_type: { type: DataTypes.STRING(100), allowNull: true },
-      bag_bulk: { type: DataTypes.STRING(50), allowNull: true, defaultValue: 'Bag' },
+      bag_bulk: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        defaultValue: 'Bag',
+      },
       bags_count: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
-      loaded_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      loaded_weight: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      avg_bag_weight: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      loaded_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      loaded_weight: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      avg_bag_weight: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
       seal_number: { type: DataTypes.STRING(100), allowNull: true },
       container_number: { type: DataTypes.STRING(100), allowNull: true },
       loading_location: { type: DataTypes.STRING(255), allowNull: true },
       stack_number: { type: DataTypes.STRING(100), allowNull: true },
       lot_number: { type: DataTypes.STRING(100), allowNull: true },
       batch_number: { type: DataTypes.STRING(100), allowNull: true },
-      weighment_in_weight: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      weighment_out_weight: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      weighment_in_weight: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      weighment_out_weight: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
       unload_location: { type: DataTypes.STRING(255), allowNull: true },
-      unloaded_weight: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      weight_difference: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      short_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
-      damage_qty: { type: DataTypes.DECIMAL(12, 2), allowNull: true, defaultValue: 0 },
+      unloaded_weight: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      weight_difference: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      short_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      damage_qty: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: true,
+        defaultValue: 0,
+      },
       difference_reason: { type: DataTypes.TEXT, allowNull: true },
-      variance_level: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Normal' },
-      verification_status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Pending Verification' },
+      variance_level: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Normal',
+      },
+      verification_status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Pending Verification',
+      },
       unloading_date: { type: DataTypes.DATEONLY, allowNull: true },
       received_by: { type: DataTypes.STRING(255), allowNull: true },
       receiver_contact: { type: DataTypes.STRING(100), allowNull: true },
@@ -208,7 +304,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       gate_pass_number: { type: DataTypes.STRING(100), allowNull: true },
       remarks: { type: DataTypes.TEXT, allowNull: true },
       timeline: { type: DataTypes.JSONB, allowNull: true, defaultValue: [] },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Draft' },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Draft',
+      },
       verified_by: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -229,20 +329,29 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE cargo_loading ALTER COLUMN cargo_availability_id DROP NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_cl_cargo_availability_id ON cargo_loading(cargo_availability_id);
     CREATE INDEX IF NOT EXISTS idx_cl_shipment_id ON cargo_loading(shipment_id);
     CREATE INDEX IF NOT EXISTS idx_cl_truck_no ON cargo_loading(truck_no);
     CREATE INDEX IF NOT EXISTS idx_cl_status ON cargo_loading(status);
     CREATE INDEX IF NOT EXISTS idx_cl_loading_date ON cargo_loading(loading_date);
-  `).catch(() => {});
+  `,
+    )
+    .catch(() => {});
 
   // 5. cargo_documents
   await queryInterface.createTable(
     'cargo_documents',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       cargo_loading_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -277,7 +386,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_cd_cargo_loading_id ON cargo_documents(cargo_loading_id);
   `);
 
-  console.log('✅ Phase 25 - Cargo Availability & Loading Operations Module migrated successfully');
+  console.log(
+    '✅ Phase 25 - Cargo Availability & Loading Operations Module migrated successfully',
+  );
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {

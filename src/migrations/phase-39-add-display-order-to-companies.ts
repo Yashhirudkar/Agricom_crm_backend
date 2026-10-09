@@ -14,7 +14,7 @@ export async function up(queryInterface: QueryInterface) {
         allowNull: true,
         defaultValue: 0,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -27,7 +27,9 @@ export async function up(queryInterface: QueryInterface) {
 export async function down(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.removeColumn('companies', 'display_order', { transaction });
+    await queryInterface.removeColumn('companies', 'display_order', {
+      transaction,
+    });
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();

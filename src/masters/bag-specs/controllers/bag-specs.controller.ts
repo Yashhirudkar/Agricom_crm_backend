@@ -104,7 +104,10 @@ export class BagSpecsController {
   findAllPackingTypes(@Query('isActive') isActive?: string, @Req() req?: any) {
     const active =
       isActive === 'true' ? true : isActive === 'false' ? false : undefined;
-    return this.bagSpecsService.findAllPackingTypes(active, req?.user?.companyId);
+    return this.bagSpecsService.findAllPackingTypes(
+      active,
+      req?.user?.companyId,
+    );
   }
 
   @Post('packing-types')
@@ -121,7 +124,11 @@ export class BagSpecsController {
     @Body() dto: UpdatePackingTypeDto,
     @Req() req?: any,
   ) {
-    return this.bagSpecsService.updatePackingType(id, dto, req?.user?.companyId);
+    return this.bagSpecsService.updatePackingType(
+      id,
+      dto,
+      req?.user?.companyId,
+    );
   }
 
   @Delete('packing-types/:id')
@@ -136,7 +143,10 @@ export class BagSpecsController {
   @Get('bag-specifications')
   @RequireAnyPermission('bagspec:view', 'sales_contract:view', 'enquiry:view')
   findAllSpecs(@Query() query: QueryBagSpecDto, @Req() req?: any) {
-    return this.bagSpecsService.findAllSpecs({ ...query, companyId: req?.user?.companyId } as any);
+    return this.bagSpecsService.findAllSpecs({
+      ...query,
+      companyId: req?.user?.companyId,
+    });
   }
 
   @Get('bag-specifications/:id')
@@ -183,6 +193,10 @@ export class BagSpecsController {
     @Body() dto: AssignPackagingDto,
     @Req() req?: any,
   ) {
-    return this.bagSpecsService.assignProductPackaging(id, dto, req?.user?.companyId);
+    return this.bagSpecsService.assignProductPackaging(
+      id,
+      dto,
+      req?.user?.companyId,
+    );
   }
 }

@@ -7,7 +7,8 @@ export const CurrentUser = createParamDecorator(
     if (!user) {
       return null;
     }
-    const headerCompanyId = request.headers['x-company-id'] || request.activeCompanyId;
+    const headerCompanyId =
+      request.headers['x-company-id'] || request.activeCompanyId;
     if (headerCompanyId && !user.companyId) {
       user.companyId = parseInt(headerCompanyId, 10);
     }

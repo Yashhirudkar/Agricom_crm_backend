@@ -26,7 +26,11 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { ConversationGuard } from '../guards/conversation.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { CreateConversationDto, UpdateConversationDto, UpdatePostingPolicyDto } from '../dto/chat.dto';
+import {
+  CreateConversationDto,
+  UpdateConversationDto,
+  UpdatePostingPolicyDto,
+} from '../dto/chat.dto';
 import { ConversationType } from '../constants/chat.constants';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -73,14 +77,18 @@ export class ConversationController {
           cb(null, dir);
         },
         filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, `group-avatar-${uniqueSuffix}${extname(file.originalname)}`);
         },
       }),
       limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (req, file, cb) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|gif|svg\+xml)$/)) {
-          return cb(new BadRequestException('Only image files are allowed!'), false);
+          return cb(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
         }
         cb(null, true);
       },
@@ -106,14 +114,19 @@ export class ConversationController {
     const companyId = this.getCompanyId(req);
     const userId = req.user.userId || req.user.id;
     const userType = req.user.type || '';
-    return this.conversationService.getConversations(companyId, userId, userType, {
-      type,
-      entityType,
-      entityId,
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      archived: archived === 'true',
-    });
+    return this.conversationService.getConversations(
+      companyId,
+      userId,
+      userType,
+      {
+        type,
+        entityType,
+        entityId,
+        page: page ? parseInt(page, 10) : undefined,
+        limit: limit ? parseInt(limit, 10) : undefined,
+        archived: archived === 'true',
+      },
+    );
   }
 
   @Get(':id')
@@ -206,6 +219,11 @@ export class ConversationController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.conversationService.updatePostingPolicy(id, companyId, dto, actor);
+    return this.conversationService.updatePostingPolicy(
+      id,
+      companyId,
+      dto,
+      actor,
+    );
   }
 }

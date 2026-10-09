@@ -34,14 +34,26 @@ export class CargoAvailabilityController {
 
   @Get('shipment-info/:shipmentId')
   @RequirePermission('cargo_availability:view')
-  async getShipmentInfo(@Param('shipmentId') shipmentId: number, @Req() req: any) {
-    return this.service.getShipmentInfo(Number(shipmentId), req.user?.companyId);
+  async getShipmentInfo(
+    @Param('shipmentId') shipmentId: number,
+    @Req() req: any,
+  ) {
+    return this.service.getShipmentInfo(
+      Number(shipmentId),
+      req.user?.companyId,
+    );
   }
 
   @Get('by-shipment/:shipmentId')
   @RequirePermission('cargo_availability:view')
-  async getByShipmentId(@Param('shipmentId') shipmentId: number, @Req() req: any) {
-    return this.service.getByShipmentId(Number(shipmentId), req.user?.companyId);
+  async getByShipmentId(
+    @Param('shipmentId') shipmentId: number,
+    @Req() req: any,
+  ) {
+    return this.service.getByShipmentId(
+      Number(shipmentId),
+      req.user?.companyId,
+    );
   }
 
   @Get('loading')
@@ -71,7 +83,12 @@ export class CargoAvailabilityController {
     @Req() req: any,
   ) {
     const user = req.user;
-    return this.service.approveReadiness(Number(id), status, user?.id, user?.companyId);
+    return this.service.approveReadiness(
+      Number(id),
+      status,
+      user?.id,
+      user?.companyId,
+    );
   }
 
   @Post('allocations')
@@ -96,6 +113,11 @@ export class CargoAvailabilityController {
     @Req() req: any,
   ) {
     const user = req.user;
-    return this.service.updateLoadingStatus(Number(id), dto, user?.id, user?.companyId);
+    return this.service.updateLoadingStatus(
+      Number(id),
+      dto,
+      user?.id,
+      user?.companyId,
+    );
   }
 }

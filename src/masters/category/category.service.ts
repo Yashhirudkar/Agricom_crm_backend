@@ -35,7 +35,11 @@ export class CategoryService {
       );
     }
 
-    return this.categoryModel.create({ ...dto, name: normalizedName, companyId });
+    return this.categoryModel.create({
+      ...dto,
+      name: normalizedName,
+      companyId,
+    });
   }
 
   async findAll(query: QueryCategoryDto & { companyId?: number }) {
@@ -92,7 +96,11 @@ export class CategoryService {
     return category;
   }
 
-  async update(id: number, dto: UpdateCategoryDto, user?: any): Promise<Category> {
+  async update(
+    id: number,
+    dto: UpdateCategoryDto,
+    user?: any,
+  ): Promise<Category> {
     const companyId = user?.companyId;
     const category = await this.findOneActive(id, companyId);
 

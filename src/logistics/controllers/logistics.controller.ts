@@ -25,7 +25,10 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 import { LogisticsService } from '../services/logistics.service';
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
-import { CreateFreightQuoteDto, UpdateFreightQuoteDto } from '../dto/create-freight-quote.dto';
+import {
+  CreateFreightQuoteDto,
+  UpdateFreightQuoteDto,
+} from '../dto/create-freight-quote.dto';
 import { CreateChargeMasterDto } from '../dto/create-charge-master.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
@@ -58,7 +61,8 @@ export class LogisticsController {
   @Get('quotes')
   @RequirePermission('logistics:view')
   async getAllFreightQuotes(
-    @Query() query: {
+    @Query()
+    query: {
       search?: string;
       transportMode?: string;
       isPreferred?: string;
@@ -79,14 +83,18 @@ export class LogisticsController {
     return this.service.getAllFreightQuotes(
       {
         ...query,
-        isPreferred: query.isPreferred === 'true' ? true : query.isPreferred === 'false' ? false : undefined,
+        isPreferred:
+          query.isPreferred === 'true'
+            ? true
+            : query.isPreferred === 'false'
+              ? false
+              : undefined,
         page: query.page ? parseInt(query.page, 10) : 1,
         limit: query.limit ? parseInt(query.limit, 10) : 15,
       },
       companyId,
     );
   }
-
 
   @Get()
   @RequirePermission('logistics:view')
@@ -97,7 +105,7 @@ export class LogisticsController {
 
   // ─── Details Lookup & Auto-Initialization ────────────────────────────────────
   @Get('enquiry/:enquiryId')
-  @RequireAnyPermission('logistics:view', 'enquiry:read')  // Enquiry users can view logistics in read-only mode
+  @RequireAnyPermission('logistics:view', 'enquiry:read') // Enquiry users can view logistics in read-only mode
   async getDetails(@Param('enquiryId') enquiryId: string, @Req() req: any) {
     const companyId = req.user?.companyId;
     return this.service.getDetails(enquiryId, companyId);
@@ -124,7 +132,12 @@ export class LogisticsController {
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.updateDirectFreightQuote(quoteId, dto, req.user, companyId);
+    return this.service.updateDirectFreightQuote(
+      quoteId,
+      dto,
+      req.user,
+      companyId,
+    );
   }
 
   // ─── Add Freight Quote ───────────────────────────────────────────────────────
@@ -150,7 +163,13 @@ export class LogisticsController {
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.updateFreightQuote(id, quoteId, dto, req.user, companyId);
+    return this.service.updateFreightQuote(
+      id,
+      quoteId,
+      dto,
+      req.user,
+      companyId,
+    );
   }
 
   // ─── Delete Freight Quote ────────────────────────────────────────────────────
@@ -193,14 +212,17 @@ export class LogisticsController {
   @Post(':id/generate-shipment')
   @RequirePermission('logistics:update')
   @HttpCode(HttpStatus.CREATED)
-  async generateShipment(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+  async generateShipment(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
     const companyId = req.user?.companyId;
     return this.service.generateShipment(id, req.user, companyId);
   }
 
   // ─── Get Attachments List ────────────────────────────────────────────────────
   @Get(':id/attachments')
-  @RequireAnyPermission('logistics:view', 'enquiry:read')  // Enquiry users can view attachments in read-only mode
+  @RequireAnyPermission('logistics:view', 'enquiry:read') // Enquiry users can view attachments in read-only mode
   async getAttachments(@Param('id', ParseIntPipe) id: number) {
     return this.service.getAttachments(id);
   }
@@ -216,7 +238,13 @@ export class LogisticsController {
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.uploadAttachment(id, category, file, req.user, companyId);
+    return this.service.uploadAttachment(
+      id,
+      category,
+      file,
+      req.user,
+      companyId,
+    );
   }
 
   // ─── Delete Attachment ───────────────────────────────────────────────────────

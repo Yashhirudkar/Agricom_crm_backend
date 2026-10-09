@@ -26,7 +26,10 @@ export class ConversationTemplateController {
   @Post('bootstrap/provision')
   @RequirePermission('chat:moderate')
   async bootstrapCompany(@CurrentUser() user: any) {
-    return this.bootstrapService.bootstrapCompanyChannels(user.companyId, user.id);
+    return this.bootstrapService.bootstrapCompanyChannels(
+      user.companyId,
+      user.id,
+    );
   }
 
   @Get('templates')

@@ -44,15 +44,16 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') || '15m') as any,
+          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRES') ||
+            '15m') as any,
         },
       }),
     }),
   ],
 
   controllers: [
-    NotificationsController,   // existing in-app notifications
-    WhatsAppAdminController,   // QR status + delivery stats (super admin protected)
+    NotificationsController, // existing in-app notifications
+    WhatsAppAdminController, // QR status + delivery stats (super admin protected)
   ],
 
   providers: [
@@ -61,7 +62,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
     NotificationsGateway,
     // Outbound dispatch
     NotificationDispatchService,
-    NotificationRetryWorker,   // @Cron worker — DB-driven persistent retry
+    NotificationRetryWorker, // @Cron worker — DB-driven persistent retry
   ],
 
   exports: [

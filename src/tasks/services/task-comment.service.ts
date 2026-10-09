@@ -142,12 +142,7 @@ export class TaskCommentService {
     }
   }
 
-  async delete(
-    id: number,
-    taskId: number,
-    clientId: number,
-    userId: number,
-  ) {
+  async delete(id: number, taskId: number, clientId: number, userId: number) {
     const comment = await this.commentRepo.findById(id, clientId);
     if (!comment || comment.taskId !== taskId)
       throw new NotFoundException('Comment not found');

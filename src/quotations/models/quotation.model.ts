@@ -1,3 +1,4 @@
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -35,7 +36,7 @@ export const QUOTATION_STATUSES = [
   'Cancelled',
 ] as const;
 
-export type QuotationStatus = typeof QUOTATION_STATUSES[number];
+export type QuotationStatus = (typeof QUOTATION_STATUSES)[number];
 
 @Table({
   tableName: 'quotations',
@@ -50,7 +51,7 @@ export type QuotationStatus = typeof QUOTATION_STATUSES[number];
     { fields: ['created_by'] },
   ],
 })
-export class Quotation extends Model<Quotation> {
+export class Quotation extends BusinessReferenceEntity<Quotation> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -117,7 +118,10 @@ export class Quotation extends Model<Quotation> {
   @Column({ field: 'follow_up_id', type: DataType.INTEGER })
   declare followUpId: number;
 
-  @BelongsTo(() => PartnerFollowUp, { foreignKey: 'followUpId', as: 'followUp' })
+  @BelongsTo(() => PartnerFollowUp, {
+    foreignKey: 'followUpId',
+    as: 'followUp',
+  })
   declare followUp: PartnerFollowUp;
 
   // ─── Pricing & Validity ───────────────────────────────────────────────────
@@ -151,7 +155,10 @@ export class Quotation extends Model<Quotation> {
   @Column({ field: 'last_modified_by', type: DataType.INTEGER })
   declare lastModifiedBy: number;
 
-  @BelongsTo(() => User, { foreignKey: 'lastModifiedBy', as: 'lastModifiedByUser' })
+  @BelongsTo(() => User, {
+    foreignKey: 'lastModifiedBy',
+    as: 'lastModifiedByUser',
+  })
   declare lastModifiedByUser: User;
 
   @AllowNull(true)
@@ -194,6 +201,10 @@ export class Quotation extends Model<Quotation> {
 
   // ─── Associations ─────────────────────────────────────────────────────────
 
-  @HasMany(() => require('./quotation-item.model').QuotationItem, { as: 'items', onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => require('./quotation-item.model').QuotationItem, {
+    as: 'items',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare items: QuotationItem[];
 }

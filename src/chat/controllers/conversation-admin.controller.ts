@@ -28,7 +28,12 @@ export class ConversationAdminController {
   @Post('labels')
   @RequirePermission('chat:create')
   async createLabel(
-    @Body() dto: { name: string; color?: string; scope?: 'GLOBAL' | 'COMPANY' | 'PERSONAL' },
+    @Body()
+    dto: {
+      name: string;
+      color?: string;
+      scope?: 'GLOBAL' | 'COMPANY' | 'PERSONAL';
+    },
     @CurrentUser() user: any,
   ) {
     return this.adminService.createLabel(user.companyId, user.id, dto);
@@ -79,7 +84,11 @@ export class ConversationAdminController {
     @Body('isFrozen') isFrozen: boolean,
     @CurrentUser() user: any,
   ) {
-    return this.adminService.setConversationFreeze(conversationId, isFrozen, user);
+    return this.adminService.setConversationFreeze(
+      conversationId,
+      isFrozen,
+      user,
+    );
   }
 
   @Put('conversations/:conversationId/transfer-ownership')
@@ -90,7 +99,11 @@ export class ConversationAdminController {
     @Body('newOwnerUserId', ParseIntPipe) newOwnerUserId: number,
     @CurrentUser() user: any,
   ) {
-    return this.adminService.transferOwnership(conversationId, newOwnerUserId, user);
+    return this.adminService.transferOwnership(
+      conversationId,
+      newOwnerUserId,
+      user,
+    );
   }
 
   @Post('conversations/:conversationId/members/bulk-add')
@@ -102,7 +115,12 @@ export class ConversationAdminController {
     @Body('role') role: any,
     @CurrentUser() user: any,
   ) {
-    return this.adminService.bulkAddMembers(conversationId, userIds, role, user);
+    return this.adminService.bulkAddMembers(
+      conversationId,
+      userIds,
+      role,
+      user,
+    );
   }
 
   @Post('conversations/:conversationId/members/bulk-remove')

@@ -13,7 +13,7 @@ export interface Airport {
 @Injectable()
 export class AirportsService implements OnModuleInit {
   private readonly logger = new Logger(AirportsService.name);
-  
+
   // Storing airports mapped by country for fast O(1) initial filtering
   private airportsByCountry = new Map<string, Airport[]>();
 
@@ -24,7 +24,7 @@ export class AirportsService implements OnModuleInit {
   private async loadAirports() {
     this.logger.log('Loading airports from CSV...');
     const csvPath = path.join(process.cwd(), 'public', 'airports.csv');
-    
+
     if (!fs.existsSync(csvPath)) {
       this.logger.warn(`Airports CSV not found at ${csvPath}`);
       return;
@@ -48,9 +48,9 @@ export class AirportsService implements OnModuleInit {
       // CSV parsing (naive but fast, ignoring commas inside quotes since the data format is relatively stable)
       // Format: "id","ident","type","name","latitude_deg","longitude_deg","elevation_ft","continent","iso_country","iso_region","municipality","scheduled_service","icao_code","iata_code",...
       const columns = line.match(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g);
-      
+
       if (!columns || columns.length < 14) continue;
-      
+
       // Clean up quotes and leading commas
       const cleanCol = (idx: number) => {
         let val = columns[idx]?.trim() || '';
@@ -71,7 +71,7 @@ export class AirportsService implements OnModuleInit {
       const iso_country = cleanCol(8);
       const iata_code = cleanCol(13);
       const icao_code = cleanCol(12);
-      
+
       // We need at least an IATA or ICAO code to identify the airport
       const code = iata_code || icao_code;
       if (!code) continue;
@@ -86,17 +86,23 @@ export class AirportsService implements OnModuleInit {
       if (!this.airportsByCountry.has(iso_country)) {
         this.airportsByCountry.set(iso_country, []);
       }
-      this.airportsByCountry.get(iso_country)!.push(airport);
+      this.airportsByCountry.get(iso_country).push(airport);
       loadedCount++;
     }
 
-    this.logger.log(`Successfully loaded ${loadedCount} commercial airports into memory.`);
+    this.logger.log(
+      `Successfully loaded ${loadedCount} commercial airports into memory.`,
+    );
   }
 
   /**
    * Search airports optimally
    */
-  searchAirports(countryCode?: string, query?: string, limit: number = 5): Airport[] {
+  searchAirports(
+    countryCode?: string,
+    query?: string,
+    limit: number = 5,
+  ): Airport[] {
     let pool: Airport[] = [];
 
     // Filter by country if provided
@@ -114,8 +120,7 @@ export class AirportsService implements OnModuleInit {
       const q = query.toLowerCase();
       pool = pool.filter(
         (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.code.toLowerCase().includes(q)
+          a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q),
       );
     }
 

@@ -53,7 +53,13 @@ const INCLUDE_RELATIONS = [
     model: PartnerFollowUp,
     where: { isActive: true },
     required: false,
-    attributes: ['id', 'followupDate', 'nextFollowupDate', 'status', 'communicationType'],
+    attributes: [
+      'id',
+      'followupDate',
+      'nextFollowupDate',
+      'status',
+      'communicationType',
+    ],
   },
   {
     model: PartnerDnbReport,
@@ -85,7 +91,7 @@ export class PartnerService {
     private sequelize: Sequelize,
     private readonly deletionValidator: DeletionValidatorService,
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
 
   private async validateForeignKeys(
     partnerRoleId?: number,
@@ -116,12 +122,10 @@ export class PartnerService {
 
     if (dto.address) dto.address = dto.address.trim();
     if (dto.city) dto.city = dto.city.trim();
-    if (dto.contactEmail) dto.contactEmail = dto.contactEmail.trim().toLowerCase();
+    if (dto.contactEmail)
+      dto.contactEmail = dto.contactEmail.trim().toLowerCase();
 
-    await this.validateForeignKeys(
-      dto.partnerRoleId,
-      dto.productIds,
-    );
+    await this.validateForeignKeys(dto.partnerRoleId, dto.productIds);
 
     return await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...partnerData } = dto;
@@ -133,7 +137,6 @@ export class PartnerService {
         },
         { transaction },
       );
-
 
       if (dto.contacts && dto.contacts.length > 0) {
         const contactsPayload = dto.contacts.map((c) => ({
@@ -160,8 +163,22 @@ export class PartnerService {
     });
   }
 
-  async findAll(query: QueryPartnerDto & { allowedPartnerRoleIds?: number[]; companyId?: number }) {
-    const { search, isActive, partnerRoleId, country, dnbRiskFactor, page, limit, allowedPartnerRoleIds } = query;
+  async findAll(
+    query: QueryPartnerDto & {
+      allowedPartnerRoleIds?: number[];
+      companyId?: number;
+    },
+  ) {
+    const {
+      search,
+      isActive,
+      partnerRoleId,
+      country,
+      dnbRiskFactor,
+      page,
+      limit,
+      allowedPartnerRoleIds,
+    } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {};
@@ -191,7 +208,7 @@ export class PartnerService {
           SELECT 1 FROM "partner_contacts" AS "pc"
           WHERE "pc"."partner_id" = "Partner"."id"
           AND (${contactSql})
-        )`)
+        )`),
       );
 
       whereClause[Op.or] = searchConditions;
@@ -206,7 +223,13 @@ export class PartnerService {
     if (country) {
       const cTrim = country.trim();
       const cLower = cTrim.toLowerCase();
-      if (cLower === 'china' || cLower.includes('people') || cLower.includes('republic of china') || cLower === 'cn' || cLower === 'chn') {
+      if (
+        cLower === 'china' ||
+        cLower.includes('people') ||
+        cLower.includes('republic of china') ||
+        cLower === 'cn' ||
+        cLower === 'chn'
+      ) {
         whereClause[Op.or] = [
           { country: { [Op.iLike]: '%China%' } },
           { country: { [Op.iLike]: '%People%Republic of China%' } },
@@ -321,7 +344,6 @@ export class PartnerService {
     return buildPaginatedResponse(rows, count, page || 1, finalLimit);
   }
 
-
   /**
    * Lightweight dropdown endpoint — returns only id + entityName.
    * Supports server-side search (ILIKE), pagination (for infinite scroll),
@@ -340,8 +362,15 @@ export class PartnerService {
     page?: number;
     includeContacts?: boolean;
     companyId?: number;
-  }): Promise<{ data: { id: number; entityName: string; contacts?: any[] }[]; total: number; page: number; totalPages: number }> {
-    const where: any = { isActive: params.isActive !== undefined ? params.isActive : true };
+  }): Promise<{
+    data: { id: number; entityName: string; contacts?: any[] }[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const where: any = {
+      isActive: params.isActive !== undefined ? params.isActive : true,
+    };
     // Tenant isolation
     if (params.companyId) where.companyId = params.companyId;
 
@@ -350,7 +379,9 @@ export class PartnerService {
     }
     if (params.allowedPrefixes && params.allowedPrefixes.length > 0) {
       where.entityName = {
-        [Op.or]: params.allowedPrefixes.map(p => ({ [Op.iLike]: `${p.trim()}%` }))
+        [Op.or]: params.allowedPrefixes.map((p) => ({
+          [Op.iLike]: `${p.trim()}%`,
+        })),
       };
     }
     if (params.search && params.search.trim()) {
@@ -383,10 +414,14 @@ export class PartnerService {
     // Build include for roleName JOIN (e.g. for Importer-only dropdown)
     const include: any[] = [];
     if (params.roleName) {
-      const roles = params.roleName.split(',').map(r => r.trim()).filter(Boolean);
-      const roleCondition = roles.length > 1
-        ? { [Op.or]: roles.map(r => ({ [Op.iLike]: r })) }
-        : { [Op.iLike]: params.roleName.trim() };
+      const roles = params.roleName
+        .split(',')
+        .map((r) => r.trim())
+        .filter(Boolean);
+      const roleCondition =
+        roles.length > 1
+          ? { [Op.or]: roles.map((r) => ({ [Op.iLike]: r })) }
+          : { [Op.iLike]: params.roleName.trim() };
 
       include.push({
         model: this.partnerRoleModel,
@@ -400,7 +435,15 @@ export class PartnerService {
       include.push({
         model: PartnerContact,
         as: 'contacts',
-        attributes: ['id', 'name', 'designation', 'phone', 'email', 'communicationType', 'isPrimary'],
+        attributes: [
+          'id',
+          'name',
+          'designation',
+          'phone',
+          'email',
+          'communicationType',
+          'isPrimary',
+        ],
         required: false,
       });
     }
@@ -445,12 +488,15 @@ export class PartnerService {
     if (companyId) where.companyId = companyId;
     const results = await this.partnerModel.findAll({
       attributes: [
-        [Sequelize.fn('DISTINCT', Sequelize.col('country')), 'country']
+        [Sequelize.fn('DISTINCT', Sequelize.col('country')), 'country'],
       ],
       where,
       raw: true,
     });
-    return results.map((r: any) => r.country).filter(Boolean).sort();
+    return results
+      .map((r: any) => r.country)
+      .filter(Boolean)
+      .sort();
   }
 
   async findOneActive(id: number, companyId?: number): Promise<Partner> {
@@ -470,7 +516,11 @@ export class PartnerService {
     return partner;
   }
 
-  async update(id: number, dto: UpdatePartnerDto, user?: any): Promise<Partner> {
+  async update(
+    id: number,
+    dto: UpdatePartnerDto,
+    user?: any,
+  ): Promise<Partner> {
     const companyId: number = user?.companyId;
     const partner = await this.findOneAnyState(id, companyId);
 
@@ -488,10 +538,7 @@ export class PartnerService {
     }
 
     if (dto.partnerRoleId || dto.productIds) {
-      await this.validateForeignKeys(
-        dto.partnerRoleId,
-        dto.productIds,
-      );
+      await this.validateForeignKeys(dto.partnerRoleId, dto.productIds);
     }
 
     await this.sequelize.transaction(async (transaction) => {

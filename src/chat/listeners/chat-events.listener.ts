@@ -1,4 +1,10 @@
-import { Injectable, Logger, Inject, forwardRef, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   ChatEventNames,
@@ -58,9 +64,17 @@ export class ChatEventsListener implements OnModuleDestroy {
       clientMessageId: event.clientMessageId,
       message: event.message,
     };
-    this.chatGateway.broadcastToConversation(event.conversationId, 'message_created', payload);
+    this.chatGateway.broadcastToConversation(
+      event.conversationId,
+      'message_created',
+      payload,
+    );
     if (event.companyId) {
-      this.chatGateway.broadcastToCompany(event.companyId, 'message_created', payload);
+      this.chatGateway.broadcastToCompany(
+        event.companyId,
+        'message_created',
+        payload,
+      );
     }
   }
 
@@ -74,9 +88,17 @@ export class ChatEventsListener implements OnModuleDestroy {
       messageId: event.messageId,
       message: event.message,
     };
-    this.chatGateway.broadcastToConversation(event.conversationId, 'message_updated', payload);
+    this.chatGateway.broadcastToConversation(
+      event.conversationId,
+      'message_updated',
+      payload,
+    );
     if (event.companyId) {
-      this.chatGateway.broadcastToCompany(event.companyId, 'message_updated', payload);
+      this.chatGateway.broadcastToCompany(
+        event.companyId,
+        'message_updated',
+        payload,
+      );
     }
   }
 
@@ -91,9 +113,17 @@ export class ChatEventsListener implements OnModuleDestroy {
         messageId: event.messageId,
         deletedBy: event.deletedBy,
       };
-      this.chatGateway.broadcastToConversation(event.conversationId, 'message_deleted', payload);
+      this.chatGateway.broadcastToConversation(
+        event.conversationId,
+        'message_deleted',
+        payload,
+      );
       if (event.companyId) {
-        this.chatGateway.broadcastToCompany(event.companyId, 'message_deleted', payload);
+        this.chatGateway.broadcastToCompany(
+          event.companyId,
+          'message_deleted',
+          payload,
+        );
       }
     }
   }
@@ -138,7 +168,9 @@ export class ChatEventsListener implements OnModuleDestroy {
     if (!this.readReceiptBatch.has(event.conversationId)) {
       this.readReceiptBatch.set(event.conversationId, new Map());
     }
-    this.readReceiptBatch.get(event.conversationId).set(event.userId, event.lastMessageId);
+    this.readReceiptBatch
+      .get(event.conversationId)
+      .set(event.userId, event.lastMessageId);
 
     if (!this.batchFlushTimer) {
       this.batchFlushTimer = setTimeout(() => this.flushReadReceipts(), 150);
@@ -151,10 +183,12 @@ export class ChatEventsListener implements OnModuleDestroy {
     this.readReceiptBatch = new Map();
 
     for (const [conversationId, userReads] of currentBatches.entries()) {
-      const receipts = Array.from(userReads.entries()).map(([userId, lastMessageId]) => ({
-        userId,
-        lastMessageId,
-      }));
+      const receipts = Array.from(userReads.entries()).map(
+        ([userId, lastMessageId]) => ({
+          userId,
+          lastMessageId,
+        }),
+      );
 
       this.chatGateway.broadcastToConversation(
         conversationId,
@@ -344,15 +378,11 @@ export class ChatEventsListener implements OnModuleDestroy {
 
     // Also notify the user who was added in their private user room
     if (event.member?.userId) {
-      this.chatGateway.broadcastToUser(
-        event.member.userId,
-        'member_added',
-        {
-          eventId: event.eventId,
-          conversationId: event.conversationId,
-          member: event.member,
-        },
-      );
+      this.chatGateway.broadcastToUser(event.member.userId, 'member_added', {
+        eventId: event.eventId,
+        conversationId: event.conversationId,
+        member: event.member,
+      });
 
       this.chatGateway.broadcastToUser(
         event.member.userId,
@@ -379,15 +409,11 @@ export class ChatEventsListener implements OnModuleDestroy {
 
     // Also notify the user who was removed in their private user room
     if (event.userId) {
-      this.chatGateway.broadcastToUser(
-        event.userId,
-        'member_removed',
-        {
-          eventId: event.eventId,
-          conversationId: event.conversationId,
-          userId: event.userId,
-        },
-      );
+      this.chatGateway.broadcastToUser(event.userId, 'member_removed', {
+        eventId: event.eventId,
+        conversationId: event.conversationId,
+        userId: event.userId,
+      });
 
       this.chatGateway.broadcastToUser(
         event.userId,

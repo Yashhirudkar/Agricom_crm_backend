@@ -76,7 +76,8 @@ export class AttendanceGateway
         return;
       }
 
-      const isProductAdmin = payload.type === 'super_admin' || payload.type === 'client_admin';
+      const isProductAdmin =
+        payload.type === 'super_admin' || payload.type === 'client_admin';
 
       // 2. Lookup employee associated with the active company workspace (or bypass for admins)
       if (companyIdStr) {
@@ -145,7 +146,8 @@ export class AttendanceGateway
       }
 
       const companyId = parseInt(data.companyId as any, 10);
-      const isProductAdmin = payload.type === 'super_admin' || payload.type === 'client_admin';
+      const isProductAdmin =
+        payload.type === 'super_admin' || payload.type === 'client_admin';
 
       if (isProductAdmin) {
         client.join(`company-${companyId}`);
@@ -220,8 +222,6 @@ export class AttendanceGateway
   }
 
   emitRegularizationUpdate(companyId: number, data: any) {
-    this.server
-      .to(`company-${companyId}`)
-      .emit('regularization-update', data);
+    this.server.to(`company-${companyId}`).emit('regularization-update', data);
   }
 }

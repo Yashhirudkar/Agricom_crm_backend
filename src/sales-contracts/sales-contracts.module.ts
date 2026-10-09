@@ -34,7 +34,7 @@ import { PurchaseContractsModule } from '../purchase-contracts/purchase-contract
   exports: [ShipmentService, SalesContractService],
 })
 export class SalesContractsModule implements OnModuleInit {
-  constructor(@InjectConnection() private readonly sequelize: Sequelize) { }
+  constructor(@InjectConnection() private readonly sequelize: Sequelize) {}
 
   async onModuleInit() {
     try {

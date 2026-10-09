@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  IsArray,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { MessageType } from '../constants/chat.constants';
 

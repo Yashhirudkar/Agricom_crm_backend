@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ChatAnalyticsService } from '../services/chat-analytics.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -17,10 +12,7 @@ export class ChatAnalyticsController {
 
   @Get('overview')
   @RequirePermission('chat:moderate')
-  async getOverview(
-    @Query('days') days: string,
-    @CurrentUser() user: any,
-  ) {
+  async getOverview(@Query('days') days: string, @CurrentUser() user: any) {
     const parsedDays = days ? parseInt(days, 10) : 30;
     return this.analyticsService.getOverview(user.companyId, parsedDays);
   }
@@ -37,10 +29,7 @@ export class ChatAnalyticsController {
 
   @Get('daily-volume')
   @RequirePermission('chat:moderate')
-  async getDailyVolume(
-    @Query('days') days: string,
-    @CurrentUser() user: any,
-  ) {
+  async getDailyVolume(@Query('days') days: string, @CurrentUser() user: any) {
     const parsedDays = days ? parseInt(days, 10) : 14;
     return this.analyticsService.getDailyVolume(user.companyId, parsedDays);
   }

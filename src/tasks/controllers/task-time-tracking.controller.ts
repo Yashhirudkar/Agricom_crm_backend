@@ -72,12 +72,7 @@ export class TaskTimeTrackingController {
   ) {
     const clientId = req.user?.clientId || 1;
     const userId = req.user?.userId || req.user?.id || 1;
-    const log = await this.service.manualEntry(
-      taskId,
-      clientId,
-      userId,
-      dto,
-    );
+    const log = await this.service.manualEntry(taskId, clientId, userId, dto);
     return { success: true, message: 'Time entry added', data: log };
   }
 

@@ -72,13 +72,7 @@ export class LeaveCalculationService {
   async calculateActualLeaveDays(
     params: CalculateActualLeaveDaysParams,
   ): Promise<number> {
-    const {
-      fromDate,
-      toDate,
-      companyId,
-      employeeId,
-      isHalfDay,
-    } = params;
+    const { fromDate, toDate, companyId, employeeId, isHalfDay } = params;
 
     if (isHalfDay) {
       return 0.5;

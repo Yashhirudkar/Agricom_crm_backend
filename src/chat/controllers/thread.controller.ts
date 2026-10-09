@@ -29,7 +29,12 @@ export class ThreadController {
     @Body() dto: ReplyInThreadDto,
     @CurrentUser() user: any,
   ) {
-    return this.threadService.replyInThread(conversationId, messageId, dto, user);
+    return this.threadService.replyInThread(
+      conversationId,
+      messageId,
+      dto,
+      user,
+    );
   }
 
   @Get(':messageId/replies')
@@ -39,7 +44,11 @@ export class ThreadController {
     @Param('messageId', ParseIntPipe) messageId: number,
     @Query() query: GetThreadRepliesDto,
   ) {
-    return this.threadService.getThreadReplies(conversationId, messageId, query);
+    return this.threadService.getThreadReplies(
+      conversationId,
+      messageId,
+      query,
+    );
   }
 
   @Get(':messageId/summary')
@@ -49,6 +58,10 @@ export class ThreadController {
     @Param('messageId', ParseIntPipe) messageId: number,
     @CurrentUser() user: any,
   ) {
-    return this.threadService.getThreadSummary(conversationId, messageId, user.id);
+    return this.threadService.getThreadSummary(
+      conversationId,
+      messageId,
+      user.id,
+    );
   }
 }

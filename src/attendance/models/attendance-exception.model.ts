@@ -36,7 +36,6 @@ export enum AttendanceExceptionStatus {
   CANCELLED = 'CANCELLED',
 }
 
-
 @Table({
   tableName: 'attendance_exceptions',
   timestamps: true,
@@ -111,7 +110,10 @@ export class AttendanceException extends Model<AttendanceException> {
   @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
   declare attendanceId: number | null;
 
-  @BelongsTo(() => AttendanceRecord, { foreignKey: 'attendanceId', onDelete: 'SET NULL' })
+  @BelongsTo(() => AttendanceRecord, {
+    foreignKey: 'attendanceId',
+    onDelete: 'SET NULL',
+  })
   declare attendanceRecordRef: AttendanceRecord;
 
   @ForeignKey(() => LeaveRequest)

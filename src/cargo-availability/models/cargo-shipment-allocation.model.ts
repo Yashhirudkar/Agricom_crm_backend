@@ -20,10 +20,7 @@ import { Company } from '../../companies/models/company.model';
 @Table({
   tableName: 'cargo_shipment_allocations',
   timestamps: true,
-  indexes: [
-    { fields: ['cargo_availability_id'] },
-    { fields: ['shipment_id'] },
-  ],
+  indexes: [{ fields: ['cargo_availability_id'] }, { fields: ['shipment_id'] }],
 })
 export class CargoShipmentAllocation extends Model<CargoShipmentAllocation> {
   @ForeignKey(() => Company)

@@ -13,9 +13,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { getAttachmentMulterConfig, ATTACHMENT_UPLOAD_DIR } from '../config/multer.config';
+import {
+  getAttachmentMulterConfig,
+  ATTACHMENT_UPLOAD_DIR,
+} from '../config/multer.config';
 import { AttachmentsService } from '../services/attachments.service';
-import { STORAGE_PROVIDER, StorageProvider } from '../providers/storage.provider';
+import {
+  STORAGE_PROVIDER,
+  StorageProvider,
+} from '../providers/storage.provider';
 import { Inject } from '@nestjs/common';
 import { extname, join } from 'path';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -70,7 +76,11 @@ export class AttachmentsController {
     };
   }
 
-  private async checkAttachmentAccess(attachment: Attachment, user: any, companyId: number) {
+  private async checkAttachmentAccess(
+    attachment: Attachment,
+    user: any,
+    companyId: number,
+  ) {
     const messageAttachment = await this.messageAttachmentModel.findOne({
       where: { attachmentId: attachment.id },
       include: [{ model: Message, as: 'message' }],
@@ -82,7 +92,9 @@ export class AttachmentsController {
     } else {
       const isSuper = user?.type === 'super_admin' || user?.clientId === null;
       if (!isSuper && attachment.companyId !== companyId) {
-        throw new ForbiddenException('You do not have access to this attachment.');
+        throw new ForbiddenException(
+          'You do not have access to this attachment.',
+        );
       }
     }
   }
@@ -105,10 +117,7 @@ export class AttachmentsController {
 
     const attachment = await this.attachmentModel.findOne({
       where: {
-        [Op.or]: [
-          { storedName: filename },
-          { storagePath: filename },
-        ],
+        [Op.or]: [{ storedName: filename }, { storagePath: filename }],
       },
     });
 
@@ -117,7 +126,9 @@ export class AttachmentsController {
     }
 
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : attachment.companyId;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : attachment.companyId;
 
     if (!companyId) {
       throw new BadRequestException('Company context is required');
@@ -158,13 +169,16 @@ export class AttachmentsController {
       throw new BadRequestException('Invalid attachment ID');
     }
 
-    const attachment = await this.attachmentsService.getAttachment(attachmentId);
+    const attachment =
+      await this.attachmentsService.getAttachment(attachmentId);
     if (!attachment) {
       throw new NotFoundException('Attachment not found');
     }
 
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : attachment.companyId;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : attachment.companyId;
 
     if (!companyId) {
       throw new BadRequestException('Company context is required');

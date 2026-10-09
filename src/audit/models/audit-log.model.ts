@@ -50,7 +50,10 @@ export class AuditLog extends Model<AuditLog> {
   @Column({ type: DataType.INTEGER })
   declare targetCompanyId: number;
 
-  @BelongsTo(() => Company, { foreignKey: 'targetCompanyId', constraints: false })
+  @BelongsTo(() => Company, {
+    foreignKey: 'targetCompanyId',
+    constraints: false,
+  })
   declare targetCompany: Company;
 
   @ForeignKey(() => User)

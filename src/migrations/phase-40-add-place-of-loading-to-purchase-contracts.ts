@@ -13,7 +13,7 @@ export async function up(queryInterface: QueryInterface) {
         type: DataTypes.STRING(255),
         allowNull: true,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -26,7 +26,11 @@ export async function up(queryInterface: QueryInterface) {
 export async function down(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.removeColumn('purchase_contracts', 'place_of_loading', { transaction });
+    await queryInterface.removeColumn(
+      'purchase_contracts',
+      'place_of_loading',
+      { transaction },
+    );
     await transaction.commit();
   } catch (err) {
     await transaction.rollback();

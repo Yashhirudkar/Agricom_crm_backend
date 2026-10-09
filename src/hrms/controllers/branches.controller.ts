@@ -29,7 +29,6 @@ import {
 export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
-
   private getActor(req: any) {
     return {
       userId: req.user.userId || req.user.sub || null,
@@ -45,7 +44,8 @@ export class BranchesController {
   @HttpCode(HttpStatus.CREATED)
   createBranch(@Body() dto: CreateBranchDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.branchesService.createBranch(companyId, dto, actor);
   }
@@ -54,7 +54,8 @@ export class BranchesController {
   @RequirePermission('branches:read')
   getBranches(@Query() query: GetBranchesFilterDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.branchesService.getBranches(companyId, query);
   }
 
@@ -66,7 +67,8 @@ export class BranchesController {
     @Query('limit') limit?: string,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.branchesService.getBranchesForOptions(
       companyId,
       search,
@@ -79,7 +81,8 @@ export class BranchesController {
   @RequirePermission('branches:read')
   getBranchById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.branchesService.getBranchById(id, companyId);
   }
 
@@ -91,7 +94,8 @@ export class BranchesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.branchesService.updateBranch(id, companyId, dto, actor);
   }
@@ -100,7 +104,8 @@ export class BranchesController {
   @RequirePermission('branches:delete')
   deleteBranch(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.branchesService.deleteBranch(id, companyId, actor);
   }

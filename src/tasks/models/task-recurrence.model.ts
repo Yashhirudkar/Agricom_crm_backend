@@ -16,13 +16,11 @@ import { Task } from './task.model';
 import { TaskRecurrenceException } from './task-recurrence-exception.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_recurrences',
   timestamps: true,
 })
 export class TaskRecurrence extends Model<TaskRecurrence> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

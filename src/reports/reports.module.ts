@@ -7,6 +7,7 @@ import { SalesContractItem } from '../sales-contracts/models/sales-contract-item
 import { User } from '../users/models/user.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
+import { Enquiry } from '../enquiries/models/enquiry.model';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Product } from '../masters/product/product.model';
       User,
       Partner,
       Product,
+      Enquiry,
     ]),
   ],
   controllers: [SalesReportController],

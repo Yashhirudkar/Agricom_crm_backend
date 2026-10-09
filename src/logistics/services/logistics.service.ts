@@ -64,24 +64,42 @@ export class LogisticsService {
     private readonly attachmentsService: AttachmentsService,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
-  ) { }
+  ) {}
 
   async fixDb() {
     try {
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "is_direct" BOOLEAN DEFAULT false;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "product_id" INTEGER;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "loading_point" VARCHAR(255);`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "logistics_id" DROP NOT NULL;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "seller_id" DROP NOT NULL;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "freight_amount" DROP NOT NULL;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "transit_days" DROP NOT NULL;`);
-      await this.sequelize.query(`ALTER TABLE "freight_quotes" ALTER COLUMN "validity_date" DROP NOT NULL;`);
-      
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "is_direct" BOOLEAN DEFAULT false;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "product_id" INTEGER;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "loading_point" VARCHAR(255);`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ALTER COLUMN "logistics_id" DROP NOT NULL;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ALTER COLUMN "seller_id" DROP NOT NULL;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ALTER COLUMN "freight_amount" DROP NOT NULL;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ALTER COLUMN "transit_days" DROP NOT NULL;`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ALTER COLUMN "validity_date" DROP NOT NULL;`,
+      );
+
       await this.sequelize.models.FreightRoute.sync({ alter: true });
       await this.sequelize.models.FreightRate.sync({ alter: true });
-      
-      return { success: true, message: "DB updated successfully!" };
+
+      return { success: true, message: 'DB updated successfully!' };
     } catch (error) {
       console.error(error);
       return { success: false, error: error.message };
@@ -105,7 +123,9 @@ export class LogisticsService {
     const { search, mode, status, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
-    const company = (await this.sequelize.models.Company.findByPk(companyId)) as any;
+    const company = (await this.sequelize.models.Company.findByPk(
+      companyId,
+    )) as any;
     const companyCountry = company?.country;
 
     // ── Base Enquiry Conditions ───────────────────────────────────────────────
@@ -144,9 +164,6 @@ export class LogisticsService {
     }
     // mode === 'All' OR no companyCountry → no mode filter applied
 
-
-
-
     // ── Search Filter ─────────────────────────────────────────────────────────
     if (search && search.trim()) {
       const s = search.trim();
@@ -183,8 +200,16 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'partner', attributes: ['id', 'entityName'] },
         { model: Product, as: 'product', attributes: ['id', 'name'] },
-        { model: EnquiryLoadingPoint, as: 'loadingPoints', attributes: ['loadingPoint'] },
-        { model: EnquiryDestination, as: 'destinations', attributes: ['destination'] },
+        {
+          model: EnquiryLoadingPoint,
+          as: 'loadingPoints',
+          attributes: ['loadingPoint'],
+        },
+        {
+          model: EnquiryDestination,
+          as: 'destinations',
+          attributes: ['destination'],
+        },
         {
           model: Logistics,
           as: 'logistics',
@@ -194,7 +219,13 @@ export class LogisticsService {
               model: FreightQuote,
               as: 'selectedFreight',
               required: false,
-              include: [{ model: Partner, as: 'seller', attributes: ['id', 'entityName'] }],
+              include: [
+                {
+                  model: Partner,
+                  as: 'seller',
+                  attributes: ['id', 'entityName'],
+                },
+              ],
             },
           ],
         },
@@ -314,7 +345,8 @@ export class LogisticsService {
       });
     }
 
-    const quoteWhere = quoteWhereConditions.length > 0 ? { [Op.and]: quoteWhereConditions } : {};
+    const quoteWhere =
+      quoteWhereConditions.length > 0 ? { [Op.and]: quoteWhereConditions } : {};
 
     // ── 4. Transport Mode Filter ────────────────────────────────────────────
     const logisticsWhere: any = {};
@@ -344,7 +376,10 @@ export class LogisticsService {
         ],
       });
     }
-    const enquiryWhere = enquiryWhereConditions.length > 0 ? { [Op.and]: enquiryWhereConditions } : undefined;
+    const enquiryWhere =
+      enquiryWhereConditions.length > 0
+        ? { [Op.and]: enquiryWhereConditions }
+        : undefined;
 
     // ── 6. Product Filter ───────────────────────────────────────────────────
     const productWhere: any = {};
@@ -360,7 +395,8 @@ export class LogisticsService {
       createdAt: 'created_at',
     };
     const orderCol = orderMap[sortBy] || 'created_at';
-    const orderDir = (sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const orderDir =
+      (sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     // ── 8. Single SQL Query Execution ───────────────────────────────────────
     const { rows, count } = await this.quoteModel.findAndCountAll({
@@ -368,13 +404,24 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         { model: FreightQuoteCharge, as: 'charges' },
-        { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+        {
+          model: FreightQuoteContainerRate,
+          as: 'containerRates',
+          include: ['charges'],
+        },
         {
           model: Logistics,
           as: 'logistics',
-          where: Object.keys(logisticsWhere).length > 0 ? logisticsWhere : undefined,
+          where:
+            Object.keys(logisticsWhere).length > 0 ? logisticsWhere : undefined,
           required: false,
-          attributes: ['id', 'logisticsNumber', 'transportMode', 'mode', 'status'],
+          attributes: [
+            'id',
+            'logisticsNumber',
+            'transportMode',
+            'mode',
+            'status',
+          ],
           include: [
             {
               model: Enquiry,
@@ -382,15 +429,25 @@ export class LogisticsService {
               where: enquiryWhere,
               required: true,
               attributes: [
-                'id', 'enquiryNo', 'originCity', 'originState', 'originPort',
-                'destinationCity', 'destinationState', 'destinationPort',
-                'originCountryId', 'destinationCountry',
+                'id',
+                'enquiryNo',
+                'originCity',
+                'originState',
+                'originPort',
+                'destinationCity',
+                'destinationState',
+                'destinationPort',
+                'originCountryId',
+                'destinationCountry',
               ],
               include: [
                 {
                   model: Product,
                   as: 'product',
-                  where: Object.keys(productWhere).length > 0 ? productWhere : undefined,
+                  where:
+                    Object.keys(productWhere).length > 0
+                      ? productWhere
+                      : undefined,
                   required: Object.keys(productWhere).length > 0,
                   attributes: ['id', 'name'],
                 },
@@ -406,8 +463,14 @@ export class LogisticsService {
         {
           model: this.sequelize.models.FreightRoute,
           as: 'freightRoutes',
-          include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
-        }
+          include: [
+            {
+              model: this.sequelize.models.FreightRate,
+              as: 'rates',
+              include: ['partner'],
+            },
+          ],
+        },
       ],
       order: [[orderCol, orderDir]],
       limit: Number(limit),
@@ -424,7 +487,6 @@ export class LogisticsService {
       totalPages: Math.ceil(count / Number(limit)),
     };
   }
-
 
   /**
    * Get charge types master list (optionally filtered by shipment mode).
@@ -460,13 +522,16 @@ export class LogisticsService {
 
     if (existing) {
       throw new BadRequestException(
-        `Charge type "${chargeName}" already exists for ${mode} transport.`
+        `Charge type "${chargeName}" already exists for ${mode} transport.`,
       );
     }
 
     const chargeCode =
       dto.chargeCode?.trim().toUpperCase() ||
-      chargeName.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 15);
+      chargeName
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '_')
+        .substring(0, 15);
 
     return this.chargeMasterModel.create({
       mode,
@@ -475,7 +540,7 @@ export class LogisticsService {
       displayOrder: dto.displayOrder ?? 99,
       isDefault: dto.isDefault ?? false,
       isActive: true,
-    } as any);
+    });
   }
 
   /**
@@ -488,8 +553,16 @@ export class LogisticsService {
       include: [
         { model: Partner, as: 'partner' },
         { model: Product, as: 'product' },
-        { model: EnquiryLoadingPoint, as: 'loadingPoints', attributes: ['loadingPoint'] },
-        { model: EnquiryDestination, as: 'destinations', attributes: ['destination'] },
+        {
+          model: EnquiryLoadingPoint,
+          as: 'loadingPoints',
+          attributes: ['loadingPoint'],
+        },
+        {
+          model: EnquiryDestination,
+          as: 'destinations',
+          attributes: ['destination'],
+        },
       ],
     });
     if (!enquiry) {
@@ -505,7 +578,11 @@ export class LogisticsService {
           include: [
             { model: Partner, as: 'seller' },
             { model: FreightQuoteCharge, as: 'charges' },
-            { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+            {
+              model: FreightQuoteContainerRate,
+              as: 'containerRates',
+              include: ['charges'],
+            },
           ],
         },
         {
@@ -514,7 +591,11 @@ export class LogisticsService {
           include: [
             { model: Partner, as: 'seller' },
             { model: FreightQuoteCharge, as: 'charges' },
-            { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+            {
+              model: FreightQuoteContainerRate,
+              as: 'containerRates',
+              include: ['charges'],
+            },
           ],
         },
         {
@@ -531,18 +612,22 @@ export class LogisticsService {
         // Generate LOG/YYYY/###### number via sequence
         await this.sequelize.query(
           `CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`,
-          { transaction }
+          { transaction },
         );
         const [seqRes]: any = await this.sequelize.query(
           `SELECT nextval('logistics_no_seq')`,
-          { type: QueryTypes.SELECT, transaction } as any
+          { type: QueryTypes.SELECT, transaction } as any,
         );
-        const nextVal = parseInt(seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1', 10);
+        const nextVal = parseInt(
+          seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+          10,
+        );
         const currentYear = new Date().getFullYear();
         const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
         // Infer Mode & Transport Mode
-        const mode = enquiry.shipmentMode === 'SHIP' ? 'International' : 'Domestic';
+        const mode =
+          enquiry.shipmentMode === 'SHIP' ? 'International' : 'Domestic';
         let transportMode = 'Road';
         if (enquiry.shipmentMode === 'SHIP') transportMode = 'Sea';
         else if (enquiry.shipmentMode === 'RAIL') transportMode = 'Rail';
@@ -554,8 +639,8 @@ export class LogisticsService {
             mode,
             transportMode,
             status: 'Pending',
-          } as any,
-          { transaction }
+          },
+          { transaction },
         );
 
         // Audit log
@@ -581,7 +666,11 @@ export class LogisticsService {
             include: [
               { model: Partner, as: 'seller' },
               { model: FreightQuoteCharge, as: 'charges' },
-              { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+              {
+                model: FreightQuoteContainerRate,
+                as: 'containerRates',
+                include: ['charges'],
+              },
             ],
           },
           {
@@ -590,7 +679,11 @@ export class LogisticsService {
             include: [
               { model: Partner, as: 'seller' },
               { model: FreightQuoteCharge, as: 'charges' },
-              { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+              {
+                model: FreightQuoteContainerRate,
+                as: 'containerRates',
+                include: ['charges'],
+              },
             ],
           },
         ],
@@ -598,8 +691,8 @@ export class LogisticsService {
     }
 
     // -- Auto-sync Logistics Routes --
-    const origins = enquiry.loadingPoints?.map(l => l.loadingPoint) || [];
-    const destinations = enquiry.destinations?.map(d => d.destination) || [];
+    const origins = enquiry.loadingPoints?.map((l) => l.loadingPoint) || [];
+    const destinations = enquiry.destinations?.map((d) => d.destination) || [];
     const expectedRoutes = [];
     if (origins.length > 0 && destinations.length > 0) {
       for (const origin of origins) {
@@ -608,23 +701,37 @@ export class LogisticsService {
         }
       }
     } else {
-      const o = enquiry.originPort || (enquiry.originCity ? `${enquiry.originCity}${enquiry.originState ? `, ${enquiry.originState}` : ''}` : 'Unknown Origin');
-      const d = enquiry.destinationPort || (enquiry.destinationCity ? `${enquiry.destinationCity}${enquiry.destinationState ? `, ${enquiry.destinationState}` : ''}` : 'Unknown Destination');
+      const o =
+        enquiry.originPort ||
+        (enquiry.originCity
+          ? `${enquiry.originCity}${enquiry.originState ? `, ${enquiry.originState}` : ''}`
+          : 'Unknown Origin');
+      const d =
+        enquiry.destinationPort ||
+        (enquiry.destinationCity
+          ? `${enquiry.destinationCity}${enquiry.destinationState ? `, ${enquiry.destinationState}` : ''}`
+          : 'Unknown Destination');
       expectedRoutes.push({ origin: o, destination: d });
     }
 
-    let existingRoutes = await this.logisticsRouteModel.findAll({ where: { logisticsId: logistics.id } });
+    const existingRoutes = await this.logisticsRouteModel.findAll({
+      where: { logisticsId: logistics.id },
+    });
     const finalRoutes = [];
-    const expectedRouteKeys = new Set(expectedRoutes.map(r => `${r.origin}:::${r.destination}`));
+    const expectedRouteKeys = new Set(
+      expectedRoutes.map((r) => `${r.origin}:::${r.destination}`),
+    );
 
     for (const er of expectedRoutes) {
-      const exists = existingRoutes.find(r => r.origin === er.origin && r.destination === er.destination);
+      const exists = existingRoutes.find(
+        (r) => r.origin === er.origin && r.destination === er.destination,
+      );
       if (!exists) {
         const newRoute = await this.logisticsRouteModel.create({
           logisticsId: logistics.id,
           origin: er.origin,
           destination: er.destination,
-        } as any);
+        });
         finalRoutes.push(newRoute);
       } else {
         finalRoutes.push(exists);
@@ -633,7 +740,9 @@ export class LogisticsService {
 
     for (const r of existingRoutes) {
       if (!expectedRouteKeys.has(`${r.origin}:::${r.destination}`)) {
-        const quotesCount = await this.quoteModel.count({ where: { routeId: r.id } });
+        const quotesCount = await this.quoteModel.count({
+          where: { routeId: r.id },
+        });
         if (quotesCount === 0) {
           await r.destroy();
         } else {
@@ -641,7 +750,7 @@ export class LogisticsService {
         }
       }
     }
-    
+
     // Attach routes to response
     logistics.setDataValue('routes', finalRoutes);
 
@@ -680,15 +789,25 @@ export class LogisticsService {
   /**
    * Create a new freight quote under a logistics workspace.
    */
-  async createFreightQuote(logisticsId: number, dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
+  async createFreightQuote(
+    logisticsId: number,
+    dto: CreateFreightQuoteDto,
+    user: any,
+    companyId: number = 1,
+  ) {
     const logistics = await this.logisticsModel.findByPk(logisticsId);
     if (!logistics) {
       throw new NotFoundException('Logistics record not found');
     }
 
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
 
     return await this.sequelize.transaction(async (transaction) => {
@@ -698,29 +817,37 @@ export class LogisticsService {
         calculatedFreightAmount = 0;
         for (const cr of dto.containerRates) {
           if (cr.charges && cr.charges.length > 0) {
-            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            const crSum = cr.charges.reduce(
+              (sum, item) => sum + Number(item.amount || 0),
+              0,
+            );
             calculatedFreightAmount += crSum;
           }
         }
       } else if (dto.charges && dto.charges.length > 0) {
         calculatedFreightAmount = dto.charges.reduce(
           (sum, item) => sum + Number(item.amount || 0),
-          0
+          0,
         );
       } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-        throw new BadRequestException('At least one freight charge or container rate is required.');
+        throw new BadRequestException(
+          'At least one freight charge or container rate is required.',
+        );
       }
 
       // Generate FQ/YYYY/###### number via sequence
       await this.sequelize.query(
         `CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`,
-        { transaction }
+        { transaction },
       );
       const [seqRes]: any = await this.sequelize.query(
         `SELECT nextval('freight_quotes_no_seq')`,
-        { type: QueryTypes.SELECT, transaction } as any
+        { type: QueryTypes.SELECT, transaction } as any,
       );
-      const nextVal = parseInt(seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1', 10);
+      const nextVal = parseInt(
+        seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+        10,
+      );
       const currentYear = new Date().getFullYear();
       const quoteNumber = `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
@@ -733,19 +860,26 @@ export class LogisticsService {
           createdBy: user?.userId,
           routeId: dto.routeId || null,
         } as any,
-        { transaction }
+        { transaction },
       );
 
       // Persist container rates and their charges
       if (dto.containerRates && dto.containerRates.length > 0) {
         for (const cr of dto.containerRates) {
-          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
-          const createdCr = await this.containerRateModel.create({
-            quoteId: quote.id,
-            containerType: cr.containerType,
-            containerSize: cr.containerSize,
-            freightAmount: crSum,
-          } as any, { transaction });
+          const crSum =
+            cr.charges?.reduce(
+              (sum, item) => sum + Number(item.amount || 0),
+              0,
+            ) || 0;
+          const createdCr = await this.containerRateModel.create(
+            {
+              quoteId: quote.id,
+              containerType: cr.containerType,
+              containerSize: cr.containerSize,
+              freightAmount: crSum,
+            },
+            { transaction },
+          );
 
           if (cr.charges && cr.charges.length > 0) {
             const chargeRows = cr.charges.map((c, idx) => ({
@@ -757,7 +891,9 @@ export class LogisticsService {
               remarks: c.remarks || null,
               displayOrder: c.displayOrder ?? idx + 1,
             }));
-            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+            await this.quoteChargeModel.bulkCreate(chargeRows, {
+              transaction,
+            });
           }
         }
       } else if (dto.charges && dto.charges.length > 0) {
@@ -771,7 +907,9 @@ export class LogisticsService {
           remarks: c.remarks || null,
           displayOrder: c.displayOrder ?? idx + 1,
         }));
-        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+        await this.quoteChargeModel.bulkCreate(chargeRows, {
+          transaction,
+        });
       }
 
       // Auto-sync manual contact to Partner Master if provided
@@ -779,7 +917,7 @@ export class LogisticsService {
         dto.sellerId,
         dto.contactPerson,
         dto.contactNumber,
-        transaction
+        transaction,
       );
 
       // Auto transition logistics status to Quotes Received if Pending
@@ -794,7 +932,10 @@ export class LogisticsService {
           entityId: logistics.id,
           action: 'STATUS_CHANGED',
           oldValue: 'Pending',
-          newValue: { status: 'Quotes Received', remarks: 'System updated status upon first quote entry' },
+          newValue: {
+            status: 'Quotes Received',
+            remarks: 'System updated status upon first quote entry',
+          },
         });
       }
 
@@ -806,13 +947,21 @@ export class LogisticsService {
         entityType: 'Logistics',
         entityId: logistics.id,
         action: 'QUOTE_ADDED',
-        newValue: { quoteNumber, sellerId: dto.sellerId, freightAmount: calculatedFreightAmount },
+        newValue: {
+          quoteNumber,
+          sellerId: dto.sellerId,
+          freightAmount: calculatedFreightAmount,
+        },
       });
 
       return this.quoteModel.findByPk(quote.id, {
         include: [
           { model: Partner, as: 'seller' },
-          { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+          {
+            model: FreightQuoteContainerRate,
+            as: 'containerRates',
+            include: ['charges'],
+          },
           { model: FreightQuoteCharge, as: 'charges' },
         ],
         transaction,
@@ -820,45 +969,62 @@ export class LogisticsService {
     });
   }
 
-  async createDirectFreightQuote(dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
+  async createDirectFreightQuote(
+    dto: CreateFreightQuoteDto,
+    user: any,
+    companyId: number = 1,
+  ) {
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
 
     return await this.sequelize.transaction(async (transaction) => {
       let calculatedFreightAmount = dto.freightAmount || 0;
-      
+
       const hasRoutes = dto.freightRoutes && dto.freightRoutes.length > 0;
-      
+
       if (!hasRoutes) {
         if (dto.containerRates && dto.containerRates.length > 0) {
           calculatedFreightAmount = 0;
           for (const cr of dto.containerRates) {
             if (cr.charges && cr.charges.length > 0) {
-              const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+              const crSum = cr.charges.reduce(
+                (sum, item) => sum + Number(item.amount || 0),
+                0,
+              );
               calculatedFreightAmount += crSum;
             }
           }
         } else if (dto.charges && dto.charges.length > 0) {
           calculatedFreightAmount = dto.charges.reduce(
             (sum, item) => sum + Number(item.amount || 0),
-            0
+            0,
           );
         } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-          throw new BadRequestException('At least one freight charge, container rate, or route rate is required.');
+          throw new BadRequestException(
+            'At least one freight charge, container rate, or route rate is required.',
+          );
         }
       }
 
       await this.sequelize.query(
         `CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`,
-        { transaction }
+        { transaction },
       );
       const [seqRes]: any = await this.sequelize.query(
         `SELECT nextval('freight_quotes_no_seq')`,
-        { type: QueryTypes.SELECT, transaction } as any
+        { type: QueryTypes.SELECT, transaction } as any,
       );
-      const nextVal = parseInt(seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1', 10);
+      const nextVal = parseInt(
+        seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+        10,
+      );
       const currentYear = new Date().getFullYear();
       const quoteNumber = `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
@@ -871,19 +1037,22 @@ export class LogisticsService {
           companyId,
           createdBy: user?.userId,
         } as any,
-        { transaction }
+        { transaction },
       );
 
       if (hasRoutes) {
         for (const routeDto of dto.freightRoutes) {
-          const route = await this.sequelize.models.FreightRoute.create({
-            quoteId: quote.id,
-            origin: routeDto.origin,
-            destination: routeDto.destination,
-          } as any, { transaction });
-          
+          const route = await this.sequelize.models.FreightRoute.create(
+            {
+              quoteId: quote.id,
+              origin: routeDto.origin,
+              destination: routeDto.destination,
+            } as any,
+            { transaction },
+          );
+
           if (routeDto.rates && routeDto.rates.length > 0) {
-            const rateRows = routeDto.rates.map(r => ({
+            const rateRows = routeDto.rates.map((r) => ({
               routeId: (route as any).id,
               partnerId: r.partnerId,
               equipment: r.equipment || null,
@@ -893,19 +1062,29 @@ export class LogisticsService {
               validTill: r.validTill || null,
               status: r.status || 'Active',
             }));
-            await this.sequelize.models.FreightRate.bulkCreate(rateRows as any, { transaction });
+            await this.sequelize.models.FreightRate.bulkCreate(
+              rateRows as any,
+              { transaction },
+            );
           }
         }
       } else {
         if (dto.containerRates && dto.containerRates.length > 0) {
           for (const cr of dto.containerRates) {
-            const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
-            const createdCr = await this.containerRateModel.create({
-              quoteId: quote.id,
-              containerType: cr.containerType,
-              containerSize: cr.containerSize,
-              freightAmount: crSum,
-            } as any, { transaction });
+            const crSum =
+              cr.charges?.reduce(
+                (sum, item) => sum + Number(item.amount || 0),
+                0,
+              ) || 0;
+            const createdCr = await this.containerRateModel.create(
+              {
+                quoteId: quote.id,
+                containerType: cr.containerType,
+                containerSize: cr.containerSize,
+                freightAmount: crSum,
+              },
+              { transaction },
+            );
 
             if (cr.charges && cr.charges.length > 0) {
               const chargeRows = cr.charges.map((c, idx) => ({
@@ -917,7 +1096,9 @@ export class LogisticsService {
                 remarks: c.remarks || null,
                 displayOrder: c.displayOrder ?? idx + 1,
               }));
-              await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+              await this.quoteChargeModel.bulkCreate(chargeRows, {
+                transaction,
+              });
             }
           }
         } else if (dto.charges && dto.charges.length > 0) {
@@ -930,7 +1111,9 @@ export class LogisticsService {
             remarks: c.remarks || null,
             displayOrder: c.displayOrder ?? idx + 1,
           }));
-          await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+          await this.quoteChargeModel.bulkCreate(chargeRows, {
+            transaction,
+          });
         }
       }
 
@@ -938,7 +1121,7 @@ export class LogisticsService {
         dto.sellerId,
         dto.contactPerson,
         dto.contactNumber,
-        transaction
+        transaction,
       );
 
       await this.auditService.writeLog({
@@ -948,20 +1131,34 @@ export class LogisticsService {
         entityType: 'FreightQuote',
         entityId: quote.id,
         action: 'DIRECT_QUOTE_ADDED',
-        newValue: { quoteNumber, sellerId: dto.sellerId, freightAmount: calculatedFreightAmount },
+        newValue: {
+          quoteNumber,
+          sellerId: dto.sellerId,
+          freightAmount: calculatedFreightAmount,
+        },
       });
 
       return this.quoteModel.findByPk(quote.id, {
         include: [
           { model: Partner, as: 'seller' },
-          { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+          {
+            model: FreightQuoteContainerRate,
+            as: 'containerRates',
+            include: ['charges'],
+          },
           { model: FreightQuoteCharge, as: 'charges' },
           { model: Product, as: 'product' },
-          { 
-            model: this.sequelize.models.FreightRoute, 
+          {
+            model: this.sequelize.models.FreightRoute,
             as: 'freightRoutes',
-            include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
-          }
+            include: [
+              {
+                model: this.sequelize.models.FreightRate,
+                as: 'rates',
+                include: ['partner'],
+              },
+            ],
+          },
         ],
         transaction,
       });
@@ -972,7 +1169,7 @@ export class LogisticsService {
     quoteId: number,
     dto: CreateFreightQuoteDto,
     user: any,
-    companyId: number = 1
+    companyId: number = 1,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, isDirect: true },
@@ -987,28 +1184,40 @@ export class LogisticsService {
           quoteDate: dto.quoteDate,
           updatedBy: user?.userId,
         } as any,
-        { transaction }
+        { transaction },
       );
 
       // 2. Clear old routes and rates
-      const oldRoutes = await this.sequelize.models.FreightRoute.findAll({ where: { quoteId: quote.id }, transaction });
-      const oldRouteIds = oldRoutes.map(r => (r as any).id);
+      const oldRoutes = await this.sequelize.models.FreightRoute.findAll({
+        where: { quoteId: quote.id },
+        transaction,
+      });
+      const oldRouteIds = oldRoutes.map((r) => (r as any).id);
       if (oldRouteIds.length > 0) {
-        await this.sequelize.models.FreightRate.destroy({ where: { routeId: oldRouteIds }, transaction });
-        await this.sequelize.models.FreightRoute.destroy({ where: { quoteId: quote.id }, transaction });
+        await this.sequelize.models.FreightRate.destroy({
+          where: { routeId: oldRouteIds },
+          transaction,
+        });
+        await this.sequelize.models.FreightRoute.destroy({
+          where: { quoteId: quote.id },
+          transaction,
+        });
       }
 
       // 3. Re-create routes and rates
       if (dto.freightRoutes && dto.freightRoutes.length > 0) {
         for (const routeDto of dto.freightRoutes) {
-          const route = await this.sequelize.models.FreightRoute.create({
-            quoteId: quote.id,
-            origin: routeDto.origin,
-            destination: routeDto.destination,
-          } as any, { transaction });
-          
+          const route = await this.sequelize.models.FreightRoute.create(
+            {
+              quoteId: quote.id,
+              origin: routeDto.origin,
+              destination: routeDto.destination,
+            } as any,
+            { transaction },
+          );
+
           if (routeDto.rates && routeDto.rates.length > 0) {
-            const rateRows = routeDto.rates.map(r => ({
+            const rateRows = routeDto.rates.map((r) => ({
               routeId: (route as any).id,
               partnerId: r.partnerId,
               equipment: r.equipment || null,
@@ -1018,7 +1227,10 @@ export class LogisticsService {
               validTill: r.validTill || null,
               status: r.status || 'Active',
             }));
-            await this.sequelize.models.FreightRate.bulkCreate(rateRows as any, { transaction });
+            await this.sequelize.models.FreightRate.bulkCreate(
+              rateRows as any,
+              { transaction },
+            );
           }
         }
       }
@@ -1040,11 +1252,17 @@ export class LogisticsService {
       return this.quoteModel.findByPk(quote.id, {
         include: [
           { model: Product, as: 'product' },
-          { 
-            model: this.sequelize.models.FreightRoute, 
+          {
+            model: this.sequelize.models.FreightRoute,
             as: 'freightRoutes',
-            include: [{ model: this.sequelize.models.FreightRate, as: 'rates', include: ['partner'] }]
-          }
+            include: [
+              {
+                model: this.sequelize.models.FreightRate,
+                as: 'rates',
+                include: ['partner'],
+              },
+            ],
+          },
         ],
         transaction,
       });
@@ -1059,7 +1277,7 @@ export class LogisticsService {
     quoteId: number,
     dto: CreateFreightQuoteDto,
     user: any,
-    companyId: number = 1
+    companyId: number = 1,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId },
@@ -1069,8 +1287,13 @@ export class LogisticsService {
     }
 
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -1080,17 +1303,22 @@ export class LogisticsService {
         calculatedFreightAmount = 0;
         for (const cr of dto.containerRates) {
           if (cr.charges && cr.charges.length > 0) {
-            const crSum = cr.charges.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            const crSum = cr.charges.reduce(
+              (sum, item) => sum + Number(item.amount || 0),
+              0,
+            );
             calculatedFreightAmount += crSum;
           }
         }
       } else if (dto.charges && dto.charges.length > 0) {
         calculatedFreightAmount = dto.charges.reduce(
           (sum, item) => sum + Number(item.amount || 0),
-          0
+          0,
         );
       } else if (!dto.freightAmount || dto.freightAmount <= 0) {
-        throw new BadRequestException('At least one freight charge or container rate is required.');
+        throw new BadRequestException(
+          'At least one freight charge or container rate is required.',
+        );
       }
 
       // Increment version placeholder
@@ -1104,7 +1332,7 @@ export class LogisticsService {
           updatedBy: user?.userId,
           routeId: dto.routeId || null,
         } as any,
-        { transaction }
+        { transaction },
       );
 
       // Re-create charges and container rates line items
@@ -1119,13 +1347,20 @@ export class LogisticsService {
 
       if (dto.containerRates && dto.containerRates.length > 0) {
         for (const cr of dto.containerRates) {
-          const crSum = cr.charges?.reduce((sum, item) => sum + Number(item.amount || 0), 0) || 0;
-          const createdCr = await this.containerRateModel.create({
-            quoteId: quote.id,
-            containerType: cr.containerType,
-            containerSize: cr.containerSize,
-            freightAmount: crSum,
-          } as any, { transaction });
+          const crSum =
+            cr.charges?.reduce(
+              (sum, item) => sum + Number(item.amount || 0),
+              0,
+            ) || 0;
+          const createdCr = await this.containerRateModel.create(
+            {
+              quoteId: quote.id,
+              containerType: cr.containerType,
+              containerSize: cr.containerSize,
+              freightAmount: crSum,
+            },
+            { transaction },
+          );
 
           if (cr.charges && cr.charges.length > 0) {
             const chargeRows = cr.charges.map((c, idx) => ({
@@ -1137,7 +1372,9 @@ export class LogisticsService {
               remarks: c.remarks || null,
               displayOrder: c.displayOrder ?? idx + 1,
             }));
-            await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+            await this.quoteChargeModel.bulkCreate(chargeRows, {
+              transaction,
+            });
           }
         }
       } else if (dto.charges && dto.charges.length > 0) {
@@ -1150,7 +1387,9 @@ export class LogisticsService {
           remarks: c.remarks || null,
           displayOrder: c.displayOrder ?? idx + 1,
         }));
-        await this.quoteChargeModel.bulkCreate(chargeRows as any[], { transaction });
+        await this.quoteChargeModel.bulkCreate(chargeRows, {
+          transaction,
+        });
       }
 
       // Auto-sync manual contact to Partner Master if provided
@@ -1158,7 +1397,7 @@ export class LogisticsService {
         dto.sellerId,
         dto.contactPerson,
         dto.contactNumber,
-        transaction
+        transaction,
       );
 
       await this.auditService.writeLog({
@@ -1175,7 +1414,11 @@ export class LogisticsService {
     return quote.reload({
       include: [
         { model: Partner, as: 'seller' },
-        { model: FreightQuoteContainerRate, as: 'containerRates', include: ['charges'] },
+        {
+          model: FreightQuoteContainerRate,
+          as: 'containerRates',
+          include: ['charges'],
+        },
         { model: FreightQuoteCharge, as: 'charges' },
       ],
     });
@@ -1188,7 +1431,7 @@ export class LogisticsService {
     sellerId?: number,
     contactPerson?: string,
     contactNumber?: string,
-    transaction?: any
+    transaction?: any,
   ) {
     if (!sellerId || !contactPerson || !contactPerson.trim()) return;
     try {
@@ -1202,7 +1445,7 @@ export class LogisticsService {
       });
 
       const exists = existingContacts.some(
-        (c) => c.name?.toLowerCase().trim() === contactName.toLowerCase()
+        (c) => c.name?.toLowerCase().trim() === contactName.toLowerCase(),
       );
 
       if (!exists) {
@@ -1212,8 +1455,8 @@ export class LogisticsService {
             name: contactName,
             phone: phone,
             isPrimary: existingContacts.length === 0,
-          } as any,
-          { transaction }
+          },
+          { transaction },
         );
       }
     } catch (e) {
@@ -1224,7 +1467,12 @@ export class LogisticsService {
   /**
    * Delete a freight quote (restricted if preferred).
    */
-  async deleteFreightQuote(logisticsId: number, quoteId: number, user: any, companyId: number = 1) {
+  async deleteFreightQuote(
+    logisticsId: number,
+    quoteId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId },
     });
@@ -1234,7 +1482,7 @@ export class LogisticsService {
 
     if (quote.isPreferred) {
       throw new BadRequestException(
-        'Cannot delete preferred quote. Please mark another quote as preferred or clear preferred selection first.'
+        'Cannot delete preferred quote. Please mark another quote as preferred or clear preferred selection first.',
       );
     }
 
@@ -1258,7 +1506,12 @@ export class LogisticsService {
   /**
    * Set preferred quote lock logic.
    */
-  async setPreferredQuote(logisticsId: number, quoteId: number, user: any, companyId: number = 1) {
+  async setPreferredQuote(
+    logisticsId: number,
+    quoteId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId },
     });
@@ -1274,15 +1527,15 @@ export class LogisticsService {
     await this.sequelize.transaction(async (transaction) => {
       // 1. Mark this quote as preferred, others on the same route as rejected
       const routeCondition = quote.routeId ? { routeId: quote.routeId } : {};
-      
+
       await this.quoteModel.update(
         { isPreferred: false, isRejected: true },
-        { where: { logisticsId, ...routeCondition }, transaction }
+        { where: { logisticsId, ...routeCondition }, transaction },
       );
 
       await quote.update(
         { isPreferred: true, isRejected: false },
-        { transaction }
+        { transaction },
       );
 
       // 2. Link selected quote and update Logistics status to Preferred Quote Selected
@@ -1293,7 +1546,7 @@ export class LogisticsService {
           status: 'Preferred Quote Selected',
           updatedBy: user?.userId,
         },
-        { transaction }
+        { transaction },
       );
 
       // 3. Log actions
@@ -1332,7 +1585,12 @@ export class LogisticsService {
   /**
    * Update header details manually (estimated dates, remarks, transportMode).
    */
-  async updateStatus(logisticsId: number, dto: UpdateLogisticsStatusDto, user: any, companyId: number = 1) {
+  async updateStatus(
+    logisticsId: number,
+    dto: UpdateLogisticsStatusDto,
+    user: any,
+    companyId: number = 1,
+  ) {
     const logistics = await this.logisticsModel.findByPk(logisticsId);
     if (!logistics) {
       throw new NotFoundException('Logistics record not found');
@@ -1364,7 +1622,11 @@ export class LogisticsService {
   /**
    * Generate shipment linked to this logistics workspace.
    */
-  async generateShipment(logisticsId: number, user: any, companyId: number = 1) {
+  async generateShipment(
+    logisticsId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
     const logistics = await this.logisticsModel.findByPk(logisticsId, {
       include: [
         { model: Enquiry, as: 'enquiry' },
@@ -1377,7 +1639,9 @@ export class LogisticsService {
     }
 
     if (!logistics.selectedFreightId || !logistics.selectedFreight) {
-      throw new BadRequestException('Please select a preferred freight quote before generating shipment.');
+      throw new BadRequestException(
+        'Please select a preferred freight quote before generating shipment.',
+      );
     }
 
     // Lookup Sales Contract linked via ForeignKey enquiryId
@@ -1388,7 +1652,7 @@ export class LogisticsService {
 
     if (!salesContract) {
       throw new BadRequestException(
-        'No executed Sales Contract found for this enquiry. Please execute the Sales Contract first.'
+        'No executed Sales Contract found for this enquiry. Please execute the Sales Contract first.',
       );
     }
 
@@ -1397,7 +1661,9 @@ export class LogisticsService {
       where: { salesContractId: salesContract.id, logisticsId: logistics.id },
     });
     if (existingShipment) {
-      throw new BadRequestException('A shipment has already been generated for this logistics workspace.');
+      throw new BadRequestException(
+        'A shipment has already been generated for this logistics workspace.',
+      );
     }
 
     return await this.sequelize.transaction(async (transaction) => {
@@ -1405,7 +1671,8 @@ export class LogisticsService {
       const shipmentNo = (salesContract.shipments?.length || 0) + 1;
 
       // Extract shipment details from preferred quote
-      const shipmentDate = logistics.estimatedDispatchDate || quote.etd || new Date();
+      const shipmentDate =
+        logistics.estimatedDispatchDate || quote.etd || new Date();
       const quantity = logistics.enquiry.quantity || 0;
 
       // Calculate totalAmount runtime getter value
@@ -1426,8 +1693,8 @@ export class LogisticsService {
           shipmentNo,
           shipmentReference: logistics.logisticsNumber,
           status: 'Scheduled',
-        } as any,
-        { transaction }
+        },
+        { transaction },
       );
 
       // Advance logistics status to Shipment Created
@@ -1442,7 +1709,11 @@ export class LogisticsService {
         entityType: 'Logistics',
         entityId: logistics.id,
         action: 'SHIPMENT_GENERATED',
-        newValue: { shipmentId: shipment.id, shipmentNo, shipmentReference: logistics.logisticsNumber },
+        newValue: {
+          shipmentId: shipment.id,
+          shipmentNo,
+          shipmentReference: logistics.logisticsNumber,
+        },
       });
 
       await this.auditService.writeLog({
@@ -1485,7 +1756,7 @@ export class LogisticsService {
     category: string,
     file: Express.Multer.File,
     user: any,
-    companyId: number = 1
+    companyId: number = 1,
   ) {
     const logistics = await this.logisticsModel.findByPk(logisticsId);
     if (!logistics) {
@@ -1494,7 +1765,11 @@ export class LogisticsService {
 
     return await this.sequelize.transaction(async (transaction) => {
       // 1. Create central attachment row via central engine
-      const attachment = await this.attachmentsService.createAttachment(file, user?.userId, companyId);
+      const attachment = await this.attachmentsService.createAttachment(
+        file,
+        user?.userId,
+        companyId,
+      );
 
       // 2. Update attachment to link polymorphically
       await attachment.update(
@@ -1505,9 +1780,11 @@ export class LogisticsService {
           // but wait! Attachments has category in some legacy models. Here we can store it in originalName as metadata or prefix it,
           // or since attachments table doesn't have a category field, we can prefix the originalName with `[Category] `,
           // or just write it. Prefixing originalName with category (e.g. "Rate Sheet - invoice.pdf") makes it visually explicit!
-          originalName: category ? `${category} - ${file.originalname}` : file.originalname,
+          originalName: category
+            ? `${category} - ${file.originalname}`
+            : file.originalname,
         },
-        { transaction }
+        { transaction },
       );
 
       // 3. Log event
@@ -1518,7 +1795,11 @@ export class LogisticsService {
         entityType: 'Logistics',
         entityId: logisticsId,
         action: 'ATTACHMENT_UPLOADED',
-        newValue: { attachmentId: attachment.id, category, fileName: attachment.originalName },
+        newValue: {
+          attachmentId: attachment.id,
+          category,
+          fileName: attachment.originalName,
+        },
       });
 
       return {
@@ -1532,12 +1813,23 @@ export class LogisticsService {
     });
   }
 
-  async deleteAttachment(logisticsId: number, attachmentId: number, user: any, companyId: number = 1) {
+  async deleteAttachment(
+    logisticsId: number,
+    attachmentId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
     const attachment = await this.attachmentModel.findOne({
-      where: { id: attachmentId, entityType: 'LOGISTICS', entityId: logisticsId },
+      where: {
+        id: attachmentId,
+        entityType: 'LOGISTICS',
+        entityId: logisticsId,
+      },
     });
     if (!attachment) {
-      throw new NotFoundException('Attachment not found under this logistics workspace');
+      throw new NotFoundException(
+        'Attachment not found under this logistics workspace',
+      );
     }
 
     await this.sequelize.transaction(async (transaction) => {

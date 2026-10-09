@@ -48,9 +48,11 @@ export class NotificationsService {
     if (validRecipients.length > 0) {
       try {
         const recipientsProfiles = await this.userModel.findAll({
-          where: { id: validRecipients, isActive: true }
+          where: { id: validRecipients, isActive: true },
         });
-        const clientIds = Array.from(new Set(recipientsProfiles.map(u => u.clientId).filter(Boolean)));
+        const clientIds = Array.from(
+          new Set(recipientsProfiles.map((u) => u.clientId).filter(Boolean)),
+        );
 
         if (clientIds.length > 0) {
           // Query active users belonging to client workspace
@@ -69,23 +71,33 @@ export class NotificationsService {
               {
                 model: UserCompany,
                 required: false,
-                include: [{ model: Role, attributes: ['id', 'name'] }]
-              }
-            ]
+                include: [{ model: Role, attributes: ['id', 'name'] }],
+              },
+            ],
           });
 
           // Match admins (by role name 'Admin' / 'Client Admin' or email admin@agricom.com)
           const adminIds = adminUsers
-            .filter(u => {
+            .filter((u) => {
               if (u.email === 'admin@agricom.com') return true;
-              if (u.roles?.some(r => ['Admin', 'Client Admin'].includes(r.name))) return true;
-              if (u.userCompanies?.some(uc => ['Admin', 'Client Admin'].includes(uc.role?.name))) return true;
+              if (
+                u.roles?.some((r) => ['Admin', 'Client Admin'].includes(r.name))
+              )
+                return true;
+              if (
+                u.userCompanies?.some((uc) =>
+                  ['Admin', 'Client Admin'].includes(uc.role?.name),
+                )
+              )
+                return true;
               return false;
             })
-            .map(u => u.id);
+            .map((u) => u.id);
 
           // Force include default super admin
-          const superAdmin = await this.userModel.findOne({ where: { email: 'admin@agricom.com', isActive: true } });
+          const superAdmin = await this.userModel.findOne({
+            where: { email: 'admin@agricom.com', isActive: true },
+          });
           if (superAdmin) {
             adminIds.push(superAdmin.id);
           }
@@ -93,24 +105,33 @@ export class NotificationsService {
           const uniqueAdminIds = Array.from(new Set(adminIds));
           // Exclude admins who opted out of copy notifications
           const adminPrefs = await this.userPreferenceModel.findAll({
-            where: { userId: uniqueAdminIds }
+            where: { userId: uniqueAdminIds },
           });
           const optedOutAdminIds = new Set(
-            adminPrefs.filter(p => p.copyTenantNotifications === false).map(p => p.userId)
+            adminPrefs
+              .filter((p) => p.copyTenantNotifications === false)
+              .map((p) => p.userId),
           );
-          const finalAdminIds = uniqueAdminIds.filter(id => !optedOutAdminIds.has(id));
+          const finalAdminIds = uniqueAdminIds.filter(
+            (id) => !optedOutAdminIds.has(id),
+          );
 
-          validRecipients = Array.from(new Set([...validRecipients, ...finalAdminIds]));
+          validRecipients = Array.from(
+            new Set([...validRecipients, ...finalAdminIds]),
+          );
         }
       } catch (err) {
-        console.error('[NotificationsService] Error loading client admins:', err);
+        console.error(
+          '[NotificationsService] Error loading client admins:',
+          err,
+        );
       }
     }
 
     // 3. Exclude muted users based on preferences and categories
     try {
       const preferences = await this.userPreferenceModel.findAll({
-        where: { userId: validRecipients }
+        where: { userId: validRecipients },
       });
       const mutedUserIds = new Set<number>();
       for (const p of preferences) {
@@ -120,25 +141,40 @@ export class NotificationsService {
         }
 
         // Determine category dynamically
-        const category = dto.category || (
-          dto.referenceType?.startsWith('attendance_reminder') ? 'REMINDER' :
-          dto.referenceType === 'attendance_conflict' ? 'CONFLICT' :
-          dto.referenceType?.startsWith('leave_') ? 'LEAVE' :
-          dto.referenceType?.startsWith('holiday_') ? 'HOLIDAY' :
-          dto.type === NotificationType.TASK ? 'TASK' : 'SYSTEM'
-        );
+        const category =
+          dto.category ||
+          (dto.referenceType?.startsWith('attendance_reminder')
+            ? 'REMINDER'
+            : dto.referenceType === 'attendance_conflict'
+              ? 'CONFLICT'
+              : dto.referenceType?.startsWith('leave_')
+                ? 'LEAVE'
+                : dto.referenceType?.startsWith('holiday_')
+                  ? 'HOLIDAY'
+                  : dto.type === NotificationType.TASK
+                    ? 'TASK'
+                    : 'SYSTEM');
 
         if (category === 'REMINDER' && p.attendanceRemindersEnabled === false) {
           mutedUserIds.add(p.userId);
-        } else if (category === 'LEAVE' && p.leaveNotificationsEnabled === false) {
+        } else if (
+          category === 'LEAVE' &&
+          p.leaveNotificationsEnabled === false
+        ) {
           mutedUserIds.add(p.userId);
-        } else if (category === 'HOLIDAY' && p.holidayNotificationsEnabled === false) {
+        } else if (
+          category === 'HOLIDAY' &&
+          p.holidayNotificationsEnabled === false
+        ) {
           mutedUserIds.add(p.userId);
         }
       }
-      validRecipients = validRecipients.filter(id => !mutedUserIds.has(id));
+      validRecipients = validRecipients.filter((id) => !mutedUserIds.has(id));
     } catch (err) {
-      console.error('[NotificationsService] Error loading user preferences:', err);
+      console.error(
+        '[NotificationsService] Error loading user preferences:',
+        err,
+      );
     }
 
     if (validRecipients.length === 0) {
@@ -150,13 +186,19 @@ export class NotificationsService {
     // 4. Save and broadcast each notification
     for (const recipientId of validRecipients) {
       try {
-        const category = dto.category || (
-          dto.referenceType?.startsWith('attendance_reminder') ? 'REMINDER' :
-          dto.referenceType === 'attendance_conflict' ? 'CONFLICT' :
-          dto.referenceType?.startsWith('leave_') ? 'LEAVE' :
-          dto.referenceType?.startsWith('holiday_') ? 'HOLIDAY' :
-          dto.type === NotificationType.TASK ? 'TASK' : 'SYSTEM'
-        );
+        const category =
+          dto.category ||
+          (dto.referenceType?.startsWith('attendance_reminder')
+            ? 'REMINDER'
+            : dto.referenceType === 'attendance_conflict'
+              ? 'CONFLICT'
+              : dto.referenceType?.startsWith('leave_')
+                ? 'LEAVE'
+                : dto.referenceType?.startsWith('holiday_')
+                  ? 'HOLIDAY'
+                  : dto.type === NotificationType.TASK
+                    ? 'TASK'
+                    : 'SYSTEM');
 
         const notif = await this.notificationModel.create({
           userId: recipientId,
@@ -175,7 +217,10 @@ export class NotificationsService {
         // Emit to room user-${recipientId}
         this.gateway.emitToUser(recipientId, 'notification', notif.toJSON());
       } catch (err) {
-        console.error(`[NotificationsService] Failed to create or emit notification for user ${recipientId}:`, err);
+        console.error(
+          `[NotificationsService] Failed to create or emit notification for user ${recipientId}:`,
+          err,
+        );
       }
     }
 
@@ -194,7 +239,11 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(id: number, userId: number, companyId?: number): Promise<Notification> {
+  async markAsRead(
+    id: number,
+    userId: number,
+    companyId?: number,
+  ): Promise<Notification> {
     const whereClause: any = { id, userId };
     if (companyId) {
       whereClause.companyId = companyId;
@@ -212,7 +261,10 @@ export class NotificationsService {
     return notif;
   }
 
-  async markAllRead(userId: number, companyId?: number): Promise<{ success: boolean; count: number }> {
+  async markAllRead(
+    userId: number,
+    companyId?: number,
+  ): Promise<{ success: boolean; count: number }> {
     const whereClause: any = { userId, isRead: false };
     if (companyId) {
       whereClause.companyId = companyId;
@@ -282,7 +334,7 @@ export class NotificationsService {
       include.push({
         model: UserCompany,
         where: { companyId },
-        required: true
+        required: true,
       });
     }
     const users = await this.userModel.findAll({
@@ -292,17 +344,17 @@ export class NotificationsService {
       order: [['name', 'ASC']],
     });
 
-    const userIds = users.map(u => u.id);
+    const userIds = users.map((u) => u.id);
     const preferences = await this.userPreferenceModel.findAll({
       where: { userId: userIds },
     });
 
     const prefMap = new Map<number, boolean>();
-    preferences.forEach(p => {
+    preferences.forEach((p) => {
       prefMap.set(p.userId, p.pushNotifications);
     });
 
-    return users.map(u => {
+    return users.map((u) => {
       const isPushEnabled = prefMap.has(u.id) ? prefMap.get(u.id) : true;
       return {
         id: u.id,

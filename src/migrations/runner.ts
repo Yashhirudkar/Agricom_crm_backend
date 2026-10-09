@@ -38,23 +38,40 @@ async function ensureLogTable(): Promise<void> {
   await queryInterface.createTable(
     LOG_TABLE,
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       phase: { type: DataTypes.STRING(10), allowNull: false, unique: true },
       name: { type: DataTypes.TEXT, allowNull: false },
       ranAt: { type: DataTypes.DATE, allowNull: false, field: 'ranAt' },
-      direction: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'up' },
+      direction: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: 'up',
+      },
     },
     { ifNotExists: true } as any,
   );
 }
 
 async function getRanPhases(): Promise<string[]> {
-  const rows = (await sequelize.query(`SELECT phase FROM "${LOG_TABLE}" WHERE direction = 'up'`)) as any[];
+  const rows = (await sequelize.query(
+    `SELECT phase FROM "${LOG_TABLE}" WHERE direction = 'up'`,
+  )) as any[];
   const validPhases = new Set(ALL_PHASES.map((p) => p.phase));
-  return rows[0].map((r: any) => r.phase).filter((p: string) => validPhases.has(p));
+  return rows[0]
+    .map((r: any) => r.phase)
+    .filter((p: string) => validPhases.has(p));
 }
 
-async function logPhase(phase: string, name: string, direction: 'up' | 'down'): Promise<void> {
+async function logPhase(
+  phase: string,
+  name: string,
+  direction: 'up' | 'down',
+): Promise<void> {
   if (direction === 'up') {
     await sequelize.query(
       `INSERT INTO "${LOG_TABLE}" (phase, name, "ranAt", direction) VALUES ('${phase}', '${name.replace(/'/g, "''")}', NOW(), 'up')
@@ -113,7 +130,9 @@ async function runAll(): Promise<void> {
 async function runPhase(phaseNum: string): Promise<void> {
   const p = ALL_PHASES.find((ph) => ph.phase === phaseNum.padStart(2, '0'));
   if (!p) {
-    console.error(`❌ Phase "${phaseNum}" not found. Available: ${ALL_PHASES.map((x) => x.phase).join(', ')}`);
+    console.error(
+      `❌ Phase "${phaseNum}" not found. Available: ${ALL_PHASES.map((x) => x.phase).join(', ')}`,
+    );
     process.exit(1);
   }
 
@@ -142,12 +161,15 @@ async function showStatus(): Promise<void> {
 
   for (const p of ALL_PHASES) {
     const status = ran.includes(p.phase) ? '✅ DONE   ' : '⏳ PENDING';
-    const shortName = p.name.length > 45 ? p.name.substring(0, 42) + '...' : p.name;
+    const shortName =
+      p.name.length > 45 ? p.name.substring(0, 42) + '...' : p.name;
     console.log(`  Phase ${p.phase}  ${status}  ${shortName}`);
   }
 
   console.log(`${'─'.repeat(65)}`);
-  console.log(`\n  Total: ${ALL_PHASES.length} phases | Done: ${ran.length} | Pending: ${ALL_PHASES.length - ran.length}\n`);
+  console.log(
+    `\n  Total: ${ALL_PHASES.length} phases | Done: ${ran.length} | Pending: ${ALL_PHASES.length - ran.length}\n`,
+  );
 }
 
 /** Drop all tables & re-run all phases */
@@ -170,7 +192,7 @@ async function freshMigrate(): Promise<void> {
   }
 
   // Drop log table too
-  await sequelize.query(`DROP TABLE IF EXISTS "${LOG_TABLE}"`).catch(() => { });
+  await sequelize.query(`DROP TABLE IF EXISTS "${LOG_TABLE}"`).catch(() => {});
   console.log('\n✅ All tables dropped\n');
 
   // Run all again
@@ -185,7 +207,9 @@ async function main(): Promise<void> {
   const param = args[1];
 
   console.log('\n🌾 Agricom CRM Migration Runner');
-  console.log(`   DB: ${process.env.DB_NAME}@${process.env.DB_HOST}:${process.env.DB_PORT}\n`);
+  console.log(
+    `   DB: ${process.env.DB_NAME}@${process.env.DB_HOST}:${process.env.DB_PORT}\n`,
+  );
 
   try {
     await sequelize.authenticate();
@@ -202,7 +226,9 @@ async function main(): Promise<void> {
       await freshMigrate();
     } else if (command === '--phase') {
       if (!param) {
-        console.error('❌ Please specify phase number. Example: npm run migrate:phase 01');
+        console.error(
+          '❌ Please specify phase number. Example: npm run migrate:phase 01',
+        );
         process.exit(1);
       }
       await runPhase(param);

@@ -25,7 +25,10 @@ import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
 import { CreateSalesContractDto } from './dto/create-sales-contract.dto';
-import { UpdateSalesContractDto, UpdateSalesContractStatusDto } from './dto/update-sales-contract.dto';
+import {
+  UpdateSalesContractDto,
+  UpdateSalesContractStatusDto,
+} from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
 import {
@@ -51,7 +54,7 @@ export class SalesContractService implements OnModuleInit {
     private readonly documentFileModel: typeof SalesContractDocumentFile,
     private readonly attachmentsService: AttachmentsService,
     private readonly sequelize: Sequelize,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // Schema modifications are handled by database migrations (phase-06-sales & phase-07-shipments)
@@ -59,43 +62,88 @@ export class SalesContractService implements OnModuleInit {
 
   private async validateForeignKeys(companyId: number, dto: any) {
     if (dto.buyerId) {
-      const buyer = await Partner.findOne({ where: { id: dto.buyerId, companyId } });
-      if (!buyer) throw new BadRequestException('Buyer not found or does not belong to company');
+      const buyer = await Partner.findOne({
+        where: { id: dto.buyerId, companyId },
+      });
+      if (!buyer)
+        throw new BadRequestException(
+          'Buyer not found or does not belong to company',
+        );
     }
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
     if (dto.brokerId) {
-      const broker = await Partner.findOne({ where: { id: dto.brokerId, companyId } });
-      if (!broker) throw new BadRequestException('Broker not found or does not belong to company');
+      const broker = await Partner.findOne({
+        where: { id: dto.brokerId, companyId },
+      });
+      if (!broker)
+        throw new BadRequestException(
+          'Broker not found or does not belong to company',
+        );
     }
     if (dto.shipmentTypeId) {
-      const st = await ShipmentType.findOne({ where: { id: dto.shipmentTypeId, companyId } });
-      if (!st) throw new BadRequestException('Shipment Type not found or does not belong to company');
+      const st = await ShipmentType.findOne({
+        where: { id: dto.shipmentTypeId, companyId },
+      });
+      if (!st)
+        throw new BadRequestException(
+          'Shipment Type not found or does not belong to company',
+        );
     }
     if (dto.paymentTermId) {
-      const pt = await PaymentTerm.findOne({ where: { id: dto.paymentTermId, companyId } });
-      if (!pt) throw new BadRequestException('Payment Term not found or does not belong to company');
+      const pt = await PaymentTerm.findOne({
+        where: { id: dto.paymentTermId, companyId },
+      });
+      if (!pt)
+        throw new BadRequestException(
+          'Payment Term not found or does not belong to company',
+        );
     }
 
     if (dto.items && dto.items.length > 0) {
       for (const item of dto.items) {
         if (item.productId) {
-          const prod = await Product.findOne({ where: { id: item.productId, companyId } });
-          if (!prod) throw new BadRequestException('Product not found or does not belong to company');
+          const prod = await Product.findOne({
+            where: { id: item.productId, companyId },
+          });
+          if (!prod)
+            throw new BadRequestException(
+              'Product not found or does not belong to company',
+            );
         }
         if (item.bagTypeId) {
-          const bagType = await BagType.findOne({ where: { id: item.bagTypeId, companyId } });
-          if (!bagType) throw new BadRequestException('Bag Type not found or does not belong to company');
+          const bagType = await BagType.findOne({
+            where: { id: item.bagTypeId, companyId },
+          });
+          if (!bagType)
+            throw new BadRequestException(
+              'Bag Type not found or does not belong to company',
+            );
         }
         if (item.packingTypeId) {
-          const pack = await PackingType.findOne({ where: { id: item.packingTypeId, companyId } });
-          if (!pack) throw new BadRequestException('Packing Type not found or does not belong to company');
+          const pack = await PackingType.findOne({
+            where: { id: item.packingTypeId, companyId },
+          });
+          if (!pack)
+            throw new BadRequestException(
+              'Packing Type not found or does not belong to company',
+            );
         }
         if (item.bagSpecificationId) {
-          const spec = await BagSpecification.findOne({ where: { id: item.bagSpecificationId, companyId } });
-          if (!spec) throw new BadRequestException('Bag Specification not found or does not belong to company');
+          const spec = await BagSpecification.findOne({
+            where: { id: item.bagSpecificationId, companyId },
+          });
+          if (!spec)
+            throw new BadRequestException(
+              'Bag Specification not found or does not belong to company',
+            );
         }
       }
     }
@@ -149,8 +197,7 @@ export class SalesContractService implements OnModuleInit {
     await this.validateForeignKeys(companyId, dto);
 
     return await this.sequelize.transaction(async (t) => {
-
-          // ── Step 3: Auto-generate contract number inside the transaction ───────
+      // ── Step 3: Auto-generate contract number inside the transaction ───────
       if (isAutoGenerated) {
         const seller = await Partner.findOne({ where: { id: dto.sellerId } });
         const buyer = await Partner.findOne({ where: { id: dto.buyerId } });
@@ -212,9 +259,11 @@ export class SalesContractService implements OnModuleInit {
 
       // 4. Create Shipments
       if (dto.shipments && dto.shipments.length > 0) {
-        const contractNo = (contract.contractNumber || dto.contractNumber)?.trim();
+        const contractNo = (
+          contract.contractNumber || dto.contractNumber
+        )?.trim();
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
-          const sNo = shipment.shipmentNo || (index + 1);
+          const sNo = shipment.shipmentNo || index + 1;
           return {
             ...shipment,
             shipmentNo: sNo,
@@ -230,7 +279,9 @@ export class SalesContractService implements OnModuleInit {
             ),
           };
         }) as any[];
-        await this.shipmentModel.bulkCreate(shipmentsToCreate, { transaction: t });
+        await this.shipmentModel.bulkCreate(shipmentsToCreate, {
+          transaction: t,
+        });
       }
 
       // 5. Create Documents
@@ -247,7 +298,14 @@ export class SalesContractService implements OnModuleInit {
   }
 
   async findAll(query: QuerySalesContractDto & { companyId?: number }) {
-    const { search, status, buyerId, financialYear, page = 1, limit = 10 } = query;
+    const {
+      search,
+      status,
+      buyerId,
+      financialYear,
+      page = 1,
+      limit = 10,
+    } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = {};
@@ -279,7 +337,10 @@ export class SalesContractService implements OnModuleInit {
       distinct: true,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['contractDate', 'DESC'], ['createdAt', 'DESC']],
+      order: [
+        ['contractDate', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
     });
 
     // Attach hasPurchaseContract flag to each row
@@ -329,7 +390,11 @@ export class SalesContractService implements OnModuleInit {
     return item;
   }
 
-  async update(id: number, dto: UpdateSalesContractDto, user: any): Promise<SalesContract> {
+  async update(
+    id: number,
+    dto: UpdateSalesContractDto,
+    user: any,
+  ): Promise<SalesContract> {
     const contract = await this.findOne(id, user?.companyId);
 
     await this.validateForeignKeys(user?.companyId, dto);
@@ -353,7 +418,7 @@ export class SalesContractService implements OnModuleInit {
         ...dto,
         totalQuantity: calculatedTotalQty,
         totalAmount: calculatedTotalAmt,
-        updatedBy: user?.userId
+        updatedBy: user?.userId,
       };
       if (dto.contractDate) {
         updateData.contractDate = new Date(dto.contractDate);
@@ -370,9 +435,7 @@ export class SalesContractService implements OnModuleInit {
 
         for (let index = 0; index < dto.items.length; index++) {
           const item = dto.items[index] as any;
-          let existing = existingItems.find(
-            (i) => (item.id && i.id === item.id),
-          );
+          let existing = existingItems.find((i) => item.id && i.id === item.id);
           if (!existing && index < existingItems.length && !item.id) {
             existing = existingItems[index];
           }
@@ -391,14 +454,16 @@ export class SalesContractService implements OnModuleInit {
               {
                 ...item,
                 salesContractId: contract.id,
-              } as any,
+              },
               { transaction: t },
             );
             updatedItemIds.push(created.id);
           }
         }
 
-        const itemsToDelete = existingItems.filter((i) => !updatedItemIds.includes(i.id));
+        const itemsToDelete = existingItems.filter(
+          (i) => !updatedItemIds.includes(i.id),
+        );
         for (const item of itemsToDelete) {
           await item.destroy({ transaction: t });
         }
@@ -411,15 +476,18 @@ export class SalesContractService implements OnModuleInit {
           transaction: t,
         });
 
-        const contractNo = (dto.contractNumber || contract.contractNumber)?.trim();
+        const contractNo = (
+          dto.contractNumber || contract.contractNumber
+        )?.trim();
         const updatedShipmentIds: number[] = [];
 
         for (let index = 0; index < dto.shipments.length; index++) {
           const shipment = dto.shipments[index] as any;
-          const sNo = shipment.shipmentNo || (index + 1);
+          const sNo = shipment.shipmentNo || index + 1;
 
           let existing = existingShipments.find(
-            (s) => (shipment.id && s.id === shipment.id) || s.shipmentNo === sNo,
+            (s) =>
+              (shipment.id && s.id === shipment.id) || s.shipmentNo === sNo,
           );
           if (!existing && index < existingShipments.length && !shipment.id) {
             existing = existingShipments[index];
@@ -454,7 +522,7 @@ export class SalesContractService implements OnModuleInit {
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || 'Scheduled',
-              } as any,
+              },
               { transaction: t },
             );
             updatedShipmentIds.push(created.id);
@@ -496,7 +564,9 @@ export class SalesContractService implements OnModuleInit {
         for (let index = 0; index < dto.documents.length; index++) {
           const doc = dto.documents[index] as any;
           let existing = existingDocs.find(
-            (d) => (doc.id && d.id === doc.id) || d.tradeDocumentId === doc.tradeDocumentId,
+            (d) =>
+              (doc.id && d.id === doc.id) ||
+              d.tradeDocumentId === doc.tradeDocumentId,
           );
           if (!existing && index < existingDocs.length && !doc.id) {
             existing = existingDocs[index];
@@ -516,14 +586,16 @@ export class SalesContractService implements OnModuleInit {
               {
                 ...doc,
                 salesContractId: contract.id,
-              } as any,
+              },
               { transaction: t },
             );
             updatedDocIds.push(created.id);
           }
         }
 
-        const docsToDelete = existingDocs.filter((d) => !updatedDocIds.includes(d.id));
+        const docsToDelete = existingDocs.filter(
+          (d) => !updatedDocIds.includes(d.id),
+        );
         for (const doc of docsToDelete) {
           await doc.destroy({ transaction: t });
         }
@@ -533,26 +605,34 @@ export class SalesContractService implements OnModuleInit {
     return await this.findOne(id);
   }
 
-  async updateStatus(id: number, dto: UpdateSalesContractStatusDto, user: any): Promise<SalesContract> {
+  async updateStatus(
+    id: number,
+    dto: UpdateSalesContractStatusDto,
+    user: any,
+  ): Promise<SalesContract> {
     const contract = await this.findOne(id, user?.companyId);
 
     if (dto.status === 'Active') {
-      const mandatoryDocs = contract.documents.filter(doc => doc.isMandatory);
+      const mandatoryDocs = contract.documents.filter((doc) => doc.isMandatory);
       if (mandatoryDocs.length > 0) {
         const uploadedFiles = await this.documentFileModel.findAll({
-          where: { salesContractId: id }
+          where: { salesContractId: id },
         });
 
         const missingDocs = [];
         for (const doc of mandatoryDocs) {
-          const hasFile = uploadedFiles.some(f => f.tradeDocumentId === doc.tradeDocumentId);
+          const hasFile = uploadedFiles.some(
+            (f) => f.tradeDocumentId === doc.tradeDocumentId,
+          );
           if (!hasFile) {
             missingDocs.push(doc.tradeDocument.name);
           }
         }
 
         if (missingDocs.length > 0) {
-          throw new BadRequestException(`Cannot activate contract.\nMissing Documents:\n- ${missingDocs.join('\n- ')}`);
+          throw new BadRequestException(
+            `Cannot activate contract.\nMissing Documents:\n- ${missingDocs.join('\n- ')}`,
+          );
         }
       }
     }
@@ -562,7 +642,9 @@ export class SalesContractService implements OnModuleInit {
   }
 
   async getDistinctFinancialYears(companyId?: number): Promise<string[]> {
-    const whereSql = companyId ? `WHERE company_id = ${companyId} AND financial_year IS NOT NULL` : `WHERE financial_year IS NOT NULL`;
+    const whereSql = companyId
+      ? `WHERE company_id = ${companyId} AND financial_year IS NOT NULL`
+      : `WHERE financial_year IS NOT NULL`;
     const results = await this.sequelize.query<{ financial_year: string }>(
       `SELECT DISTINCT financial_year FROM sales_contracts ${whereSql} ORDER BY financial_year DESC`,
       { type: QueryTypes.SELECT },
@@ -620,15 +702,25 @@ export class SalesContractService implements OnModuleInit {
 
     let maxSequence: number | null = null;
     for (const row of rows) {
-      const seq = parseSequenceFromContractNumber(row.contract_number, sellerCode, fySuffix, includeBuyerInitial);
+      const seq = parseSequenceFromContractNumber(
+        row.contract_number,
+        sellerCode,
+        fySuffix,
+        includeBuyerInitial,
+      );
       if (seq !== null && (maxSequence === null || seq > maxSequence)) {
         maxSequence = seq;
       }
     }
 
-    const nextSequence = maxSequence !== null ? maxSequence + 4 : initialSequence;
+    const nextSequence =
+      maxSequence !== null ? maxSequence + 4 : initialSequence;
     // Build prefix: buyer initial (if applicable) + seller code
-    const prefix = buildContractPrefix(buyer.entityName, sellerCode, includeBuyerInitial);
+    const prefix = buildContractPrefix(
+      buyer.entityName,
+      sellerCode,
+      includeBuyerInitial,
+    );
     return { contractNo: `${prefix}.${nextSequence}${fySuffix}` };
   }
 
@@ -645,7 +737,9 @@ export class SalesContractService implements OnModuleInit {
     // 1. Populate from contract.documents (saved documents)
     for (const doc of contract.documents) {
       if (doc.tradeDocument) {
-        const mapping = mappingFiles.find(f => f.tradeDocumentId === doc.tradeDocumentId);
+        const mapping = mappingFiles.find(
+          (f) => f.tradeDocumentId === doc.tradeDocumentId,
+        );
         docMap.set(doc.tradeDocumentId, {
           tradeDocument: {
             id: doc.tradeDocument.id,
@@ -653,13 +747,16 @@ export class SalesContractService implements OnModuleInit {
             mandatoryByDefault: doc.tradeDocument.mandatoryByDefault,
           },
           uploaded: !!mapping,
-          attachment: (mapping && mapping.attachment) ? {
-            id: mapping.attachment.id,
-            originalName: mapping.attachment.originalName,
-            mimeType: mapping.attachment.mimeType,
-            fileSize: mapping.attachment.fileSize,
-            downloadUrl: `/attachments/${mapping.attachment.id}/download`,
-          } : null,
+          attachment:
+            mapping && mapping.attachment
+              ? {
+                  id: mapping.attachment.id,
+                  originalName: mapping.attachment.originalName,
+                  mimeType: mapping.attachment.mimeType,
+                  fileSize: mapping.attachment.fileSize,
+                  downloadUrl: `/attachments/${mapping.attachment.id}/download`,
+                }
+              : null,
         });
       }
     }
@@ -674,13 +771,15 @@ export class SalesContractService implements OnModuleInit {
             mandatoryByDefault: mapping.tradeDocument.mandatoryByDefault,
           },
           uploaded: true,
-          attachment: mapping.attachment ? {
-            id: mapping.attachment.id,
-            originalName: mapping.attachment.originalName,
-            mimeType: mapping.attachment.mimeType,
-            fileSize: mapping.attachment.fileSize,
-            downloadUrl: `/attachments/${mapping.attachment.id}/download`,
-          } : null,
+          attachment: mapping.attachment
+            ? {
+                id: mapping.attachment.id,
+                originalName: mapping.attachment.originalName,
+                mimeType: mapping.attachment.mimeType,
+                fileSize: mapping.attachment.fileSize,
+                downloadUrl: `/attachments/${mapping.attachment.id}/download`,
+              }
+            : null,
         });
       }
     }
@@ -688,9 +787,19 @@ export class SalesContractService implements OnModuleInit {
     return Array.from(docMap.values());
   }
 
-  async uploadDocument(id: number, tradeDocumentId: number, file: Express.Multer.File, user: any, companyId: number) {
+  async uploadDocument(
+    id: number,
+    tradeDocumentId: number,
+    file: Express.Multer.File,
+    user: any,
+    companyId: number,
+  ) {
     // 1. Create attachment via central engine
-    const attachment = await this.attachmentsService.createAttachment(file, user?.userId, companyId);
+    const attachment = await this.attachmentsService.createAttachment(
+      file,
+      user?.userId,
+      companyId,
+    );
 
     // 2. Check if mapping already exists
     const existingMapping = await this.documentFileModel.findOne({
@@ -699,7 +808,9 @@ export class SalesContractService implements OnModuleInit {
 
     if (existingMapping) {
       // 3. Re-upload flow: delete old attachment (engine handles file + generic row)
-      await this.attachmentsService.deleteAttachment(existingMapping.attachmentId);
+      await this.attachmentsService.deleteAttachment(
+        existingMapping.attachmentId,
+      );
 
       // 4. Update mapping
       await existingMapping.update({
@@ -728,7 +839,9 @@ export class SalesContractService implements OnModuleInit {
     }
 
     // 1. Delete attachment via central engine
-    await this.attachmentsService.deleteAttachment(existingMapping.attachmentId);
+    await this.attachmentsService.deleteAttachment(
+      existingMapping.attachmentId,
+    );
 
     // 2. Delete mapping row
     await existingMapping.destroy();
@@ -739,7 +852,9 @@ export class SalesContractService implements OnModuleInit {
   async remove(id: number, user: any): Promise<SalesContract> {
     const contract = await this.findOne(id, user?.companyId);
     if (contract.status !== 'Draft' && contract.status !== 'Cancelled') {
-      throw new BadRequestException('Only Draft or Cancelled contracts can be deleted');
+      throw new BadRequestException(
+        'Only Draft or Cancelled contracts can be deleted',
+      );
     }
     await contract.update({ status: 'Cancelled', updatedBy: user?.userId });
     return contract.reload();

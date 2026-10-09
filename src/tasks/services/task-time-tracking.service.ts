@@ -31,11 +31,7 @@ export class TaskTimeTrackingService {
 
   async start(taskId: number, clientId: number, userId: number) {
     await this.assertTask(taskId, clientId);
-    const active = await this.repo.findActiveSession(
-      taskId,
-      userId,
-      clientId,
-    );
+    const active = await this.repo.findActiveSession(taskId, userId, clientId);
     if (active)
       throw new BadRequestException(
         'A timer session is already running for this task',
@@ -62,11 +58,7 @@ export class TaskTimeTrackingService {
 
   async pause(taskId: number, clientId: number, userId: number) {
     await this.assertTask(taskId, clientId);
-    const session = await this.repo.findActiveSession(
-      taskId,
-      userId,
-      clientId,
-    );
+    const session = await this.repo.findActiveSession(taskId, userId, clientId);
     if (!session)
       throw new BadRequestException('No active timer session to pause');
     if (session.pausedAt)
@@ -81,11 +73,7 @@ export class TaskTimeTrackingService {
 
   async resume(taskId: number, clientId: number, userId: number) {
     await this.assertTask(taskId, clientId);
-    const session = await this.repo.findActiveSession(
-      taskId,
-      userId,
-      clientId,
-    );
+    const session = await this.repo.findActiveSession(taskId, userId, clientId);
     if (!session)
       throw new BadRequestException('No active timer session found');
     if (!session.pausedAt) throw new BadRequestException('Timer is not paused');

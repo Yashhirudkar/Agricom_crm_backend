@@ -85,7 +85,9 @@ export class AttendanceCronService {
         const d = new Date();
         d.setDate(d.getDate() - i);
         targetDates.push(d);
-        targetDateStrs.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+        targetDateStrs.push(
+          d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+        );
       }
 
       const sortedStrs = [...targetDateStrs].sort();
@@ -203,7 +205,9 @@ export class AttendanceCronService {
               }
 
               let shiftEndTime: string | null = null;
-              const shift = record.shiftId ? shiftsMap.get(record.shiftId) : null;
+              const shift = record.shiftId
+                ? shiftsMap.get(record.shiftId)
+                : null;
               if (shift) {
                 shiftEndTime = shift.endTime;
               } else {
@@ -273,17 +277,18 @@ export class AttendanceCronService {
 
               const policy = policiesMap.get(employee.companyId) || null;
 
-              const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
-                employee.id,
-                employee.companyId,
-                targetDateStr,
-                record.checkInTime,
-                checkOutTimeVal,
-                shift,
-                policy,
-                [],
-                timezone,
-              );
+              const evalResult =
+                await this.policyEngineService.evaluateAttendanceStatus(
+                  employee.id,
+                  employee.companyId,
+                  targetDateStr,
+                  record.checkInTime,
+                  checkOutTimeVal,
+                  shift,
+                  policy,
+                  [],
+                  timezone,
+                );
 
               let status = evalResult.attendanceStatus;
               const totalHours = evalResult.netWorkingHours;
@@ -314,7 +319,9 @@ export class AttendanceCronService {
           }
 
           // Check if target date was a company holiday
-          const isHoliday = holidaySet.has(`${targetDateStr}_${employee.companyId}`);
+          const isHoliday = holidaySet.has(
+            `${targetDateStr}_${employee.companyId}`,
+          );
 
           if (isHoliday) {
             // Skip marking absent on public/company holidays
@@ -326,7 +333,9 @@ export class AttendanceCronService {
 
           try {
             if (leave) {
-              const status = leave.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+              const status = leave.isHalfDay
+                ? AttendanceStatus.HALF_DAY
+                : AttendanceStatus.ON_LEAVE;
               const rec = await this.recordModel.create({
                 employeeId: employee.id,
                 companyId: employee.companyId,
@@ -346,7 +355,9 @@ export class AttendanceCronService {
 
             // Get weekly off days configuration
             let weeklyOffDays = [0, 6];
-            const shift = employee.shiftId ? shiftsMap.get(employee.shiftId) : null;
+            const shift = employee.shiftId
+              ? shiftsMap.get(employee.shiftId)
+              : null;
             if (shift) {
               weeklyOffDays = shift.weeklyOffDays;
             } else {
@@ -439,7 +450,7 @@ export class AttendanceCronService {
   }
 
   /**
-   * Periodic cron job running every 5 minutes to automatically check out employees 
+   * Periodic cron job running every 5 minutes to automatically check out employees
    * 1 hour after their Office End Time if they forgot to check out.
    */
   @Cron('*/5 * * * *')
@@ -450,7 +461,9 @@ export class AttendanceCronService {
         where: {
           checkInTime: { [Op.ne]: null },
           checkOutTime: null,
-          attendanceState: { [Op.in]: [AttendanceState.WORKING, AttendanceState.ON_BREAK] },
+          attendanceState: {
+            [Op.in]: [AttendanceState.WORKING, AttendanceState.ON_BREAK],
+          },
           isPayrollLocked: false,
         },
       });
@@ -483,7 +496,9 @@ export class AttendanceCronService {
         const timezone = employee.branch?.timezone || 'Asia/Kolkata';
 
         // Current time in employee timezone
-        const todayDateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+        const todayDateStr = now.toLocaleDateString('en-CA', {
+          timeZone: timezone,
+        });
         const currentTimeStr = now.toLocaleTimeString('en-US', {
           hour12: false,
           timeZone: timezone,
@@ -503,27 +518,40 @@ export class AttendanceCronService {
         }
 
         // Calculate 1 hour post Office End Time threshold
-        const shiftEndMins = this.policyEngineService.timeStrToMinutes(shiftEndTimeStr, '18:00');
+        const shiftEndMins = this.policyEngineService.timeStrToMinutes(
+          shiftEndTimeStr,
+          '18:00',
+        );
         let autoCheckoutThresholdMins = shiftEndMins + 60; // 1 hour post shift end
 
         if (policy?.autoCheckoutTime && policy.autoCheckoutTime !== '23:59') {
-          const customAutoMins = this.policyEngineService.timeStrToMinutes(policy.autoCheckoutTime, '23:59');
-          autoCheckoutThresholdMins = Math.min(autoCheckoutThresholdMins, customAutoMins);
+          const customAutoMins = this.policyEngineService.timeStrToMinutes(
+            policy.autoCheckoutTime,
+            '23:59',
+          );
+          autoCheckoutThresholdMins = Math.min(
+            autoCheckoutThresholdMins,
+            customAutoMins,
+          );
         }
 
         const isPastDate = record.date < todayDateStr;
-        const isPastThresholdToday = record.date === todayDateStr && currentMins >= autoCheckoutThresholdMins;
+        const isPastThresholdToday =
+          record.date === todayDateStr &&
+          currentMins >= autoCheckoutThresholdMins;
 
         if (isPastDate || isPastThresholdToday) {
           // Night shift safety: if check-in is less than 2 hours old, skip
-          const checkInAgeMs = now.getTime() - new Date(record.checkInTime).getTime();
+          const checkInAgeMs =
+            now.getTime() - new Date(record.checkInTime).getTime();
           if (checkInAgeMs < 2 * 60 * 60 * 1000) {
             continue;
           }
 
           const tzOffsetMs = this.getTzOffsetMs(timezone);
           const checkOutTimeVal = new Date(
-            new Date(`${record.date}T${shiftEndTimeStr}:00Z`).getTime() - tzOffsetMs,
+            new Date(`${record.date}T${shiftEndTimeStr}:00Z`).getTime() -
+              tzOffsetMs,
           );
 
           // Make sure checkOutTimeVal is not before checkInTime
@@ -552,22 +580,26 @@ export class AttendanceCronService {
                 },
               );
             } catch (breakLogErr) {
-              this.logger.error(`Failed to close open break for employee ${employee.id}`, breakLogErr);
+              this.logger.error(
+                `Failed to close open break for employee ${employee.id}`,
+                breakLogErr,
+              );
             }
           }
 
           // Evaluate policy status
-          const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
-            employee.id,
-            employee.companyId,
-            record.date,
-            record.checkInTime,
-            checkOutTimeVal,
-            shift,
-            policy || null,
-            [],
-            timezone,
-          );
+          const evalResult =
+            await this.policyEngineService.evaluateAttendanceStatus(
+              employee.id,
+              employee.companyId,
+              record.date,
+              record.checkInTime,
+              checkOutTimeVal,
+              shift,
+              policy || null,
+              [],
+              timezone,
+            );
 
           // Update record: force overtimeHours = 0 for auto-checkout
           await record.update({
@@ -583,10 +615,13 @@ export class AttendanceCronService {
             hour12: true,
             timeZone: timezone,
           });
-          const recordedCheckoutTimeStr = checkOutTimeVal.toLocaleTimeString('en-US', {
-            hour12: true,
-            timeZone: timezone,
-          });
+          const recordedCheckoutTimeStr = checkOutTimeVal.toLocaleTimeString(
+            'en-US',
+            {
+              hour12: true,
+              timeZone: timezone,
+            },
+          );
 
           try {
             await this.recordModel.sequelize.query(
@@ -607,7 +642,10 @@ export class AttendanceCronService {
               },
             );
           } catch (logErr) {
-            this.logger.error(`Failed to create auto checkout audit log for employee ${employee.id}`, logErr);
+            this.logger.error(
+              `Failed to create auto checkout audit log for employee ${employee.id}`,
+              logErr,
+            );
           }
 
           mutatedRecords.push(record);
@@ -622,7 +660,10 @@ export class AttendanceCronService {
         try {
           this.attendanceGateway.emitAttendanceUpdate('auto_checkout', record);
         } catch (err) {
-          this.logger.error(`Failed to emit auto checkout socket update for employee ${record.employeeId}`, err);
+          this.logger.error(
+            `Failed to emit auto checkout socket update for employee ${record.employeeId}`,
+            err,
+          );
         }
       }
     } catch (error) {
@@ -630,4 +671,3 @@ export class AttendanceCronService {
     }
   }
 }
-

@@ -32,7 +32,9 @@ export class NotificationsGateway
         client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token) {
-        this.logger.warn(`[NotificationsGateway] Connection rejected: No token found. Client ID: ${client.id}`);
+        this.logger.warn(
+          `[NotificationsGateway] Connection rejected: No token found. Client ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
@@ -41,32 +43,44 @@ export class NotificationsGateway
       try {
         payload = this.jwtService.verify(token);
       } catch (jwtErr) {
-        this.logger.warn(`[NotificationsGateway] Connection rejected: Token verification failed. Client ID: ${client.id}`);
+        this.logger.warn(
+          `[NotificationsGateway] Connection rejected: Token verification failed. Client ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
 
       if (!payload || !payload.userId) {
-        this.logger.warn(`[NotificationsGateway] Connection rejected: Invalid payload or userId missing. Client ID: ${client.id}`);
+        this.logger.warn(
+          `[NotificationsGateway] Connection rejected: Invalid payload or userId missing. Client ID: ${client.id}`,
+        );
         client.disconnect(true);
         return;
       }
 
       const userId = payload.userId;
       client.join(`user-${userId}`);
-      this.logger.log(`[NotificationsGateway] Socket authenticated: User ${userId} joined room user-${userId}`);
+      this.logger.log(
+        `[NotificationsGateway] Socket authenticated: User ${userId} joined room user-${userId}`,
+      );
     } catch (err) {
-      this.logger.error(`[NotificationsGateway] Socket connection auth error: ${err.message}`);
+      this.logger.error(
+        `[NotificationsGateway] Socket connection auth error: ${err.message}`,
+      );
       client.disconnect(true);
     }
   }
 
   handleDisconnect(client: Socket) {
-    this.logger.log(`[NotificationsGateway] Socket client disconnected: ${client.id}`);
+    this.logger.log(
+      `[NotificationsGateway] Socket client disconnected: ${client.id}`,
+    );
   }
 
   emitToUser(userId: number, event: string, data: any) {
     this.server.to(`user-${userId}`).emit(event, data);
-    this.logger.log(`[NotificationsGateway] Emitted event '${event}' to room user-${userId}`);
+    this.logger.log(
+      `[NotificationsGateway] Emitted event '${event}' to room user-${userId}`,
+    );
   }
 }

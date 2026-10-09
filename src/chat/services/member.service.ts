@@ -10,10 +10,17 @@ import { Conversation } from '../models/conversation.model';
 import { ConversationMember } from '../models/conversation-member.model';
 import { User } from '../../users/models/user.model';
 import { Message } from '../models/message.model';
-import { AddMemberDto, UpdateMemberRoleDto, MuteMemberDto } from '../dto/chat.dto';
+import {
+  AddMemberDto,
+  UpdateMemberRoleDto,
+  MuteMemberDto,
+} from '../dto/chat.dto';
 import { MemberRole, MessageType } from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 import {
   ChatEventNames,
   MemberAddedEvent,
@@ -45,7 +52,12 @@ export class MemberService {
     conversationId: number,
     companyId: number,
     dto: AddMemberDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<ConversationMember> {
     await this.policyService.canInvite(conversationId, actor, companyId);
 
@@ -70,7 +82,9 @@ export class MemberService {
     });
 
     if (existingMember) {
-      throw new BadRequestException('User is already a member of this conversation.');
+      throw new BadRequestException(
+        'User is already a member of this conversation.',
+      );
     }
 
     const member = await this.memberModel.create({
@@ -80,7 +94,7 @@ export class MemberService {
       isMuted: false,
       isNotificationMuted: false,
       joinedAt: new Date(),
-    } as any);
+    });
 
     // Audit Log
     await this.auditService.writeLog({
@@ -138,12 +152,12 @@ export class MemberService {
       isEdited: false,
       version: 1,
       isDeleted: false,
-    } as any);
+    });
 
     // Force updatedAt update on conversation to bubble to top
     await this.conversationModel.update(
       { updatedAt: new Date() },
-      { where: { id: conversationId } }
+      { where: { id: conversationId } },
     );
 
     // Broadcast system message
@@ -159,10 +173,19 @@ export class MemberService {
     conversationId: number,
     companyId: number,
     userId: number,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<void> {
     if (Number(actor.userId) !== Number(userId)) {
-      await this.policyService.canRemoveMember(conversationId, actor, companyId);
+      await this.policyService.canRemoveMember(
+        conversationId,
+        actor,
+        companyId,
+      );
     }
 
     const conversation = await this.conversationModel.findOne({
@@ -182,7 +205,9 @@ export class MemberService {
     }
 
     if (member.role === MemberRole.OWNER) {
-      throw new BadRequestException('Cannot remove the owner of the conversation.');
+      throw new BadRequestException(
+        'Cannot remove the owner of the conversation.',
+      );
     }
 
     await member.destroy();
@@ -222,12 +247,12 @@ export class MemberService {
       isEdited: false,
       version: 1,
       isDeleted: false,
-    } as any);
+    });
 
     // Force updatedAt update on conversation to bubble to top
     await this.conversationModel.update(
       { updatedAt: new Date() },
-      { where: { id: conversationId } }
+      { where: { id: conversationId } },
     );
 
     // Broadcast system message
@@ -248,7 +273,12 @@ export class MemberService {
     companyId: number,
     userId: number,
     dto: UpdateMemberRoleDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<ConversationMember> {
     const member = await this.memberModel.findOne({
       where: { conversationId, userId },
@@ -256,12 +286,16 @@ export class MemberService {
     });
 
     if (!member || member.conversation.companyId !== companyId) {
-      throw new NotFoundException('Membership not found inside this company workspace.');
+      throw new NotFoundException(
+        'Membership not found inside this company workspace.',
+      );
     }
 
     const oldRole = member.role;
     if (oldRole === MemberRole.OWNER && dto.role !== MemberRole.OWNER) {
-      throw new BadRequestException('Cannot change the role of the conversation owner.');
+      throw new BadRequestException(
+        'Cannot change the role of the conversation owner.',
+      );
     }
 
     member.role = dto.role;
@@ -312,7 +346,12 @@ export class MemberService {
     companyId: number,
     userId: number,
     dto: MuteMemberDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<ConversationMember> {
     const member = await this.memberModel.findOne({
       where: { conversationId, userId },
@@ -320,7 +359,9 @@ export class MemberService {
     });
 
     if (!member || member.conversation.companyId !== companyId) {
-      throw new NotFoundException('Membership not found inside this company workspace.');
+      throw new NotFoundException(
+        'Membership not found inside this company workspace.',
+      );
     }
 
     member.isMuted = dto.mute;
@@ -354,7 +395,13 @@ export class MemberService {
     // EMIT DOMAIN EVENT
     this.eventEmitter.emit(
       ChatEventNames.MEMBER_MUTED,
-      new MemberMutedEvent(conversationId, companyId, userId, dto.mute, member.mutedUntil),
+      new MemberMutedEvent(
+        conversationId,
+        companyId,
+        userId,
+        dto.mute,
+        member.mutedUntil,
+      ),
     );
 
     return member;
@@ -398,7 +445,6 @@ export class MemberService {
     return { isPinned: false };
   }
 
-
   // ── Self mute/unmute notifications ──
 
   async muteSelf(
@@ -420,7 +466,10 @@ export class MemberService {
     }
     await member.save();
 
-    return { isMuted: member.isMuted, isNotificationMuted: member.isNotificationMuted } as any;
+    return {
+      isMuted: member.isMuted,
+      isNotificationMuted: member.isNotificationMuted,
+    } as any;
   }
 
   // ── Favorite / Unfavorite a conversation ──
@@ -461,4 +510,3 @@ export class MemberService {
     return { isFavorite: false };
   }
 }
-

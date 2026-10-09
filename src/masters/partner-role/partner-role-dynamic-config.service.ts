@@ -89,11 +89,7 @@ export class PartnerRoleDynamicConfigService {
    * @param ref          Human-readable path for error messages (e.g. "fields[0]")
    * @param allowChildren Whether to recurse into children (false for child fields)
    */
-  private validateField(
-    field: any,
-    ref: string,
-    allowChildren: boolean,
-  ): void {
+  private validateField(field: any, ref: string, allowChildren: boolean): void {
     // --- key ---
     if (!field.key || typeof field.key !== 'string' || !field.key.trim()) {
       throw new BadRequestException(
@@ -151,16 +147,13 @@ export class PartnerRoleDynamicConfigService {
     }
     if (
       field.placeholder !== undefined &&
-      (typeof field.placeholder !== 'string')
+      typeof field.placeholder !== 'string'
     ) {
       throw new BadRequestException(
         `Invalid schema format: ${ref}.placeholder must be a string if provided.`,
       );
     }
-    if (
-      field.helpText !== undefined &&
-      typeof field.helpText !== 'string'
-    ) {
+    if (field.helpText !== undefined && typeof field.helpText !== 'string') {
       throw new BadRequestException(
         `Invalid schema format: ${ref}.helpText must be a string if provided.`,
       );
@@ -197,7 +190,7 @@ export class PartnerRoleDynamicConfigService {
         }
 
         // Fix 2 — Duplicate child key detection within this option group
-        const childKeys = (childFields as any[])
+        const childKeys = childFields
           .map((c: any) => c.key)
           .filter((k): k is string => typeof k === 'string' && !!k.trim());
         const childKeySet = new Set(childKeys);
@@ -213,7 +206,7 @@ export class PartnerRoleDynamicConfigService {
           );
         }
 
-        (childFields as any[]).forEach((child, j) => {
+        childFields.forEach((child, j) => {
           this.validateField(
             child,
             `${ref}.children["${optionKey}"][${j}]`,
@@ -257,7 +250,7 @@ export class PartnerRoleDynamicConfigService {
     }
 
     // Fix 2 — Detect duplicate root-level field keys before deep validation
-    const rootKeys = (schemaJson.fields as any[])
+    const rootKeys = schemaJson.fields
       .map((f: any) => f.key)
       .filter((k): k is string => typeof k === 'string' && !!k.trim());
     const rootKeySet = new Set(rootKeys);
@@ -272,7 +265,7 @@ export class PartnerRoleDynamicConfigService {
     }
 
     // Validate each field individually (includes children + child key duplicate check)
-    (schemaJson.fields as any[]).forEach((field: any, i: number) => {
+    schemaJson.fields.forEach((field: any, i: number) => {
       this.validateField(field, `fields[${i}]`, true);
     });
   }

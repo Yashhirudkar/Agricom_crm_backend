@@ -14,7 +14,10 @@ import { MonthlyStockSectionRow } from '../models/monthly-stock-section-row.mode
 import { MonthlyStockRowCell } from '../models/monthly-stock-row-cell.model';
 import { User } from '../../users/models/user.model';
 import { QueryMonthlyStockSummaryDto } from '../dto/query-monthly-stock-summary.dto';
-import { CreateMonthlyStockSummaryDto, UpdateMonthlyStockSummaryDto } from '../dto/create-monthly-stock-summary.dto';
+import {
+  CreateMonthlyStockSummaryDto,
+  UpdateMonthlyStockSummaryDto,
+} from '../dto/create-monthly-stock-summary.dto';
 import {
   CreateSectionDto,
   UpdateSectionDto,
@@ -26,8 +29,18 @@ import {
 } from '../dto/create-monthly-stock-section.dto';
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 @Injectable()
@@ -56,7 +69,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
         ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_height INT DEFAULT 1;
       `);
     } catch (err) {
-      console.error('Auto-migration error for monthly_stock_sections layout columns:', err);
+      console.error(
+        'Auto-migration error for monthly_stock_sections layout columns:',
+        err,
+      );
     }
   }
 
@@ -192,23 +208,41 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       ],
       order: [
         [{ model: MonthlyStockSection, as: 'sections' }, 'displayOrder', 'ASC'],
-        [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionColumn, as: 'columns' }, 'displayOrder', 'ASC'],
-        [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionRow, as: 'rows' }, 'rowOrder', 'ASC'],
+        [
+          { model: MonthlyStockSection, as: 'sections' },
+          { model: MonthlyStockSectionColumn, as: 'columns' },
+          'displayOrder',
+          'ASC',
+        ],
+        [
+          { model: MonthlyStockSection, as: 'sections' },
+          { model: MonthlyStockSectionRow, as: 'rows' },
+          'rowOrder',
+          'ASC',
+        ],
       ],
     });
 
     if (!record) {
-      throw new NotFoundException(`Monthly Stock Summary with ID #${id} not found.`);
+      throw new NotFoundException(
+        `Monthly Stock Summary with ID #${id} not found.`,
+      );
     }
 
     return this.mapResponse(record);
   }
 
-  async create(dto: CreateMonthlyStockSummaryDto & { sourceSummaryId?: number }, user: any, companyId: number) {
+  async create(
+    dto: CreateMonthlyStockSummaryDto & { sourceSummaryId?: number },
+    user: any,
+    companyId: number,
+  ) {
     const { month, year, countries, status = 'Draft', sourceSummaryId } = dto;
 
     if (!countries || countries.length === 0) {
-      throw new BadRequestException('At least one country must be selected for the report scope.');
+      throw new BadRequestException(
+        'At least one country must be selected for the report scope.',
+      );
     }
 
     // Uniqueness check for (company_id, month, year)
@@ -223,7 +257,7 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     if (existing) {
       const monthName = MONTH_NAMES[month - 1] || month;
       throw new BadRequestException(
-        `A Monthly Stock Summary report for ${monthName} ${year} already exists.`
+        `A Monthly Stock Summary report for ${monthName} ${year} already exists.`,
       );
     }
 
@@ -263,9 +297,23 @@ export class MonthlyStockSummaryService implements OnModuleInit {
           },
         ],
         order: [
-          [{ model: MonthlyStockSection, as: 'sections' }, 'displayOrder', 'ASC'],
-          [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionColumn, as: 'columns' }, 'displayOrder', 'ASC'],
-          [{ model: MonthlyStockSection, as: 'sections' }, { model: MonthlyStockSectionRow, as: 'rows' }, 'rowOrder', 'ASC'],
+          [
+            { model: MonthlyStockSection, as: 'sections' },
+            'displayOrder',
+            'ASC',
+          ],
+          [
+            { model: MonthlyStockSection, as: 'sections' },
+            { model: MonthlyStockSectionColumn, as: 'columns' },
+            'displayOrder',
+            'ASC',
+          ],
+          [
+            { model: MonthlyStockSection, as: 'sections' },
+            { model: MonthlyStockSectionRow, as: 'rows' },
+            'rowOrder',
+            'ASC',
+          ],
         ],
       });
 
@@ -327,17 +375,26 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(newRecord.id, companyId);
   }
 
-  async update(id: number, dto: UpdateMonthlyStockSummaryDto, user: any, companyId: number) {
+  async update(
+    id: number,
+    dto: UpdateMonthlyStockSummaryDto,
+    user: any,
+    companyId: number,
+  ) {
     const record = await this.summaryModel.findOne({
       where: { id, ...(companyId && { companyId }) },
     });
 
     if (!record) {
-      throw new NotFoundException(`Monthly Stock Summary with ID #${id} not found.`);
+      throw new NotFoundException(
+        `Monthly Stock Summary with ID #${id} not found.`,
+      );
     }
 
     if (record.status === 'Published') {
-      throw new BadRequestException('Published stock summaries become read-only and cannot be edited.');
+      throw new BadRequestException(
+        'Published stock summaries become read-only and cannot be edited.',
+      );
     }
 
     const targetMonth = dto.month ?? record.month;
@@ -357,7 +414,7 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       if (duplicate) {
         const monthName = MONTH_NAMES[targetMonth - 1] || targetMonth;
         throw new BadRequestException(
-          `A Monthly Stock Summary report for ${monthName} ${targetYear} already exists.`
+          `A Monthly Stock Summary report for ${monthName} ${targetYear} already exists.`,
         );
       }
     }
@@ -371,7 +428,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
     if (dto.countries) {
       if (dto.countries.length === 0) {
-        throw new BadRequestException('At least one country must be selected for the report scope.');
+        throw new BadRequestException(
+          'At least one country must be selected for the report scope.',
+        );
       }
 
       await this.countryModel.destroy({ where: { summaryId: id } });
@@ -394,7 +453,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     });
 
     if (!record) {
-      throw new NotFoundException(`Monthly Stock Summary with ID #${id} not found.`);
+      throw new NotFoundException(
+        `Monthly Stock Summary with ID #${id} not found.`,
+      );
     }
 
     if (record.status === 'Published') {
@@ -417,16 +478,23 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     });
 
     if (!record) {
-      throw new NotFoundException(`Monthly Stock Summary with ID #${id} not found.`);
+      throw new NotFoundException(
+        `Monthly Stock Summary with ID #${id} not found.`,
+      );
     }
 
     if (record.status === 'Published') {
-      throw new BadRequestException('Published stock summaries cannot be deleted.');
+      throw new BadRequestException(
+        'Published stock summaries cannot be deleted.',
+      );
     }
 
     await record.destroy();
 
-    return { success: true, message: `Monthly Stock Summary #${id} deleted successfully.` };
+    return {
+      success: true,
+      message: `Monthly Stock Summary #${id} deleted successfully.`,
+    };
   }
 
   // ─── SECTION MANAGEMENT ───────────────────────────────────────────────────
@@ -437,22 +505,31 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     });
 
     if (!summary) {
-      throw new NotFoundException(`Monthly Stock Summary #${summaryId} not found.`);
+      throw new NotFoundException(
+        `Monthly Stock Summary #${summaryId} not found.`,
+      );
     }
 
     if (summary.status === 'Published') {
-      throw new BadRequestException('Published reports are read-only. Editing sections/rows/columns is disabled.');
+      throw new BadRequestException(
+        'Published reports are read-only. Editing sections/rows/columns is disabled.',
+      );
     }
 
     return summary;
   }
 
-  async addSection(summaryId: number, dto: CreateSectionDto, companyId: number) {
+  async addSection(
+    summaryId: number,
+    dto: CreateSectionDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
-    const maxOrder = (await this.sectionModel.max('displayOrder', {
-      where: { monthlyStockSummaryId: summaryId },
-    })) as number || 0;
+    const maxOrder =
+      ((await this.sectionModel.max('displayOrder', {
+        where: { monthlyStockSummaryId: summaryId },
+      })) as number) || 0;
 
     const section = await this.sectionModel.create({
       monthlyStockSummaryId: summaryId,
@@ -464,9 +541,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       ...(dto.layoutHeight !== undefined && { layoutHeight: dto.layoutHeight }),
     });
 
-    const columnsToCreate = dto.presetColumns && dto.presetColumns.length > 0
-      ? dto.presetColumns
-      : ['SR'];
+    const columnsToCreate =
+      dto.presetColumns && dto.presetColumns.length > 0
+        ? dto.presetColumns
+        : ['SR'];
 
     const colData = columnsToCreate.map((colName, idx) => ({
       sectionId: section.id,
@@ -480,7 +558,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async updateSection(summaryId: number, sectionId: number, dto: UpdateSectionDto, companyId: number) {
+  async updateSection(
+    summaryId: number,
+    sectionId: number,
+    dto: UpdateSectionDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const section = await this.sectionModel.findOne({
@@ -519,7 +602,11 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async duplicateSection(summaryId: number, sectionId: number, companyId: number) {
+  async duplicateSection(
+    summaryId: number,
+    sectionId: number,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const sourceSec = await this.sectionModel.findOne({
@@ -533,7 +620,11 @@ export class MonthlyStockSummaryService implements OnModuleInit {
         },
       ],
       order: [
-        [{ model: MonthlyStockSectionColumn, as: 'columns' }, 'displayOrder', 'ASC'],
+        [
+          { model: MonthlyStockSectionColumn, as: 'columns' },
+          'displayOrder',
+          'ASC',
+        ],
         [{ model: MonthlyStockSectionRow, as: 'rows' }, 'rowOrder', 'ASC'],
       ],
     });
@@ -612,7 +703,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
   // ─── COLUMN MANAGEMENT ───────────────────────────────────────────────────
 
-  async addColumn(summaryId: number, sectionId: number, dto: CreateColumnDto, companyId: number) {
+  async addColumn(
+    summaryId: number,
+    sectionId: number,
+    dto: CreateColumnDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const existing = await this.columnModel.findOne({
@@ -623,12 +719,15 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     });
 
     if (existing) {
-      throw new BadRequestException(`Column "${dto.columnName}" already exists in this section.`);
+      throw new BadRequestException(
+        `Column "${dto.columnName}" already exists in this section.`,
+      );
     }
 
-    const maxOrder = (await this.columnModel.max('displayOrder', {
-      where: { sectionId },
-    })) as number || 0;
+    const maxOrder =
+      ((await this.columnModel.max('displayOrder', {
+        where: { sectionId },
+      })) as number) || 0;
 
     const columnKey = `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -642,7 +741,13 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async updateColumn(summaryId: number, sectionId: number, columnId: number, dto: UpdateColumnDto, companyId: number) {
+  async updateColumn(
+    summaryId: number,
+    sectionId: number,
+    columnId: number,
+    dto: UpdateColumnDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const column = await this.columnModel.findOne({
@@ -653,7 +758,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       throw new NotFoundException(`Column #${columnId} not found.`);
     }
 
-    if (dto.columnName && dto.columnName.trim().toLowerCase() !== column.columnName.toLowerCase()) {
+    if (
+      dto.columnName &&
+      dto.columnName.trim().toLowerCase() !== column.columnName.toLowerCase()
+    ) {
       const existing = await this.columnModel.findOne({
         where: {
           sectionId,
@@ -663,7 +771,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       });
 
       if (existing) {
-        throw new BadRequestException(`Column "${dto.columnName}" already exists in this section.`);
+        throw new BadRequestException(
+          `Column "${dto.columnName}" already exists in this section.`,
+        );
       }
     }
 
@@ -674,7 +784,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async deleteColumn(summaryId: number, sectionId: number, columnId: number, companyId: number) {
+  async deleteColumn(
+    summaryId: number,
+    sectionId: number,
+    columnId: number,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const column = await this.columnModel.findOne({
@@ -690,7 +805,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async duplicateColumn(summaryId: number, sectionId: number, columnId: number, companyId: number) {
+  async duplicateColumn(
+    summaryId: number,
+    sectionId: number,
+    columnId: number,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const sourceCol = await this.columnModel.findOne({
@@ -701,9 +821,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       throw new NotFoundException(`Column #${columnId} not found.`);
     }
 
-    const maxOrder = (await this.columnModel.max('displayOrder', {
-      where: { sectionId },
-    })) as number || 0;
+    const maxOrder =
+      ((await this.columnModel.max('displayOrder', {
+        where: { sectionId },
+      })) as number) || 0;
 
     await this.columnModel.create({
       sectionId,
@@ -715,7 +836,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async reorderColumns(summaryId: number, sectionId: number, dto: ReorderDto, companyId: number) {
+  async reorderColumns(
+    summaryId: number,
+    sectionId: number,
+    dto: ReorderDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     for (const item of dto.items) {
@@ -730,7 +856,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
   // ─── ROW MANAGEMENT ──────────────────────────────────────────────────────
 
-  async addRow(summaryId: number, sectionId: number, dto: CreateRowDto, companyId: number) {
+  async addRow(
+    summaryId: number,
+    sectionId: number,
+    dto: CreateRowDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const section = await this.sectionModel.findOne({
@@ -741,9 +872,10 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       throw new NotFoundException(`Section #${sectionId} not found.`);
     }
 
-    const maxOrder = (await this.rowModel.max('rowOrder', {
-      where: { sectionId },
-    })) as number || 0;
+    const maxOrder =
+      ((await this.rowModel.max('rowOrder', {
+        where: { sectionId },
+      })) as number) || 0;
 
     await this.rowModel.create({
       sectionId,
@@ -754,7 +886,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async deleteRow(summaryId: number, sectionId: number, rowId: number, companyId: number) {
+  async deleteRow(
+    summaryId: number,
+    sectionId: number,
+    rowId: number,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const row = await this.rowModel.findOne({
@@ -770,7 +907,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async reorderRows(summaryId: number, sectionId: number, dto: ReorderDto, companyId: number) {
+  async reorderRows(
+    summaryId: number,
+    sectionId: number,
+    dto: ReorderDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     for (const item of dto.items) {
@@ -785,7 +927,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
   // ─── BULK SAVE TRANSACTION ──────────────────────────────────────────────
 
-  async bulkSaveSection(summaryId: number, sectionId: number, dto: BulkSaveSectionDto, companyId: number) {
+  async bulkSaveSection(
+    summaryId: number,
+    sectionId: number,
+    dto: BulkSaveSectionDto,
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     const section = await this.sectionModel.findOne({
@@ -802,12 +949,16 @@ export class MonthlyStockSummaryService implements OnModuleInit {
       await section.update(
         {
           ...(dto.sectionName && { sectionName: dto.sectionName }),
-          ...(dto.layoutWidth !== undefined && { layoutWidth: dto.layoutWidth }),
+          ...(dto.layoutWidth !== undefined && {
+            layoutWidth: dto.layoutWidth,
+          }),
           ...(dto.layoutX !== undefined && { layoutX: dto.layoutX }),
           ...(dto.layoutY !== undefined && { layoutY: dto.layoutY }),
-          ...(dto.layoutHeight !== undefined && { layoutHeight: dto.layoutHeight }),
+          ...(dto.layoutHeight !== undefined && {
+            layoutHeight: dto.layoutHeight,
+          }),
         },
-        { transaction }
+        { transaction },
       );
 
       // Sync Columns if provided
@@ -836,7 +987,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
               columnKeyMap.set(col.columnKey, col.id);
             }
           } else {
-            const columnKey = col.columnKey || `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const columnKey =
+              col.columnKey ||
+              `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
             const createdCol = await this.columnModel.create(
               {
                 sectionId,
@@ -897,7 +1050,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
           if (r.cells && r.cells.length > 0) {
             for (const cell of r.cells) {
-              const targetColumnId = cell.columnId || (cell.columnKey ? columnKeyMap.get(cell.columnKey) : null);
+              const targetColumnId =
+                cell.columnId ||
+                (cell.columnKey ? columnKeyMap.get(cell.columnKey) : null);
               if (!targetColumnId) continue;
 
               const [cellInstance] = await this.cellModel.findOrBuild({
@@ -921,7 +1076,11 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     return this.findOne(summaryId, companyId);
   }
 
-  async saveReportData(summaryId: number, dto: { sections: any[] }, companyId: number) {
+  async saveReportData(
+    summaryId: number,
+    dto: { sections: any[] },
+    companyId: number,
+  ) {
     await this.assertEditableSummary(summaryId, companyId);
 
     if (!dto.sections || dto.sections.length === 0) {
@@ -930,7 +1089,12 @@ export class MonthlyStockSummaryService implements OnModuleInit {
 
     for (const secData of dto.sections) {
       if (secData.sectionId) {
-        await this.bulkSaveSection(summaryId, secData.sectionId, secData, companyId);
+        await this.bulkSaveSection(
+          summaryId,
+          secData.sectionId,
+          secData,
+          companyId,
+        );
       }
     }
 

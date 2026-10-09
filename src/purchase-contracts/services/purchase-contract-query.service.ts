@@ -20,7 +20,10 @@ import { BagSpecification } from '../../masters/bag-specs/models/bag-specificati
 import { TradeDocument } from '../../masters/trade-document/trade-document.model';
 import { Attachment } from '../../attachments/models/attachment.model';
 import { QueryPurchaseContractDto } from '../dto/query-purchase-contract.dto';
-import { calculatePurchaseAllocation, AllocationSummaryResult } from '../utils/purchase-allocation.util';
+import {
+  calculatePurchaseAllocation,
+  AllocationSummaryResult,
+} from '../utils/purchase-allocation.util';
 
 @Injectable()
 export class PurchaseContractQueryService {
@@ -75,7 +78,13 @@ export class PurchaseContractQueryService {
           model: SalesContract,
           as: 'salesContract',
           required: false,
-          attributes: ['id', 'contractNumber', 'financialYear', 'buyerId', 'currencyCode'],
+          attributes: [
+            'id',
+            'contractNumber',
+            'financialYear',
+            'buyerId',
+            'currencyCode',
+          ],
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             {
@@ -84,7 +93,11 @@ export class PurchaseContractQueryService {
               attributes: ['id', 'quantity'],
               include: [
                 { model: Product, as: 'product', attributes: ['id', 'name'] },
-                { model: PackingType, as: 'packingType', attributes: ['id', 'name'] },
+                {
+                  model: PackingType,
+                  as: 'packingType',
+                  attributes: ['id', 'name'],
+                },
               ],
             },
           ],
@@ -108,8 +121,14 @@ export class PurchaseContractQueryService {
     const data = await Promise.all(
       rows.map(async (pc) => {
         const json: any = pc.toJSON();
-        json.contractNumber = pc.contractNumber || (pc.salesContract ? `PC-${pc.salesContract.contractNumber}` : `PC-${pc.id}`);
-        json.shipmentCount = await this.shipmentLinkModel.count({ where: { purchaseContractId: pc.id } });
+        json.contractNumber =
+          pc.contractNumber ||
+          (pc.salesContract
+            ? `PC-${pc.salesContract.contractNumber}`
+            : `PC-${pc.id}`);
+        json.shipmentCount = await this.shipmentLinkModel.count({
+          where: { purchaseContractId: pc.id },
+        });
 
         // Product names
         const scItems: any[] = json.salesContract?.items || json.items || [];
@@ -136,7 +155,9 @@ export class PurchaseContractQueryService {
           { replacements: { id: pc.id }, type: QueryTypes.SELECT },
         );
         json.totalContainers = Number(agg.total_containers);
-        json.totalPurchaseValue = parseFloat(parseFloat(agg.total_purchase_value).toFixed(2));
+        json.totalPurchaseValue = parseFloat(
+          parseFloat(agg.total_purchase_value).toFixed(2),
+        );
 
         return json;
       }),
@@ -155,7 +176,8 @@ export class PurchaseContractQueryService {
   async findOneWithDetail(id: number, companyId?: number) {
     const where: any = { id };
     if (companyId) where.companyId = companyId;
-    const pc = await this.model.findOne({ where,
+    const pc = await this.model.findOne({
+      where,
       include: [
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
@@ -195,8 +217,17 @@ export class PurchaseContractQueryService {
           model: PurchaseContractRequiredDocument,
           as: 'requiredDocuments',
           include: [
-            { model: TradeDocument, as: 'tradeDocument', attributes: ['id', 'name', 'mandatoryByDefault'] },
-            { model: Attachment, as: 'attachment', attributes: ['id', 'originalName', 'mimeType', 'fileSize'], required: false },
+            {
+              model: TradeDocument,
+              as: 'tradeDocument',
+              attributes: ['id', 'name', 'mandatoryByDefault'],
+            },
+            {
+              model: Attachment,
+              as: 'attachment',
+              attributes: ['id', 'originalName', 'mimeType', 'fileSize'],
+              required: false,
+            },
           ],
         },
       ],
@@ -205,24 +236,30 @@ export class PurchaseContractQueryService {
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
     const json: any = pc.toJSON();
-    json.contractNumber = pc.contractNumber || (pc.salesContract ? `PC-${pc.salesContract.contractNumber}` : `PC-${pc.id}`);
+    json.contractNumber =
+      pc.contractNumber ||
+      (pc.salesContract
+        ? `PC-${pc.salesContract.contractNumber}`
+        : `PC-${pc.id}`);
     if (!json.terms || json.terms.length === 0) {
       json.terms = pc.salesContract?.terms || [];
     }
     json.health = await this.computeHealthScore(id);
     json.allocationSummary = await this.computeAllocationSummary(id);
 
-    const attachmentLinks = await this.attachmentLinkModel.findAll({
-      where: { purchaseContractId: id },
-      include: [
-        {
-          model: Attachment,
-          as: 'attachment',
-          attributes: ['id', 'originalName', 'mimeType', 'fileSize'],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    }).catch(() => []);
+    const attachmentLinks = await this.attachmentLinkModel
+      .findAll({
+        where: { purchaseContractId: id },
+        include: [
+          {
+            model: Attachment,
+            as: 'attachment',
+            attributes: ['id', 'originalName', 'mimeType', 'fileSize'],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      })
+      .catch(() => []);
 
     json.attachments = attachmentLinks.map((l) => ({
       id: l.id,
@@ -231,7 +268,9 @@ export class PurchaseContractQueryService {
       originalName: l.attachment?.originalName || 'Attachment',
       mimeType: l.attachment?.mimeType,
       fileSize: l.attachment?.fileSize,
-      downloadUrl: l.attachment ? `/attachments/${l.attachment.id}/download` : null,
+      downloadUrl: l.attachment
+        ? `/attachments/${l.attachment.id}/download`
+        : null,
       createdAt: l.createdAt,
     }));
 
@@ -253,11 +292,17 @@ export class PurchaseContractQueryService {
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'broker', attributes: ['id', 'entityName'] },
-            { model: PaymentTerm, as: 'paymentTerm', attributes: ['id', 'name'] },
+            {
+              model: PaymentTerm,
+              as: 'paymentTerm',
+              attributes: ['id', 'name'],
+            },
             {
               model: SalesContractItem,
               as: 'items',
-              include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+              include: [
+                { model: Product, as: 'product', attributes: ['id', 'name'] },
+              ],
             },
           ],
         },
@@ -287,7 +332,9 @@ export class PurchaseContractQueryService {
     );
 
     // Document summary
-    const docs = await this.docModel.findAll({ where: { purchaseContractId: id } });
+    const docs = await this.docModel.findAll({
+      where: { purchaseContractId: id },
+    });
     const totalDocs = docs.length;
     const uploadedDocs = docs.filter((d) => !!d.attachmentId).length;
 
@@ -314,28 +361,34 @@ export class PurchaseContractQueryService {
         broker: pc.salesContract?.broker,
         paymentTerm: pc.salesContract?.paymentTerm,
       },
-      productSummary: pc.salesContract?.items?.map((item: any) => ({
-        product: item.product,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        amount: item.amount,
-      })) ?? [],
+      productSummary:
+        pc.salesContract?.items?.map((item: any) => ({
+          product: item.product,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          amount: item.amount,
+        })) ?? [],
       financialSummary: {
         shipmentCount: Number(financials.shipment_count),
         containerCount: Number(financials.container_count),
         totalQuantity: parseFloat(financials.total_quantity),
-        avgPurchaseRate: parseFloat(parseFloat(financials.avg_purchase_rate).toFixed(4)),
+        avgPurchaseRate: parseFloat(
+          parseFloat(financials.avg_purchase_rate).toFixed(4),
+        ),
         totalFreight: parseFloat(financials.total_freight),
         avgFreight: parseFloat(parseFloat(financials.avg_freight).toFixed(4)),
         totalForex: parseFloat(financials.total_forex),
         avgForex: parseFloat(parseFloat(financials.avg_forex).toFixed(4)),
-        contractValue: parseFloat(parseFloat(financials.contract_value).toFixed(2)),
+        contractValue: parseFloat(
+          parseFloat(financials.contract_value).toFixed(2),
+        ),
       },
       documentSummary: {
         total: totalDocs,
         uploaded: uploadedDocs,
         pending: totalDocs - uploadedDocs,
-        completionPct: totalDocs > 0 ? Math.round((uploadedDocs / totalDocs) * 100) : 100,
+        completionPct:
+          totalDocs > 0 ? Math.round((uploadedDocs / totalDocs) * 100) : 100,
       },
       timelineSummary: timeline,
       health,
@@ -344,7 +397,9 @@ export class PurchaseContractQueryService {
   }
 
   // ─── ALLOCATION SUMMARY ───────────────────────────────────────────────────────
-  async computeAllocationSummary(purchaseContractId: number): Promise<AllocationSummaryResult> {
+  async computeAllocationSummary(
+    purchaseContractId: number,
+  ): Promise<AllocationSummaryResult> {
     const pc = await this.model.findByPk(purchaseContractId, {
       attributes: ['id', 'salesContractId'],
       include: [
@@ -364,10 +419,11 @@ export class PurchaseContractQueryService {
     });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
-    const salesContractQty = pc.salesContract?.items?.reduce(
-      (sum, item) => sum + (Number(item.quantity) || 0),
-      0,
-    ) || 0;
+    const salesContractQty =
+      pc.salesContract?.items?.reduce(
+        (sum, item) => sum + (Number(item.quantity) || 0),
+        0,
+      ) || 0;
 
     // Sum of shipment quantities in OTHER active purchase contracts linked to the same Sales Contract
     const [alreadyAllocatedRes]: any[] = await this.sequelize.query(
@@ -390,7 +446,9 @@ export class PurchaseContractQueryService {
       },
     );
 
-    const alreadyAllocatedQty = parseFloat(alreadyAllocatedRes?.already_allocated || 0);
+    const alreadyAllocatedQty = parseFloat(
+      alreadyAllocatedRes?.already_allocated || 0,
+    );
 
     // Sum of selected shipment quantities in THIS purchase contract
     const [currentPurchaseRes]: any[] = await this.sequelize.query(
@@ -407,7 +465,9 @@ export class PurchaseContractQueryService {
       },
     );
 
-    const currentPurchaseQty = parseFloat(currentPurchaseRes?.current_purchase || 0);
+    const currentPurchaseQty = parseFloat(
+      currentPurchaseRes?.current_purchase || 0,
+    );
 
     return calculatePurchaseAllocation({
       salesContractQty,
@@ -438,7 +498,13 @@ export class PurchaseContractQueryService {
           ],
         },
       ],
-      order: [[{ model: SalesContractShipment, as: 'shipment' }, 'shipmentDate', 'ASC']],
+      order: [
+        [
+          { model: SalesContractShipment, as: 'shipment' },
+          'shipmentDate',
+          'ASC',
+        ],
+      ],
     });
 
     const today = new Date();
@@ -448,8 +514,11 @@ export class PurchaseContractQueryService {
       const s = link.shipment;
       const target = new Date(s.shipmentDate);
       target.setHours(0, 0, 0, 0);
-      const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
-      const isOverdue = diffDays < 0 && !['Delivered', 'Cancelled'].includes(s.status);
+      const diffDays = Math.round(
+        (target.getTime() - today.getTime()) / 86400000,
+      );
+      const isOverdue =
+        diffDays < 0 && !['Delivered', 'Cancelled'].includes(s.status);
 
       return {
         shipmentId: s.id,
@@ -469,11 +538,22 @@ export class PurchaseContractQueryService {
   }
 
   private buildMilestones(s: SalesContractShipment) {
-    const statuses = ['Scheduled', 'In Transit', 'At Port', 'Customs Clearance', 'Delivered'];
+    const statuses = [
+      'Scheduled',
+      'In Transit',
+      'At Port',
+      'Customs Clearance',
+      'Delivered',
+    ];
     const currentIndex = statuses.indexOf(s.status);
     return statuses.map((st, i) => ({
       label: st,
-      status: i < currentIndex ? 'completed' : i === currentIndex ? 'active' : 'pending',
+      status:
+        i < currentIndex
+          ? 'completed'
+          : i === currentIndex
+            ? 'active'
+            : 'pending',
     }));
   }
 
@@ -492,7 +572,10 @@ export class PurchaseContractQueryService {
       WHERE pcs.purchase_contract_id = :id
       ${companyId ? `AND (SELECT company_id FROM purchase_contracts WHERE id = pcs.purchase_contract_id) = :companyId` : ''}
       `,
-      { replacements: { id, today: todayStr, companyId }, type: QueryTypes.SELECT },
+      {
+        replacements: { id, today: todayStr, companyId },
+        type: QueryTypes.SELECT,
+      },
     );
 
     return {
@@ -615,7 +698,9 @@ export class PurchaseContractQueryService {
     );
 
     // Document completion
-    const docs = await this.docModel.findAll({ where: { purchaseContractId: id } });
+    const docs = await this.docModel.findAll({
+      where: { purchaseContractId: id },
+    });
     const totalDocs = docs.length;
     const uploadedDocs = docs.filter((d) => !!d.attachmentId).length;
 
@@ -623,8 +708,10 @@ export class PurchaseContractQueryService {
     const delivered = Number(shipmentStats.delivered);
     const overdue = Number(shipmentStats.overdue);
 
-    const shipmentCompletion = total > 0 ? Math.round((delivered / total) * 100) : 100;
-    const documentCompletion = totalDocs > 0 ? Math.round((uploadedDocs / totalDocs) * 100) : 100;
+    const shipmentCompletion =
+      total > 0 ? Math.round((delivered / total) * 100) : 100;
+    const documentCompletion =
+      totalDocs > 0 ? Math.round((uploadedDocs / totalDocs) * 100) : 100;
     const overdueCount = overdue;
 
     // Score formula: 50% shipment + 30% documents + 20% no overdue

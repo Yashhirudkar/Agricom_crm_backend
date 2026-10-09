@@ -5,7 +5,10 @@ import { Op } from 'sequelize';
 import { PartnerFollowUp } from '../../masters/partner/partner-followup.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { Notification } from '../../notifications/models/notification.model';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class FollowUpSchedulerService {
@@ -27,7 +30,9 @@ export class FollowUpSchedulerService {
     this.logger.log('Starting daily follow-up scheduler checks...');
     try {
       // Resolve today's date bounds in 'Asia/Kolkata' timezone
-      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayStr = new Date().toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Kolkata',
+      });
       const startOfToday = new Date(`${todayStr}T00:00:00.000Z`);
       const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
 
@@ -38,7 +43,9 @@ export class FollowUpSchedulerService {
           isActive: true,
           nextFollowupDate: { [Op.between]: [startOfToday, endOfToday] },
         },
-        include: [{ model: this.partnerModel, attributes: ['id', 'entityName'] }],
+        include: [
+          { model: this.partnerModel, attributes: ['id', 'entityName'] },
+        ],
       });
 
       if (followUps.length === 0) {
@@ -46,7 +53,9 @@ export class FollowUpSchedulerService {
         return;
       }
 
-      this.logger.log(`Found ${followUps.length} follow-ups scheduled for today. Processing reminders...`);
+      this.logger.log(
+        `Found ${followUps.length} follow-ups scheduled for today. Processing reminders...`,
+      );
 
       for (const followUp of followUps) {
         const userId = followUp.createdBy; // createdBy is treated as owner/assignee
@@ -91,10 +100,15 @@ export class FollowUpSchedulerService {
           category: 'REMINDER',
         });
 
-        this.logger.log(`Scheduler sent notification for user ${userId} and followUpId ${followUp.id}`);
+        this.logger.log(
+          `Scheduler sent notification for user ${userId} and followUpId ${followUp.id}`,
+        );
       }
     } catch (err) {
-      this.logger.error('Error running daily follow-up notifications cron:', err);
+      this.logger.error(
+        'Error running daily follow-up notifications cron:',
+        err,
+      );
     }
   }
 }

@@ -4,7 +4,10 @@ import { Op } from 'sequelize';
 import { PartnerFollowUp } from '../../masters/partner/partner-followup.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { Notification } from '../../notifications/models/notification.model';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class FollowUpNotificationService {
@@ -20,15 +23,22 @@ export class FollowUpNotificationService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async checkAndSendUserReminders(userId: number, companyId: number): Promise<void> {
+  async checkAndSendUserReminders(
+    userId: number,
+    companyId: number,
+  ): Promise<void> {
     if (!userId || !companyId) {
-      this.logger.warn(`Skipping reminders check: userId (${userId}) or companyId (${companyId}) is missing`);
+      this.logger.warn(
+        `Skipping reminders check: userId (${userId}) or companyId (${companyId}) is missing`,
+      );
       return;
     }
 
     try {
       // Resolve today's date bounds in 'Asia/Kolkata' timezone
-      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayStr = new Date().toLocaleDateString('en-CA', {
+        timeZone: 'Asia/Kolkata',
+      });
       const startOfToday = new Date(`${todayStr}T00:00:00.000Z`);
       const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
 
@@ -41,14 +51,18 @@ export class FollowUpNotificationService {
           isActive: true,
           nextFollowupDate: { [Op.between]: [startOfToday, endOfToday] },
         },
-        include: [{ model: this.partnerModel, attributes: ['id', 'entityName'] }],
+        include: [
+          { model: this.partnerModel, attributes: ['id', 'entityName'] },
+        ],
       });
 
       if (followUps.length === 0) {
         return;
       }
 
-      this.logger.log(`Found ${followUps.length} pending follow-ups for user ${userId} today. Processing notifications...`);
+      this.logger.log(
+        `Found ${followUps.length} pending follow-ups for user ${userId} today. Processing notifications...`,
+      );
 
       for (const followUp of followUps) {
         // Query the notifications table to check if a reminder for this followup was already created for the user
@@ -90,10 +104,15 @@ export class FollowUpNotificationService {
           category: 'REMINDER',
         });
 
-        this.logger.log(`Dispatched follow-up notification for user ${userId} and followUpId ${followUp.id}`);
+        this.logger.log(
+          `Dispatched follow-up notification for user ${userId} and followUpId ${followUp.id}`,
+        );
       }
     } catch (err) {
-      this.logger.error(`Error in checkAndSendUserReminders for user ${userId}:`, err);
+      this.logger.error(
+        `Error in checkAndSendUserReminders for user ${userId}:`,
+        err,
+      );
     }
   }
 
@@ -106,9 +125,14 @@ export class FollowUpNotificationService {
           referenceId: followUpId,
         },
       });
-      this.logger.log(`Deleted existing notification(s) for followUpId ${followUpId}`);
+      this.logger.log(
+        `Deleted existing notification(s) for followUpId ${followUpId}`,
+      );
     } catch (err) {
-      this.logger.error(`Error deleting notification for followUpId ${followUpId}:`, err);
+      this.logger.error(
+        `Error deleting notification for followUpId ${followUpId}:`,
+        err,
+      );
     }
   }
 }

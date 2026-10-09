@@ -37,13 +37,24 @@ export class TradeDocumentController {
   }
 
   @Get()
-  @RequireAnyPermission('trade-document:view', 'sales_contract:view', 'enquiry:view')
+  @RequireAnyPermission(
+    'trade-document:view',
+    'sales_contract:view',
+    'enquiry:view',
+  )
   async findAll(@Query() query: QueryTradeDocumentDto, @Req() req: any) {
-    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return await this.service.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    });
   }
 
   @Get(':id')
-  @RequireAnyPermission('trade-document:view', 'sales_contract:view', 'enquiry:view')
+  @RequireAnyPermission(
+    'trade-document:view',
+    'sales_contract:view',
+    'enquiry:view',
+  )
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user?.companyId);
   }

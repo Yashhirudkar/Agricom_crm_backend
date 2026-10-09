@@ -11,4 +11,3 @@ export const syncRbac = async () => {
   await RolePartnerRoleAccess.sync({ alter: true });
   console.log('--- RBAC Models Synced successfully ---');
 };
-

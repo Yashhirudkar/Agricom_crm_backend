@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsInt, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePurchaseContractItemDto {

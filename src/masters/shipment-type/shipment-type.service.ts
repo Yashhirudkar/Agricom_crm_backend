@@ -36,7 +36,7 @@ export class ShipmentTypeService {
       ...dto,
       createdBy: user?.userId,
       companyId: user?.companyId,
-    } as any);
+    });
   }
 
   async findAll(query: QueryShipmentTypeDto & { companyId?: number }) {
@@ -61,7 +61,10 @@ export class ShipmentTypeService {
       where: whereClause,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']],
+      order: [
+        ['sortOrder', 'ASC'],
+        ['createdAt', 'DESC'],
+      ],
     });
 
     return {
@@ -86,7 +89,11 @@ export class ShipmentTypeService {
     return item;
   }
 
-  async update(id: number, dto: UpdateShipmentTypeDto, user: any): Promise<ShipmentType> {
+  async update(
+    id: number,
+    dto: UpdateShipmentTypeDto,
+    user: any,
+  ): Promise<ShipmentType> {
     const item = await this.findOne(id, user?.companyId);
 
     if (dto.code) {

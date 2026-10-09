@@ -1,14 +1,20 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
 export const phase = '09';
-export const name = 'Enquiries, Follow-ups, Notifications & System Activity Architecture';
+export const name =
+  'Enquiries, Follow-ups, Notifications & System Activity Architecture';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 1. holidays ─────────────────────────────────────────────────────────────
   await queryInterface.createTable(
     'holidays',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       clientId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -17,15 +23,51 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'CASCADE',
       },
       title: { type: DataTypes.STRING(255), allowNull: false },
-      holidayDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'holidayDate' },
-      holidayType: { type: DataTypes.STRING(50), allowNull: false, field: 'holidayType' },
+      holidayDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        field: 'holidayDate',
+      },
+      holidayType: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        field: 'holidayType',
+      },
       description: { type: DataTypes.TEXT, allowNull: true },
-      isOptional: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isOptional' },
-      isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isActive' },
-      isWeeklyOff: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isWeeklyOff' },
-      isHalfDay: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isHalfDay' },
-      halfDayStart: { type: DataTypes.TIME, allowNull: true, field: 'halfDayStart' },
-      halfDayEnd: { type: DataTypes.TIME, allowNull: true, field: 'halfDayEnd' },
+      isOptional: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isOptional',
+      },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'isActive',
+      },
+      isWeeklyOff: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isWeeklyOff',
+      },
+      isHalfDay: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isHalfDay',
+      },
+      halfDayStart: {
+        type: DataTypes.TIME,
+        allowNull: true,
+        field: 'halfDayStart',
+      },
+      halfDayEnd: {
+        type: DataTypes.TIME,
+        allowNull: true,
+        field: 'halfDayEnd',
+      },
       createdBy: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -45,13 +87,20 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     },
     { ifNotExists: true } as any,
   );
-  await queryInterface.addIndex('holidays', ['clientId'], { name: 'holidays_client_id' }).catch(() => { });
+  await queryInterface
+    .addIndex('holidays', ['clientId'], { name: 'holidays_client_id' })
+    .catch(() => {});
 
   // ─── 2. holiday_companies ───────────────────────────────────────────────────
   await queryInterface.createTable(
     'holiday_companies',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       holidayId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -76,7 +125,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'enquiries',
     {
-      id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4, allowNull: false },
+      id: {
+        type: DataTypes.UUID,
+        primaryKey: true,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+      },
       enquiry_no: { type: DataTypes.STRING(50), allowNull: false },
       enquiry_date: { type: DataTypes.DATEONLY, allowNull: false },
       partner_role_id: {
@@ -115,8 +169,16 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       quantity: { type: DataTypes.DECIMAL(15, 4), allowNull: true },
       shipment_date: { type: DataTypes.DATEONLY, allowNull: true },
       buying_interest: { type: DataTypes.DECIMAL(15, 4), allowNull: true },
-      potential_enquiry: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'NEW' },
+      potential_enquiry: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'NEW',
+      },
       shipment_mode: { type: DataTypes.STRING(50), allowNull: true },
       origin_port: { type: DataTypes.STRING(100), allowNull: true },
       destination_port: { type: DataTypes.STRING(100), allowNull: true },
@@ -138,29 +200,78 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'users', key: 'id' },
         onDelete: 'SET NULL',
       },
-      created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
-      updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
-      deleted_at: { type: DataTypes.DATE, allowNull: true, field: 'deleted_at' },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: 'created_at',
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: 'updated_at',
+      },
+      deleted_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'deleted_at',
+      },
     },
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('enquiries', ['enquiry_no'], { name: 'enquiries_enquiry_no' }).catch(() => { });
-  await queryInterface.addIndex('enquiries', ['partner_role_id'], { name: 'enquiries_partner_role_id' }).catch(() => { });
-  await queryInterface.addIndex('enquiries', ['partner_id'], { name: 'enquiries_partner_id' }).catch(() => { });
-  await queryInterface.addIndex('enquiries', ['product_id'], { name: 'enquiries_product_id' }).catch(() => { });
-  await queryInterface.addIndex('enquiries', ['status'], { name: 'enquiries_status' }).catch(() => { });
+  await queryInterface
+    .addIndex('enquiries', ['enquiry_no'], { name: 'enquiries_enquiry_no' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('enquiries', ['partner_role_id'], {
+      name: 'enquiries_partner_role_id',
+    })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('enquiries', ['partner_id'], { name: 'enquiries_partner_id' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('enquiries', ['product_id'], { name: 'enquiries_product_id' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('enquiries', ['status'], { name: 'enquiries_status' })
+    .catch(() => {});
 
   // ─── 4. attachments ──────────────────────────────────────────────────────────
   await queryInterface.createTable(
     'attachments',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      entityType: { type: DataTypes.STRING(100), allowNull: false, field: 'entityType' },
-      entityId: { type: DataTypes.INTEGER, allowNull: false, field: 'entityId' },
-      fileName: { type: DataTypes.STRING(255), allowNull: false, field: 'fileName' },
-      filePath: { type: DataTypes.STRING(1000), allowNull: false, field: 'filePath' },
-      mimeType: { type: DataTypes.STRING(100), allowNull: true, field: 'mimeType' },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      entityType: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        field: 'entityType',
+      },
+      entityId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: 'entityId',
+      },
+      fileName: {
+        type: DataTypes.STRING(255),
+        allowNull: false,
+        field: 'fileName',
+      },
+      filePath: {
+        type: DataTypes.STRING(1000),
+        allowNull: false,
+        field: 'filePath',
+      },
+      mimeType: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: 'mimeType',
+      },
       fileSize: { type: DataTypes.INTEGER, allowNull: true, field: 'fileSize' },
       uploadedBy: {
         type: DataTypes.INTEGER,
@@ -186,7 +297,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'audit_logs',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       clientId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -208,28 +324,51 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'users', key: 'id' },
         onDelete: 'SET NULL',
       },
-      entityType: { type: DataTypes.STRING(100), allowNull: false, field: 'entityType' },
+      entityType: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        field: 'entityType',
+      },
       entityId: { type: DataTypes.INTEGER, allowNull: true, field: 'entityId' },
       action: { type: DataTypes.STRING(100), allowNull: false },
       oldValue: { type: DataTypes.JSONB, allowNull: true, field: 'oldValue' },
       newValue: { type: DataTypes.JSONB, allowNull: true, field: 'newValue' },
-      ipAddress: { type: DataTypes.STRING(50), allowNull: true, field: 'ipAddress' },
-      userAgent: { type: DataTypes.STRING(255), allowNull: true, field: 'userAgent' },
+      ipAddress: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        field: 'ipAddress',
+      },
+      userAgent: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'userAgent',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('audit_logs', ['clientId'], { name: 'audit_logs_client_id' }).catch(() => { });
-  await queryInterface.addIndex('audit_logs', ['companyId'], { name: 'audit_logs_company_id' }).catch(() => { });
-  await queryInterface.addIndex('audit_logs', ['userId'], { name: 'audit_logs_user_id' }).catch(() => { });
+  await queryInterface
+    .addIndex('audit_logs', ['clientId'], { name: 'audit_logs_client_id' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('audit_logs', ['companyId'], { name: 'audit_logs_company_id' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('audit_logs', ['userId'], { name: 'audit_logs_user_id' })
+    .catch(() => {});
 
   // ─── 6. profile_activity_logs ────────────────────────────────────────────────
   await queryInterface.createTable(
     'profile_activity_logs',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       userId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -237,7 +376,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'users', key: 'id' },
         onDelete: 'SET NULL',
       },
-      fieldName: { type: DataTypes.STRING(100), allowNull: false, field: 'fieldName' },
+      fieldName: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        field: 'fieldName',
+      },
       oldValue: { type: DataTypes.TEXT, allowNull: true, field: 'oldValue' },
       newValue: { type: DataTypes.TEXT, allowNull: true, field: 'newValue' },
       actorType: {
@@ -246,7 +389,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         defaultValue: 'EMPLOYEE',
         field: 'actorType',
       },
-      ipAddress: { type: DataTypes.STRING(45), allowNull: true, field: 'ipAddress' },
+      ipAddress: {
+        type: DataTypes.STRING(45),
+        allowNull: true,
+        field: 'ipAddress',
+      },
       userAgent: { type: DataTypes.TEXT, allowNull: true, field: 'userAgent' },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
@@ -254,13 +401,22 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('profile_activity_logs', ['userId'], { name: 'profile_activity_logs_user_id' }).catch(() => { });
+  await queryInterface
+    .addIndex('profile_activity_logs', ['userId'], {
+      name: 'profile_activity_logs_user_id',
+    })
+    .catch(() => {});
 
   // ─── 7. notifications ────────────────────────────────────────────────────────
   await queryInterface.createTable(
     'notifications',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -269,58 +425,97 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'CASCADE',
       },
       type: { type: DataTypes.STRING(50), allowNull: false },
-      referenceType: { type: DataTypes.STRING(100), allowNull: false, field: 'referenceType' },
-      referenceId: { type: DataTypes.INTEGER, allowNull: false, field: 'referenceId' },
+      referenceType: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        field: 'referenceType',
+      },
+      referenceId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: 'referenceId',
+      },
       title: { type: DataTypes.STRING(255), allowNull: false },
       payload: { type: DataTypes.JSONB, allowNull: false },
-      isRead: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isRead' },
+      isRead: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isRead',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
     { ifNotExists: true } as any,
   );
 
-  await queryInterface.addIndex('notifications', ['userId'], { name: 'notifications_user_id' }).catch(() => { });
-  await queryInterface.addIndex('notifications', ['createdAt'], { name: 'notifications_created_at' }).catch(() => { });
+  await queryInterface
+    .addIndex('notifications', ['userId'], { name: 'notifications_user_id' })
+    .catch(() => {});
+  await queryInterface
+    .addIndex('notifications', ['createdAt'], {
+      name: 'notifications_created_at',
+    })
+    .catch(() => {});
 
-  console.log('✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs created successfully');
+  console.log(
+    '✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs created successfully',
+  );
 
   // --- From phase 16 ---
-  await queryInterface.addColumn('enquiries', 'origin_zip_code', {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-  }).catch(() => { });
+  await queryInterface
+    .addColumn('enquiries', 'origin_zip_code', {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    })
+    .catch(() => {});
 
-  await queryInterface.addColumn('enquiries', 'destination_zip_code', {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-  }).catch(() => { });
+  await queryInterface
+    .addColumn('enquiries', 'destination_zip_code', {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    })
+    .catch(() => {});
 
-  await queryInterface.addColumn('enquiries', 'origin_station_code', {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-  }).catch(() => { });
+  await queryInterface
+    .addColumn('enquiries', 'origin_station_code', {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    })
+    .catch(() => {});
 
-  await queryInterface.addColumn('enquiries', 'destination_station_code', {
-    type: DataTypes.STRING(20),
-    allowNull: true,
-  }).catch(() => { });
+  await queryInterface
+    .addColumn('enquiries', 'destination_station_code', {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+    })
+    .catch(() => {});
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('notifications').catch(() => { });
-  await queryInterface.dropTable('profile_activity_logs').catch(() => { });
-  await queryInterface.dropTable('audit_logs').catch(() => { });
-  await queryInterface.dropTable('attachments').catch(() => { });
-  await queryInterface.dropTable('enquiries').catch(() => { });
-  await queryInterface.dropTable('holiday_companies').catch(() => { });
-  await queryInterface.dropTable('holidays').catch(() => { });
+  await queryInterface.dropTable('notifications').catch(() => {});
+  await queryInterface.dropTable('profile_activity_logs').catch(() => {});
+  await queryInterface.dropTable('audit_logs').catch(() => {});
+  await queryInterface.dropTable('attachments').catch(() => {});
+  await queryInterface.dropTable('enquiries').catch(() => {});
+  await queryInterface.dropTable('holiday_companies').catch(() => {});
+  await queryInterface.dropTable('holidays').catch(() => {});
 
   // --- From phase 16 ---
-  await queryInterface.removeColumn('enquiries', 'origin_zip_code').catch(() => { });
-  await queryInterface.removeColumn('enquiries', 'destination_zip_code').catch(() => { });
-  await queryInterface.removeColumn('enquiries', 'origin_station_code').catch(() => { });
-  await queryInterface.removeColumn('enquiries', 'destination_station_code').catch(() => { });
+  await queryInterface
+    .removeColumn('enquiries', 'origin_zip_code')
+    .catch(() => {});
+  await queryInterface
+    .removeColumn('enquiries', 'destination_zip_code')
+    .catch(() => {});
+  await queryInterface
+    .removeColumn('enquiries', 'origin_station_code')
+    .catch(() => {});
+  await queryInterface
+    .removeColumn('enquiries', 'destination_station_code')
+    .catch(() => {});
 
-  console.log('✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs dropped');
+  console.log(
+    '✅ Phase 09 - Enquiries, Follow-ups, Notifications & Logs dropped',
+  );
 }

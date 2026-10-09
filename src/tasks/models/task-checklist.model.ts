@@ -16,13 +16,11 @@ import { User } from '../../users/models/user.model';
 import { Task } from './task.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_checklists',
   timestamps: true,
 })
 export class TaskChecklist extends Model<TaskChecklist> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -74,7 +72,10 @@ export class TaskChecklist extends Model<TaskChecklist> {
   @Column({ type: DataType.INTEGER })
   declare completedByUserId: number | null;
 
-  @BelongsTo(() => User, { foreignKey: 'completedByUserId', onDelete: 'CASCADE' })
+  @BelongsTo(() => User, {
+    foreignKey: 'completedByUserId',
+    onDelete: 'CASCADE',
+  })
   declare completedBy: User;
 
   @AllowNull(true)

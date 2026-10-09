@@ -30,7 +30,7 @@ export class UsersService {
     @InjectModel(Role)
     private roleModel: typeof Role,
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
 
   async create(
     name: string,
@@ -511,12 +511,15 @@ export class UsersService {
         }
         mapping = existing;
       } else {
-        mapping = await this.userCompanyModel.create({
-          userId,
-          companyId,
-          roleId: roleId || null,
-          status: 'Active',
-        }, { transaction: t });
+        mapping = await this.userCompanyModel.create(
+          {
+            userId,
+            companyId,
+            roleId: roleId || null,
+            status: 'Active',
+          },
+          { transaction: t },
+        );
       }
 
       if (actor) {
@@ -553,7 +556,9 @@ export class UsersService {
     actor?: any,
   ): Promise<UserCompany> {
     if (!actor || actor.type !== 'super_admin') {
-      throw new ForbiddenException('Only Super Admin can execute transferUserToCompany()');
+      throw new ForbiddenException(
+        'Only Super Admin can execute transferUserToCompany()',
+      );
     }
 
     const t = await this.userModel.sequelize.transaction();
@@ -561,22 +566,30 @@ export class UsersService {
       const user = await this.userModel.findByPk(userId, { transaction: t });
       if (!user) throw new NotFoundException('User not found');
 
-      const company = await this.companyModel.findByPk(companyId, { transaction: t });
+      const company = await this.companyModel.findByPk(companyId, {
+        transaction: t,
+      });
       if (!company) throw new NotFoundException('Company not found');
 
       const oldClientId = user.clientId;
 
       // Fetch names for audit logging
-      const oldClient = oldClientId ? await Client.findByPk(oldClientId, { transaction: t }) : null;
-      const newClient = await Client.findByPk(company.clientId, { transaction: t });
-      
+      const oldClient = oldClientId
+        ? await Client.findByPk(oldClientId, { transaction: t })
+        : null;
+      const newClient = await Client.findByPk(company.clientId, {
+        transaction: t,
+      });
+
       const existingMappings = await this.userCompanyModel.findAll({
         where: { userId },
         include: [{ model: Company, attributes: ['id', 'name'] }],
         transaction: t,
       });
 
-      const oldWorkspaceNames = existingMappings.map(m => m.company?.name || `Workspace #${m.companyId}`);
+      const oldWorkspaceNames = existingMappings.map(
+        (m) => m.company?.name || `Workspace #${m.companyId}`,
+      );
 
       // Remove all existing workspace mappings
       await this.userCompanyModel.destroy({
@@ -590,12 +603,15 @@ export class UsersService {
       await user.save({ transaction: t });
 
       // Create new mapping
-      const mapping = await this.userCompanyModel.create({
-        userId,
-        companyId,
-        roleId: roleId || null,
-        status: 'Active',
-      }, { transaction: t });
+      const mapping = await this.userCompanyModel.create(
+        {
+          userId,
+          companyId,
+          roleId: roleId || null,
+          status: 'Active',
+        },
+        { transaction: t },
+      );
 
       // Write structured audit log
       await this.auditService.writeLog({

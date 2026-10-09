@@ -26,7 +26,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.removeColumn('partners', 'loading_address', { transaction });
+    await queryInterface.removeColumn('partners', 'loading_address', {
+      transaction,
+    });
     await transaction.commit();
   } catch (error) {
     await transaction.rollback();

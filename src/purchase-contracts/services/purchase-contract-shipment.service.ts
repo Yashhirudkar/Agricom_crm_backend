@@ -13,7 +13,10 @@ import { Partner } from '../../masters/partner/partner.model';
 import { SalesContractItem } from '../../sales-contracts/models/sales-contract-item.model';
 import { Product } from '../../masters/product/product.model';
 import { AddShipmentDto } from '../dto/add-shipment.dto';
-import { PurchaseContractActivityService, PC_ACTIONS } from './purchase-contract-activity.service';
+import {
+  PurchaseContractActivityService,
+  PC_ACTIONS,
+} from './purchase-contract-activity.service';
 
 @Injectable()
 export class PurchaseContractShipmentService {
@@ -31,7 +34,11 @@ export class PurchaseContractShipmentService {
    * Syncs the exact array of selected shipment IDs for a Purchase Contract.
    * Removes unselected shipments and adds newly selected ones.
    */
-  async syncShipmentSelection(purchaseContractId: number, shipmentIds: number[], user?: any) {
+  async syncShipmentSelection(
+    purchaseContractId: number,
+    shipmentIds: number[],
+    user?: any,
+  ) {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
@@ -84,11 +91,21 @@ export class PurchaseContractShipmentService {
               as: 'salesContract',
               attributes: ['id', 'contractNumber', 'buyerId', 'currencyCode'],
               include: [
-                { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+                {
+                  model: Partner,
+                  as: 'buyer',
+                  attributes: ['id', 'entityName'],
+                },
                 {
                   model: SalesContractItem,
                   as: 'items',
-                  include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+                  include: [
+                    {
+                      model: Product,
+                      as: 'product',
+                      attributes: ['id', 'name'],
+                    },
+                  ],
                 },
               ],
             },
@@ -139,37 +156,64 @@ export class PurchaseContractShipmentService {
     target.setHours(0, 0, 0, 0);
     const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
 
-    if (diff === 0) return { label: 'Today', color: 'green', days: 0, type: 'today' };
-    if (diff === 1) return { label: 'Tomorrow', color: 'blue', days: 1, type: 'tomorrow' };
-    if (diff > 1) return { label: `In ${diff} Days`, color: diff <= 7 ? 'blue' : 'orange', days: diff, type: 'upcoming' };
-    return { label: `Overdue ${Math.abs(diff)} Days`, color: 'red', days: diff, type: 'overdue' };
+    if (diff === 0)
+      return { label: 'Today', color: 'green', days: 0, type: 'today' };
+    if (diff === 1)
+      return { label: 'Tomorrow', color: 'blue', days: 1, type: 'tomorrow' };
+    if (diff > 1)
+      return {
+        label: `In ${diff} Days`,
+        color: diff <= 7 ? 'blue' : 'orange',
+        days: diff,
+        type: 'upcoming',
+      };
+    return {
+      label: `Overdue ${Math.abs(diff)} Days`,
+      color: 'red',
+      days: diff,
+      type: 'overdue',
+    };
   }
 
-  async addShipment(purchaseContractId: number, dto: AddShipmentDto, user: any) {
+  async addShipment(
+    purchaseContractId: number,
+    dto: AddShipmentDto,
+    user: any,
+  ) {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
     const shipment = await this.shipmentModel.findByPk(dto.shipmentId, {
-      include: [{ model: SalesContract, as: 'salesContract', attributes: ['id', 'contractNumber'] }],
+      include: [
+        {
+          model: SalesContract,
+          as: 'salesContract',
+          attributes: ['id', 'contractNumber'],
+        },
+      ],
     });
     if (!shipment) throw new NotFoundException('Shipment not found');
 
     // Verify the shipment belongs to the same Sales Contract
     if (shipment.salesContractId !== contract.salesContractId) {
-      throw new ConflictException('Shipment does not belong to the Sales Contract linked to this Purchase Contract');
+      throw new ConflictException(
+        'Shipment does not belong to the Sales Contract linked to this Purchase Contract',
+      );
     }
 
     const existing = await this.linkModel.findOne({
       where: { purchaseContractId, shipmentId: dto.shipmentId },
     });
     if (existing) {
-      throw new ConflictException(`Shipment #${shipment.shipmentNo} is already linked to this Purchase Contract`);
+      throw new ConflictException(
+        `Shipment #${shipment.shipmentNo} is already linked to this Purchase Contract`,
+      );
     }
 
     const link = await this.linkModel.create({
       purchaseContractId,
       shipmentId: dto.shipmentId,
-    } as any);
+    });
 
     await this.activityService.log(
       purchaseContractId,
@@ -182,11 +226,19 @@ export class PurchaseContractShipmentService {
     return link;
   }
 
-  async removeShipment(purchaseContractId: number, shipmentId: number, user: any) {
-    const link = await this.linkModel.findOne({ where: { purchaseContractId, shipmentId } });
+  async removeShipment(
+    purchaseContractId: number,
+    shipmentId: number,
+    user: any,
+  ) {
+    const link = await this.linkModel.findOne({
+      where: { purchaseContractId, shipmentId },
+    });
     if (!link) throw new NotFoundException('Shipment link not found');
 
-    const shipment = await this.shipmentModel.findByPk(shipmentId, { attributes: ['id', 'shipmentNo', 'shipmentReference'] });
+    const shipment = await this.shipmentModel.findByPk(shipmentId, {
+      attributes: ['id', 'shipmentNo', 'shipmentReference'],
+    });
 
     await link.destroy();
 

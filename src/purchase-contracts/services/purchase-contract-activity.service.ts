@@ -35,14 +35,10 @@ export class PurchaseContractActivityService {
       description,
       performedBy: performedBy ?? null,
       metadata: metadata ?? null,
-    } as any);
+    });
   }
 
-  async getActivities(
-    purchaseContractId: number,
-    page = 1,
-    limit = 20,
-  ) {
+  async getActivities(purchaseContractId: number, page = 1, limit = 20) {
     const offset = (page - 1) * limit;
     const { rows, count } = await this.activityModel.findAndCountAll({
       where: { purchaseContractId },

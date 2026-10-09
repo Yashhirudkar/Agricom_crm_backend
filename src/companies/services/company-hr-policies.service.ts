@@ -5,7 +5,10 @@ import { AuditService } from '../../audit/services/audit.service';
 import { AuditLog } from '../../audit/models/audit-log.model';
 import { User } from '../../users/models/user.model';
 import { UpsertCompanyHrPolicyDto } from '../dto/company-hr-policies.dto';
-import { AttendancePolicyEngineService, PolicyPreviewResult } from '../../attendance/services/attendance-policy-engine.service';
+import {
+  AttendancePolicyEngineService,
+  PolicyPreviewResult,
+} from '../../attendance/services/attendance-policy-engine.service';
 
 @Injectable()
 export class CompanyHrPoliciesService implements OnModuleInit {
@@ -27,7 +30,9 @@ export class CompanyHrPoliciesService implements OnModuleInit {
   async getHrPolicies(companyId: number): Promise<CompanyHrPolicy | null> {
     const policy = await this.policyModel.findOne({
       where: { companyId },
-      include: [{ model: User, as: 'updater', attributes: ['id', 'name', 'email'] }],
+      include: [
+        { model: User, as: 'updater', attributes: ['id', 'name', 'email'] },
+      ],
     });
     return policy;
   }
@@ -60,7 +65,9 @@ export class CompanyHrPoliciesService implements OnModuleInit {
     });
   }
 
-  async getPolicyImpact(companyId: number): Promise<{ affectedEmployees: number }> {
+  async getPolicyImpact(
+    companyId: number,
+  ): Promise<{ affectedEmployees: number }> {
     const activeEmployees = await this.userModel.count({
       where: {
         companyId,
@@ -114,7 +121,9 @@ export class CompanyHrPoliciesService implements OnModuleInit {
         );
 
         const updated = await policy.reload({
-          include: [{ model: User, as: 'updater', attributes: ['id', 'name', 'email'] }],
+          include: [
+            { model: User, as: 'updater', attributes: ['id', 'name', 'email'] },
+          ],
         });
 
         if (actor) {

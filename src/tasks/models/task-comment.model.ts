@@ -15,13 +15,11 @@ import { User } from '../../users/models/user.model';
 import { Task } from './task.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_comments',
   timestamps: true,
 })
 export class TaskComment extends Model<TaskComment> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

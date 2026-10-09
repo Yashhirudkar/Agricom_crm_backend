@@ -194,8 +194,6 @@ export class CreateFreightQuoteDto {
   @Type(() => FreightQuoteChargeDto)
   charges?: FreightQuoteChargeDto[];
 
-
-
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

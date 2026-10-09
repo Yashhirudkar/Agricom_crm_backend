@@ -11,7 +11,10 @@ export class TaskStatusTransitionRepository {
     private readonly model: typeof TaskStatusTransition,
   ) {}
 
-  async findAllByClient(clientId: number, companyId: number): Promise<TaskStatusTransition[]> {
+  async findAllByClient(
+    clientId: number,
+    companyId: number,
+  ): Promise<TaskStatusTransition[]> {
     return this.model.findAll({
       where: { clientId, companyId },
       include: [
@@ -43,7 +46,11 @@ export class TaskStatusTransitionRepository {
     return this.model.create(data, { transaction });
   }
 
-  async delete(id: number, clientId: number, companyId: number): Promise<number> {
+  async delete(
+    id: number,
+    clientId: number,
+    companyId: number,
+  ): Promise<number> {
     return this.model.destroy({ where: { id, clientId, companyId } });
   }
 }

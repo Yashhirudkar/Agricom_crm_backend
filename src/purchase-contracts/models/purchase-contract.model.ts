@@ -1,3 +1,4 @@
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -37,7 +38,7 @@ import { Company } from '../../companies/models/company.model';
     { fields: ['seller_id'] },
   ],
 })
-export class PurchaseContract extends Model<PurchaseContract> {
+export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -235,4 +236,8 @@ export class PurchaseContract extends Model<PurchaseContract> {
 
   @HasMany(() => PurchaseContractAttachment)
   declare attachments: PurchaseContractAttachment[];
+
+  @AllowNull(true)
+  @Column({ field: 'shipment_sequence', type: DataType.INTEGER })
+  declare shipmentSequence: number;
 }

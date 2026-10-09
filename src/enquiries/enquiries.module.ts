@@ -15,7 +15,6 @@ import { Product } from '../masters/product/product.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { NotificationsModule } from '../notifications/notifications.module';
 
-
 @Module({
   imports: [
     SequelizeModule.forFeature([

@@ -28,7 +28,7 @@ import {
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('holidays')
 export class HolidaysController {
-  constructor(private readonly holidaysService: HolidaysService) { }
+  constructor(private readonly holidaysService: HolidaysService) {}
 
   private getCompanyId(req: any): number | null {
     const companyId = req.headers['x-company-id'] || req.activeCompanyId;
@@ -52,11 +52,14 @@ export class HolidaysController {
   @HttpCode(HttpStatus.CREATED)
   async createHoliday(@Body() dto: CreateHolidayDto, @Request() req) {
     const actor = this.getActor(req);
-    let clientId = req.user.type === 'super_admin' ? dto.clientId : actor.clientId;
+    let clientId =
+      req.user.type === 'super_admin' ? dto.clientId : actor.clientId;
     if (!clientId) {
       const companyId = this.getCompanyId(req);
       if (companyId) {
-        const company = await this.holidaysService.getCompanyById(companyId).catch(() => null);
+        const company = await this.holidaysService
+          .getCompanyById(companyId)
+          .catch(() => null);
         if (company) {
           clientId = company.clientId;
         }
@@ -80,7 +83,9 @@ export class HolidaysController {
     if (!clientId) {
       const companyId = this.getCompanyId(req);
       if (companyId) {
-        const company = await this.holidaysService.getCompanyById(companyId).catch(() => null);
+        const company = await this.holidaysService
+          .getCompanyById(companyId)
+          .catch(() => null);
         if (company) {
           clientId = company.clientId;
         }
@@ -89,11 +94,7 @@ export class HolidaysController {
     if (!clientId) {
       throw new BadRequestException('clientId is required');
     }
-    return this.holidaysService.createRecurringHolidays(
-      clientId,
-      dto,
-      actor,
-    );
+    return this.holidaysService.createRecurringHolidays(clientId, dto, actor);
   }
 
   @Get('upcoming')

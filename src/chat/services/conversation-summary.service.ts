@@ -21,7 +21,10 @@ export class ConversationSummaryService {
   /**
    * Updates conversation activity and last message summary upon a new message
    */
-  async recordNewMessage(conversationId: number, message: Message): Promise<void> {
+  async recordNewMessage(
+    conversationId: number,
+    message: Message,
+  ): Promise<void> {
     try {
       await this.conversationModel.update(
         {
@@ -41,7 +44,10 @@ export class ConversationSummaryService {
   /**
    * Updates conversation activity and updatedAt timestamp inside a transaction
    */
-  async updateActivity(conversationId: number, transaction?: any): Promise<void> {
+  async updateActivity(
+    conversationId: number,
+    transaction?: any,
+  ): Promise<void> {
     try {
       await this.conversationModel.update(
         {
@@ -62,7 +68,10 @@ export class ConversationSummaryService {
   /**
    * Calculates unread message count for a specific member in a conversation
    */
-  async getUnreadCount(conversationId: number, userId: number): Promise<number> {
+  async getUnreadCount(
+    conversationId: number,
+    userId: number,
+  ): Promise<number> {
     try {
       const member = await this.memberModel.findOne({
         where: { conversationId, userId },

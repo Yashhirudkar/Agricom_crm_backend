@@ -87,7 +87,9 @@ export class CreateTaskDto {
   @MaxLength(255)
   entityId?: string;
 
-  @ApiPropertyOptional({ description: 'ID of the User who owns/is responsible for the task' })
+  @ApiPropertyOptional({
+    description: 'ID of the User who owns/is responsible for the task',
+  })
   @IsOptional()
   @IsInt()
   ownerId?: number;

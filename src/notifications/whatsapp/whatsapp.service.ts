@@ -30,7 +30,9 @@ type WASocket = any;
  *  - Know about business entities (Enquiry, Quotation, etc.)
  */
 @Injectable()
-export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class WhatsAppService
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
   private readonly logger = new Logger(WhatsAppService.name);
   private readonly config: WhatsAppConfig;
 
@@ -39,9 +41,14 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
   private currentQr: string | null = null;
   private resolvedGroupJid: string | null = null;
   private cleanupInProgress = false;
-  
+
   // Track specific state for frontend
-  private connectionState: 'CONNECTED' | 'CONNECTING' | 'WAITING_FOR_QR' | 'LOGGED_OUT' | 'RECONNECTING' = 'CONNECTING';
+  private connectionState:
+    | 'CONNECTED'
+    | 'CONNECTING'
+    | 'WAITING_FOR_QR'
+    | 'LOGGED_OUT'
+    | 'RECONNECTING' = 'CONNECTING';
 
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
@@ -49,14 +56,12 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
 
   constructor(private readonly configService: ConfigService) {
     this.config = {
-      enabled:
-        this.configService.get<string>('WHATSAPP_ENABLED') === 'true',
+      enabled: this.configService.get<string>('WHATSAPP_ENABLED') === 'true',
       sessionPath:
-        this.configService.get<string>('WHATSAPP_SESSION_PATH') || 'storage/whatsapp',
-      groupName:
-        this.configService.get<string>('WHATSAPP_GROUP_NAME') || '',
-      groupId:
-        this.configService.get<string>('WHATSAPP_GROUP_ID') || '',
+        this.configService.get<string>('WHATSAPP_SESSION_PATH') ||
+        'storage/whatsapp',
+      groupName: this.configService.get<string>('WHATSAPP_GROUP_NAME') || '',
+      groupId: this.configService.get<string>('WHATSAPP_GROUP_ID') || '',
     };
   }
 
@@ -81,7 +86,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
   isConnected(): boolean {
     return this.isReady;
   }
-  
+
   getConnectionState(): string {
     return this.connectionState;
   }
@@ -130,14 +135,17 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
 
   async connect(): Promise<void> {
     try {
-      this.connectionState = this.reconnectAttempt > 0 ? 'RECONNECTING' : 'CONNECTING';
+      this.connectionState =
+        this.reconnectAttempt > 0 ? 'RECONNECTING' : 'CONNECTING';
       console.log('[WhatsApp] Initializing...');
 
       console.log('[WhatsApp] Loading Baileys module...');
       // Bypass TypeScript compiling import() into require() which fails for ESM
-      const baileysModule = await new Function('return import("@whiskeysockets/baileys")')();
+      const baileysModule = await new Function(
+        'return import("@whiskeysockets/baileys")',
+      )();
       const baileys = baileysModule.default ? baileysModule : baileysModule;
-      
+
       const {
         default: makeWASocket,
         useMultiFileAuthState,
@@ -161,7 +169,9 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
         version = result.version;
         console.log(`[WhatsApp] Using WA Web version: ${version?.join('.')}`);
       } catch (versionErr) {
-        this.logger.warn('[WhatsApp] Could not fetch latest version — using bundled default');
+        this.logger.warn(
+          '[WhatsApp] Could not fetch latest version — using bundled default',
+        );
         version = undefined;
       }
 
@@ -188,7 +198,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
           console.log('[WhatsApp] Waiting for QR...');
           console.log(
             `[WhatsApp] 📱 QR generated at ${new Date().toISOString()} ` +
-            `— GET /api/whatsapp/qr to retrieve, or scan from terminal`,
+              `— GET /api/whatsapp/qr to retrieve, or scan from terminal`,
           );
           await this._saveQrToFile(qr);
         }
@@ -209,7 +219,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
         // ── Disconnected ───────────────────────────────────────────────────
         if (connection === 'close') {
           this.isReady = false;
-          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          const statusCode = lastDisconnect?.error?.output?.statusCode;
           const reason = this._disconnectLabel(statusCode);
           this.logger.warn(
             `[WhatsApp] ⚠️ Connection closed — ${reason} (code ${statusCode})`,
@@ -260,7 +270,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
       this.connectionState = 'LOGGED_OUT';
       this.logger.log('[WhatsApp] Device logged out.');
       this.logger.log('[WhatsApp] Cleaning auth session...');
-      
+
       // Clear in-memory state
       this.isReady = false;
       this.currentQr = null;
@@ -274,7 +284,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
         }
         this.sock = null;
       }
-      
+
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
@@ -282,23 +292,27 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
 
       // Delete session directory fully recursive
       try {
-        await fs.promises.rm(this.config.sessionPath, { recursive: true, force: true });
+        await fs.promises.rm(this.config.sessionPath, {
+          recursive: true,
+          force: true,
+        });
         await fs.promises.mkdir(this.config.sessionPath, { recursive: true });
         this.logger.log('[WhatsApp] Session deleted.');
       } catch (err: any) {
-        this.logger.error(`[WhatsApp] Failed to delete session files: ${err?.message}`);
+        this.logger.error(
+          `[WhatsApp] Failed to delete session files: ${err?.message}`,
+        );
       }
 
       // Set whatsappConnectedAt = null for all companies
       try {
-        await Company.update(
-          { whatsappConnectedAt: null },
-          { where: {} }
-        );
+        await Company.update({ whatsappConnectedAt: null }, { where: {} });
       } catch (err: any) {
-        this.logger.error(`[WhatsApp] Failed to update Company records: ${err?.message}`);
+        this.logger.error(
+          `[WhatsApp] Failed to update Company records: ${err?.message}`,
+        );
       }
-      
+
       // Save debug log to DB
       try {
         await NotificationLog.create({
@@ -311,16 +325,18 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
           payload: {
             status: 'Disconnected',
             reason: 'Logged Out',
-            action: 'New QR Generated'
+            action: 'New QR Generated',
           },
-          response: 'Session cleaned up successfully.'
+          response: 'Session cleaned up successfully.',
         } as any);
       } catch (err: any) {
-        this.logger.warn(`[WhatsApp] Failed to write audit log: ${err?.message}`);
+        this.logger.warn(
+          `[WhatsApp] Failed to write audit log: ${err?.message}`,
+        );
       }
 
       this.logger.log('[WhatsApp] Waiting for new QR...');
-      
+
       // Auto recovery: immediate reconnect attempt
       this.reconnectAttempt = 0;
       this._scheduleReconnect(0);
@@ -344,7 +360,9 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
       const jid = await this.resolveGroupJidByName(this.config.groupName);
       if (jid) {
         this.resolvedGroupJid = jid;
-        this.logger.log(`[WhatsApp] ✅ Global Group resolved: "${this.config.groupName}" → ${jid}`);
+        this.logger.log(
+          `[WhatsApp] ✅ Global Group resolved: "${this.config.groupName}" → ${jid}`,
+        );
       }
     }
   }
@@ -354,7 +372,9 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
    */
   async resolveGroupJidByName(groupName: string): Promise<string | null> {
     if (!this.sock || !this.isReady) {
-      this.logger.warn(`[WhatsApp] Cannot resolve group "${groupName}" — socket not ready`);
+      this.logger.warn(
+        `[WhatsApp] Cannot resolve group "${groupName}" — socket not ready`,
+      );
       return null;
     }
 
@@ -363,8 +383,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
       const entries = Object.values(groups) as any[];
       const match = entries.find(
         (g) =>
-          g.subject?.toLowerCase().trim() ===
-          groupName.toLowerCase().trim(),
+          g.subject?.toLowerCase().trim() === groupName.toLowerCase().trim(),
       );
 
       if (match) {
@@ -373,7 +392,7 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
         const names = entries.map((g) => `"${g.subject}"`).join(', ');
         this.logger.warn(
           `[WhatsApp] Group "${groupName}" not found. ` +
-          `Available groups: ${names || 'none'}`,
+            `Available groups: ${names || 'none'}`,
         );
         return null;
       }
@@ -405,24 +424,28 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
   }
 
   private _scheduleReconnect(customDelayMs?: number): void {
-    const delay = customDelayMs !== undefined 
-      ? customDelayMs 
-      : Math.min(
-          1_000 * 2 ** this.reconnectAttempt,
-          this.MAX_RECONNECT_DELAY_MS,
-        );
-    
+    const delay =
+      customDelayMs !== undefined
+        ? customDelayMs
+        : Math.min(
+            1_000 * 2 ** this.reconnectAttempt,
+            this.MAX_RECONNECT_DELAY_MS,
+          );
+
     if (customDelayMs === undefined) {
       this.reconnectAttempt++;
     }
-    
+
     this.logger.log(
       `[WhatsApp] 🔄 Reconnecting in ${delay / 1000}s (attempt #${this.reconnectAttempt})…`,
     );
-    this.reconnectTimer = setTimeout(async () => {
-      this.reconnectTimer = null;
-      await this.connect();
-    }, Math.max(delay, 500)); // Ensure at least 500ms delay to prevent event loop blocking
+    this.reconnectTimer = setTimeout(
+      async () => {
+        this.reconnectTimer = null;
+        await this.connect();
+      },
+      Math.max(delay, 500),
+    ); // Ensure at least 500ms delay to prevent event loop blocking
   }
 
   private _disconnectLabel(code?: number): string {
@@ -463,17 +486,25 @@ export class WhatsAppService implements OnApplicationBootstrap, OnApplicationShu
       return String(v);
     };
 
-    const handleLog = (level: 'warn' | 'error') => (...args: any[]) => {
-      const msg = args.map(a => toStr(a)).join(' ');
-      self.logger[level](msg);
-    };
+    const handleLog =
+      (level: 'warn' | 'error') =>
+      (...args: any[]) => {
+        const msg = args.map((a) => toStr(a)).join(' ');
+        self.logger[level](msg);
+      };
 
     return {
       level: 'silent',
-      info:  () => { /* suppressed */ },
-      debug: () => { /* suppressed */ },
-      trace: () => { /* suppressed */ },
-      warn:  handleLog('warn'),
+      info: () => {
+        /* suppressed */
+      },
+      debug: () => {
+        /* suppressed */
+      },
+      trace: () => {
+        /* suppressed */
+      },
+      warn: handleLog('warn'),
       error: handleLog('error'),
       child: () => self._buildSilentLogger(),
     };

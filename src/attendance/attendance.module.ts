@@ -121,4 +121,3 @@ import { AttendanceSummaryService } from './services/attendance-summary.service'
   ],
 })
 export class AttendanceModule {}
-

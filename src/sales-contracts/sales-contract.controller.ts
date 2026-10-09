@@ -20,7 +20,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { getAttachmentMulterConfig } from '../attachments/config/multer.config';
 import { SalesContractService } from './sales-contract.service';
 import { CreateSalesContractDto } from './dto/create-sales-contract.dto';
-import { UpdateSalesContractDto, UpdateSalesContractStatusDto } from './dto/update-sales-contract.dto';
+import {
+  UpdateSalesContractDto,
+  UpdateSalesContractStatusDto,
+} from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
@@ -43,7 +46,10 @@ export class SalesContractController {
   @Get()
   @RequirePermission('sales-contract:view')
   async findAll(@Query() query: QuerySalesContractDto, @Req() req: any) {
-    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return await this.service.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    });
   }
 
   @Get('financial-years')
@@ -70,14 +76,22 @@ export class SalesContractController {
     @Req() req: any,
   ) {
     if (!sellerIdStr || !buyerIdStr || !financialYear) {
-      throw new BadRequestException('sellerId, buyerId and financialYear are required.');
+      throw new BadRequestException(
+        'sellerId, buyerId and financialYear are required.',
+      );
     }
     const sellerId = parseInt(sellerIdStr, 10);
     const buyerId = parseInt(buyerIdStr, 10);
     if (isNaN(sellerId) || isNaN(buyerId)) {
-      throw new BadRequestException('sellerId and buyerId must be valid integers.');
+      throw new BadRequestException(
+        'sellerId and buyerId must be valid integers.',
+      );
     }
-    const result = await this.service.getNextContractNumber(sellerId, buyerId, financialYear);
+    const result = await this.service.getNextContractNumber(
+      sellerId,
+      buyerId,
+      financialYear,
+    );
     if (result === null) {
       // Not an Agricom seller — return null so frontend knows no auto-number applies
       return { contractNo: null };
@@ -138,9 +152,17 @@ export class SalesContractController {
   ) {
     const companyId: number = req.user?.companyId;
     if (!companyId) {
-      throw new BadRequestException('Company context is required for document upload');
+      throw new BadRequestException(
+        'Company context is required for document upload',
+      );
     }
-    return await this.service.uploadDocument(id, tradeDocumentId, file, req.user, companyId);
+    return await this.service.uploadDocument(
+      id,
+      tradeDocumentId,
+      file,
+      req.user,
+      companyId,
+    );
   }
 
   @Delete(':id/documents/:tradeDocumentId')

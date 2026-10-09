@@ -53,7 +53,9 @@ export class UserSession extends Model<UserSession> {
   })
   declare clientId: number;
 
-  @BelongsTo(() => require('../../clients/models/client.model').Client, { onDelete: 'CASCADE' })
+  @BelongsTo(() => require('../../clients/models/client.model').Client, {
+    onDelete: 'CASCADE',
+  })
   declare client: any;
 
   @Unique

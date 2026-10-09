@@ -29,7 +29,6 @@ import {
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
-
   private getActor(req: any) {
     return {
       userId: req.user.userId || req.user.sub || null,
@@ -44,7 +43,8 @@ export class DepartmentsController {
   @HttpCode(HttpStatus.CREATED)
   createDepartment(@Body() dto: CreateDepartmentDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.departmentsService.createDepartment(companyId, dto, actor);
   }
@@ -53,7 +53,8 @@ export class DepartmentsController {
   @RequirePermission('departments:read')
   getDepartments(@Query() filterDto: GetDepartmentsFilterDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.departmentsService.getDepartments(companyId, filterDto);
   }
 
@@ -65,7 +66,8 @@ export class DepartmentsController {
     @Query('limit') limit?: string,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.departmentsService.getDepartmentsForOptions(
       companyId,
       search,
@@ -78,7 +80,8 @@ export class DepartmentsController {
   @RequirePermission('departments:read')
   getDepartmentTree(@Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.departmentsService.getDepartmentTree(companyId);
   }
 
@@ -86,7 +89,8 @@ export class DepartmentsController {
   @RequirePermission('departments:read')
   getDepartmentById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.departmentsService.getDepartmentById(id, companyId);
   }
 
@@ -94,7 +98,8 @@ export class DepartmentsController {
   @RequirePermission('departments:read')
   getSubDepartments(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.departmentsService.getSubDepartments(id, companyId);
   }
 
@@ -106,7 +111,8 @@ export class DepartmentsController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.departmentsService.updateDepartment(id, companyId, dto, actor);
   }
@@ -115,7 +121,8 @@ export class DepartmentsController {
   @RequirePermission('departments:delete')
   deleteDepartment(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.departmentsService.deleteDepartment(id, companyId, actor);
   }

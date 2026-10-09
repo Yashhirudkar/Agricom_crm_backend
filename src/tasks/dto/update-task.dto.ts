@@ -75,7 +75,9 @@ export class UpdateTaskDto {
   @IsBoolean()
   isArchived?: boolean;
 
-  @ApiPropertyOptional({ description: 'ID of the User who owns/is responsible for the task' })
+  @ApiPropertyOptional({
+    description: 'ID of the User who owns/is responsible for the task',
+  })
   @IsOptional()
   @IsInt()
   ownerId?: number;

@@ -33,7 +33,7 @@ export class PartnerController {
   constructor(
     private readonly partnerService: PartnerService,
     private readonly rbacService: RbacService,
-  ) { }
+  ) {}
 
   /**
    * Validates that a given partnerRoleId is within the user's allowed partner roles.
@@ -90,14 +90,24 @@ export class PartnerController {
   async findAll(@Query() query: QueryPartnerDto, @Req() req: any) {
     // If user is restricted, inject allowed partner role IDs into the query filter
     if (req?.user?.type !== 'super_admin') {
-      const allowedIds = await this.rbacService.resolveUserAllowedPartnerRoleIds(
-        req.user,
-        req.activeCompanyId,
-      );
+      const allowedIds =
+        await this.rbacService.resolveUserAllowedPartnerRoleIds(
+          req.user,
+          req.activeCompanyId,
+        );
       if (allowedIds !== null) {
         // If user filtered by a specific role, ensure it's also in allowedIds
-        if (query.partnerRoleId && !allowedIds.includes(Number(query.partnerRoleId))) {
-          return { data: [], total: 0, page: query.page || 1, limit: query.limit || 8, totalPages: 0 };
+        if (
+          query.partnerRoleId &&
+          !allowedIds.includes(Number(query.partnerRoleId))
+        ) {
+          return {
+            data: [],
+            total: 0,
+            page: query.page || 1,
+            limit: query.limit || 8,
+            totalPages: 0,
+          };
         }
         // Apply restriction: scope to allowed partner role IDs
         (query as any).allowedPartnerRoleIds = allowedIds;
@@ -107,7 +117,7 @@ export class PartnerController {
     const result = await this.partnerService.findAll({
       ...query,
       companyId: req.user?.companyId,
-    } as any);
+    });
     return result;
   }
 
@@ -154,7 +164,9 @@ export class PartnerController {
     'purchase-contract:view',
   )
   async getCountries(@Req() req: any) {
-    const countries = await this.partnerService.getDistinctCountries(req.user?.companyId);
+    const countries = await this.partnerService.getDistinctCountries(
+      req.user?.companyId,
+    );
     return { success: true, data: countries };
   }
 

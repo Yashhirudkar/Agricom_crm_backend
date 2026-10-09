@@ -26,13 +26,19 @@ export class ShipmentController {
   @Get()
   @RequirePermission('shipments:view')
   async findAll(@Query() query: QueryShipmentDto, @Req() req: any) {
-    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return await this.service.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
   }
 
   @Get('stats')
   @RequirePermission('shipments:view')
   async getStats(@Query() query: QueryShipmentDto, @Req() req: any) {
-    return await this.service.getStats({ ...query, companyId: req.user?.companyId } as any);
+    return await this.service.getStats({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
   }
 
   @Patch(':id')

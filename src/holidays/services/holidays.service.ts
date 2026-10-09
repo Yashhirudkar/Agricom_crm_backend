@@ -119,7 +119,9 @@ export class HolidaysService {
 
   async getHolidays(clientId: number, filter: GetHolidaysFilterDto) {
     if (!clientId && filter.companyId) {
-      const company = await this.holidayModel.sequelize.models.Company.findByPk(filter.companyId);
+      const company = await this.holidayModel.sequelize.models.Company.findByPk(
+        filter.companyId,
+      );
       if (company) clientId = (company as any).clientId;
     }
     const where: any = { isActive: true };
@@ -190,7 +192,8 @@ export class HolidaysService {
 
   async getUpcomingHolidays(clientId: number, companyId: number) {
     if (!clientId && companyId) {
-      const company = await this.holidayModel.sequelize.models.Company.findByPk(companyId);
+      const company =
+        await this.holidayModel.sequelize.models.Company.findByPk(companyId);
       if (company) clientId = (company as any).clientId;
     }
     const today = new Date().toISOString().split('T')[0];

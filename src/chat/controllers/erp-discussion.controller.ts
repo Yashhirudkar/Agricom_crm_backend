@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Param,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
 import { ErpDiscussionService } from '../services/erp-discussion.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -30,10 +23,7 @@ export class ErpDiscussionController {
     },
     @CurrentUser() user: any,
   ) {
-    return this.erpDiscussionService.getOrCreateDiscussion(
-      body,
-      user,
-    );
+    return this.erpDiscussionService.getOrCreateDiscussion(body, user);
   }
 
   @Get(':entityType/:entityId')

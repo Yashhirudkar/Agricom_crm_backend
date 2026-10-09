@@ -38,10 +38,7 @@ export class TaskViewService {
         break;
 
       case 'my_tasks':
-        where[Op.or] = [
-          { ownerId: userId },
-          { createdById: userId }
-        ];
+        where[Op.or] = [{ ownerId: userId }, { createdById: userId }];
         break;
 
       case 'assigned_to_me':

@@ -36,7 +36,7 @@ export class TradeDocumentService {
       ...dto,
       createdBy: user?.userId,
       companyId: user?.companyId,
-    } as any);
+    });
   }
 
   async findAll(query: QueryTradeDocumentDto & { companyId?: number }) {
@@ -61,7 +61,10 @@ export class TradeDocumentService {
       where: whereClause,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']],
+      order: [
+        ['sortOrder', 'ASC'],
+        ['createdAt', 'DESC'],
+      ],
     });
 
     return {
@@ -86,7 +89,11 @@ export class TradeDocumentService {
     return item;
   }
 
-  async update(id: number, dto: UpdateTradeDocumentDto, user: any): Promise<TradeDocument> {
+  async update(
+    id: number,
+    dto: UpdateTradeDocumentDto,
+    user: any,
+  ): Promise<TradeDocument> {
     const item = await this.findOne(id, user?.companyId);
 
     if (dto.code) {

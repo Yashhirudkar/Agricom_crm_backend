@@ -7,7 +7,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   const transaction = await queryInterface.sequelize.transaction();
   try {
     const tableInfo = await queryInterface.describeTable('purchase_contracts');
-    
+
     if (!tableInfo['unloading_date']) {
       await queryInterface.addColumn(
         'purchase_contracts',
@@ -16,10 +16,10 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
           type: DataTypes.DATEONLY,
           allowNull: true,
         },
-        { transaction }
+        { transaction },
       );
     }
-    
+
     await transaction.commit();
   } catch (error) {
     await transaction.rollback();
@@ -32,7 +32,11 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   try {
     const tableInfo = await queryInterface.describeTable('purchase_contracts');
     if (tableInfo['unloading_date']) {
-      await queryInterface.removeColumn('purchase_contracts', 'unloading_date', { transaction });
+      await queryInterface.removeColumn(
+        'purchase_contracts',
+        'unloading_date',
+        { transaction },
+      );
     }
     await transaction.commit();
   } catch (error) {

@@ -52,7 +52,7 @@ export class ProductController {
       search: search || undefined,
       isActive: true,
       companyId: req?.user?.companyId,
-    } as any);
+    });
     return result;
   }
 
@@ -62,7 +62,7 @@ export class ProductController {
     const result = await this.productService.findAll({
       ...query,
       companyId: req.user?.companyId,
-    } as any);
+    });
     return result;
   }
 

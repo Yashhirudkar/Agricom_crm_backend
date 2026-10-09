@@ -38,17 +38,33 @@ export class ShipmentTypeController {
 
   @Get('options')
   async findOptions(@Req() req: any) {
-    return this.service.findAll({ status: 'Active', limit: 100, page: 1, companyId: req.user?.companyId } as any);
+    return this.service.findAll({
+      status: 'Active',
+      limit: 100,
+      page: 1,
+      companyId: req.user?.companyId,
+    });
   }
 
   @Get()
-  @RequireAnyPermission('shipment-type:view', 'sales_contract:view', 'enquiry:view')
+  @RequireAnyPermission(
+    'shipment-type:view',
+    'sales_contract:view',
+    'enquiry:view',
+  )
   async findAll(@Query() query: QueryShipmentTypeDto, @Req() req: any) {
-    return await this.service.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return await this.service.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    });
   }
 
   @Get(':id')
-  @RequireAnyPermission('shipment-type:view', 'sales_contract:view', 'enquiry:view')
+  @RequireAnyPermission(
+    'shipment-type:view',
+    'sales_contract:view',
+    'enquiry:view',
+  )
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user?.companyId);
   }

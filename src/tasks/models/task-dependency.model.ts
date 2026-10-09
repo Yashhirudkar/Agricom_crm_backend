@@ -14,13 +14,11 @@ import { Client } from '../../clients/models/client.model';
 import { Task } from './task.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_dependencies',
   timestamps: true,
 })
 export class TaskDependency extends Model<TaskDependency> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

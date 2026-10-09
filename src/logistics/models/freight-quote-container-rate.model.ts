@@ -45,7 +45,11 @@ export class FreightQuoteContainerRate extends Model<FreightQuoteContainerRate> 
 
   // Rate total amount (sum of all related charges)
   @AllowNull(false)
-  @Column({ field: 'freight_amount', type: DataType.DECIMAL(15, 4), defaultValue: 0 })
+  @Column({
+    field: 'freight_amount',
+    type: DataType.DECIMAL(15, 4),
+    defaultValue: 0,
+  })
   declare freightAmount: number;
 
   @HasMany(() => FreightQuoteCharge, 'containerRateId')

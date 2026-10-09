@@ -19,9 +19,7 @@ import { Company } from '../../companies/models/company.model';
 @Table({
   tableName: 'cargo_documents',
   timestamps: true,
-  indexes: [
-    { fields: ['cargo_loading_id'] },
-  ],
+  indexes: [{ fields: ['cargo_loading_id'] }],
 })
 export class CargoDocument extends Model<CargoDocument> {
   @ForeignKey(() => Company)

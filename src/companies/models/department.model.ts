@@ -52,10 +52,11 @@ export class Department extends Model<Department> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare parentDepartmentId: number;
 
-  @BelongsTo(() => Department, { foreignKey: 'parentDepartmentId', onDelete: 'CASCADE' })
+  @BelongsTo(() => Department, {
+    foreignKey: 'parentDepartmentId',
+    onDelete: 'CASCADE',
+  })
   declare parentDepartment: Department;
-
-
 
   @ForeignKey(() => Employee)
   @AllowNull(true)
@@ -112,7 +113,11 @@ export class Department extends Model<Department> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @HasMany(() => Department, { foreignKey: 'parentDepartmentId', onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => Department, {
+    foreignKey: 'parentDepartmentId',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare subDepartments: Department[];
 
   @HasMany(() => Designation, { onDelete: 'CASCADE', hooks: true })

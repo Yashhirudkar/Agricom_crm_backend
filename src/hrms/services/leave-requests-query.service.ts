@@ -75,7 +75,7 @@ function decodeCursor(raw: string): CursorPayload {
     throw new BadRequestException('Invalid pagination cursor: bad id');
   }
 
-  return { createdAt: createdAt as string, id: id as number };
+  return { createdAt: createdAt, id: id };
 }
 
 @Injectable()
@@ -121,7 +121,8 @@ export class LeaveRequestsQueryService {
         attributes: ['id'],
       });
       const empIds = matchingEmployees.map((e) => e.id);
-      where.employeeId = empIds.length > 0 ? { [Op.in]: empIds } : { [Op.in]: [-1] };
+      where.employeeId =
+        empIds.length > 0 ? { [Op.in]: empIds } : { [Op.in]: [-1] };
     }
 
     // Filter by search query (employee firstName, lastName, employeeCode, email)
@@ -147,11 +148,19 @@ export class LeaveRequestsQueryService {
             where.employeeId = -1;
           }
         } else if (where.employeeId[Op.in]) {
-          const intersected = where.employeeId[Op.in].filter((id) => searchEmpIds.includes(id));
-          where.employeeId = intersected.length > 0 ? { [Op.in]: intersected } : { [Op.in]: [-1] };
+          const intersected = where.employeeId[Op.in].filter((id) =>
+            searchEmpIds.includes(id),
+          );
+          where.employeeId =
+            intersected.length > 0
+              ? { [Op.in]: intersected }
+              : { [Op.in]: [-1] };
         }
       } else {
-        where.employeeId = searchEmpIds.length > 0 ? { [Op.in]: searchEmpIds } : { [Op.in]: [-1] };
+        where.employeeId =
+          searchEmpIds.length > 0
+            ? { [Op.in]: searchEmpIds }
+            : { [Op.in]: [-1] };
       }
     }
 
@@ -208,9 +217,7 @@ export class LeaveRequestsQueryService {
         // Source of truth for WHO actually performed the action is the Audit Log
         // because Super Admins might override a step assigned to an Employee.
         const actionLog = plainRow.approvalLogs?.find(
-          (log: any) =>
-            log.action === 'APPROVED' ||
-            log.action === 'REJECTED',
+          (log: any) => log.action === 'APPROVED' || log.action === 'REJECTED',
         );
 
         if (actionLog) {
@@ -297,14 +304,17 @@ export class LeaveRequestsQueryService {
 
     const rawBalances = await this.employeeLeaveBalanceModel.findAll({
       where: { employeeId, year: today.getFullYear() },
-      include: [{ model: LeaveType, attributes: ['id', 'name', 'code', 'daysPerYear'] }],
+      include: [
+        { model: LeaveType, attributes: ['id', 'name', 'code', 'daysPerYear'] },
+      ],
     });
 
     const balances = rawBalances.map((bal) => {
       const json = bal.get({ plain: true });
-      const allocated = bal.leaveType && bal.leaveType.daysPerYear != null
-        ? Number(bal.leaveType.daysPerYear)
-        : Number(bal.totalAllocated || 0);
+      const allocated =
+        bal.leaveType && bal.leaveType.daysPerYear != null
+          ? Number(bal.leaveType.daysPerYear)
+          : Number(bal.totalAllocated || 0);
       const used = Number(bal.usedDays || 0);
       const pending = Number(bal.pendingDays || 0);
       const carryForward = Number(bal.carryForwardDays || 0);
@@ -345,7 +355,14 @@ export class LeaveRequestsQueryService {
 
   async getMonthlyLeaveSummary(
     companyId: number,
-    query: { month?: string; year?: number; departmentId?: number; branchId?: number; page?: number; limit?: number },
+    query: {
+      month?: string;
+      year?: number;
+      departmentId?: number;
+      branchId?: number;
+      page?: number;
+      limit?: number;
+    },
   ): Promise<any> {
     const now = new Date();
     let year = query.year || now.getFullYear();
@@ -365,8 +382,18 @@ export class LeaveRequestsQueryService {
     const todayStr = new Date().toISOString().split('T')[0];
 
     const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     const monthLabel = `${monthNames[month - 1]} ${year}`;
 
@@ -379,8 +406,18 @@ export class LeaveRequestsQueryService {
       where: empWhere,
       attributes: ['id', 'firstName', 'lastName', 'email', 'employeeCode'],
       include: [
-        { model: Department, as: 'department', required: false, attributes: ['id', 'name'] },
-        { model: Designation, as: 'designation', required: false, attributes: ['id', 'name'] },
+        {
+          model: Department,
+          as: 'department',
+          required: false,
+          attributes: ['id', 'name'],
+        },
+        {
+          model: Designation,
+          as: 'designation',
+          required: false,
+          attributes: ['id', 'name'],
+        },
       ],
       order: [['firstName', 'ASC']],
     });
@@ -395,9 +432,7 @@ export class LeaveRequestsQueryService {
         fromDate: { [Op.lte]: lastDayStr },
         toDate: { [Op.gte]: firstDayStr },
       },
-      include: [
-        { model: LeaveType, attributes: ['id', 'name', 'code'] },
-      ],
+      include: [{ model: LeaveType, attributes: ['id', 'name', 'code'] }],
     });
 
     // Today's leave check
@@ -411,7 +446,9 @@ export class LeaveRequestsQueryService {
       attributes: ['employeeId'],
     });
 
-    const employeesOnLeaveTodayCount = new Set(todayLeaves.map((l) => l.employeeId)).size;
+    const employeesOnLeaveTodayCount = new Set(
+      todayLeaves.map((l) => l.employeeId),
+    ).size;
 
     // Aggregations
     let totalRequests = 0;
@@ -421,14 +458,17 @@ export class LeaveRequestsQueryService {
     let totalLeaveDaysTaken = 0;
 
     // Per-employee statistics map
-    const empMap = new Map<number, {
-      thisMonthDays: number;
-      approvedCount: number;
-      pendingCount: number;
-      rejectedCount: number;
-      lastLeaveDate: string | null;
-      leaveTypesUsed: { [key: string]: number };
-    }>();
+    const empMap = new Map<
+      number,
+      {
+        thisMonthDays: number;
+        approvedCount: number;
+        pendingCount: number;
+        rejectedCount: number;
+        lastLeaveDate: string | null;
+        leaveTypesUsed: { [key: string]: number };
+      }
+    >();
 
     employees.forEach((emp) => {
       empMap.set(emp.id, {
@@ -452,15 +492,19 @@ export class LeaveRequestsQueryService {
         if (stats) {
           stats.approvedCount++;
           stats.thisMonthDays += Number(req.totalDays || 0);
-          
+
           const rawFromDate: any = (req as any).fromDate;
-          const reqFromDateStr = typeof rawFromDate === 'string' ? rawFromDate.split('T')[0] : new Date(rawFromDate).toISOString().split('T')[0];
+          const reqFromDateStr =
+            typeof rawFromDate === 'string'
+              ? rawFromDate.split('T')[0]
+              : new Date(rawFromDate).toISOString().split('T')[0];
           if (!stats.lastLeaveDate || reqFromDateStr > stats.lastLeaveDate) {
             stats.lastLeaveDate = reqFromDateStr;
           }
 
           const typeName = req.leaveType?.name || 'Leave';
-          stats.leaveTypesUsed[typeName] = (stats.leaveTypesUsed[typeName] || 0) + Number(req.totalDays || 0);
+          stats.leaveTypesUsed[typeName] =
+            (stats.leaveTypesUsed[typeName] || 0) + Number(req.totalDays || 0);
         }
       } else if (req.status === LeaveRequestStatus.PENDING) {
         pendingApprovals++;
@@ -523,7 +567,11 @@ export class LeaveRequestsQueryService {
 
     // Filter to ONLY include employees who have leave requests/activity in the selected month
     const employeeSummaries = allEmployeeSummaries.filter(
-      (emp) => emp.thisMonthDays > 0 || emp.approvedCount > 0 || emp.pendingCount > 0 || emp.rejectedCount > 0
+      (emp) =>
+        emp.thisMonthDays > 0 ||
+        emp.approvedCount > 0 ||
+        emp.pendingCount > 0 ||
+        emp.rejectedCount > 0,
     );
 
     const page = Number(query.page) || 1;
@@ -647,13 +695,7 @@ export class LeaveRequestsQueryService {
       include: [
         {
           model: Employee,
-          attributes: [
-            'id',
-            'firstName',
-            'lastName',
-            'email',
-            'employeeCode',
-          ],
+          attributes: ['id', 'firstName', 'lastName', 'email', 'employeeCode'],
         },
         {
           model: LeaveType,
@@ -707,9 +749,10 @@ export class LeaveRequestsQueryService {
         );
         if (actionLog) {
           approverId = actionLog.performedBy;
-          approvedAt = actionLog.createdAt instanceof Date
-            ? actionLog.createdAt.toISOString()
-            : String(actionLog.createdAt);
+          approvedAt =
+            actionLog.createdAt instanceof Date
+              ? actionLog.createdAt.toISOString()
+              : String(actionLog.createdAt);
           approverName = actionLog.performer?.name ?? 'Former User';
         }
       }
@@ -809,9 +852,7 @@ export class LeaveRequestsQueryService {
       },
     );
 
-    const totalLeaveDays = parseFloat(
-      (leaveDaysResult as any)?.total ?? '0',
-    );
+    const totalLeaveDays = parseFloat((leaveDaysResult as any)?.total ?? '0');
 
     return {
       onLeaveToday,

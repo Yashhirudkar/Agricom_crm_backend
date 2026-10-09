@@ -30,7 +30,10 @@ import { PurchaseContractDocumentService } from './services/purchase-contract-do
 import { PurchaseContractActivityService } from './services/purchase-contract-activity.service';
 
 import { CreatePurchaseContractDto } from './dto/create-purchase-contract.dto';
-import { UpdatePurchaseContractDto, UpdatePurchaseContractStatusDto } from './dto/update-purchase-contract.dto';
+import {
+  UpdatePurchaseContractDto,
+  UpdatePurchaseContractStatusDto,
+} from './dto/update-purchase-contract.dto';
 import { QueryPurchaseContractDto } from './dto/query-purchase-contract.dto';
 import { AddShipmentDto } from './dto/add-shipment.dto';
 
@@ -43,7 +46,7 @@ export class PurchaseContractController {
     private readonly shipmentService: PurchaseContractShipmentService,
     private readonly documentService: PurchaseContractDocumentService,
     private readonly activityService: PurchaseContractActivityService,
-  ) { }
+  ) {}
 
   // ||─── Dashboard ────────────────────────────────────────────────────────────────|||
   @Get('dashboard')
@@ -56,7 +59,10 @@ export class PurchaseContractController {
   @Get()
   @RequirePermission('purchase-contracts:view')
   async findAll(@Query() query: QueryPurchaseContractDto, @Req() req: any) {
-    return this.queryService.findAll({ ...query, companyId: req.user?.companyId } as any);
+    return this.queryService.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+    });
   }
 
   // ─── Create (Rocket Button / explicit creation) ────────────────────────────────
@@ -179,7 +185,11 @@ export class PurchaseContractController {
     @Body('tradeDocumentId', ParseIntPipe) tradeDocumentId: number,
     @Req() req: any,
   ) {
-    return this.documentService.addRequiredDocument(id, tradeDocumentId, req.user);
+    return this.documentService.addRequiredDocument(
+      id,
+      tradeDocumentId,
+      req.user,
+    );
   }
 
   @Post(':id/documents/:tradeDocumentId/upload')
@@ -193,9 +203,18 @@ export class PurchaseContractController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : null;
-    if (!companyId) throw new BadRequestException('x-company-id header is required');
-    return this.documentService.uploadDocument(id, tradeDocumentId, file, req.user, companyId);
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : null;
+    if (!companyId)
+      throw new BadRequestException('x-company-id header is required');
+    return this.documentService.uploadDocument(
+      id,
+      tradeDocumentId,
+      file,
+      req.user,
+      companyId,
+    );
   }
 
   @Delete(':id/documents/:tradeDocumentId')
@@ -230,8 +249,16 @@ export class PurchaseContractController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
-    return this.documentService.uploadContractAttachment(id, category, file, req.user, companyId);
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
+    return this.documentService.uploadContractAttachment(
+      id,
+      category,
+      file,
+      req.user,
+      companyId,
+    );
   }
 
   @Delete(':id/attachments/:attachmentId')
@@ -242,9 +269,12 @@ export class PurchaseContractController {
     @Param('attachmentId', ParseIntPipe) attachmentId: number,
     @Req() req: any,
   ) {
-    return this.documentService.deleteContractAttachment(id, attachmentId, req.user);
+    return this.documentService.deleteContractAttachment(
+      id,
+      attachmentId,
+      req.user,
+    );
   }
-
 
   // ─────────────────────────────────────────────────────────────────────────────
   // ACTIVITY

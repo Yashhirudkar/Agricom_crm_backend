@@ -14,7 +14,6 @@ import {
 import { Client } from '../../clients/models/client.model';
 import { Company } from '../../companies/models/company.model';
 
-
 export enum TaskCustomFieldType {
   TEXT = 'TEXT',
   NUMBER = 'NUMBER',
@@ -28,7 +27,6 @@ export enum TaskCustomFieldType {
   timestamps: true,
 })
 export class TaskCustomField extends Model<TaskCustomField> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

@@ -13,7 +13,7 @@ export async function up(queryInterface: QueryInterface) {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
-      { transaction }
+      { transaction },
     );
 
     await queryInterface.addColumn(
@@ -24,7 +24,7 @@ export async function up(queryInterface: QueryInterface) {
         allowNull: false,
         defaultValue: false,
       },
-      { transaction }
+      { transaction },
     );
 
     await queryInterface.addColumn(
@@ -37,7 +37,7 @@ export async function up(queryInterface: QueryInterface) {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
-      { transaction }
+      { transaction },
     );
 
     await queryInterface.addColumn(
@@ -47,7 +47,7 @@ export async function up(queryInterface: QueryInterface) {
         type: DataTypes.STRING(255),
         allowNull: true,
       },
-      { transaction }
+      { transaction },
     );
 
     await queryInterface.addColumn(
@@ -57,7 +57,7 @@ export async function up(queryInterface: QueryInterface) {
         type: DataTypes.STRING(255),
         allowNull: true,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -70,12 +70,20 @@ export async function up(queryInterface: QueryInterface) {
 export async function down(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.removeColumn('freight_quotes', 'destination', { transaction });
-    await queryInterface.removeColumn('freight_quotes', 'loading_point', { transaction });
-    await queryInterface.removeColumn('freight_quotes', 'product_id', { transaction });
-    await queryInterface.removeColumn('freight_quotes', 'is_direct', { transaction });
+    await queryInterface.removeColumn('freight_quotes', 'destination', {
+      transaction,
+    });
+    await queryInterface.removeColumn('freight_quotes', 'loading_point', {
+      transaction,
+    });
+    await queryInterface.removeColumn('freight_quotes', 'product_id', {
+      transaction,
+    });
+    await queryInterface.removeColumn('freight_quotes', 'is_direct', {
+      transaction,
+    });
 
-    // Note: Reverting logistics_id to allowNull: false might fail if there are direct quotes, 
+    // Note: Reverting logistics_id to allowNull: false might fail if there are direct quotes,
     // so in a real rollback we'd either delete direct quotes or assign them a dummy logistics_id.
     await queryInterface.changeColumn(
       'freight_quotes',
@@ -84,7 +92,7 @@ export async function down(queryInterface: QueryInterface) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();

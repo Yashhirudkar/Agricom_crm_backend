@@ -19,7 +19,8 @@ export class TaskTemplateService {
     private readonly activityService: TaskActivityService,
     private readonly sequelize: Sequelize,
     @InjectModel(Task) private readonly taskModel: typeof Task,
-    @InjectModel(TaskSequence) private readonly sequenceModel: typeof TaskSequence,
+    @InjectModel(TaskSequence)
+    private readonly sequenceModel: typeof TaskSequence,
   ) {}
 
   async create(clientId: number, userId: number, dto: CreateTemplateDto) {

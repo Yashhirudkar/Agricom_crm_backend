@@ -77,12 +77,7 @@ export class TaskTemplateController {
   ) {
     const clientId = req.user?.clientId || 1;
     const userId = req.user?.userId || req.user?.id || 1;
-    const task = await this.service.cloneIntoTask(
-      clientId,
-      id,
-      userId,
-      dto,
-    );
+    const task = await this.service.cloneIntoTask(clientId, id, userId, dto);
     return { success: true, message: 'Task created from template', data: task };
   }
 }

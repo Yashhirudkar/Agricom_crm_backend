@@ -48,7 +48,10 @@ export class FreightQuoteCharge extends Model<FreightQuoteCharge> {
   @Column({ field: 'container_rate_id', type: DataType.INTEGER })
   declare containerRateId: number;
 
-  @BelongsTo(() => FreightQuoteContainerRate, { foreignKey: 'containerRateId', onDelete: 'CASCADE' })
+  @BelongsTo(() => FreightQuoteContainerRate, {
+    foreignKey: 'containerRateId',
+    onDelete: 'CASCADE',
+  })
   declare containerRate: FreightQuoteContainerRate;
 
   @ForeignKey(() => FreightChargeMaster)
@@ -56,7 +59,10 @@ export class FreightQuoteCharge extends Model<FreightQuoteCharge> {
   @Column({ field: 'charge_master_id', type: DataType.INTEGER })
   declare chargeMasterId: number;
 
-  @BelongsTo(() => FreightChargeMaster, { foreignKey: 'chargeMasterId', onDelete: 'SET NULL' })
+  @BelongsTo(() => FreightChargeMaster, {
+    foreignKey: 'chargeMasterId',
+    onDelete: 'SET NULL',
+  })
   declare master: FreightChargeMaster;
 
   @AllowNull(false)

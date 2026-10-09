@@ -1,4 +1,11 @@
-import { IsBoolean, IsArray, IsOptional, IsNumber, ValidateNested, IsObject } from 'class-validator';
+import {
+  IsBoolean,
+  IsArray,
+  IsOptional,
+  IsNumber,
+  ValidateNested,
+  IsObject,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TaskQueryDto } from './task-query.dto';
 

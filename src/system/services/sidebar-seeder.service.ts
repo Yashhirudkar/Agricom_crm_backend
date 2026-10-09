@@ -494,7 +494,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
             icon_name: 'Users',
             sort_order: 20,
             is_active: true,
-          } as any);
+          });
         }
 
         const newItem = await this.sidebarItemModel.create({
@@ -505,7 +505,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 50,
           is_active: true,
           permission_link: 'hrpolicy:read',
-        } as any);
+        });
 
         itemId = newItem.id;
         this.logger.log(
@@ -547,7 +547,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           icon_name: 'LineChart',
           sort_order: 80,
           is_active: true,
-        } as any);
+        });
       }
 
       const items = await this.sidebarItemModel.findAll({
@@ -581,7 +581,9 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           }
           if (modified) {
             await item.save();
-            this.logger.log(`Updated sidebar item ${item.id} (/sales/shipments)`);
+            this.logger.log(
+              `Updated sidebar item ${item.id} (/sales/shipments)`,
+            );
           }
           itemId = item.id;
         }
@@ -594,10 +596,12 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 20,
           is_active: true,
           permission_link: 'shipments:view',
-        } as any);
+        });
 
         itemId = newItem.id;
-        this.logger.log('Created /sales/shipments sidebar item with shipments:view permission_link');
+        this.logger.log(
+          'Created /sales/shipments sidebar item with shipments:view permission_link',
+        );
       }
 
       const seq = this.sidebarItemModel.sequelize;
@@ -621,7 +625,9 @@ export class SidebarSeederService implements OnApplicationBootstrap {
               `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
              VALUES (:clientId, :folderId, NOW(), NOW())
              ON CONFLICT (client_id, folder_id) DO NOTHING;`,
-              { replacements: { clientId: client.id, folderId: salesFolder.id } },
+              {
+                replacements: { clientId: client.id, folderId: salesFolder.id },
+              },
             )
             .catch(() => {});
         }
@@ -666,14 +672,17 @@ export class SidebarSeederService implements OnApplicationBootstrap {
             try {
               const existing = (await seq.query(
                 `SELECT id FROM client_item_access WHERE client_id = :clientId AND item_id = :itemId LIMIT 1;`,
-                { replacements: { clientId: client.id, itemId }, type: 'SELECT' }
+                {
+                  replacements: { clientId: client.id, itemId },
+                  type: 'SELECT',
+                },
               )) as any[];
 
               if (existing.length === 0) {
                 await seq.query(
                   `INSERT INTO client_item_access (client_id, item_id, "created_at")
                    VALUES (:clientId, :itemId, NOW());`,
-                  { replacements: { clientId: client.id, itemId } }
+                  { replacements: { clientId: client.id, itemId } },
                 );
               }
             } catch (e) {
@@ -689,7 +698,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
   private async syncConfirmedOrdersSidebarItem() {
     try {
-      let enquiriesFolder = await this.sidebarFolderModel.findOne({
+      const enquiriesFolder = await this.sidebarFolderModel.findOne({
         where: { name: 'Enquiries' },
       });
 
@@ -712,10 +721,12 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 20,
           is_active: true,
           permission_link: 'enquiries:read',
-        } as any);
+        });
 
         itemId = newItem.id;
-        this.logger.log('Created /sales-contracts/confirmed-orders sidebar item in Enquiries as Orders');
+        this.logger.log(
+          'Created /sales-contracts/confirmed-orders sidebar item in Enquiries as Orders',
+        );
       } else {
         for (const item of items) {
           let modified = false;
@@ -745,7 +756,9 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           }
           if (modified) {
             await item.save();
-            this.logger.log(`Updated Confirmed Orders sidebar item to Orders under Enquiries`);
+            this.logger.log(
+              `Updated Confirmed Orders sidebar item to Orders under Enquiries`,
+            );
           }
           itemId = item.id;
         }
@@ -761,27 +774,38 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           try {
             const existing = (await seq.query(
               `SELECT id FROM client_item_access WHERE client_id = :clientId AND item_id = :itemId LIMIT 1;`,
-              { replacements: { clientId: client.id, itemId }, type: 'SELECT' }
+              { replacements: { clientId: client.id, itemId }, type: 'SELECT' },
             )) as any[];
 
             if (existing.length === 0) {
               await seq.query(
                 `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
                  VALUES (:clientId, :itemId, NOW(), NOW());`,
-                { replacements: { clientId: client.id, itemId } }
+                { replacements: { clientId: client.id, itemId } },
               );
             }
-            
+
             // Also ensure client has access to Enquiries folder
             const existingFolder = (await seq.query(
               `SELECT id FROM client_folder_access WHERE client_id = :clientId AND folder_id = :folderId LIMIT 1;`,
-              { replacements: { clientId: client.id, folderId: enquiriesFolder.id }, type: 'SELECT' }
+              {
+                replacements: {
+                  clientId: client.id,
+                  folderId: enquiriesFolder.id,
+                },
+                type: 'SELECT',
+              },
             )) as any[];
             if (existingFolder.length === 0) {
               await seq.query(
                 `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
                  VALUES (:clientId, :folderId, NOW(), NOW());`,
-                { replacements: { clientId: client.id, folderId: enquiriesFolder.id } }
+                {
+                  replacements: {
+                    clientId: client.id,
+                    folderId: enquiriesFolder.id,
+                  },
+                },
               );
             }
           } catch (e) {
@@ -845,7 +869,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           sort_order: 10,
           is_active: true,
           permission_link: 'always:allow', // Optional: customize as per RBAC
-        } as any);
+        });
         this.logger.log('Created Sales Report sidebar item');
       }
     } catch (err) {

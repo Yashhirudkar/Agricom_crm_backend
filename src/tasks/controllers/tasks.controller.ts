@@ -35,7 +35,7 @@ export class TasksController {
   constructor(
     private readonly tasksService: TasksService,
     private readonly transitionRepo: TaskStatusTransitionRepository,
-  ) { }
+  ) {}
 
   @Post()
   @RequirePermission('task:create')
@@ -50,9 +50,11 @@ export class TasksController {
     // JWT clientId is authoritative (validated by auth); header only used for super admin context switching
     const isSuperAdmin = req.user?.type === 'super_admin';
     if (isSuperAdmin && !req.user?.clientId) {
-      throw new BadRequestException('Super admins must select a company context to perform this action');
+      throw new BadRequestException(
+        'Super admins must select a company context to perform this action',
+      );
     }
-    
+
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
     const userId = req.user?.id || 1;
@@ -84,11 +86,19 @@ export class TasksController {
 
     const user = req.user;
     const permissions: Set<string> = req.userPermissions || new Set();
-    const hasViewAll = user?.type === 'super_admin' || user?.type === 'client_admin' || permissions.has('task:view_all');
+    const hasViewAll =
+      user?.type === 'super_admin' ||
+      user?.type === 'client_admin' ||
+      permissions.has('task:view_all');
 
     (query as any).hasViewAll = hasViewAll;
 
-    const result = await this.tasksService.findAll(clientId, companyId, userId, query);
+    const result = await this.tasksService.findAll(
+      clientId,
+      companyId,
+      userId,
+      query,
+    );
     return {
       success: true,
       items: result.items,
@@ -101,7 +111,10 @@ export class TasksController {
   @Get('all-tasks')
   @RequirePermission('task:view_all')
   @Throttle({ default: { limit: 120, ttl: 60000 } })
-  @ApiOperation({ summary: 'List all tasks across workspace (Requires task:view_all permission)' })
+  @ApiOperation({
+    summary:
+      'List all tasks across workspace (Requires task:view_all permission)',
+  })
   async findAllTasksView(@Req() req: any, @Query() query: TaskQueryDto) {
     const userId = req.user?.id || req.user?.userId || 1;
     const clientId = req.user?.clientId || 1;
@@ -109,7 +122,12 @@ export class TasksController {
 
     (query as any).hasViewAll = true;
     query.preset = 'all_tasks';
-    const result = await this.tasksService.findAll(clientId, companyId, userId, query);
+    const result = await this.tasksService.findAll(
+      clientId,
+      companyId,
+      userId,
+      query,
+    );
     return {
       success: true,
       items: result.items,
@@ -128,7 +146,12 @@ export class TasksController {
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkArchive(clientId, companyId, userId, dto);
+    const result = await this.tasksService.bulkArchive(
+      clientId,
+      companyId,
+      userId,
+      dto,
+    );
     return { success: true, ...result };
   }
 
@@ -141,7 +164,12 @@ export class TasksController {
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkChangeStatus(clientId, companyId, userId, dto);
+    const result = await this.tasksService.bulkChangeStatus(
+      clientId,
+      companyId,
+      userId,
+      dto,
+    );
     return { success: true, ...result };
   }
 
@@ -154,7 +182,12 @@ export class TasksController {
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
 
-    const result = await this.tasksService.bulkDelete(clientId, companyId, userId, dto);
+    const result = await this.tasksService.bulkDelete(
+      clientId,
+      companyId,
+      userId,
+      dto,
+    );
     return { success: true, ...result };
   }
 
@@ -176,7 +209,10 @@ export class TasksController {
   async getPriorities(@Req() req: any) {
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
-    const priorities = await this.tasksService.getPriorities(clientId, companyId);
+    const priorities = await this.tasksService.getPriorities(
+      clientId,
+      companyId,
+    );
     return { success: true, data: priorities };
   }
 
@@ -284,10 +320,16 @@ export class TasksController {
       }
     }
 
-    const task = await this.tasksService.update(+id, clientId, companyId, userId, {
-      statusId: body.statusId,
-      version: body.version,
-    });
+    const task = await this.tasksService.update(
+      +id,
+      clientId,
+      companyId,
+      userId,
+      {
+        statusId: body.statusId,
+        version: body.version,
+      },
+    );
     return {
       success: true,
       message: 'Status updated successfully',
@@ -304,7 +346,10 @@ export class TasksController {
   async getTransitions(@Req() req: any) {
     const clientId = req.user?.clientId || 1;
     const companyId = req.user?.companyId;
-    const rules = await this.transitionRepo.findAllByClient(clientId, companyId);
+    const rules = await this.transitionRepo.findAllByClient(
+      clientId,
+      companyId,
+    );
     return { success: true, data: rules };
   }
 

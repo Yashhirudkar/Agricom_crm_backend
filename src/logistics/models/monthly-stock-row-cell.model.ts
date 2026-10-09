@@ -31,20 +31,32 @@ export class MonthlyStockRowCell extends Model<MonthlyStockRowCell> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
-  @ForeignKey(() => require('./monthly-stock-section-row.model').MonthlyStockSectionRow)
+  @ForeignKey(
+    () => require('./monthly-stock-section-row.model').MonthlyStockSectionRow,
+  )
   @AllowNull(false)
   @Column({ field: 'row_id', type: DataType.INTEGER })
   declare rowId: number;
 
-  @BelongsTo(() => require('./monthly-stock-section-row.model').MonthlyStockSectionRow, { onDelete: 'CASCADE' })
+  @BelongsTo(
+    () => require('./monthly-stock-section-row.model').MonthlyStockSectionRow,
+    { onDelete: 'CASCADE' },
+  )
   declare row: any;
 
-  @ForeignKey(() => require('./monthly-stock-section-column.model').MonthlyStockSectionColumn)
+  @ForeignKey(
+    () =>
+      require('./monthly-stock-section-column.model').MonthlyStockSectionColumn,
+  )
   @AllowNull(false)
   @Column({ field: 'column_id', type: DataType.INTEGER })
   declare columnId: number;
 
-  @BelongsTo(() => require('./monthly-stock-section-column.model').MonthlyStockSectionColumn, { onDelete: 'CASCADE' })
+  @BelongsTo(
+    () =>
+      require('./monthly-stock-section-column.model').MonthlyStockSectionColumn,
+    { onDelete: 'CASCADE' },
+  )
   declare column: any;
 
   @AllowNull(true)

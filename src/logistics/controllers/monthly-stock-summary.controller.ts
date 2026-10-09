@@ -19,7 +19,10 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { MonthlyStockSummaryService } from '../services/monthly-stock-summary.service';
 import { QueryMonthlyStockSummaryDto } from '../dto/query-monthly-stock-summary.dto';
-import { CreateMonthlyStockSummaryDto, UpdateMonthlyStockSummaryDto } from '../dto/create-monthly-stock-summary.dto';
+import {
+  CreateMonthlyStockSummaryDto,
+  UpdateMonthlyStockSummaryDto,
+} from '../dto/create-monthly-stock-summary.dto';
 import {
   CreateSectionDto,
   UpdateSectionDto,
@@ -40,7 +43,9 @@ export class MonthlyStockSummaryController {
   @RequireAnyPermission('logistics:view', 'logistics:read')
   async findAll(@Query() query: QueryMonthlyStockSummaryDto, @Req() req: any) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.findAll(query, companyId);
   }
 
@@ -48,16 +53,23 @@ export class MonthlyStockSummaryController {
   @RequireAnyPermission('logistics:view', 'logistics:read')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.findOne(id, companyId);
   }
 
   @Post()
   @RequirePermission('logistics:update')
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() dto: CreateMonthlyStockSummaryDto & { sourceSummaryId?: number }, @Req() req: any) {
+  async create(
+    @Body() dto: CreateMonthlyStockSummaryDto & { sourceSummaryId?: number },
+    @Req() req: any,
+  ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.create(dto, req.user, companyId);
   }
 
@@ -69,7 +81,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.update(id, dto, req.user, companyId);
   }
 
@@ -77,7 +91,9 @@ export class MonthlyStockSummaryController {
   @RequirePermission('logistics:update')
   async publish(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.publish(id, req.user, companyId);
   }
 
@@ -85,7 +101,9 @@ export class MonthlyStockSummaryController {
   @RequirePermission('logistics:update')
   async remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.remove(id, companyId);
   }
 
@@ -100,7 +118,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.addSection(id, dto, companyId);
   }
 
@@ -112,7 +132,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.reorderSections(id, dto, companyId);
   }
 
@@ -125,7 +147,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.updateSection(id, sectionId, dto, companyId);
   }
 
@@ -137,7 +161,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.deleteSection(id, sectionId, companyId);
   }
 
@@ -150,7 +176,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.duplicateSection(id, sectionId, companyId);
   }
 
@@ -166,7 +194,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.addColumn(id, sectionId, dto, companyId);
   }
 
@@ -179,7 +209,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.reorderColumns(id, sectionId, dto, companyId);
   }
 
@@ -193,7 +225,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.duplicateColumn(id, sectionId, columnId, companyId);
   }
 
@@ -207,7 +241,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.updateColumn(id, sectionId, columnId, dto, companyId);
   }
 
@@ -220,7 +256,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.deleteColumn(id, sectionId, columnId, companyId);
   }
 
@@ -236,7 +274,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.addRow(id, sectionId, dto, companyId);
   }
 
@@ -249,7 +289,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.deleteRow(id, sectionId, rowId, companyId);
   }
 
@@ -262,7 +304,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.reorderRows(id, sectionId, dto, companyId);
   }
 
@@ -278,7 +322,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.bulkSaveSection(id, sectionId, dto, companyId);
   }
 
@@ -291,8 +337,9 @@ export class MonthlyStockSummaryController {
     @Req() req: any,
   ) {
     const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
-    const companyId = headerOrActive ? parseInt(headerOrActive as string, 10) : 1;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : 1;
     return this.service.saveReportData(id, dto, companyId);
   }
 }
-

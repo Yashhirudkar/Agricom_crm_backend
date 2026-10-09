@@ -23,9 +23,10 @@ export class TaskEmployeeController {
     const headerCompanyId = req.headers['x-company-id'];
     const rawCompanyId = headerCompanyId
       ? parseInt(headerCompanyId, 10)
-      : (req.user?.companyId || req.user?.clientId || req.user?.lastCompanyId);
+      : req.user?.companyId || req.user?.clientId || req.user?.lastCompanyId;
 
-    const companyId = rawCompanyId && !isNaN(rawCompanyId) ? rawCompanyId : undefined;
+    const companyId =
+      rawCompanyId && !isNaN(rawCompanyId) ? rawCompanyId : undefined;
 
     // 1. Fetch Employees
     const empWhere: any = {
@@ -77,19 +78,25 @@ export class TaskEmployeeController {
     const employeeEmails = employees
       .map((e) => e.email)
       .filter(Boolean)
-      .map((e) => e!.toLowerCase().trim());
+      .map((e) => e.toLowerCase().trim());
 
-    const employeeUserIds = employees
-      .map((e) => e.userId)
-      .filter(Boolean) as number[];
+    const employeeUserIds = employees.map((e) => e.userId).filter(Boolean);
 
     const userWhere: any = {
       [Op.or]: [
-        ...(employeeEmails.length ? [{ email: { [Op.in]: employeeEmails } }] : []),
-        ...(employeeUserIds.length ? [{ id: { [Op.in]: employeeUserIds } }] : []),
-        ...(companyId ? [{ clientId: companyId }, { lastCompanyId: companyId }] : []),
+        ...(employeeEmails.length
+          ? [{ email: { [Op.in]: employeeEmails } }]
+          : []),
+        ...(employeeUserIds.length
+          ? [{ id: { [Op.in]: employeeUserIds } }]
+          : []),
+        ...(companyId
+          ? [{ clientId: companyId }, { lastCompanyId: companyId }]
+          : []),
       ],
-      status: { [Op.notIn]: ['Inactive', 'Suspended', 'inactive', 'suspended'] },
+      status: {
+        [Op.notIn]: ['Inactive', 'Suspended', 'inactive', 'suspended'],
+      },
     };
 
     if (search && search.trim()) {
@@ -128,7 +135,9 @@ export class TaskEmployeeController {
       if (!linkedUser && emp.userId) {
         const candidateUser = userById.get(emp.userId);
         if (candidateUser) {
-          const candidateEmail = (candidateUser.email || '').toLowerCase().trim();
+          const candidateEmail = (candidateUser.email || '')
+            .toLowerCase()
+            .trim();
           if (!candidateEmail || !empEmail || candidateEmail === empEmail) {
             linkedUser = candidateUser;
           }
@@ -144,7 +153,10 @@ export class TaskEmployeeController {
       // Auto-create User account for employee if not linked (self-healing)
       if (!linkedUser && empEmail) {
         try {
-          const fullName = `${emp.firstName || ''} ${emp.lastName || ''}`.replace(/\s+/g, ' ').trim() || 'Employee';
+          const fullName =
+            `${emp.firstName || ''} ${emp.lastName || ''}`
+              .replace(/\s+/g, ' ')
+              .trim() || 'Employee';
           // Use clientId from request user for creating User account
           const newUserClientId = req.user?.clientId || companyId || null;
 
@@ -162,7 +174,7 @@ export class TaskEmployeeController {
               clientId: newUserClientId,
               status: 'Active',
               isActive: true,
-            } as any);
+            });
           }
 
           if (existingUser) {
@@ -183,8 +195,22 @@ export class TaskEmployeeController {
       // Still no user account (no email either) — skip this employee
       if (!linkedUser) continue;
 
-      const rawFirstName = (emp.firstName || (linkedUser.name ? linkedUser.name.split(' ')[0] : '') || '').replace(/\s+/g, ' ').trim();
-      const rawLastName = (emp.lastName || (linkedUser.name ? linkedUser.name.split(' ').slice(1).join(' ') : '') || '').replace(/\s+/g, ' ').trim();
+      const rawFirstName = (
+        emp.firstName ||
+        (linkedUser.name ? linkedUser.name.split(' ')[0] : '') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      const rawLastName = (
+        emp.lastName ||
+        (linkedUser.name
+          ? linkedUser.name.split(' ').slice(1).join(' ')
+          : '') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
 
       const key = `emp-${emp.id}`;
 

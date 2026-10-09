@@ -17,7 +17,10 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as crypto from 'crypto';
 import { Response } from 'express';
-import { PartnerDnbReportService, DNB_REPORT_UPLOAD_DIR } from './partner-dnb-report.service';
+import {
+  PartnerDnbReportService,
+  DNB_REPORT_UPLOAD_DIR,
+} from './partner-dnb-report.service';
 import { CreatePartnerDnbReportDto } from './dto/create-partner-dnb-report.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -25,7 +28,12 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
-const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+];
 
 export const dnbReportMulterConfig = {
   storage: diskStorage({
@@ -42,9 +50,14 @@ export const dnbReportMulterConfig = {
   },
   fileFilter: (req: any, file: Express.Multer.File, cb: any) => {
     const ext = extname(file.originalname).toLowerCase();
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype) || !ALLOWED_EXTENSIONS.includes(ext)) {
+    if (
+      !ALLOWED_MIME_TYPES.includes(file.mimetype) ||
+      !ALLOWED_EXTENSIONS.includes(ext)
+    ) {
       return cb(
-        new BadRequestException('Only PDF, JPG, JPEG, and PNG files under 10MB are allowed.'),
+        new BadRequestException(
+          'Only PDF, JPG, JPEG, and PNG files under 10MB are allowed.',
+        ),
         false,
       );
     }
@@ -73,7 +86,12 @@ export class PartnerDnbReportController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    return await this.dnbReportService.createReport(partnerId, dto, file, req.user);
+    return await this.dnbReportService.createReport(
+      partnerId,
+      dto,
+      file,
+      req.user,
+    );
   }
 
   @Get('dnb-reports/:reportId/download')
@@ -82,7 +100,8 @@ export class PartnerDnbReportController {
     @Param('reportId', ParseIntPipe) reportId: number,
     @Res() res: Response,
   ) {
-    const { record, filePath } = await this.dnbReportService.getReportRecord(reportId);
+    const { record, filePath } =
+      await this.dnbReportService.getReportRecord(reportId);
     res.setHeader('Content-Type', record.mimeType);
     res.setHeader(
       'Content-Disposition',
@@ -97,7 +116,8 @@ export class PartnerDnbReportController {
     @Param('reportId', ParseIntPipe) reportId: number,
     @Res() res: Response,
   ) {
-    const { record, filePath } = await this.dnbReportService.getReportRecord(reportId);
+    const { record, filePath } =
+      await this.dnbReportService.getReportRecord(reportId);
     res.setHeader('Content-Type', record.mimeType);
     res.setHeader(
       'Content-Disposition',

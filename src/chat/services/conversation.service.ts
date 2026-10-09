@@ -28,7 +28,11 @@ import {
   ExportPolicy,
   ActionPolicy,
 } from '../constants/chat.constants';
-import { CreateConversationDto, UpdateConversationDto, UpdatePostingPolicyDto } from '../dto/chat.dto';
+import {
+  CreateConversationDto,
+  UpdateConversationDto,
+  UpdatePostingPolicyDto,
+} from '../dto/chat.dto';
 import { AuditService } from '../../audit/services/audit.service';
 import { NotificationsService } from '../../notifications/services/notifications.service';
 import { PolicyService } from './policy.service';
@@ -48,12 +52,17 @@ import { Designation } from '../../hrms/models/designation.model';
 export class ConversationService implements OnModuleInit {
   async onModuleInit() {
     this.repairInvalidDMs().catch((err) => {
-      console.error('[ConversationService] Failed to run DM repair routine:', err);
+      console.error(
+        '[ConversationService] Failed to run DM repair routine:',
+        err,
+      );
     });
   }
 
   private async repairInvalidDMs() {
-    console.log('[ConversationService] Starting DM verification and repair routine...');
+    console.log(
+      '[ConversationService] Starting DM verification and repair routine...',
+    );
     const directConvs = await this.conversationModel.findAll({
       where: { type: ConversationType.DIRECT },
       include: [ConversationMember],
@@ -65,14 +74,20 @@ export class ConversationService implements OnModuleInit {
       if (members.length < 2) {
         await conv.destroy({ force: true });
         deletedCount++;
-        console.log(`[ConversationService] Deleted invalid DM conversation #${conv.id} with ${members.length} members.`);
+        console.log(
+          `[ConversationService] Deleted invalid DM conversation #${conv.id} with ${members.length} members.`,
+        );
       }
     }
 
     if (deletedCount > 0) {
-      console.log(`[ConversationService] DM verification complete. Deleted ${deletedCount} broken DM conversations.`);
+      console.log(
+        `[ConversationService] DM verification complete. Deleted ${deletedCount} broken DM conversations.`,
+      );
     } else {
-      console.log('[ConversationService] DM verification complete. All DM conversations are valid.');
+      console.log(
+        '[ConversationService] DM verification complete. All DM conversations are valid.',
+      );
     }
   }
   constructor(
@@ -90,12 +105,17 @@ export class ConversationService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly eventEmitter: EventEmitter2,
     private readonly policyService: PolicyService,
-  ) { }
+  ) {}
 
   async create(
     companyId: number,
     dto: CreateConversationDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<Conversation> {
     const creatorId = actor.userId;
     const clientId = actor.clientId;
@@ -105,16 +125,20 @@ export class ConversationService implements OnModuleInit {
     // 1. Validate & De-duplicate DIRECT messaging conversations
     if (dto.type === ConversationType.DIRECT) {
       if (!dto.memberUserIds || dto.memberUserIds.length !== 1) {
-        throw new BadRequestException('Direct message must specify exactly one recipient user ID.');
+        throw new BadRequestException(
+          'Direct message must specify exactly one recipient user ID.',
+        );
       }
       recipientId = dto.memberUserIds[0];
 
       if (Number(recipientId) === Number(creatorId)) {
-        throw new BadRequestException('You cannot start a direct message with yourself.');
+        throw new BadRequestException(
+          'You cannot start a direct message with yourself.',
+        );
       }
 
       // Validate recipient belongs to the same company and is active
-      const recipientCheck = await this.conversationModel.sequelize.query(
+      const recipientCheck = (await this.conversationModel.sequelize.query(
         `SELECT u.id 
          FROM "users" u
          JOIN "employees" e ON e."userId" = u.id
@@ -122,11 +146,13 @@ export class ConversationService implements OnModuleInit {
         {
           replacements: { recipientId, companyId },
           type: 'SELECT',
-        }
-      ) as any[];
+        },
+      )) as any[];
 
       if (recipientCheck.length === 0) {
-        throw new BadRequestException('Recipient user not found, inactive, or belongs to another company workspace.');
+        throw new BadRequestException(
+          'Recipient user not found, inactive, or belongs to another company workspace.',
+        );
       }
 
       const dms = await this.conversationModel.findAll({
@@ -159,24 +185,49 @@ export class ConversationService implements OnModuleInit {
             },
             {
               model: ConversationMember,
-              attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
+              attributes: [
+                'userId',
+                'role',
+                'isMuted',
+                'mutedUntil',
+                'lastReadMessageId',
+                'isPinned',
+                'isFavorite',
+                'unreadMessagesCount',
+                'isNotificationMuted',
+              ],
               include: [
                 {
                   model: User,
-                  attributes: ['id', 'name', 'email', 'avatarUrl', 'status', 'lastLogin'],
+                  attributes: [
+                    'id',
+                    'name',
+                    'email',
+                    'avatarUrl',
+                    'status',
+                    'lastLogin',
+                  ],
                   include: [
                     {
                       model: Employee,
-                      attributes: ['id', 'firstName', 'lastName', 'email', 'mobile', 'status', 'workMode'],
+                      attributes: [
+                        'id',
+                        'firstName',
+                        'lastName',
+                        'email',
+                        'mobile',
+                        'status',
+                        'workMode',
+                      ],
                       include: [
                         { model: Department, attributes: ['id', 'name'] },
                         { model: Designation, attributes: ['id', 'name'] },
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
           ],
         });
         if (fullDM) return fullDM;
@@ -187,18 +238,33 @@ export class ConversationService implements OnModuleInit {
     const t = await this.conversationModel.sequelize.transaction();
     try {
       // Resolve Presets & defaults
-      let vis = dto.visibility !== undefined ? dto.visibility : VisibilityType.MEMBERS_ONLY;
+      let vis =
+        dto.visibility !== undefined
+          ? dto.visibility
+          : VisibilityType.MEMBERS_ONLY;
       let sidebar = dto.showInSidebar !== undefined ? dto.showInSidebar : true;
       let search = dto.showInSearch !== undefined ? dto.showInSearch : true;
-      let gSearch = dto.showInGlobalSearch !== undefined ? dto.showInGlobalSearch : true;
-      let hMetadata = dto.epHideMetadata !== undefined ? dto.epHideMetadata : false;
+      let gSearch =
+        dto.showInGlobalSearch !== undefined ? dto.showInGlobalSearch : true;
+      let hMetadata =
+        dto.epHideMetadata !== undefined ? dto.epHideMetadata : false;
       let hApi = dto.epHideApi !== undefined ? dto.epHideApi : false;
       let hSocket = dto.epHideSocket !== undefined ? dto.epHideSocket : false;
       let hSearch = dto.epHideSearch !== undefined ? dto.epHideSearch : false;
-      let nOverride = dto.epNobodyOverride !== undefined ? dto.epNobodyOverride : false;
-      let notifPrivacy = dto.notificationPrivacy !== undefined ? dto.notificationPrivacy : NotificationPrivacy.MEMBERS_ONLY;
-      let typingVis = dto.typingVisibility !== undefined ? dto.typingVisibility : TypingVisibility.MEMBERS_ONLY;
-      let presenceVis = dto.presenceVisibility !== undefined ? dto.presenceVisibility : PresenceVisibility.EVERYONE;
+      let nOverride =
+        dto.epNobodyOverride !== undefined ? dto.epNobodyOverride : false;
+      let notifPrivacy =
+        dto.notificationPrivacy !== undefined
+          ? dto.notificationPrivacy
+          : NotificationPrivacy.MEMBERS_ONLY;
+      let typingVis =
+        dto.typingVisibility !== undefined
+          ? dto.typingVisibility
+          : TypingVisibility.MEMBERS_ONLY;
+      let presenceVis =
+        dto.presenceVisibility !== undefined
+          ? dto.presenceVisibility
+          : PresenceVisibility.EVERYONE;
 
       const preset = dto.enterpriseSecurityLevel;
       if (preset === EnterpriseSecurityLevel.CONFIDENTIAL) {
@@ -241,7 +307,8 @@ export class ConversationService implements OnModuleInit {
           isLocked: false,
           announcementMode: dto.type === ConversationType.ANNOUNCEMENT,
           visibility: vis,
-          classification: dto.classification || ConversationClassification.INTERNAL,
+          classification:
+            dto.classification || ConversationClassification.INTERNAL,
           enterpriseSecurityLevel: preset || EnterpriseSecurityLevel.STANDARD,
           retentionPolicyId: dto.retentionPolicyId || null,
           invitePolicy: dto.invitePolicy || ActionPolicy.MEMBER,
@@ -253,8 +320,10 @@ export class ConversationService implements OnModuleInit {
           deletePolicy: dto.deletePolicy || ActionPolicy.OWNER,
           showInSidebar: sidebar,
           showInSearch: search,
-          showInMention: dto.showInMention !== undefined ? dto.showInMention : true,
-          showInRecentChats: dto.showInRecentChats !== undefined ? dto.showInRecentChats : true,
+          showInMention:
+            dto.showInMention !== undefined ? dto.showInMention : true,
+          showInRecentChats:
+            dto.showInRecentChats !== undefined ? dto.showInRecentChats : true,
           showInGlobalSearch: gSearch,
           notificationPrivacy: notifPrivacy,
           typingVisibility: typingVis,
@@ -268,7 +337,7 @@ export class ConversationService implements OnModuleInit {
           epHideSocket: hSocket,
           epHideSearch: hSearch,
           epNobodyOverride: nOverride,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -281,24 +350,32 @@ export class ConversationService implements OnModuleInit {
           allowVoice: true,
           allowVideo: true,
           allowGif: true,
-          allowForward: dto.allowForward !== undefined ? dto.allowForward : true,
+          allowForward:
+            dto.allowForward !== undefined ? dto.allowForward : true,
           allowReply: dto.allowReply !== undefined ? dto.allowReply : true,
           allowEdit: dto.allowEdit !== undefined ? dto.allowEdit : true,
           allowDelete: dto.allowDelete !== undefined ? dto.allowDelete : true,
-          allowReaction: dto.allowReaction !== undefined ? dto.allowReaction : true,
+          allowReaction:
+            dto.allowReaction !== undefined ? dto.allowReaction : true,
           allowPoll: dto.allowPoll !== undefined ? dto.allowPoll : true,
-          allowMention: dto.allowMention !== undefined ? dto.allowMention : true,
+          allowMention:
+            dto.allowMention !== undefined ? dto.allowMention : true,
           allowExport: dto.allowExport !== undefined ? dto.allowExport : true,
           maxUploadSize: 10485760, // 10MB
           retentionDays: null,
           allowSend: dto.allowSend !== undefined ? dto.allowSend : true,
           allowPin: dto.allowPin !== undefined ? dto.allowPin : true,
           pinPolicy: dto.pinPolicy || ActionPolicy.MEMBER,
-          allowDownload: dto.allowDownload !== undefined ? dto.allowDownload : true,
+          allowDownload:
+            dto.allowDownload !== undefined ? dto.allowDownload : true,
           disableCopy: dto.disableCopy !== undefined ? dto.disableCopy : false,
-          screenshotProtectionBestEffort: dto.screenshotProtectionBestEffort !== undefined ? dto.screenshotProtectionBestEffort : false,
-          disablePrint: dto.disablePrint !== undefined ? dto.disablePrint : false,
-        } as any,
+          screenshotProtectionBestEffort:
+            dto.screenshotProtectionBestEffort !== undefined
+              ? dto.screenshotProtectionBestEffort
+              : false,
+          disablePrint:
+            dto.disablePrint !== undefined ? dto.disablePrint : false,
+        },
         { transaction: t },
       );
 
@@ -311,19 +388,25 @@ export class ConversationService implements OnModuleInit {
           isMuted: false,
           isNotificationMuted: false,
           joinedAt: new Date(),
-        } as any,
+        },
         { transaction: t },
       );
 
       // Add overrides if passed
       if (dto.permissionOverrides && dto.permissionOverrides.length > 0) {
-        await this.syncPermissionOverrides(conversation.id, dto.permissionOverrides, t);
+        await this.syncPermissionOverrides(
+          conversation.id,
+          dto.permissionOverrides,
+          t,
+        );
       }
 
       // Add other members
       if (dto.type === ConversationType.DIRECT) {
         if (!recipientId) {
-          throw new BadRequestException('Direct message recipient ID is missing.');
+          throw new BadRequestException(
+            'Direct message recipient ID is missing.',
+          );
         }
         await this.memberModel.create(
           {
@@ -333,12 +416,14 @@ export class ConversationService implements OnModuleInit {
             isMuted: false,
             isNotificationMuted: false,
             joinedAt: new Date(),
-          } as any,
+          },
           { transaction: t },
         );
       } else {
         if (dto.memberUserIds && dto.memberUserIds.length > 0) {
-          const uniqueMemberIds = Array.from(new Set(dto.memberUserIds)).filter((id) => id !== creatorId);
+          const uniqueMemberIds = Array.from(new Set(dto.memberUserIds)).filter(
+            (id) => id !== creatorId,
+          );
           for (const memberId of uniqueMemberIds) {
             const userExists = await this.userModel.findOne({
               where: { id: memberId, isActive: true },
@@ -354,7 +439,7 @@ export class ConversationService implements OnModuleInit {
                   isMuted: false,
                   isNotificationMuted: false,
                   joinedAt: new Date(),
-                } as any,
+                },
                 { transaction: t },
               );
             }
@@ -385,30 +470,60 @@ export class ConversationService implements OnModuleInit {
         },
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
+          attributes: [
+            'userId',
+            'role',
+            'isMuted',
+            'mutedUntil',
+            'lastReadMessageId',
+            'isPinned',
+            'isFavorite',
+            'unreadMessagesCount',
+            'isNotificationMuted',
+          ],
           include: [
             {
               model: User,
-              attributes: ['id', 'name', 'email', 'avatarUrl', 'status', 'lastLogin'],
+              attributes: [
+                'id',
+                'name',
+                'email',
+                'avatarUrl',
+                'status',
+                'lastLogin',
+              ],
               include: [
                 {
                   model: Employee,
-                  attributes: ['id', 'firstName', 'lastName', 'email', 'mobile', 'status', 'workMode'],
+                  attributes: [
+                    'id',
+                    'firstName',
+                    'lastName',
+                    'email',
+                    'mobile',
+                    'status',
+                    'workMode',
+                  ],
                   include: [
                     { model: Department, attributes: ['id', 'name'] },
                     { model: Designation, attributes: ['id', 'name'] },
-                  ]
-                }
-              ]
-            }
-          ]
-        }
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
 
     if (fullConversation) {
-      if (fullConversation.type === ConversationType.DIRECT && (!fullConversation.members || fullConversation.members.length !== 2)) {
-        throw new InternalServerErrorException('Invalid DM conversation (Direct Message must contain exactly two members).');
+      if (
+        fullConversation.type === ConversationType.DIRECT &&
+        (!fullConversation.members || fullConversation.members.length !== 2)
+      ) {
+        throw new InternalServerErrorException(
+          'Invalid DM conversation (Direct Message must contain exactly two members).',
+        );
       }
     }
 
@@ -437,13 +552,24 @@ export class ConversationService implements OnModuleInit {
     companyId: number,
     userId: number,
     userType: string,
-    filters: { type?: ConversationType; entityType?: string; entityId?: string; page?: number; limit?: number; archived?: boolean },
+    filters: {
+      type?: ConversationType;
+      entityType?: string;
+      entityId?: string;
+      page?: number;
+      limit?: number;
+      archived?: boolean;
+    },
   ) {
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const offset = (page - 1) * limit;
 
-    const accessibleIds = await this.policyService.getAccessibleConversationIds(userId, companyId, userType);
+    const accessibleIds = await this.policyService.getAccessibleConversationIds(
+      userId,
+      companyId,
+      userType,
+    );
 
     const where: any = {
       companyId,
@@ -484,23 +610,48 @@ export class ConversationService implements OnModuleInit {
       include: [
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
+          attributes: [
+            'userId',
+            'role',
+            'isMuted',
+            'mutedUntil',
+            'lastReadMessageId',
+            'isPinned',
+            'isFavorite',
+            'unreadMessagesCount',
+            'isNotificationMuted',
+          ],
           include: [
             {
               model: User,
-              attributes: ['id', 'name', 'email', 'avatarUrl', 'status', 'lastLogin'],
+              attributes: [
+                'id',
+                'name',
+                'email',
+                'avatarUrl',
+                'status',
+                'lastLogin',
+              ],
               include: [
                 {
                   model: Employee,
-                  attributes: ['id', 'firstName', 'lastName', 'email', 'mobile', 'status', 'workMode'],
+                  attributes: [
+                    'id',
+                    'firstName',
+                    'lastName',
+                    'email',
+                    'mobile',
+                    'status',
+                    'workMode',
+                  ],
                   include: [
                     { model: Department, attributes: ['id', 'name'] },
                     { model: Designation, attributes: ['id', 'name'] },
-                  ]
-                }
-              ]
-            }
-          ]
+                  ],
+                },
+              ],
+            },
+          ],
         },
         {
           model: ConversationSetting,
@@ -526,7 +677,7 @@ export class ConversationService implements OnModuleInit {
               SELECT "messageId" 
               FROM "message_read_states" 
               WHERE "userId" = ${userId} AND "deletedAt" IS NOT NULL
-            )`)
+            )`),
           };
         }
 
@@ -549,7 +700,7 @@ export class ConversationService implements OnModuleInit {
               SELECT "messageId" 
               FROM "message_read_states" 
               WHERE "userId" = ${userId} AND "deletedAt" IS NOT NULL
-            )`)
+            )`),
           });
         }
         if (membership && membership.lastReadMessageId) {
@@ -558,7 +709,10 @@ export class ConversationService implements OnModuleInit {
           });
         }
         if (idConditions.length > 0) {
-          unreadWhere.id = idConditions.length === 1 ? idConditions[0] : { [Op.and]: idConditions };
+          unreadWhere.id =
+            idConditions.length === 1
+              ? idConditions[0]
+              : { [Op.and]: idConditions };
         }
         unreadCount = await this.messageModel.count({ where: unreadWhere });
 
@@ -582,7 +736,10 @@ export class ConversationService implements OnModuleInit {
     };
   }
 
-  async getConversationById(conversationId: number, companyId: number): Promise<Conversation> {
+  async getConversationById(
+    conversationId: number,
+    companyId: number,
+  ): Promise<Conversation> {
     const conversation = await this.conversationModel.findOne({
       where: { id: conversationId, companyId },
       include: [
@@ -594,23 +751,48 @@ export class ConversationService implements OnModuleInit {
         },
         {
           model: ConversationMember,
-          attributes: ['userId', 'role', 'isMuted', 'mutedUntil', 'lastReadMessageId', 'isPinned', 'isFavorite', 'unreadMessagesCount', 'isNotificationMuted'],
+          attributes: [
+            'userId',
+            'role',
+            'isMuted',
+            'mutedUntil',
+            'lastReadMessageId',
+            'isPinned',
+            'isFavorite',
+            'unreadMessagesCount',
+            'isNotificationMuted',
+          ],
           include: [
             {
               model: User,
-              attributes: ['id', 'name', 'email', 'avatarUrl', 'status', 'lastLogin'],
+              attributes: [
+                'id',
+                'name',
+                'email',
+                'avatarUrl',
+                'status',
+                'lastLogin',
+              ],
               include: [
                 {
                   model: Employee,
-                  attributes: ['id', 'firstName', 'lastName', 'email', 'mobile', 'status', 'workMode'],
+                  attributes: [
+                    'id',
+                    'firstName',
+                    'lastName',
+                    'email',
+                    'mobile',
+                    'status',
+                    'workMode',
+                  ],
                   include: [
                     { model: Department, attributes: ['id', 'name'] },
                     { model: Designation, attributes: ['id', 'name'] },
-                  ]
-                }
-              ]
-            }
-          ]
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     });
@@ -626,28 +808,45 @@ export class ConversationService implements OnModuleInit {
     conversationId: number,
     companyId: number,
     dto: UpdateConversationDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<Conversation> {
-    const conversation = await this.getConversationById(conversationId, companyId);
+    const conversation = await this.getConversationById(
+      conversationId,
+      companyId,
+    );
     const oldRecord = conversation.toJSON();
 
-    if (conversation.isFrozen && dto.isFrozen === undefined && dto.legalHoldActive === undefined) {
-      throw new ForbiddenException('This conversation is frozen and read-only.');
+    if (
+      conversation.isFrozen &&
+      dto.isFrozen === undefined &&
+      dto.legalHoldActive === undefined
+    ) {
+      throw new ForbiddenException(
+        'This conversation is frozen and read-only.',
+      );
     }
 
     if (dto.name !== undefined) conversation.name = dto.name;
-    if (dto.description !== undefined) conversation.description = dto.description;
+    if (dto.description !== undefined)
+      conversation.description = dto.description;
     if (dto.avatarUrl !== undefined) conversation.avatarUrl = dto.avatarUrl;
     if (dto.isArchived !== undefined) {
       conversation.isArchived = dto.isArchived;
       conversation.deletedAt = dto.isArchived ? new Date() : null;
     }
     if (dto.isLocked !== undefined) conversation.isLocked = dto.isLocked;
-    if (dto.announcementMode !== undefined) conversation.announcementMode = dto.announcementMode;
+    if (dto.announcementMode !== undefined)
+      conversation.announcementMode = dto.announcementMode;
 
     // Advanced Visibility & Security Policy Updates
     if (dto.visibility !== undefined) conversation.visibility = dto.visibility;
-    if (dto.classification !== undefined) conversation.classification = dto.classification;
+    if (dto.classification !== undefined)
+      conversation.classification = dto.classification;
     if (dto.enterpriseSecurityLevel !== undefined) {
       conversation.enterpriseSecurityLevel = dto.enterpriseSecurityLevel;
       const preset = dto.enterpriseSecurityLevel;
@@ -677,31 +876,52 @@ export class ConversationService implements OnModuleInit {
       }
     }
 
-    if (dto.retentionPolicyId !== undefined) conversation.retentionPolicyId = dto.retentionPolicyId;
-    if (dto.invitePolicy !== undefined) conversation.invitePolicy = dto.invitePolicy;
-    if (dto.removeMemberPolicy !== undefined) conversation.removeMemberPolicy = dto.removeMemberPolicy;
-    if (dto.renamePolicy !== undefined) conversation.renamePolicy = dto.renamePolicy;
+    if (dto.retentionPolicyId !== undefined)
+      conversation.retentionPolicyId = dto.retentionPolicyId;
+    if (dto.invitePolicy !== undefined)
+      conversation.invitePolicy = dto.invitePolicy;
+    if (dto.removeMemberPolicy !== undefined)
+      conversation.removeMemberPolicy = dto.removeMemberPolicy;
+    if (dto.renamePolicy !== undefined)
+      conversation.renamePolicy = dto.renamePolicy;
     if (dto.iconPolicy !== undefined) conversation.iconPolicy = dto.iconPolicy;
     if (dto.descPolicy !== undefined) conversation.descPolicy = dto.descPolicy;
-    if (dto.archivePolicy !== undefined) conversation.archivePolicy = dto.archivePolicy;
-    if (dto.deletePolicy !== undefined) conversation.deletePolicy = dto.deletePolicy;
-    if (dto.showInSidebar !== undefined) conversation.showInSidebar = dto.showInSidebar;
-    if (dto.showInSearch !== undefined) conversation.showInSearch = dto.showInSearch;
-    if (dto.showInMention !== undefined) conversation.showInMention = dto.showInMention;
-    if (dto.showInRecentChats !== undefined) conversation.showInRecentChats = dto.showInRecentChats;
-    if (dto.showInGlobalSearch !== undefined) conversation.showInGlobalSearch = dto.showInGlobalSearch;
-    if (dto.notificationPrivacy !== undefined) conversation.notificationPrivacy = dto.notificationPrivacy;
-    if (dto.typingVisibility !== undefined) conversation.typingVisibility = dto.typingVisibility;
-    if (dto.presenceVisibility !== undefined) conversation.presenceVisibility = dto.presenceVisibility;
-    if (dto.exportPolicy !== undefined) conversation.exportPolicy = dto.exportPolicy;
-    if (dto.legalHoldActive !== undefined) conversation.legalHoldActive = dto.legalHoldActive;
+    if (dto.archivePolicy !== undefined)
+      conversation.archivePolicy = dto.archivePolicy;
+    if (dto.deletePolicy !== undefined)
+      conversation.deletePolicy = dto.deletePolicy;
+    if (dto.showInSidebar !== undefined)
+      conversation.showInSidebar = dto.showInSidebar;
+    if (dto.showInSearch !== undefined)
+      conversation.showInSearch = dto.showInSearch;
+    if (dto.showInMention !== undefined)
+      conversation.showInMention = dto.showInMention;
+    if (dto.showInRecentChats !== undefined)
+      conversation.showInRecentChats = dto.showInRecentChats;
+    if (dto.showInGlobalSearch !== undefined)
+      conversation.showInGlobalSearch = dto.showInGlobalSearch;
+    if (dto.notificationPrivacy !== undefined)
+      conversation.notificationPrivacy = dto.notificationPrivacy;
+    if (dto.typingVisibility !== undefined)
+      conversation.typingVisibility = dto.typingVisibility;
+    if (dto.presenceVisibility !== undefined)
+      conversation.presenceVisibility = dto.presenceVisibility;
+    if (dto.exportPolicy !== undefined)
+      conversation.exportPolicy = dto.exportPolicy;
+    if (dto.legalHoldActive !== undefined)
+      conversation.legalHoldActive = dto.legalHoldActive;
     if (dto.isFrozen !== undefined) conversation.isFrozen = dto.isFrozen;
-    if (dto.dynamicMembershipRules !== undefined) conversation.dynamicMembershipRules = dto.dynamicMembershipRules;
-    if (dto.epHideMetadata !== undefined) conversation.epHideMetadata = dto.epHideMetadata;
+    if (dto.dynamicMembershipRules !== undefined)
+      conversation.dynamicMembershipRules = dto.dynamicMembershipRules;
+    if (dto.epHideMetadata !== undefined)
+      conversation.epHideMetadata = dto.epHideMetadata;
     if (dto.epHideApi !== undefined) conversation.epHideApi = dto.epHideApi;
-    if (dto.epHideSocket !== undefined) conversation.epHideSocket = dto.epHideSocket;
-    if (dto.epHideSearch !== undefined) conversation.epHideSearch = dto.epHideSearch;
-    if (dto.epNobodyOverride !== undefined) conversation.epNobodyOverride = dto.epNobodyOverride;
+    if (dto.epHideSocket !== undefined)
+      conversation.epHideSocket = dto.epHideSocket;
+    if (dto.epHideSearch !== undefined)
+      conversation.epHideSearch = dto.epHideSearch;
+    if (dto.epNobodyOverride !== undefined)
+      conversation.epNobodyOverride = dto.epNobodyOverride;
 
     await conversation.save();
 
@@ -721,14 +941,18 @@ export class ConversationService implements OnModuleInit {
       if (dto.pinPolicy !== undefined) s.pinPolicy = dto.pinPolicy;
       if (dto.allowDownload !== undefined) s.allowDownload = dto.allowDownload;
       if (dto.disableCopy !== undefined) s.disableCopy = dto.disableCopy;
-      if (dto.screenshotProtectionBestEffort !== undefined) s.screenshotProtectionBestEffort = dto.screenshotProtectionBestEffort;
+      if (dto.screenshotProtectionBestEffort !== undefined)
+        s.screenshotProtectionBestEffort = dto.screenshotProtectionBestEffort;
       if (dto.disablePrint !== undefined) s.disablePrint = dto.disablePrint;
       await s.save();
     }
 
     // 3. Sync permission overrides
     if (dto.permissionOverrides !== undefined) {
-      await this.syncPermissionOverrides(conversationId, dto.permissionOverrides);
+      await this.syncPermissionOverrides(
+        conversationId,
+        dto.permissionOverrides,
+      );
     }
 
     // 4. Sync dynamic memberships
@@ -736,7 +960,10 @@ export class ConversationService implements OnModuleInit {
       await this.syncDynamicMemberships(conversationId);
     }
 
-    const updatedRecord = await this.getConversationById(conversationId, companyId);
+    const updatedRecord = await this.getConversationById(
+      conversationId,
+      companyId,
+    );
 
     // Audit Log
     await this.auditService.writeDiffLog({
@@ -761,7 +988,12 @@ export class ConversationService implements OnModuleInit {
     } else if (dto.isLocked !== undefined) {
       this.eventEmitter.emit(
         ChatEventNames.CONVERSATION_LOCKED,
-        new ConversationLockedEvent(conversationId, companyId, dto.isLocked, actor.userId),
+        new ConversationLockedEvent(
+          conversationId,
+          companyId,
+          dto.isLocked,
+          actor.userId,
+        ),
       );
     } else {
       this.eventEmitter.emit(
@@ -777,20 +1009,40 @@ export class ConversationService implements OnModuleInit {
     conversationId: number,
     companyId: number,
     archive: boolean,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<void> {
-    await this.update(conversationId, companyId, { isArchived: archive }, actor);
+    await this.update(
+      conversationId,
+      companyId,
+      { isArchived: archive },
+      actor,
+    );
   }
 
   async delete(
     conversationId: number,
     companyId: number,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<void> {
-    const conversation = await this.getConversationById(conversationId, companyId);
-    
+    const conversation = await this.getConversationById(
+      conversationId,
+      companyId,
+    );
+
     if (conversation.legalHoldActive) {
-      throw new ForbiddenException('This conversation is under compliance legal hold. Deletion is disabled.');
+      throw new ForbiddenException(
+        'This conversation is under compliance legal hold. Deletion is disabled.',
+      );
     }
 
     // Perform soft-delete (force: false) to move to Recycle Bin.
@@ -811,7 +1063,12 @@ export class ConversationService implements OnModuleInit {
     conversationId: number,
     companyId: number,
     lock: boolean,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<void> {
     await this.update(conversationId, companyId, { isLocked: lock }, actor);
   }
@@ -825,12 +1082,23 @@ export class ConversationService implements OnModuleInit {
     conversationId: number,
     companyId: number,
     dto: UpdatePostingPolicyDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<Conversation> {
-    const conversation = await this.getConversationById(conversationId, companyId);
+    const conversation = await this.getConversationById(
+      conversationId,
+      companyId,
+    );
 
     // Only CHANNEL and ANNOUNCEMENT type conversations support posting policy
-    const allowedTypes = [ConversationType.CHANNEL, ConversationType.ANNOUNCEMENT];
+    const allowedTypes = [
+      ConversationType.CHANNEL,
+      ConversationType.ANNOUNCEMENT,
+    ];
     if (!allowedTypes.includes(conversation.type)) {
       throw new BadRequestException(
         'Posting policy can only be set on CHANNEL or ANNOUNCEMENT conversations.',
@@ -846,17 +1114,26 @@ export class ConversationService implements OnModuleInit {
     (conversation as any).allowedPosters = [];
     (conversation as any).allowedRoles = [];
 
-    if (dto.postingPolicy === PostingPolicy.SELECTED_USERS && dto.allowedPosters?.length) {
+    if (
+      dto.postingPolicy === PostingPolicy.SELECTED_USERS &&
+      dto.allowedPosters?.length
+    ) {
       (conversation as any).allowedPosters = dto.allowedPosters;
     }
 
-    if (dto.postingPolicy === PostingPolicy.SELECTED_ROLES && dto.allowedRoles?.length) {
+    if (
+      dto.postingPolicy === PostingPolicy.SELECTED_ROLES &&
+      dto.allowedRoles?.length
+    ) {
       (conversation as any).allowedRoles = dto.allowedRoles;
     }
 
     await conversation.save();
 
-    const updatedRecord = await this.getConversationById(conversationId, companyId);
+    const updatedRecord = await this.getConversationById(
+      conversationId,
+      companyId,
+    );
 
     // Audit log
     await this.auditService.writeDiffLog({
@@ -881,23 +1158,32 @@ export class ConversationService implements OnModuleInit {
     return updatedRecord;
   }
 
-  async syncPermissionOverrides(conversationId: number, overrides: any[], transaction?: any): Promise<void> {
+  async syncPermissionOverrides(
+    conversationId: number,
+    overrides: any[],
+    transaction?: any,
+  ): Promise<void> {
     if (!overrides) return;
     // Delete existing overrides
-    await this.conversationModel.sequelize.models.ConversationPermissionOverride.destroy({
-      where: { conversationId },
-      transaction,
-    });
+    await this.conversationModel.sequelize.models.ConversationPermissionOverride.destroy(
+      {
+        where: { conversationId },
+        transaction,
+      },
+    );
 
     // Create new overrides
     for (const ov of overrides) {
-      await this.conversationModel.sequelize.models.ConversationPermissionOverride.create({
-        conversationId,
-        permission: ov.permission,
-        principalType: ov.principalType,
-        principalId: ov.principalId ? String(ov.principalId) : null,
-        createdBy: ov.createdBy || null,
-      }, { transaction });
+      await this.conversationModel.sequelize.models.ConversationPermissionOverride.create(
+        {
+          conversationId,
+          permission: ov.permission,
+          principalType: ov.principalType,
+          principalId: ov.principalId ? String(ov.principalId) : null,
+          createdBy: ov.createdBy || null,
+        },
+        { transaction },
+      );
     }
   }
 
@@ -913,34 +1199,43 @@ export class ConversationService implements OnModuleInit {
     if (rules.designationId) whereClause.designationId = rules.designationId;
     if (rules.branchId) whereClause.branchId = rules.branchId;
 
-    const matchingEmployees = await this.conversationModel.sequelize.models.Employee.findAll({
-      where: whereClause,
-      attributes: ['userId'],
-    }) as any[];
+    const matchingEmployees =
+      (await this.conversationModel.sequelize.models.Employee.findAll({
+        where: whereClause,
+        attributes: ['userId'],
+      })) as any[];
 
-    const targetUserIds = matchingEmployees.map(emp => emp.userId).filter(Boolean);
+    const targetUserIds = matchingEmployees
+      .map((emp) => emp.userId)
+      .filter(Boolean);
 
     // Get current memberships
     const currentMembers = await this.memberModel.findAll({
       where: { conversationId },
     });
-    const currentMemberUserIds = currentMembers.map(m => m.userId);
+    const currentMemberUserIds = currentMembers.map((m) => m.userId);
 
     // Users to add
-    const toAdd = targetUserIds.filter(id => !currentMemberUserIds.includes(id));
+    const toAdd = targetUserIds.filter(
+      (id) => !currentMemberUserIds.includes(id),
+    );
     // Users to remove
-    const toRemove = currentMemberUserIds.filter(id => !targetUserIds.includes(id));
+    const toRemove = currentMemberUserIds.filter(
+      (id) => !targetUserIds.includes(id),
+    );
 
     // Add matching
     for (const userId of toAdd) {
-      const userExists = await this.userModel.findOne({ where: { id: userId, isActive: true } });
+      const userExists = await this.userModel.findOne({
+        where: { id: userId, isActive: true },
+      });
       if (userExists) {
         await this.memberModel.create({
           conversationId,
           userId,
           role: MemberRole.MEMBER,
           joinedAt: new Date(),
-        } as any);
+        });
       }
     }
 

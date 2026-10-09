@@ -1,9 +1,4 @@
-import {
-  IsInt,
-  IsNotEmpty,
-  IsObject,
-  IsPositive,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsObject, IsPositive } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SavePartnerDynamicValuesDto {

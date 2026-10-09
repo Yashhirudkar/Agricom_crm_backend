@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsInt, IsDateString, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsDateString,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreatePartnerFollowUpDto {
   @IsOptional()
@@ -43,4 +50,3 @@ export class CreatePartnerFollowUpDto {
   @IsInt()
   entityId?: number;
 }
-

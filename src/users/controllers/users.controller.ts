@@ -253,7 +253,11 @@ export class UsersController {
       userAgent: req.headers['user-agent'],
     };
 
-    if (isSuper && targetUser.clientId !== null && targetUser.clientId !== company.clientId) {
+    if (
+      isSuper &&
+      targetUser.clientId !== null &&
+      targetUser.clientId !== company.clientId
+    ) {
       return this.usersService.transferUserToCompany(
         dto.userId,
         dto.companyId,
@@ -297,7 +301,11 @@ export class UsersController {
       userAgent: req.headers['user-agent'],
     };
 
-    await this.usersService.removeUserFromCompany(dto.userId, dto.companyId, actor);
+    await this.usersService.removeUserFromCompany(
+      dto.userId,
+      dto.companyId,
+      actor,
+    );
     return { success: true, message: 'User removed from company workspace' };
   }
 

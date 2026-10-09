@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize } from 'sequelize';
 import { SalesContractShipment } from './models/sales-contract-shipment.model';
@@ -28,7 +33,7 @@ export class ShipmentService {
     private readonly docFileModel: typeof SalesContractDocumentFile,
     @Inject(forwardRef(() => PurchaseContractService))
     private readonly purchaseContractService: PurchaseContractService,
-  ) { }
+  ) {}
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
     if (status === 'Delivered') {
@@ -64,9 +69,19 @@ export class ShipmentService {
       return { label: 'Tomorrow', color: 'blue', days: 1, type: 'tomorrow' };
     } else if (daysDiff > 1) {
       const color = daysDiff <= 7 ? 'blue' : 'orange';
-      return { label: `In ${daysDiff} Days`, color, days: daysDiff, type: 'upcoming' };
+      return {
+        label: `In ${daysDiff} Days`,
+        color,
+        days: daysDiff,
+        type: 'upcoming',
+      };
     } else {
-      return { label: `Overdue ${Math.abs(daysDiff)} Days`, color: 'red', days: daysDiff, type: 'overdue' };
+      return {
+        label: `Overdue ${Math.abs(daysDiff)} Days`,
+        color: 'red',
+        days: daysDiff,
+        type: 'overdue',
+      };
     }
   }
 
@@ -109,7 +124,12 @@ export class ShipmentService {
       whereClause[Op.and] = whereClause[Op.and] || [];
       whereClause[Op.and].push(
         Sequelize.where(
-          Sequelize.fn('EXTRACT', Sequelize.literal('MONTH FROM "SalesContractShipment"."shipment_date"')),
+          Sequelize.fn(
+            'EXTRACT',
+            Sequelize.literal(
+              'MONTH FROM "SalesContractShipment"."shipment_date"',
+            ),
+          ),
           Number(shipmentMonth),
         ),
       );
@@ -118,7 +138,12 @@ export class ShipmentService {
       whereClause[Op.and] = whereClause[Op.and] || [];
       whereClause[Op.and].push(
         Sequelize.where(
-          Sequelize.fn('EXTRACT', Sequelize.literal('YEAR FROM "SalesContractShipment"."shipment_date"')),
+          Sequelize.fn(
+            'EXTRACT',
+            Sequelize.literal(
+              'YEAR FROM "SalesContractShipment"."shipment_date"',
+            ),
+          ),
           Number(shipmentYear),
         ),
       );
@@ -158,8 +183,12 @@ export class ShipmentService {
     if (sellerId) contractWhereClause.sellerId = sellerId;
     if (currency) contractWhereClause.currencyCode = currency;
     if (financialYear) contractWhereClause.financialYear = financialYear;
-    if (portOfLoading) contractWhereClause.portOfLoading = { [Op.iLike]: `%${portOfLoading}%` };
-    if (portOfDischarge) contractWhereClause.portOfDischarge = { [Op.iLike]: `%${portOfDischarge}%` };
+    if (portOfLoading)
+      contractWhereClause.portOfLoading = { [Op.iLike]: `%${portOfLoading}%` };
+    if (portOfDischarge)
+      contractWhereClause.portOfDischarge = {
+        [Op.iLike]: `%${portOfDischarge}%`,
+      };
 
     if (country) {
       contractWhereClause[Op.or] = [
@@ -191,7 +220,10 @@ export class ShipmentService {
       {
         model: SalesContract,
         as: 'salesContract',
-        where: Object.keys(contractWhereClause).length > 0 ? contractWhereClause : undefined,
+        where:
+          Object.keys(contractWhereClause).length > 0
+            ? contractWhereClause
+            : undefined,
         required: true,
         include: [
           { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
@@ -204,7 +236,12 @@ export class ShipmentService {
   }
 
   async findAll(query: any) {
-    const { page = 1, limit = 10, sortBy = 'shipmentDate', sortOrder = 'ASC' } = query;
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'shipmentDate',
+      sortOrder = 'ASC',
+    } = query;
     const offset = (Number(page) - 1) * Number(limit);
 
     const { whereClause, includes } = this.buildQueryOptions(query);
@@ -232,7 +269,11 @@ export class ShipmentService {
     });
 
     const contractIds = Array.from(
-      new Set(rows.map((s) => s.salesContractId || s.salesContract?.id).filter(Boolean)),
+      new Set(
+        rows
+          .map((s) => s.salesContractId || s.salesContract?.id)
+          .filter(Boolean),
+      ),
     );
 
     const itemsByContract = new Map<number, any[]>();
@@ -243,39 +284,52 @@ export class ShipmentService {
       const [items, documents, documentFiles] = await Promise.all([
         this.itemModel.findAll({
           where: { salesContractId: { [Op.in]: contractIds } },
-          include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+          include: [
+            { model: Product, as: 'product', attributes: ['id', 'name'] },
+          ],
         }),
         this.docModel.findAll({
           where: { salesContractId: { [Op.in]: contractIds } },
-          include: [{ model: TradeDocument, as: 'tradeDocument', attributes: ['id', 'name', 'mandatoryByDefault'] }],
+          include: [
+            {
+              model: TradeDocument,
+              as: 'tradeDocument',
+              attributes: ['id', 'name', 'mandatoryByDefault'],
+            },
+          ],
         }),
         this.docFileModel.findAll({
           where: { salesContractId: { [Op.in]: contractIds } },
-          attributes: ['id', 'salesContractId', 'tradeDocumentId', 'attachmentId'],
+          attributes: [
+            'id',
+            'salesContractId',
+            'tradeDocumentId',
+            'attachmentId',
+          ],
         }),
       ]);
 
       for (const item of items) {
         const cid = (item as any).salesContractId;
         if (!itemsByContract.has(cid)) itemsByContract.set(cid, []);
-        itemsByContract.get(cid)!.push(item);
+        itemsByContract.get(cid).push(item);
       }
 
       for (const doc of documents) {
         const cid = (doc as any).salesContractId;
         if (!docsByContract.has(cid)) docsByContract.set(cid, []);
-        docsByContract.get(cid)!.push(doc);
+        docsByContract.get(cid).push(doc);
       }
 
       for (const file of documentFiles) {
         const cid = (file as any).salesContractId;
         if (!filesByContract.has(cid)) filesByContract.set(cid, []);
-        filesByContract.get(cid)!.push(file);
+        filesByContract.get(cid).push(file);
       }
     }
 
     const data = rows.map((shipment) => {
-      const json = (shipment.toJSON ? shipment.toJSON() : { ...shipment }) as any;
+      const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
       const contractId = json.salesContractId || json.salesContract?.id;
       const contractItems = itemsByContract.get(contractId) || [];
       const contractDocs = docsByContract.get(contractId) || [];
@@ -299,15 +353,22 @@ export class ShipmentService {
       // Calculate document progress
       const mandatoryDocs = contractDocs.filter((doc: any) => doc.isMandatory);
       const uploadedMandatoryCount = mandatoryDocs.filter((doc: any) =>
-        contractFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId),
+        contractFiles.some(
+          (file: any) => file.tradeDocumentId === doc.tradeDocumentId,
+        ),
       ).length;
 
       json.documentProgress = {
         total: mandatoryDocs.length,
         uploaded: uploadedMandatoryCount,
-        percentage: mandatoryDocs.length > 0 ? Math.round((uploadedMandatoryCount / mandatoryDocs.length) * 100) : 100,
+        percentage:
+          mandatoryDocs.length > 0
+            ? Math.round((uploadedMandatoryCount / mandatoryDocs.length) * 100)
+            : 100,
         checklist: contractDocs.map((doc: any) => {
-          const hasFile = contractFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId);
+          const hasFile = contractFiles.some(
+            (file: any) => file.tradeDocumentId === doc.tradeDocumentId,
+          );
           return {
             name: doc.tradeDocument?.name || 'Document',
             isMandatory: doc.isMandatory,
@@ -341,7 +402,7 @@ export class ShipmentService {
       include: includes,
     });
 
-    let total = shipments.length;
+    const total = shipments.length;
     let todayCount = 0;
     let upcoming7Days = 0;
     let delayedCount = 0;
@@ -351,7 +412,11 @@ export class ShipmentService {
     let totalQuantity = 0;
 
     const contractIds = Array.from(
-      new Set(shipments.map((s) => s.salesContractId || s.salesContract?.id).filter(Boolean)),
+      new Set(
+        shipments
+          .map((s) => s.salesContractId || s.salesContract?.id)
+          .filter(Boolean),
+      ),
     );
 
     const docsByContract = new Map<number, any[]>();
@@ -371,13 +436,13 @@ export class ShipmentService {
       for (const doc of documents) {
         const cid = (doc as any).salesContractId;
         if (!docsByContract.has(cid)) docsByContract.set(cid, []);
-        docsByContract.get(cid)!.push(doc);
+        docsByContract.get(cid).push(doc);
       }
 
       for (const file of documentFiles) {
         const cid = (file as any).salesContractId;
         if (!filesByContract.has(cid)) filesByContract.set(cid, []);
-        filesByContract.get(cid)!.push(file);
+        filesByContract.get(cid).push(file);
       }
     }
 
@@ -396,22 +461,35 @@ export class ShipmentService {
       if (dateStr === todayStr && status !== 'Delivered') todayCount++;
 
       // Upcoming (7 Days)
-      if (dateStr > todayStr && dateStr <= next7DaysStr && status !== 'Delivered') {
+      if (
+        dateStr > todayStr &&
+        dateStr <= next7DaysStr &&
+        status !== 'Delivered'
+      ) {
         upcoming7Days++;
       }
 
       // Delayed
-      if (dateStr < todayStr && status !== 'Delivered' && status !== 'Cancelled') {
+      if (
+        dateStr < todayStr &&
+        status !== 'Delivered' &&
+        status !== 'Cancelled'
+      ) {
         delayedCount++;
       }
 
       // Check document completeness
       const cid = s.salesContractId || s.salesContract?.id;
       if (cid) {
-        const mandatoryDocs = (docsByContract.get(cid) || []).filter((doc: any) => doc.isMandatory);
+        const mandatoryDocs = (docsByContract.get(cid) || []).filter(
+          (doc: any) => doc.isMandatory,
+        );
         const uploadedFiles = filesByContract.get(cid) || [];
-        const missingMandatory = mandatoryDocs.some((doc: any) =>
-          !uploadedFiles.some((file: any) => file.tradeDocumentId === doc.tradeDocumentId),
+        const missingMandatory = mandatoryDocs.some(
+          (doc: any) =>
+            !uploadedFiles.some(
+              (file: any) => file.tradeDocumentId === doc.tradeDocumentId,
+            ),
         );
         if (missingMandatory) {
           pendingDocsCount++;
@@ -439,24 +517,33 @@ export class ShipmentService {
     if (!shipment) {
       throw new NotFoundException('Shipment not found');
     }
-    
-    if (user?.companyId && shipment.salesContract?.companyId !== user.companyId) {
+
+    if (
+      user?.companyId &&
+      shipment.salesContract?.companyId !== user.companyId
+    ) {
       throw new NotFoundException('Shipment not found');
     }
 
     // Capture changes to check if we need reference regeneration
     const hasCoreRefChanged =
-      (dto.shipmentNo !== undefined && dto.shipmentNo !== shipment.shipmentNo) ||
-      (dto.noOfContainers !== undefined && dto.noOfContainers !== shipment.noOfContainers) ||
-      (dto.shipmentDate !== undefined && dto.shipmentDate !== shipment.shipmentDate.toString()) ||
+      (dto.shipmentNo !== undefined &&
+        dto.shipmentNo !== shipment.shipmentNo) ||
+      (dto.noOfContainers !== undefined &&
+        dto.noOfContainers !== shipment.noOfContainers) ||
+      (dto.shipmentDate !== undefined &&
+        dto.shipmentDate !== shipment.shipmentDate.toString()) ||
       (dto.quantity !== undefined && dto.quantity !== shipment.quantity);
 
     // Apply updates
-    if (dto.shipmentDate !== undefined) shipment.shipmentDate = new Date(dto.shipmentDate);
+    if (dto.shipmentDate !== undefined)
+      shipment.shipmentDate = new Date(dto.shipmentDate);
     if (dto.quantity !== undefined) shipment.quantity = dto.quantity;
-    if (dto.noOfContainers !== undefined) shipment.noOfContainers = dto.noOfContainers;
+    if (dto.noOfContainers !== undefined)
+      shipment.noOfContainers = dto.noOfContainers;
     if (dto.ratePerMt !== undefined) shipment.ratePerMt = dto.ratePerMt;
-    if (dto.purchaseRate !== undefined) shipment.purchaseRate = dto.purchaseRate;
+    if (dto.purchaseRate !== undefined)
+      shipment.purchaseRate = dto.purchaseRate;
     if (dto.forex !== undefined) shipment.forex = dto.forex;
     if (dto.freight !== undefined) shipment.freight = dto.freight;
     if (dto.remarks !== undefined) shipment.remarks = dto.remarks;
@@ -480,13 +567,15 @@ export class ShipmentService {
     // ── AUTO-CREATE PURCHASE CONTRACT (idempotent) ────────────────────────────
     // Ensures a Purchase Contract exists for this Sales Contract after any shipment save.
     // Safe to call multiple times — returns existing PC if already created.
-    await this.purchaseContractService.ensureExists(
-      shipment.salesContractId,
-      user?.userId,
-    ).catch((err) => {
-      // Non-blocking: PC creation failure must not break shipment update
-      console.error('[ShipmentService] ensureExists failed (non-fatal):', err?.message);
-    });
+    await this.purchaseContractService
+      .ensureExists(shipment.salesContractId, user?.userId)
+      .catch((err) => {
+        // Non-blocking: PC creation failure must not break shipment update
+        console.error(
+          '[ShipmentService] ensureExists failed (non-fatal):',
+          err?.message,
+        );
+      });
 
     // Reload with associations
     return await this.shipmentModel.findByPk(id, {
@@ -500,13 +589,13 @@ export class ShipmentService {
             {
               model: SalesContractItem,
               as: 'items',
-              include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+              include: [
+                { model: Product, as: 'product', attributes: ['id', 'name'] },
+              ],
             },
           ],
         },
       ],
     });
   }
-
 }
-

@@ -100,19 +100,27 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   // Indexes for the retry worker query (status + retry_count + next_retry_at)
   await queryInterface
-    .addIndex('notification_logs', ['status'], { name: 'notif_logs_status_idx' })
+    .addIndex('notification_logs', ['status'], {
+      name: 'notif_logs_status_idx',
+    })
     .catch(() => {});
 
   await queryInterface
-    .addIndex('notification_logs', ['channel', 'template'], { name: 'notif_logs_channel_template_idx' })
+    .addIndex('notification_logs', ['channel', 'template'], {
+      name: 'notif_logs_channel_template_idx',
+    })
     .catch(() => {});
 
   await queryInterface
-    .addIndex('notification_logs', ['next_retry_at'], { name: 'notif_logs_next_retry_idx' })
+    .addIndex('notification_logs', ['next_retry_at'], {
+      name: 'notif_logs_next_retry_idx',
+    })
     .catch(() => {});
 
   await queryInterface
-    .addIndex('notification_logs', ['entity_type', 'entity_id'], { name: 'notif_logs_entity_idx' })
+    .addIndex('notification_logs', ['entity_type', 'entity_id'], {
+      name: 'notif_logs_entity_idx',
+    })
     .catch(() => {});
 
   console.log('✅ Phase 27 — notification_logs table created');

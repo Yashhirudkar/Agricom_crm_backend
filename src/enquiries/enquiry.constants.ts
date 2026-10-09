@@ -30,5 +30,3 @@ export enum EnquiryShipmentMode {
   ROAD = 'ROAD',
   RAIL = 'RAIL',
 }
-
-

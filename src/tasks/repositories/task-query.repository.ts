@@ -19,13 +19,13 @@ export class TaskQueryRepository {
   constructor(
     @InjectModel(Task)
     private readonly taskModel: typeof Task,
-  ) { }
+  ) {}
 
   encodeCursor(task: Task, sortBy: string): string {
     const val = task[sortBy];
     const payload = {
       id: task.id,
-      val: val instanceof Date ? val.toISOString() : val
+      val: val instanceof Date ? val.toISOString() : val,
     };
     return Buffer.from(JSON.stringify(payload)).toString('base64');
   }
@@ -39,7 +39,11 @@ export class TaskQueryRepository {
     }
   }
 
-  buildWhereClause(clientId: number, companyId: number, query: TaskQueryDto): { where: any; filterCompleted: boolean | undefined } {
+  buildWhereClause(
+    clientId: number,
+    companyId: number,
+    query: TaskQueryDto,
+  ): { where: any; filterCompleted: boolean | undefined } {
     const {
       search,
       statusIds,
@@ -77,7 +81,10 @@ export class TaskQueryRepository {
     const hasViewAll = query['hasViewAll'] === true;
     const rawUserId = query['userId'];
     const parsedUserId = Number(rawUserId);
-    const userId = (!isNaN(parsedUserId) && rawUserId !== null && rawUserId !== undefined) ? parsedUserId : null;
+    const userId =
+      !isNaN(parsedUserId) && rawUserId !== null && rawUserId !== undefined
+        ? parsedUserId
+        : null;
 
     // Handle Query Presets
     if (query.preset) {
@@ -93,7 +100,7 @@ export class TaskQueryRepository {
               this.taskModel.sequelize.literal(`EXISTS (
                 SELECT 1 FROM "task_assignees" AS "assignees"
                 WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
-              )`)
+              )`),
             ];
           }
           break;
@@ -121,16 +128,13 @@ export class TaskQueryRepository {
         this.taskModel.sequelize.literal(`EXISTS (
           SELECT 1 FROM "task_assignees" AS "assignees"
           WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" = ${userId}
-        )`)
+        )`),
       ];
 
       if (where[Op.or]) {
         where[Op.and] = where[Op.and] || [];
         where[Op.and].push({
-          [Op.and]: [
-            { [Op.or]: where[Op.or] },
-            { [Op.or]: userCondition }
-          ]
+          [Op.and]: [{ [Op.or]: where[Op.or] }, { [Op.or]: userCondition }],
         });
         delete where[Op.or];
       } else {
@@ -163,10 +167,7 @@ export class TaskQueryRepository {
       if (where[Op.or]) {
         where[Op.and] = where[Op.and] || [];
         where[Op.and].push({
-          [Op.and]: [
-            { [Op.or]: where[Op.or] },
-            { [Op.or]: searchConditions }
-          ]
+          [Op.and]: [{ [Op.or]: where[Op.or] }, { [Op.or]: searchConditions }],
         });
         delete where[Op.or];
       } else {
@@ -194,7 +195,11 @@ export class TaskQueryRepository {
     return { where, filterCompleted };
   }
 
-  async findAndCountAll(clientId: number, companyId: number, query: TaskQueryDto) {
+  async findAndCountAll(
+    clientId: number,
+    companyId: number,
+    query: TaskQueryDto,
+  ) {
     const {
       limit = 30,
       sortBy = 'createdAt',
@@ -203,7 +208,11 @@ export class TaskQueryRepository {
       cursor,
     } = query;
 
-    const { where, filterCompleted } = this.buildWhereClause(clientId, companyId, query);
+    const { where, filterCompleted } = this.buildWhereClause(
+      clientId,
+      companyId,
+      query,
+    );
 
     // Apply cursor condition if provided
     if (cursor) {
@@ -216,15 +225,20 @@ export class TaskQueryRepository {
         where[Op.and] = where[Op.and] || [];
         if (val === null || val === undefined) {
           where[Op.and].push({
-            id: { [isDesc ? Op.lt : Op.gt]: id }
+            id: { [isDesc ? Op.lt : Op.gt]: id },
           });
         } else {
-          const compareVal = sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'dueDate' ? new Date(val) : val;
+          const compareVal =
+            sortBy === 'createdAt' ||
+            sortBy === 'updatedAt' ||
+            sortBy === 'dueDate'
+              ? new Date(val)
+              : val;
           where[Op.and].push({
             [Op.or]: [
               { [sortBy]: { [op]: compareVal } },
-              { [sortBy]: compareVal, id: { [isDesc ? Op.lt : Op.gt]: id } }
-            ]
+              { [sortBy]: compareVal, id: { [isDesc ? Op.lt : Op.gt]: id } },
+            ],
           });
         }
       }
@@ -256,10 +270,11 @@ export class TaskQueryRepository {
         });
         where[Op.and] = where[Op.and] || [];
         where[Op.and].push(
-          this.taskModel.sequelize.literal(`("Task"."statusId" IS NULL OR EXISTS (
+          this.taskModel.sequelize
+            .literal(`("Task"."statusId" IS NULL OR EXISTS (
             SELECT 1 FROM "task_statuses" AS "status"
             WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = false
-          ))`)
+          ))`),
         );
       } else {
         include.push({
@@ -272,7 +287,7 @@ export class TaskQueryRepository {
       include.push({ model: TaskStatus, required: false });
     }
 
-    let actualAssigneeIds = assigneeIds;
+    const actualAssigneeIds = assigneeIds;
 
     if (actualAssigneeIds && actualAssigneeIds.length > 0) {
       // Must have relation if filtered by assignees
@@ -365,7 +380,10 @@ export class TaskQueryRepository {
 
     const hasMore = rows.length > limit;
     const paginatedRows = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = paginatedRows.length > 0 ? this.encodeCursor(paginatedRows[paginatedRows.length - 1], sortBy) : null;
+    const nextCursor =
+      paginatedRows.length > 0
+        ? this.encodeCursor(paginatedRows[paginatedRows.length - 1], sortBy)
+        : null;
 
     return {
       items: paginatedRows,

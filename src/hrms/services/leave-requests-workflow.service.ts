@@ -30,7 +30,10 @@ import {
 } from '../../attendance/models/attendance-record.model';
 import { AttendanceGateway } from '../../attendance/gateways/attendance.gateway';
 import { AttendanceConflictService } from '../../attendance/services/attendance-conflict.service';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 import { Employee } from '../models/employee.model';
 import { LeaveCalculationService } from './leave-calculation.service';
 
@@ -65,7 +68,7 @@ export class LeaveRequestsWorkflowService {
     private readonly conflictService: AttendanceConflictService,
     private readonly notificationsService: NotificationsService,
     private readonly leaveCalculationService: LeaveCalculationService,
-  ) { }
+  ) {}
 
   async approveLeave(
     requestId: number,
@@ -120,10 +123,7 @@ export class LeaveRequestsWorkflowService {
         actor?.type === 'super_admin' ||
         actor?.type === 'client_admin';
 
-      if (
-        step.approverId !== approverId &&
-        !hasApprovePerm
-      ) {
+      if (step.approverId !== approverId && !hasApprovePerm) {
         throw new ForbiddenException(
           'You are not the designated approver for this step',
         );
@@ -226,10 +226,7 @@ export class LeaveRequestsWorkflowService {
           }
           if (record.checkInTime) {
             // Employee checked in! This is a conflict!
-            await record.update(
-              { isConflict: true },
-              { transaction: t },
-            );
+            await record.update({ isConflict: true }, { transaction: t });
             await this.conflictService.checkAndCreateLeaveConflict(
               leaveRequest.employeeId,
               companyId,
@@ -286,7 +283,9 @@ export class LeaveRequestsWorkflowService {
       // Trigger notification to employee on final approval
       if ((leaveRequest.status as any) === LeaveRequestStatus.APPROVED) {
         try {
-          const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+          const emp = await this.employeeModel.findByPk(
+            leaveRequest.employeeId,
+          );
           if (emp && emp.userId) {
             await this.notificationsService.createNotification({
               recipients: [emp.userId],
@@ -302,7 +301,10 @@ export class LeaveRequestsWorkflowService {
             });
           }
         } catch (notifErr) {
-          console.error('[LeaveRequestsWorkflowService] Failed to send leave approval notification:', notifErr);
+          console.error(
+            '[LeaveRequestsWorkflowService] Failed to send leave approval notification:',
+            notifErr,
+          );
         }
       }
 
@@ -379,10 +381,7 @@ export class LeaveRequestsWorkflowService {
         actor?.type === 'super_admin' ||
         actor?.type === 'client_admin';
 
-      if (
-        step.approverId !== approverId &&
-        !hasApprovePerm
-      ) {
+      if (step.approverId !== approverId && !hasApprovePerm) {
         throw new ForbiddenException(
           'You are not the designated approver for this step',
         );
@@ -458,7 +457,10 @@ export class LeaveRequestsWorkflowService {
           });
         }
       } catch (notifErr) {
-        console.error('[LeaveRequestsWorkflowService] Failed to send leave rejection notification:', notifErr);
+        console.error(
+          '[LeaveRequestsWorkflowService] Failed to send leave rejection notification:',
+          notifErr,
+        );
       }
 
       return { message: 'Leave request rejected successfully' };
@@ -601,13 +603,16 @@ export class LeaveRequestsWorkflowService {
 
           // Add users holding leave:approve permission (HR & Admins)
           try {
-            const resourceActions = await this.employeeModel.sequelize.models.ResourceAction.findAll({
-              include: [{
-                model: this.employeeModel.sequelize.models.ModuleResource,
-                required: true,
-                as: 'resource'
-              }]
-            });
+            const resourceActions =
+              await this.employeeModel.sequelize.models.ResourceAction.findAll({
+                include: [
+                  {
+                    model: this.employeeModel.sequelize.models.ModuleResource,
+                    required: true,
+                    as: 'resource',
+                  },
+                ],
+              });
 
             const allowedActionIds = resourceActions
               .filter((ra: any) => {
@@ -626,55 +631,78 @@ export class LeaveRequestsWorkflowService {
               .map((ra: any) => ra.id);
 
             if (allowedActionIds.length > 0) {
-              const rolePermissions = await this.employeeModel.sequelize.models.RoleActionPermission.findAll({
-                where: { resource_action_id: allowedActionIds },
-                attributes: ['role_id'],
-              });
+              const rolePermissions =
+                await this.employeeModel.sequelize.models.RoleActionPermission.findAll(
+                  {
+                    where: { resource_action_id: allowedActionIds },
+                    attributes: ['role_id'],
+                  },
+                );
               const roleIds = rolePermissions.map((rp: any) => rp.role_id);
 
               if (roleIds.length > 0) {
-                const companyMemberships = await this.employeeModel.sequelize.models.UserCompany.findAll({
-                  where: {
-                    companyId,
-                    roleId: roleIds,
-                    status: 'Active',
-                  },
-                  attributes: ['userId'],
-                });
-                companyMemberships.forEach((m: any) => recipients.add(m.userId));
-
-                const globalUserRoles = await this.employeeModel.sequelize.models.UserRole.findAll({
-                  where: { roleId: roleIds },
-                  attributes: ['userId'],
-                });
-
-                const globalUserIds = globalUserRoles.map((ur: any) => ur.userId);
-                if (globalUserIds.length > 0) {
-                  const companyProfile = await this.employeeModel.sequelize.models.Company.findByPk(emp.companyId);
-                  const clientId = companyProfile ? (companyProfile as any).clientId : null;
-                  if (clientId) {
-                    const activeClientAdmins = await this.employeeModel.sequelize.models.User.findAll({
+                const companyMemberships =
+                  await this.employeeModel.sequelize.models.UserCompany.findAll(
+                    {
                       where: {
-                        id: globalUserIds,
-                        clientId,
-                        isActive: true,
+                        companyId,
+                        roleId: roleIds,
+                        status: 'Active',
                       },
-                      attributes: ['id'],
-                    });
-                    activeClientAdmins.forEach((u: any) => recipients.add((u as any).id));
+                      attributes: ['userId'],
+                    },
+                  );
+                companyMemberships.forEach((m: any) =>
+                  recipients.add(m.userId),
+                );
+
+                const globalUserRoles =
+                  await this.employeeModel.sequelize.models.UserRole.findAll({
+                    where: { roleId: roleIds },
+                    attributes: ['userId'],
+                  });
+
+                const globalUserIds = globalUserRoles.map(
+                  (ur: any) => ur.userId,
+                );
+                if (globalUserIds.length > 0) {
+                  const companyProfile =
+                    await this.employeeModel.sequelize.models.Company.findByPk(
+                      emp.companyId,
+                    );
+                  const clientId = companyProfile
+                    ? (companyProfile as any).clientId
+                    : null;
+                  if (clientId) {
+                    const activeClientAdmins =
+                      await this.employeeModel.sequelize.models.User.findAll({
+                        where: {
+                          id: globalUserIds,
+                          clientId,
+                          isActive: true,
+                        },
+                        attributes: ['id'],
+                      });
+                    activeClientAdmins.forEach((u: any) =>
+                      recipients.add(u.id),
+                    );
                   }
                 }
               }
             }
           } catch (permErr) {
-            console.error('[LeaveRequestsWorkflowService] Error query leave:approve users for cancel notification:', permErr);
+            console.error(
+              '[LeaveRequestsWorkflowService] Error query leave:approve users for cancel notification:',
+              permErr,
+            );
           }
 
           // Always add default super admin
-          const superAdmin = await this.employeeModel.sequelize.models.User.findOne({
-            where: { email: 'admin@agricom.com', isActive: true },
-            attributes: ['id'],
-          });
+          const superAdmin =
+            await this.employeeModel.sequelize.models.User.findOne({
+              where: { email: 'admin@agricom.com', isActive: true },
+              attributes: ['id'],
+            });
           if (superAdmin) {
             recipients.add((superAdmin as any).id);
           }
@@ -693,7 +721,10 @@ export class LeaveRequestsWorkflowService {
           });
         }
       } catch (notifErr) {
-        console.error('[LeaveRequestsWorkflowService] Failed to send leave cancellation notification:', notifErr);
+        console.error(
+          '[LeaveRequestsWorkflowService] Failed to send leave cancellation notification:',
+          notifErr,
+        );
       }
 
       // Emit updates

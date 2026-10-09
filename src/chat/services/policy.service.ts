@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Op } from 'sequelize';
@@ -21,7 +25,10 @@ import {
 
 @Injectable()
 export class PolicyService {
-  private readonly accessibleIdsCache = new Map<string, { ids: number[]; expiresAt: number }>();
+  private readonly accessibleIdsCache = new Map<
+    string,
+    { ids: number[]; expiresAt: number }
+  >();
 
   constructor(
     @InjectModel(Conversation)
@@ -92,7 +99,12 @@ export class PolicyService {
     userId: number,
     companyId: number,
     userType: string,
-  ): Promise<{ hasAccess: boolean; isMember: boolean; conversation: Conversation; member: ConversationMember | null }> {
+  ): Promise<{
+    hasAccess: boolean;
+    isMember: boolean;
+    conversation: Conversation;
+    member: ConversationMember | null;
+  }> {
     const where: any = { id: conversationId };
     if (companyId) {
       where[Op.or] = [{ companyId }, { companyId: null }];
@@ -109,7 +121,12 @@ export class PolicyService {
     }
 
     if (!conversation) {
-      return { hasAccess: false, isMember: false, conversation: null, member: null };
+      return {
+        hasAccess: false,
+        isMember: false,
+        conversation: null,
+        member: null,
+      };
     }
 
     // 1. Is user a member of the conversation?
@@ -135,7 +152,7 @@ export class PolicyService {
       companyId,
       userType,
       'VIEW',
-      security.nobodyOverride
+      security.nobodyOverride,
     );
 
     if (hasOverride) {
@@ -143,7 +160,11 @@ export class PolicyService {
     }
 
     // If nobodyOverride is NOT enabled, check if the conversation is PUBLIC and not locked down by API/metadata limits
-    if (!security.nobodyOverride && conversation.visibility === VisibilityType.PUBLIC && !security.hideApi) {
+    if (
+      !security.nobodyOverride &&
+      conversation.visibility === VisibilityType.PUBLIC &&
+      !security.hideApi
+    ) {
       return { hasAccess: true, isMember: false, conversation, member: null };
     }
 
@@ -176,15 +197,24 @@ export class PolicyService {
       const userRoleName = await this.getUserActiveRoleName(userId, companyId);
       if (userRoleName) {
         const lowerName = userRoleName.toLowerCase();
-        if (lowerName === 'hr' || lowerName === 'hr manager' || lowerName.includes('hr')) {
+        if (
+          lowerName === 'hr' ||
+          lowerName === 'hr manager' ||
+          lowerName.includes('hr')
+        ) {
           return true;
         }
       }
 
       // Default: check if user is a reporting manager of any member
-      const emp = await this.employeeModel.findOne({ where: { userId, companyId } });
+      const emp = await this.employeeModel.findOne({
+        where: { userId, companyId },
+      });
       if (emp) {
-        const isManager = await this.checkIfIsManagerOfAnyMember(conversationId, emp.id);
+        const isManager = await this.checkIfIsManagerOfAnyMember(
+          conversationId,
+          emp.id,
+        );
         if (isManager) return true;
       }
 
@@ -193,20 +223,30 @@ export class PolicyService {
 
     // Evaluate overrides in DB
     const userRoleName = await this.getUserActiveRoleName(userId, companyId);
-    const emp = await this.employeeModel.findOne({ where: { userId, companyId } });
+    const emp = await this.employeeModel.findOne({
+      where: { userId, companyId },
+    });
 
     for (const ov of overrides) {
       if (ov.principalType === PrincipalType.ROLE && userRoleName) {
         if (userRoleName.toLowerCase() === ov.principalId?.toLowerCase()) {
           return true;
         }
-        if (userType === 'super_admin' && ['admin', 'super_admin', 'super_admin_role'].includes(ov.principalId?.toLowerCase() || '')) {
+        if (
+          userType === 'super_admin' &&
+          ['admin', 'super_admin', 'super_admin_role'].includes(
+            ov.principalId?.toLowerCase() || '',
+          )
+        ) {
           return true;
         }
       }
 
       if (ov.principalType === PrincipalType.EMPLOYEE) {
-        if (Number(ov.principalId) === userId || (emp && Number(ov.principalId) === emp.id)) {
+        if (
+          Number(ov.principalId) === userId ||
+          (emp && Number(ov.principalId) === emp.id)
+        ) {
           return true;
         }
       }
@@ -230,7 +270,10 @@ export class PolicyService {
       }
 
       if (ov.principalType === PrincipalType.REPORTING_MANAGER && emp) {
-        const isManager = await this.checkIfIsManagerOfAnyMember(conversationId, emp.id);
+        const isManager = await this.checkIfIsManagerOfAnyMember(
+          conversationId,
+          emp.id,
+        );
         if (isManager) return true;
       }
     }
@@ -241,10 +284,15 @@ export class PolicyService {
   /**
    * Helper to retrieve active user role name in a company
    */
-  private async getUserActiveRoleName(userId: number, companyId: number): Promise<string | null> {
+  private async getUserActiveRoleName(
+    userId: number,
+    companyId: number,
+  ): Promise<string | null> {
     const membership = await this.userCompanyModel.findOne({
       where: { userId, companyId, status: 'Active' },
-      include: [{ model: this.roleModel, where: { isActive: true }, required: true }],
+      include: [
+        { model: this.roleModel, where: { isActive: true }, required: true },
+      ],
     });
     return membership && membership.role ? membership.role.name : null;
   }
@@ -252,18 +300,25 @@ export class PolicyService {
   /**
    * Helper to verify if an employee is the manager of any member currently in the group
    */
-  private async checkIfIsManagerOfAnyMember(conversationId: number, managerId: number): Promise<boolean> {
+  private async checkIfIsManagerOfAnyMember(
+    conversationId: number,
+    managerId: number,
+  ): Promise<boolean> {
     const isManagerOfMember = await this.memberModel.findOne({
       where: { conversationId },
-      include: [{
-        model: this.userModel,
-        required: true,
-        include: [{
-          model: this.employeeModel,
+      include: [
+        {
+          model: this.userModel,
           required: true,
-          where: { managerId },
-        }],
-      }],
+          include: [
+            {
+              model: this.employeeModel,
+              required: true,
+              where: { managerId },
+            },
+          ],
+        },
+      ],
     });
     return !!isManagerOfMember;
   }
@@ -271,16 +326,30 @@ export class PolicyService {
   /**
    * API/View Auth Check
    */
-  async canView(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canView(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation } = await this.checkConversationAccess(
+      conversationId,
+      userId,
+      companyId,
+      userType,
+    );
     if (!hasAccess && conversation) {
       const security = this.resolveSecurityFlags(conversation);
-      if (security.hideApi || conversation.visibility === VisibilityType.HIDDEN) {
+      if (
+        security.hideApi ||
+        conversation.visibility === VisibilityType.HIDDEN
+      ) {
         throw new NotFoundException('Conversation not found.');
       }
-      throw new ForbiddenException('You do not have permission to view this conversation.');
+      throw new ForbiddenException(
+        'You do not have permission to view this conversation.',
+      );
     }
     return hasAccess;
   }
@@ -288,38 +357,72 @@ export class PolicyService {
   /**
    * Send Message Auth Check
    */
-  async canSend(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canSend(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) {
-      throw new ForbiddenException('You cannot send messages to this conversation.');
+      throw new ForbiddenException(
+        'You cannot send messages to this conversation.',
+      );
     }
 
     // Check if the conversation is frozen
     if (conversation.isFrozen) {
-      throw new ForbiddenException('This conversation is frozen and read-only.');
+      throw new ForbiddenException(
+        'This conversation is frozen and read-only.',
+      );
     }
 
     // Check general setting for sending
     if (conversation.settings && !conversation.settings.allowSend) {
-      throw new ForbiddenException('Message sending is disabled in this conversation settings.');
+      throw new ForbiddenException(
+        'Message sending is disabled in this conversation settings.',
+      );
     }
 
     // If they are a member, verify postingPolicy or admin mode
     if (member) {
-      const isPrivileged = ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'ADMIN', 'MODERATOR'].includes(member.role);
+      const isPrivileged = [
+        'OWNER',
+        'OWNER_PRIMARY',
+        'OWNER_SECONDARY',
+        'ADMIN',
+        'MODERATOR',
+      ].includes(member.role);
       if (conversation.isLocked && !isPrivileged) {
-        throw new ForbiddenException('This conversation is locked by an administrator.');
+        throw new ForbiddenException(
+          'This conversation is locked by an administrator.',
+        );
       }
       if (conversation.announcementMode && !isPrivileged) {
-        throw new ForbiddenException('Only administrators can post in announcement channels.');
+        throw new ForbiddenException(
+          'Only administrators can post in announcement channels.',
+        );
       }
     } else {
       // Non-member trying to send via overrides: verify if they have write permission override
-      const hasWriteOverride = await this.checkPermissionOverrides(conversationId, userId, companyId, userType, 'POST');
+      const hasWriteOverride = await this.checkPermissionOverrides(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+        'POST',
+      );
       if (!hasWriteOverride) {
-        throw new ForbiddenException('You do not have posting permission in this conversation.');
+        throw new ForbiddenException(
+          'You do not have posting permission in this conversation.',
+        );
       }
     }
 
@@ -337,17 +440,27 @@ export class PolicyService {
   ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) {
       throw new ForbiddenException('Access denied.');
     }
 
     if (conversation.isFrozen) {
-      throw new ForbiddenException('This conversation is frozen and read-only.');
+      throw new ForbiddenException(
+        'This conversation is frozen and read-only.',
+      );
     }
 
     if (conversation.legalHoldActive) {
-      throw new ForbiddenException('This conversation is under compliance legal hold. Deleting is disabled.');
+      throw new ForbiddenException(
+        'This conversation is under compliance legal hold. Deleting is disabled.',
+      );
     }
 
     // If deleting their own message
@@ -360,11 +473,18 @@ export class PolicyService {
 
     // Deleting someone else's message: requires OWNER/ADMIN roles
     if (member) {
-      const isPrivileged = ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'ADMIN'].includes(member.role);
+      const isPrivileged = [
+        'OWNER',
+        'OWNER_PRIMARY',
+        'OWNER_SECONDARY',
+        'ADMIN',
+      ].includes(member.role);
       if (isPrivileged) return true;
     }
 
-    throw new ForbiddenException('You do not have permission to delete this message.');
+    throw new ForbiddenException(
+      'You do not have permission to delete this message.',
+    );
   }
 
   /**
@@ -378,17 +498,26 @@ export class PolicyService {
   ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation } = await this.checkConversationAccess(
+      conversationId,
+      userId,
+      companyId,
+      userType,
+    );
     if (!hasAccess) {
       throw new ForbiddenException('Access denied.');
     }
 
     if (conversation.isFrozen) {
-      throw new ForbiddenException('This conversation is frozen and read-only.');
+      throw new ForbiddenException(
+        'This conversation is frozen and read-only.',
+      );
     }
 
     if (conversation.settings && !conversation.settings.allowEdit) {
-      throw new ForbiddenException('Message editing is disabled in this conversation.');
+      throw new ForbiddenException(
+        'Message editing is disabled in this conversation.',
+      );
     }
 
     if (messageSenderId && Number(messageSenderId) !== Number(userId)) {
@@ -401,93 +530,179 @@ export class PolicyService {
   /**
    * Generic Action Helper based on ActionPolicy
    */
-  private verifyActionPolicy(policy: ActionPolicy, memberRole: string): boolean {
+  private verifyActionPolicy(
+    policy: ActionPolicy,
+    memberRole: string,
+  ): boolean {
     if (policy === ActionPolicy.OWNER) {
-      return ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'OWNER_COMPLIANCE', 'OWNER_TECHNICAL'].includes(memberRole);
+      return [
+        'OWNER',
+        'OWNER_PRIMARY',
+        'OWNER_SECONDARY',
+        'OWNER_COMPLIANCE',
+        'OWNER_TECHNICAL',
+      ].includes(memberRole);
     }
     if (policy === ActionPolicy.ADMIN) {
-      return ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'OWNER_COMPLIANCE', 'OWNER_TECHNICAL', 'ADMIN'].includes(memberRole);
+      return [
+        'OWNER',
+        'OWNER_PRIMARY',
+        'OWNER_SECONDARY',
+        'OWNER_COMPLIANCE',
+        'OWNER_TECHNICAL',
+        'ADMIN',
+      ].includes(memberRole);
     }
     // MEMBER level
-    return ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'OWNER_COMPLIANCE', 'OWNER_TECHNICAL', 'ADMIN', 'MODERATOR', 'MEMBER'].includes(memberRole);
+    return [
+      'OWNER',
+      'OWNER_PRIMARY',
+      'OWNER_SECONDARY',
+      'OWNER_COMPLIANCE',
+      'OWNER_TECHNICAL',
+      'ADMIN',
+      'MODERATOR',
+      'MEMBER',
+    ].includes(memberRole);
   }
 
   /**
    * Management Actions: Rename, Change Icon, Change Desc, Archive, Delete
    */
-  async canRename(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canRename(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to manage settings.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to manage settings.');
 
     return this.verifyActionPolicy(conversation.renamePolicy, member.role);
   }
 
-  async canChangeIcon(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canChangeIcon(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to manage settings.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to manage settings.');
 
     return this.verifyActionPolicy(conversation.iconPolicy, member.role);
   }
 
-  async canChangeDesc(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canChangeDesc(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to manage settings.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to manage settings.');
 
     return this.verifyActionPolicy(conversation.descPolicy, member.role);
   }
 
-  async canArchive(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canArchive(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to archive.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to archive.');
 
     return this.verifyActionPolicy(conversation.archivePolicy, member.role);
   }
 
-  async canDelete(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canDelete(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
     if (conversation.legalHoldActive) {
-      throw new ForbiddenException('This conversation is under compliance legal hold. Deletion is disabled.');
+      throw new ForbiddenException(
+        'This conversation is under compliance legal hold. Deletion is disabled.',
+      );
     }
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to delete.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to delete.');
 
     return this.verifyActionPolicy(conversation.deletePolicy, member.role);
   }
@@ -495,81 +710,146 @@ export class PolicyService {
   /**
    * Membership Operations
    */
-  async canInvite(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canInvite(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to invite.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to invite.');
 
     return this.verifyActionPolicy(conversation.invitePolicy, member.role);
   }
 
-  async canRemoveMember(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canRemoveMember(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to remove users.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to remove users.');
 
-    return this.verifyActionPolicy(conversation.removeMemberPolicy, member.role);
+    return this.verifyActionPolicy(
+      conversation.removeMemberPolicy,
+      member.role,
+    );
   }
 
   /**
    * Pinning Messages
    */
-  async canPinMessage(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canPinMessage(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
-    if (conversation.isFrozen) throw new ForbiddenException('Conversation is frozen.');
+    if (conversation.isFrozen)
+      throw new ForbiddenException('Conversation is frozen.');
 
     if (conversation.settings && !conversation.settings.allowPin) {
-      throw new ForbiddenException('Pinning is disabled in conversation settings.');
+      throw new ForbiddenException(
+        'Pinning is disabled in conversation settings.',
+      );
     }
 
     if (userType === 'super_admin') return true;
 
-    if (!member) throw new ForbiddenException('You must be a member to pin messages.');
+    if (!member)
+      throw new ForbiddenException('You must be a member to pin messages.');
 
-    return this.verifyActionPolicy(conversation.settings?.pinPolicy || ActionPolicy.MEMBER, member.role);
+    return this.verifyActionPolicy(
+      conversation.settings?.pinPolicy || ActionPolicy.MEMBER,
+      member.role,
+    );
   }
 
   /**
    * Attachment Downloads
    */
-  async canDownload(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canDownload(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) {
-      throw new ForbiddenException('You do not have access to this conversation files.');
+      throw new ForbiddenException(
+        'You do not have access to this conversation files.',
+      );
     }
 
     if (conversation.settings && !conversation.settings.allowDownload) {
-      throw new ForbiddenException('Downloads are disabled in this conversation settings.');
+      throw new ForbiddenException(
+        'Downloads are disabled in this conversation settings.',
+      );
     }
 
     // Check fileVisibility policy
     if (conversation.fileVisibility === 'DOWNLOAD_RESTRICTED') {
       if (userType === 'super_admin') return true;
       if (member) {
-        const isPrivileged = ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'ADMIN'].includes(member.role);
+        const isPrivileged = [
+          'OWNER',
+          'OWNER_PRIMARY',
+          'OWNER_SECONDARY',
+          'ADMIN',
+        ].includes(member.role);
         if (isPrivileged) return true;
       }
-      throw new ForbiddenException('File downloads are restricted to owners and administrators.');
+      throw new ForbiddenException(
+        'File downloads are restricted to owners and administrators.',
+      );
     }
 
     return true;
@@ -578,14 +858,26 @@ export class PolicyService {
   /**
    * Chat Export
    */
-  async canExport(conversationId: number, user: any, companyId: number): Promise<boolean> {
+  async canExport(
+    conversationId: number,
+    user: any,
+    companyId: number,
+  ): Promise<boolean> {
     const userId = user.userId || user.id;
     const userType = user.type || '';
-    const { hasAccess, conversation, member } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, conversation, member } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) throw new ForbiddenException('Access denied.');
 
     if (conversation.settings && !conversation.settings.allowExport) {
-      throw new ForbiddenException('Exporting is disabled in conversation settings.');
+      throw new ForbiddenException(
+        'Exporting is disabled in conversation settings.',
+      );
     }
 
     if (userType === 'super_admin') return true;
@@ -593,14 +885,24 @@ export class PolicyService {
     // Check export policy
     const policy = conversation.exportPolicy;
     if (policy === ExportPolicy.NOBODY) {
-      throw new ForbiddenException('Exporting is disabled for this conversation.');
+      throw new ForbiddenException(
+        'Exporting is disabled for this conversation.',
+      );
     }
 
     if (member) {
-      if (policy === ExportPolicy.OWNER && ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY'].includes(member.role)) {
+      if (
+        policy === ExportPolicy.OWNER &&
+        ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY'].includes(member.role)
+      ) {
         return true;
       }
-      if (policy === ExportPolicy.ADMIN && ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'ADMIN'].includes(member.role)) {
+      if (
+        policy === ExportPolicy.ADMIN &&
+        ['OWNER', 'OWNER_PRIMARY', 'OWNER_SECONDARY', 'ADMIN'].includes(
+          member.role,
+        )
+      ) {
         return true;
       }
     }
@@ -610,27 +912,50 @@ export class PolicyService {
       const userRoleName = await this.getUserActiveRoleName(userId, companyId);
       if (userRoleName) {
         const lowerName = userRoleName.toLowerCase();
-        if (lowerName.includes('compliance') || lowerName.includes('legal') || lowerName === 'admin') {
+        if (
+          lowerName.includes('compliance') ||
+          lowerName.includes('legal') ||
+          lowerName === 'admin'
+        ) {
           return true;
         }
       }
     }
 
-    throw new ForbiddenException('You do not have permission to export this chat.');
+    throw new ForbiddenException(
+      'You do not have permission to export this chat.',
+    );
   }
 
   /**
    * Socket join verification
    */
-  async canJoinSocket(conversationId: number, userId: number, companyId: number, isSuperAdmin: boolean): Promise<boolean> {
+  async canJoinSocket(
+    conversationId: number,
+    userId: number,
+    companyId: number,
+    isSuperAdmin: boolean,
+  ): Promise<boolean> {
     const userType = isSuperAdmin ? 'super_admin' : 'standard';
-    const { hasAccess, isMember, conversation } = await this.checkConversationAccess(conversationId, userId, companyId, userType);
+    const { hasAccess, isMember, conversation } =
+      await this.checkConversationAccess(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+      );
     if (!hasAccess) return false;
 
     // If socket is hidden/protected for non-members
     const security = this.resolveSecurityFlags(conversation);
     if (security.hideSocket && !isMember) {
-      const hasOverride = await this.checkPermissionOverrides(conversationId, userId, companyId, userType, 'VIEW');
+      const hasOverride = await this.checkPermissionOverrides(
+        conversationId,
+        userId,
+        companyId,
+        userType,
+        'VIEW',
+      );
       if (!hasOverride) {
         return false;
       }
@@ -643,7 +968,11 @@ export class PolicyService {
    * Helper to retrieve all accessible conversation IDs for a user inside a company.
    * Leverages caching and delegates permission evaluations to checkConversationAccess.
    */
-  async getAccessibleConversationIds(userId: number, companyId: number, userType: string): Promise<number[]> {
+  async getAccessibleConversationIds(
+    userId: number,
+    companyId: number,
+    userType: string,
+  ): Promise<number[]> {
     const cacheKey = `accessible_conversations:${companyId}:${userId}`;
     const cached = this.accessibleIdsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -667,20 +996,25 @@ export class PolicyService {
         )
     `;
 
-    const candidates = await this.conversationModel.sequelize.query(sql, {
+    const candidates = (await this.conversationModel.sequelize.query(sql, {
       replacements: { companyId, userId },
       type: 'SELECT',
-    }) as { id: number }[];
+    })) as { id: number }[];
 
     const accessibleIds: number[] = [];
 
     await Promise.all(
       candidates.map(async (c) => {
-        const { hasAccess } = await this.checkConversationAccess(c.id, userId, companyId, userType);
+        const { hasAccess } = await this.checkConversationAccess(
+          c.id,
+          userId,
+          companyId,
+          userType,
+        );
         if (hasAccess) {
           accessibleIds.push(c.id);
         }
-      })
+      }),
     );
 
     // Cache the result for 60 seconds

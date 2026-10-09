@@ -28,14 +28,21 @@ export class PartnerDnbReportService {
   }
 
   async getReportsByPartner(partnerId: number): Promise<PartnerDnbReport[]> {
-    const partner = await this.partnerModel.findOne({ where: { id: partnerId } });
+    const partner = await this.partnerModel.findOne({
+      where: { id: partnerId },
+    });
     if (!partner) {
       throw new NotFoundException('Partner not found');
     }
 
     return await this.dnbReportModel.findAll({
       where: { partnerId },
-      include: [{ model: Partner, attributes: ['id', 'yearOfEstablishment', 'entityName'] }],
+      include: [
+        {
+          model: Partner,
+          attributes: ['id', 'yearOfEstablishment', 'entityName'],
+        },
+      ],
       order: [['createdAt', 'DESC']],
     });
   }
@@ -46,7 +53,9 @@ export class PartnerDnbReportService {
     file: Express.Multer.File,
     user: any,
   ): Promise<PartnerDnbReport> {
-    const partner = await this.partnerModel.findOne({ where: { id: partnerId } });
+    const partner = await this.partnerModel.findOne({
+      where: { id: partnerId },
+    });
     if (!partner) {
       if (file && file.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
@@ -55,7 +64,9 @@ export class PartnerDnbReportService {
     }
 
     if (!file) {
-      throw new BadRequestException('Report file upload is required (.pdf, .jpg, .jpeg, .png)');
+      throw new BadRequestException(
+        'Report file upload is required (.pdf, .jpg, .jpeg, .png)',
+      );
     }
 
     // Validate Report Date <= current date
@@ -111,13 +122,19 @@ export class PartnerDnbReportService {
     }
   }
 
-  async getReportRecord(reportId: number): Promise<{ record: PartnerDnbReport; filePath: string }> {
+  async getReportRecord(
+    reportId: number,
+  ): Promise<{ record: PartnerDnbReport; filePath: string }> {
     const record = await this.dnbReportModel.findByPk(reportId);
     if (!record) {
       throw new NotFoundException('D&B report record not found');
     }
 
-    const filePath = path.join(process.cwd(), DNB_REPORT_UPLOAD_DIR, record.reportFile);
+    const filePath = path.join(
+      process.cwd(),
+      DNB_REPORT_UPLOAD_DIR,
+      record.reportFile,
+    );
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('Report file not found on disk');
     }

@@ -240,7 +240,9 @@ export class CompaniesController {
   @HttpCode(HttpStatus.OK)
   async sendTestMessage(@Request() req, @Param('id', ParseIntPipe) id: number) {
     if (req.user.type !== 'super_admin') {
-      throw new ForbiddenException('Only platform super admin can test WhatsApp configuration');
+      throw new ForbiddenException(
+        'Only platform super admin can test WhatsApp configuration',
+      );
     }
     const clientId = null; // since super admin
     return this.companiesService.sendTestMessage(id, clientId);

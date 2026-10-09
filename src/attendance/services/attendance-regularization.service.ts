@@ -40,7 +40,10 @@ import { AttendanceHelperService } from './attendance-helper.service';
 import { User } from '../../users/models/user.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { Designation } from '../../hrms/models/designation.model';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 
 import { AttendancePolicyEngineService } from './attendance-policy-engine.service';
 import { AttendanceSummaryService } from './attendance-summary.service';
@@ -85,7 +88,10 @@ export class AttendanceRegularizationService {
       const managerEmployee = await this.employeeModel.findByPk(managerId, {
         attributes: ['id', 'userId'],
       });
-      if (managerEmployee?.userId && managerEmployee.userId !== requesterUserId) {
+      if (
+        managerEmployee?.userId &&
+        managerEmployee.userId !== requesterUserId
+      ) {
         approverUserIds.add(managerEmployee.userId);
       }
     }
@@ -145,7 +151,10 @@ export class AttendanceRegularizationService {
     const todayDate = new Date(todayDateStr);
     const requestDate = new Date(dto.date);
 
-    const maxDays = policy.maxCorrectionDays && policy.maxCorrectionDays > 3 ? policy.maxCorrectionDays : 30;
+    const maxDays =
+      policy.maxCorrectionDays && policy.maxCorrectionDays > 3
+        ? policy.maxCorrectionDays
+        : 30;
     const diffTime = Math.abs(todayDate.getTime() - requestDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -260,7 +269,10 @@ export class AttendanceRegularizationService {
         companyId,
       });
     } catch (socketErr) {
-      console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
+      console.error(
+        '[AttendanceRegularizationService] Socket emit error:',
+        socketErr,
+      );
     }
 
     return createdException;
@@ -431,7 +443,8 @@ export class AttendanceRegularizationService {
               log.actionType === AttendanceActionType.BREAK_END &&
               breakStart
             ) {
-              breakDurationMs += new Date(log.timestamp).getTime() - breakStart.getTime();
+              breakDurationMs +=
+                new Date(log.timestamp).getTime() - breakStart.getTime();
               breakStart = null;
               breakLogsExist = true;
             }
@@ -444,9 +457,12 @@ export class AttendanceRegularizationService {
 
         // If no break logs exist, deduct shift default breakMinutes or policy defaultBreakMinutes ONLY if check-in was at/before break start
         if (!breakLogsExist) {
-          const defaultBreakMins = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);
+          const defaultBreakMins = shift
+            ? (shift.breakMinutes ?? policy?.defaultBreakMinutes ?? 30)
+            : (policy?.defaultBreakMinutes ?? 30);
           const breakStartStr = policy?.defaultBreakStartTime || '13:00';
-          const checkInMins = finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
+          const checkInMins =
+            finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
           const [bH, bM] = breakStartStr.split(':').map((n) => parseInt(n, 10));
           const breakStartMins = (bH || 13) * 60 + (bM || 0);
 
@@ -457,7 +473,9 @@ export class AttendanceRegularizationService {
           }
         }
 
-        const breakMinutes = shift ? (shift.breakMinutes ?? (policy?.defaultBreakMinutes ?? 30)) : (policy?.defaultBreakMinutes ?? 30);
+        const breakMinutes = shift
+          ? (shift.breakMinutes ?? policy?.defaultBreakMinutes ?? 30)
+          : (policy?.defaultBreakMinutes ?? 30);
         const totalDurationMs =
           finalCheckOut.getTime() - finalCheckIn.getTime();
         totalHours = Math.max(
@@ -481,18 +499,19 @@ export class AttendanceRegularizationService {
         }
       }
 
-      const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
-        employee.id,
-        companyId,
-        requestDateStr,
-        finalCheckIn,
-        finalCheckOut,
-        shift,
-        policy,
-        [],
-        timezone,
-        t,
-      );
+      const evalResult =
+        await this.policyEngineService.evaluateAttendanceStatus(
+          employee.id,
+          companyId,
+          requestDateStr,
+          finalCheckIn,
+          finalCheckOut,
+          shift,
+          policy,
+          [],
+          timezone,
+          t,
+        );
 
       lateMinutes = evalResult.lateMinutes;
       totalHours = evalResult.netWorkingHours;
@@ -629,7 +648,10 @@ export class AttendanceRegularizationService {
         );
         summary = summaryData.summary;
       } catch (err) {
-        console.error('Failed to compute monthly summary for regularization approve socket:', err);
+        console.error(
+          'Failed to compute monthly summary for regularization approve socket:',
+          err,
+        );
       }
 
       this.attendanceGateway.emitAttendanceUpdate(
@@ -646,7 +668,10 @@ export class AttendanceRegularizationService {
           companyId,
         });
       } catch (socketErr) {
-        console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
+        console.error(
+          '[AttendanceRegularizationService] Socket emit error:',
+          socketErr,
+        );
       }
 
       exception.setDataValue('attendanceRecord', freshRecord);
@@ -737,7 +762,7 @@ export class AttendanceRegularizationService {
       if (lockedException.attendanceRecordId) {
         const record = await this.recordModel.findByPk(
           lockedException.attendanceRecordId,
-          { transaction: t }
+          { transaction: t },
         );
         if (record && record.isPayrollLocked) {
           throw new ForbiddenException(
@@ -746,11 +771,14 @@ export class AttendanceRegularizationService {
         }
       }
 
-      await lockedException.update({
-        status: AttendanceExceptionStatus.REJECTED,
-        approvedBy: approverEmployeeId,
-        remarks: dto.remarks || 'Rejected by Manager/Admin',
-      }, { transaction: t });
+      await lockedException.update(
+        {
+          status: AttendanceExceptionStatus.REJECTED,
+          approvedBy: approverEmployeeId,
+          remarks: dto.remarks || 'Rejected by Manager/Admin',
+        },
+        { transaction: t },
+      );
 
       await t.commit();
 
@@ -762,15 +790,19 @@ export class AttendanceRegularizationService {
           let summary = null;
           try {
             const [yearStr, monthStr] = record.date.split('-');
-            const summaryData = await this.summaryService.getEmployeeMonthlySummary(
-              employee.companyId,
-              record.employeeId,
-              parseInt(yearStr),
-              parseInt(monthStr),
-            );
+            const summaryData =
+              await this.summaryService.getEmployeeMonthlySummary(
+                employee.companyId,
+                record.employeeId,
+                parseInt(yearStr),
+                parseInt(monthStr),
+              );
             summary = summaryData.summary;
           } catch (err) {
-            console.error('Failed to compute monthly summary for regularization reject socket:', err);
+            console.error(
+              'Failed to compute monthly summary for regularization reject socket:',
+              err,
+            );
           }
 
           try {
@@ -826,7 +858,10 @@ export class AttendanceRegularizationService {
           companyId: compId,
         });
       } catch (socketErr) {
-        console.error('[AttendanceRegularizationService] Socket emit error:', socketErr);
+        console.error(
+          '[AttendanceRegularizationService] Socket emit error:',
+          socketErr,
+        );
       }
 
       return lockedException;
@@ -835,5 +870,4 @@ export class AttendanceRegularizationService {
       throw error;
     }
   }
-
 }

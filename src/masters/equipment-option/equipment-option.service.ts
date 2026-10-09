@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { EquipmentOption } from './equipment-option.model';
@@ -91,7 +87,7 @@ export class EquipmentOptionService implements OnModuleInit {
   constructor(
     @InjectModel(EquipmentOption)
     private readonly equipmentOptionModel: typeof EquipmentOption,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     await this.autoSeedDefaults();
@@ -103,7 +99,9 @@ export class EquipmentOptionService implements OnModuleInit {
       const count = await this.equipmentOptionModel.count();
       if (count === 0) {
         const rowsToInsert: any[] = [];
-        for (const [category, values] of Object.entries(DEFAULT_EQUIPMENT_SEED)) {
+        for (const [category, values] of Object.entries(
+          DEFAULT_EQUIPMENT_SEED,
+        )) {
           values.forEach((value, idx) => {
             rowsToInsert.push({
               category,
@@ -153,7 +151,9 @@ export class EquipmentOptionService implements OnModuleInit {
     const value = dto.value.trim();
 
     if (value.length > 100) {
-      throw new BadRequestException('Option value cannot exceed 100 characters');
+      throw new BadRequestException(
+        'Option value cannot exceed 100 characters',
+      );
     }
 
     // Case-insensitive duplicate check within same category
@@ -170,13 +170,19 @@ export class EquipmentOptionService implements OnModuleInit {
     });
 
     if (existing) {
-      throw new BadRequestException(`"${value}" already exists in ${category}.`);
+      throw new BadRequestException(
+        `"${value}" already exists in ${category}.`,
+      );
     }
 
-    const maxOrderRes: any = await this.equipmentOptionModel.max('displayOrder', {
-      where: { category },
-    });
-    const displayOrder = (typeof maxOrderRes === 'number' ? maxOrderRes : 0) + 1;
+    const maxOrderRes: any = await this.equipmentOptionModel.max(
+      'displayOrder',
+      {
+        where: { category },
+      },
+    );
+    const displayOrder =
+      (typeof maxOrderRes === 'number' ? maxOrderRes : 0) + 1;
 
     return await this.equipmentOptionModel.create({
       category,
@@ -184,6 +190,6 @@ export class EquipmentOptionService implements OnModuleInit {
       displayOrder,
       isActive: true,
       companyId,
-    } as any);
+    });
   }
 }

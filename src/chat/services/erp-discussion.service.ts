@@ -12,7 +12,11 @@ import { ConversationMember } from '../models/conversation-member.model';
 import { ConversationSetting } from '../models/conversation-setting.model';
 import { Message } from '../models/message.model';
 import { User } from '../../users/models/user.model';
-import { ConversationType, MemberRole, MessageType } from '../constants/chat.constants';
+import {
+  ConversationType,
+  MemberRole,
+  MessageType,
+} from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
 import {
   ChatEventNames,
@@ -53,7 +57,13 @@ export class ErpDiscussionService {
     params: ErpDiscussionParams,
     actor: { id: number; name?: string; companyId: number; clientId?: number },
   ) {
-    const { entityType, entityId, entityName, participantUserIds, initialContextNote } = params;
+    const {
+      entityType,
+      entityId,
+      entityName,
+      participantUserIds,
+      initialContextNote,
+    } = params;
 
     let conversation = await this.conversationRepository.findOne({
       where: {
@@ -65,7 +75,9 @@ export class ErpDiscussionService {
         {
           model: ConversationMember,
           as: 'members',
-          include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+          include: [
+            { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+          ],
         },
         { model: ConversationSetting, as: 'settings' },
       ],
@@ -91,7 +103,7 @@ export class ErpDiscussionService {
             isLocked: false,
             announcementMode: false,
             createdBy: actor.id,
-          } as any,
+          },
           { transaction: t },
         );
 
@@ -111,7 +123,7 @@ export class ErpDiscussionService {
             allowMention: true,
             allowExport: true,
             maxUploadSize: 104857600,
-          } as any,
+          },
           { transaction: t },
         );
 
@@ -122,7 +134,7 @@ export class ErpDiscussionService {
             userId: actor.id,
             role: MemberRole.OWNER,
             joinedAt: new Date(),
-          } as any,
+          },
           { transaction: t },
         );
 
@@ -137,7 +149,9 @@ export class ErpDiscussionService {
             role: MemberRole.MEMBER,
             joinedAt: new Date(),
           }));
-          await this.memberRepository.bulkCreate(memberRows as any, { transaction: t });
+          await this.memberRepository.bulkCreate(memberRows, {
+            transaction: t,
+          });
         }
 
         // Post initial system message if provided
@@ -152,7 +166,7 @@ export class ErpDiscussionService {
               isEdited: false,
               version: 1,
               isDeleted: false,
-            } as any,
+            },
             { transaction: t },
           );
         }
@@ -169,16 +183,25 @@ export class ErpDiscussionService {
         });
       });
 
-      conversation = await this.conversationRepository.findByPk(createdConv.id, {
-        include: [
-          {
-            model: ConversationMember,
-            as: 'members',
-            include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
-          },
-          { model: ConversationSetting, as: 'settings' },
-        ],
-      });
+      conversation = await this.conversationRepository.findByPk(
+        createdConv.id,
+        {
+          include: [
+            {
+              model: ConversationMember,
+              as: 'members',
+              include: [
+                {
+                  model: User,
+                  as: 'user',
+                  attributes: ['id', 'name', 'email'],
+                },
+              ],
+            },
+            { model: ConversationSetting, as: 'settings' },
+          ],
+        },
+      );
 
       // Emit Domain Event
       this.eventEmitter.emit(
@@ -194,19 +217,28 @@ export class ErpDiscussionService {
           userId: actor.id,
           role: MemberRole.MEMBER,
           joinedAt: new Date(),
-        } as any);
+        });
 
         // Refresh conversation members
-        conversation = await this.conversationRepository.findByPk(conversation.id, {
-          include: [
-            {
-              model: ConversationMember,
-              as: 'members',
-              include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
-            },
-            { model: ConversationSetting, as: 'settings' },
-          ],
-        });
+        conversation = await this.conversationRepository.findByPk(
+          conversation.id,
+          {
+            include: [
+              {
+                model: ConversationMember,
+                as: 'members',
+                include: [
+                  {
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'name', 'email'],
+                  },
+                ],
+              },
+              { model: ConversationSetting, as: 'settings' },
+            ],
+          },
+        );
       }
     }
 

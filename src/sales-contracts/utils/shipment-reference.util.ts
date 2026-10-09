@@ -15,14 +15,28 @@ export function generateShipmentReference(
   if (Number.isNaN(dateObj.getTime())) {
     throw new BadRequestException('Invalid shipment date');
   }
-  
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+  const months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
   const monthStr = months[dateObj.getMonth()] || 'JAN';
-  
-  const containerCount = containers !== null && containers !== undefined ? containers : 0;
+
+  const containerCount =
+    containers !== null && containers !== undefined ? containers : 0;
   const containerStr = `C${containerCount}`;
-  
+
   const yearStr = String(dateObj.getFullYear()).slice(-2);
-  
+
   return `${contractNo}/${shipmentNo}/${containerStr}/${monthStr}/${yearStr}`;
 }

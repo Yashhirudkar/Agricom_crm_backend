@@ -57,7 +57,8 @@ export class PollService {
     dto: CreatePollDto,
     actor: { id: number; name?: string; companyId: number; clientId: number },
   ) {
-    const conversation = await this.conversationRepository.findByPk(conversationId);
+    const conversation =
+      await this.conversationRepository.findByPk(conversationId);
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
@@ -81,7 +82,7 @@ export class PollService {
           isEdited: false,
           version: 1,
           isDeleted: false,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -95,7 +96,7 @@ export class PollService {
           allowMultiple: !!dto.allowMultiple,
           isClosed: false,
           createdBy: actor.id,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -104,7 +105,9 @@ export class PollService {
         pollId: createdPoll.id,
         optionText: opt,
       }));
-      await this.optionRepository.bulkCreate(optionRows as any, { transaction: t });
+      await this.optionRepository.bulkCreate(optionRows, {
+        transaction: t,
+      });
 
       // Audit
       await this.auditService.writeLog({
@@ -149,18 +152,24 @@ export class PollService {
     }
 
     if (poll.isClosed) {
-      throw new BadRequestException('This poll is closed and no longer accepting votes');
+      throw new BadRequestException(
+        'This poll is closed and no longer accepting votes',
+      );
     }
 
     if (!poll.allowMultiple && dto.optionIds.length > 1) {
-      throw new BadRequestException('This poll only allows single option selection');
+      throw new BadRequestException(
+        'This poll only allows single option selection',
+      );
     }
 
     // Verify optionIds belong to this poll
     const validOptionIds = new Set(poll.options.map((o) => o.id));
     for (const optId of dto.optionIds) {
       if (!validOptionIds.has(optId)) {
-        throw new BadRequestException(`Option ID ${optId} does not belong to this poll`);
+        throw new BadRequestException(
+          `Option ID ${optId} does not belong to this poll`,
+        );
       }
     }
 
@@ -177,7 +186,7 @@ export class PollService {
         optionId: optId,
         userId: actor.id,
       }));
-      await this.voteRepository.bulkCreate(voteRows as any, { transaction: t });
+      await this.voteRepository.bulkCreate(voteRows, { transaction: t });
     });
 
     const results = await this.getPollResults(pollId, actor.id);
@@ -185,7 +194,13 @@ export class PollService {
     // Emit Domain Event
     this.eventEmitter.emit(
       ChatEventNames.POLL_VOTED,
-      new PollVotedEvent(poll.conversationId, actor.companyId, pollId, actor.id, results),
+      new PollVotedEvent(
+        poll.conversationId,
+        actor.companyId,
+        pollId,
+        actor.id,
+        results,
+      ),
     );
 
     return results;
@@ -214,7 +229,9 @@ export class PollService {
       });
       const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN];
       if (!member || !allowedRoles.includes(member.role)) {
-        throw new ForbiddenException('Only poll creator or channel admins can close this poll');
+        throw new ForbiddenException(
+          'Only poll creator or channel admins can close this poll',
+        );
       }
     }
 
@@ -272,7 +289,13 @@ export class PollService {
             {
               model: MessagePollVote,
               as: 'votes',
-              include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+              include: [
+                {
+                  model: User,
+                  as: 'user',
+                  attributes: ['id', 'name', 'email'],
+                },
+              ],
             },
           ],
         },
@@ -294,7 +317,8 @@ export class PollService {
 
     const optionsResults = poll.options.map((opt) => {
       const voteCount = opt.votes ? opt.votes.length : 0;
-      const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+      const percentage =
+        totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
 
       if (requestingUserId && opt.votes) {
         if (opt.votes.some((v) => v.userId === requestingUserId)) {

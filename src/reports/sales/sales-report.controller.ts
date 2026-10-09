@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { SalesReportService } from './sales-report.service';
+import type { ConfirmedOrdersQuery } from './sales-report.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
@@ -43,5 +44,10 @@ export class SalesReportController {
   @Get('orders')
   async getOrders(@Query() query: any) {
     return this.salesReportService.getOrders(query);
+  }
+
+  @Get('confirmed-orders')
+  async getConfirmedOrders(@Query() query: ConfirmedOrdersQuery) {
+    return this.salesReportService.getConfirmedOrders(query);
   }
 }

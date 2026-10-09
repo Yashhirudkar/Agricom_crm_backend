@@ -32,7 +32,9 @@ export class PartnerDynamicValuesService {
       where: { id: partnerId, isActive: true },
     });
     if (!partner) {
-      throw new NotFoundException(`Partner with id=${partnerId} not found or inactive`);
+      throw new NotFoundException(
+        `Partner with id=${partnerId} not found or inactive`,
+      );
     }
     return partner;
   }
@@ -193,7 +195,9 @@ export class PartnerDynamicValuesService {
         entityType: 'PartnerAdditionalInfo',
         entityId: partnerId,
         action: isCreate ? 'CREATE' : 'UPDATE',
-        oldValue: isCreate ? null : { configId: dto.configId, schemaVersion: existing?.schemaVersion },
+        oldValue: isCreate
+          ? null
+          : { configId: dto.configId, schemaVersion: existing?.schemaVersion },
         newValue: {
           configId: dto.configId,
           schemaVersion: config.version,

@@ -28,10 +28,7 @@ import { Company } from '../../companies/models/company.model';
   tableName: 'purchase_contract_activities',
   timestamps: true,
   updatedAt: false,
-  indexes: [
-    { fields: ['purchase_contract_id'] },
-    { fields: ['created_at'] },
-  ],
+  indexes: [{ fields: ['purchase_contract_id'] }, { fields: ['created_at'] }],
 })
 export class PurchaseContractActivity extends Model<PurchaseContractActivity> {
   @ForeignKey(() => Company)

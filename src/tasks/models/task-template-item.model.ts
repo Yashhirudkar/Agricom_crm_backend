@@ -15,13 +15,11 @@ import { Client } from '../../clients/models/client.model';
 import { TaskTemplate } from './task-template.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_template_items',
   timestamps: true,
 })
 export class TaskTemplateItem extends Model<TaskTemplateItem> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

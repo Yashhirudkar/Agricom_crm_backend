@@ -1,4 +1,9 @@
-import { IsOptional, IsString, IsNotEmpty, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+} from 'class-validator';
 
 export class UpdateLogisticsStatusDto {
   @IsNotEmpty()

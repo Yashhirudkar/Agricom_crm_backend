@@ -123,13 +123,28 @@ export class Message extends Model<Message> {
   @HasMany(() => MessageReadState, { onDelete: 'CASCADE', hooks: true })
   declare readStates: MessageReadState[];
 
-  @HasMany(() => MessageVersion, { foreignKey: 'messageId', as: 'versions', onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => MessageVersion, {
+    foreignKey: 'messageId',
+    as: 'versions',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare versions: MessageVersion[];
 
-  @HasMany(() => MessagePin, { foreignKey: 'messageId', as: 'pins', onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => MessagePin, {
+    foreignKey: 'messageId',
+    as: 'pins',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare pins: MessagePin[];
 
-  @HasOne(() => MessagePoll, { foreignKey: 'messageId', as: 'poll', onDelete: 'CASCADE', hooks: true })
+  @HasOne(() => MessagePoll, {
+    foreignKey: 'messageId',
+    as: 'poll',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare poll: MessagePoll;
 
   @CreatedAt

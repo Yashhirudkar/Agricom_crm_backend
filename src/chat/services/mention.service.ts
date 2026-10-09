@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/sequelize';
 import { ConversationMember } from '../models/conversation-member.model';
 import { User } from '../../users/models/user.model';
 import { MemberRole } from '../constants/chat.constants';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 
 export interface MentionParseResult {
   userIds: number[];
@@ -32,7 +35,13 @@ export class MentionService {
    */
   parseMentions(content: string | null): MentionParseResult {
     if (!content) {
-      return { userIds: [], hasAll: false, hasHere: false, roleNames: [], departmentNames: [] };
+      return {
+        userIds: [],
+        hasAll: false,
+        hasHere: false,
+        roleNames: [],
+        departmentNames: [],
+      };
     }
 
     const userIds: number[] = [];
@@ -92,9 +101,15 @@ export class MentionService {
         where: { conversationId, userId: senderId },
       });
 
-      const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR];
+      const allowedRoles = [
+        MemberRole.OWNER,
+        MemberRole.ADMIN,
+        MemberRole.MODERATOR,
+      ];
       if (!member || !allowedRoles.includes(member.role)) {
-        throw new ForbiddenException('Only channel admins or moderators can mention @all or @here');
+        throw new ForbiddenException(
+          'Only channel admins or moderators can mention @all or @here',
+        );
       }
     }
   }

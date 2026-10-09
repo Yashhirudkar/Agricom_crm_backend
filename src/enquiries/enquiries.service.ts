@@ -24,9 +24,16 @@ import { buildPaginatedResponse } from '../masters/common/response.helper';
 import { AuditService } from '../audit/services/audit.service';
 import { EnquiryShipmentMode } from './enquiry.constants';
 import { NotificationDispatchService } from '../notifications/services/notification-dispatch.service';
-import { NotificationChannel, NotificationTemplate, NotificationRecipient } from '../notifications/notification.types';
+import {
+  NotificationChannel,
+  NotificationTemplate,
+  NotificationRecipient,
+} from '../notifications/notification.types';
 import { NotificationsGateway } from '../notifications/gateways/notifications.gateway';
-import { NotificationsService, NotificationType } from '../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../notifications/services/notifications.service';
 import { RbacService } from '../rbac/services/rbac.service';
 import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
 
@@ -89,14 +96,14 @@ export class EnquiriesService {
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
     await this.sequelize.query(
       `CREATE SEQUENCE IF NOT EXISTS enquiries_no_seq START 1;`,
-      { transaction }
+      { transaction },
     );
     const result = await this.sequelize.query(
       `SELECT nextval('enquiries_no_seq')`,
-      { type: QueryTypes.SELECT, transaction }
-    ) as any[];
+      { type: QueryTypes.SELECT, transaction },
+    );
 
-    const nextNumber = parseInt(result[0].nextval, 10);
+    const nextNumber = parseInt((result[0] as any).nextval, 10);
     return `ENQ-${String(nextNumber).padStart(6, '0')}`;
   }
 
@@ -111,25 +118,29 @@ export class EnquiriesService {
       const role = await this.partnerRoleModel.findOne({
         where: { id: partnerRoleId, isActive: true, companyId },
       });
-      if (!role) throw new BadRequestException('Partner Role not found or inactive');
+      if (!role)
+        throw new BadRequestException('Partner Role not found or inactive');
     }
     if (partnerId) {
       const partner = await this.partnerModel.findOne({
         where: { id: partnerId, isActive: true, companyId },
       });
-      if (!partner) throw new BadRequestException('Partner not found or inactive');
+      if (!partner)
+        throw new BadRequestException('Partner not found or inactive');
     }
     if (productId) {
       const product = await this.productModel.findOne({
         where: { id: productId, isActive: true, companyId },
       });
-      if (!product) throw new BadRequestException('Product not found or inactive');
+      if (!product)
+        throw new BadRequestException('Product not found or inactive');
     }
     if (packingTypeId) {
       const packing = await this.packingTypeModel.findOne({
         where: { id: packingTypeId, isActive: true, companyId },
       });
-      if (!packing) throw new BadRequestException('Packing Type not found or inactive');
+      if (!packing)
+        throw new BadRequestException('Packing Type not found or inactive');
     }
   }
 
@@ -185,16 +196,24 @@ export class EnquiriesService {
       const mode = data.shipmentMode;
       if (mode === EnquiryShipmentMode.SHIP) {
         if (!data.originCountryId || !data.originCountryId.trim()) {
-          throw new BadRequestException('Origin Country is required for Ship mode');
+          throw new BadRequestException(
+            'Origin Country is required for Ship mode',
+          );
         }
         if (!data.originPort || !data.originPort.trim()) {
-          throw new BadRequestException('Origin Port is required for Ship mode');
+          throw new BadRequestException(
+            'Origin Port is required for Ship mode',
+          );
         }
         if (!data.destinationCountry || !data.destinationCountry.trim()) {
-          throw new BadRequestException('Destination Country is required for Ship mode');
+          throw new BadRequestException(
+            'Destination Country is required for Ship mode',
+          );
         }
         if (!data.destinationPort || !data.destinationPort.trim()) {
-          throw new BadRequestException('Destination Port is required for Ship mode');
+          throw new BadRequestException(
+            'Destination Port is required for Ship mode',
+          );
         }
         // Enforce mutually exclusive land state and city fields
         if (
@@ -203,30 +222,49 @@ export class EnquiriesService {
           data.destinationState ||
           data.destinationCity
         ) {
-          throw new BadRequestException('States and Cities are not allowed for Ship mode');
+          throw new BadRequestException(
+            'States and Cities are not allowed for Ship mode',
+          );
         }
-      } else if (mode === EnquiryShipmentMode.ROAD || mode === EnquiryShipmentMode.RAIL) {
+      } else if (
+        mode === EnquiryShipmentMode.ROAD ||
+        mode === EnquiryShipmentMode.RAIL
+      ) {
         if (!data.originCountryId || !data.originCountryId.trim()) {
-          throw new BadRequestException(`Origin Country is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Origin Country is required for ${mode} mode`,
+          );
         }
         if (!data.originState || !data.originState.trim()) {
-          throw new BadRequestException(`Origin State is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Origin State is required for ${mode} mode`,
+          );
         }
         if (!data.originCity || !data.originCity.trim()) {
-          throw new BadRequestException(`Origin City is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Origin City is required for ${mode} mode`,
+          );
         }
         if (!data.destinationCountry || !data.destinationCountry.trim()) {
-          throw new BadRequestException(`Destination Country is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Destination Country is required for ${mode} mode`,
+          );
         }
         if (!data.destinationState || !data.destinationState.trim()) {
-          throw new BadRequestException(`Destination State is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Destination State is required for ${mode} mode`,
+          );
         }
         if (!data.destinationCity || !data.destinationCity.trim()) {
-          throw new BadRequestException(`Destination City is required for ${mode} mode`);
+          throw new BadRequestException(
+            `Destination City is required for ${mode} mode`,
+          );
         }
         // Enforce mutually exclusive port fields
         if (data.originPort || data.destinationPort || data.podPort) {
-          throw new BadRequestException(`Ports are not allowed for ${mode} mode`);
+          throw new BadRequestException(
+            `Ports are not allowed for ${mode} mode`,
+          );
         }
       } else {
         throw new BadRequestException(`Invalid shipment mode: ${mode}`);
@@ -237,10 +275,14 @@ export class EnquiriesService {
     const bidAmount = data.buyingInterest;
     if (bidAmount !== undefined && bidAmount !== null && bidAmount !== '') {
       if (Number(bidAmount) < 0) {
-        throw new BadRequestException('Bid Amount must be greater than or equal to 0');
+        throw new BadRequestException(
+          'Bid Amount must be greater than or equal to 0',
+        );
       }
       if (!data.bidCurrency || !data.bidCurrency.trim()) {
-        throw new BadRequestException('Currency is required when Bid Amount is entered');
+        throw new BadRequestException(
+          'Currency is required when Bid Amount is entered',
+        );
       }
     }
   }
@@ -261,19 +303,27 @@ export class EnquiriesService {
     // Pre-fetch relation names outside the transaction to keep it short
     const [partner, product, packingType, creator] = await Promise.all([
       normalized.partnerId
-        ? this.partnerModel.findByPk(normalized.partnerId, { attributes: ['id', 'entityName'] })
+        ? this.partnerModel.findByPk(normalized.partnerId, {
+            attributes: ['id', 'entityName'],
+          })
         : Promise.resolve(null),
       normalized.productId
-        ? this.productModel.findByPk(normalized.productId, { attributes: ['id', 'name'] })
+        ? this.productModel.findByPk(normalized.productId, {
+            attributes: ['id', 'name'],
+          })
         : Promise.resolve(null),
       normalized.packingTypeId
-        ? this.packingTypeModel.findByPk(normalized.packingTypeId, { attributes: ['id', 'name'] })
+        ? this.packingTypeModel.findByPk(normalized.packingTypeId, {
+            attributes: ['id', 'name'],
+          })
         : Promise.resolve(null),
       user?.userId
-        ? this.sequelize.query('SELECT name FROM users WHERE id = ?', {
-            replacements: [user.userId],
-            type: QueryTypes.SELECT,
-          }).then((res: any) => res[0])
+        ? this.sequelize
+            .query('SELECT name FROM users WHERE id = ?', {
+              replacements: [user.userId],
+              type: QueryTypes.SELECT,
+            })
+            .then((res: any) => res[0])
         : Promise.resolve(null),
     ]);
 
@@ -298,36 +348,44 @@ export class EnquiriesService {
 
     const destination =
       enquiry.destinationPort ||
-      [enquiry.destinationCity, enquiry.destinationState, enquiry.destinationCountry]
+      [
+        enquiry.destinationCity,
+        enquiry.destinationState,
+        enquiry.destinationCountry,
+      ]
         .filter(Boolean)
         .join(', ');
 
     this.notificationDispatchService
       .send({
-        channel:    NotificationChannel.WHATSAPP,
-        template:   NotificationTemplate.NEW_ENQUIRY,
-        recipient:  NotificationRecipient.SALES_GROUP,
+        channel: NotificationChannel.WHATSAPP,
+        template: NotificationTemplate.NEW_ENQUIRY,
+        recipient: NotificationRecipient.SALES_GROUP,
         entityType: 'Enquiry',
-        entityId:   enquiry.id,
-        companyId:  user?.companyId || null,
+        entityId: enquiry.id,
+        companyId: user?.companyId || null,
         payload: {
-          enquiryNo:     enquiry.enquiryNo,
-          customerName:  (partner as any)?.entityName  || undefined,
-          product:       (product as any)?.name         || undefined,
-          purity:        enquiry.purity                 || undefined,
-          quantity:      enquiry.quantity  != null ? String(enquiry.quantity)           : undefined,
-          quantityUnit:  'MT',
-          packingType:   (packingType as any)?.name     || undefined,
-          origin:        origin            || undefined,
-          destination:   destination       || undefined,
-          shipmentType:  enquiry.shipmentType || undefined,
-          shipmentDate:  enquiry.shipmentDate            || undefined,
-          bid:           enquiry.buyingInterest != null ? String(enquiry.buyingInterest) : undefined,
-          bidCurrency:   enquiry.bidCurrency             || undefined,
-          bidType:       enquiry.bidType                 || undefined,
-          note:          enquiry.note                    || undefined,
-          createdByName: (creator as any)?.name          || undefined,
-          createdAt:     new Date(),
+          enquiryNo: enquiry.enquiryNo,
+          customerName: partner?.entityName || undefined,
+          product: product?.name || undefined,
+          purity: enquiry.purity || undefined,
+          quantity:
+            enquiry.quantity != null ? String(enquiry.quantity) : undefined,
+          quantityUnit: 'MT',
+          packingType: packingType?.name || undefined,
+          origin: origin || undefined,
+          destination: destination || undefined,
+          shipmentType: enquiry.shipmentType || undefined,
+          shipmentDate: enquiry.shipmentDate || undefined,
+          bid:
+            enquiry.buyingInterest != null
+              ? String(enquiry.buyingInterest)
+              : undefined,
+          bidCurrency: enquiry.bidCurrency || undefined,
+          bidType: enquiry.bidType || undefined,
+          note: enquiry.note || undefined,
+          createdByName: creator?.name || undefined,
+          createdAt: new Date(),
         },
       })
       .catch((err) =>
@@ -366,16 +424,26 @@ export class EnquiriesService {
     };
 
     if (search) {
-        // If there's a search term, we should also search in partner name and product name
-        // But buildSearchQuery only works on the primary model directly.
-        // We'll use Op.or for relation searches.
-        whereClause[Op.or] = [
-           { enquiryNo: { [Op.iLike]: `%${search}%` } },
-           { '$partner.entity_name$': { [Op.iLike]: `%${search}%` } },
-           { '$product.name$': { [Op.iLike]: `%${search}%` } },
-           { '$creator.name$': { [Op.iLike]: `%${search}%` } }
-        ];
-        delete whereClause.enquiryNo;
+      // Use EXISTS subqueries to prevent forcing INNER JOINs on optional relations
+      whereClause[Op.or] = [
+        { enquiryNo: { [Op.iLike]: `%${search}%` } },
+        {
+          [Op.and]: Sequelize.literal(
+            `EXISTS (SELECT 1 FROM partners WHERE partners.id = "Enquiry"."partner_id" AND partners.entity_name ILIKE '%${search}%')`
+          ),
+        },
+        {
+          [Op.and]: Sequelize.literal(
+            `EXISTS (SELECT 1 FROM products WHERE products.id = "Enquiry"."product_id" AND products.name ILIKE '%${search}%')`
+          ),
+        },
+        {
+          [Op.and]: Sequelize.literal(
+            `EXISTS (SELECT 1 FROM users WHERE users.id = "Enquiry"."created_by" AND users.name ILIKE '%${search}%')`
+          ),
+        },
+      ];
+      delete whereClause.enquiryNo;
     }
 
     if (partnerRoleId) whereClause.partnerRoleId = partnerRoleId;
@@ -384,7 +452,10 @@ export class EnquiriesService {
     if (createdBy) whereClause.createdBy = createdBy;
     if (status) {
       if (typeof status === 'string') {
-        const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+        const statuses = status
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         if (statuses.length > 1) {
           whereClause.status = { [Op.in]: statuses };
         } else if (statuses.length === 1) {
@@ -398,19 +469,24 @@ export class EnquiriesService {
     }
     if (originCountryId) whereClause.originCountryId = originCountryId;
     if (shipmentType) whereClause.shipmentType = shipmentType;
-    if (potentialEnquiry !== undefined) whereClause.potentialEnquiry = potentialEnquiry;
+    if (potentialEnquiry !== undefined)
+      whereClause.potentialEnquiry = potentialEnquiry;
 
     if (withoutSalesContract) {
       whereClause.id = {
-        [Op.notIn]: Sequelize.literal(`(SELECT enquiry_id FROM sales_contracts WHERE enquiry_id IS NOT NULL AND company_id = ${(query as any).companyId})`),
+        [Op.notIn]: Sequelize.literal(
+          `(SELECT enquiry_id FROM sales_contracts WHERE enquiry_id IS NOT NULL AND company_id = ${(query as any).companyId})`,
+        ),
       };
     }
 
     if (withoutPurchaseContract) {
       const pcCondition = {
-        [Op.notIn]: Sequelize.literal(`(SELECT sc.enquiry_id FROM purchase_contracts pc JOIN sales_contracts sc ON pc.sales_contract_id = sc.id WHERE sc.enquiry_id IS NOT NULL AND pc.company_id = ${(query as any).companyId})`),
+        [Op.notIn]: Sequelize.literal(
+          `(SELECT sc.enquiry_id FROM purchase_contracts pc JOIN sales_contracts sc ON pc.sales_contract_id = sc.id WHERE sc.enquiry_id IS NOT NULL AND pc.company_id = ${(query as any).companyId})`,
+        ),
       };
-      whereClause.id = whereClause.id 
+      whereClause.id = whereClause.id
         ? { [Op.and]: [whereClause.id, pcCondition] }
         : pcCondition;
     }
@@ -433,10 +509,12 @@ export class EnquiriesService {
       where: { ...whereClause, companyId: (query as any).companyId },
       limit: finalLimit,
       offset,
-      order: [['enquiryDate', 'DESC'], ['createdAt', 'DESC']],
+      order: [
+        ['enquiryDate', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
       include: INCLUDE_RELATIONS,
       distinct: true,
-      subQuery: false,
     });
 
     const mappedRows = rows.map((row: any) => ({
@@ -474,7 +552,13 @@ export class EnquiriesService {
       note: row.note || null,
       createdBy: row.createdBy,
       createdByName: row.creator?.name || null,
-      creator: row.creator ? { id: row.creator.id, name: row.creator.name, email: row.creator.email } : null,
+      creator: row.creator
+        ? {
+            id: row.creator.id,
+            name: row.creator.name,
+            email: row.creator.email,
+          }
+        : null,
     }));
 
     return buildPaginatedResponse(mappedRows, count, page || 1, finalLimit);
@@ -496,7 +580,7 @@ export class EnquiriesService {
   async update(id: string, dto: UpdateEnquiryDto, user: any): Promise<Enquiry> {
     const companyId: number = user?.companyId;
     const enquiry = await this.findOne(id, companyId);
-    
+
     // Save old state for update notification differences
     const oldEnquiryData = enquiry.toJSON();
 
@@ -540,9 +624,12 @@ export class EnquiriesService {
       updatedEnquiry,
       (updatedEnquiry.product as any)?.name,
       (updatedEnquiry.partner as any)?.entityName,
-      user?.companyId
-    ).catch(err => {
-      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
+      user?.companyId,
+    ).catch((err) => {
+      this.logger.error(
+        `[Transport Notification] Error: ${err?.message}`,
+        err?.stack,
+      );
     });
 
     // ── Manual Save & Notify ──────────────────────────────────────────────────
@@ -554,22 +641,24 @@ export class EnquiriesService {
       };
 
       const changesMessage = WhatsAppTemplates.enquiryUpdated(payload);
-      
+
       if (changesMessage) {
-        this.notificationDispatchService.send({
-          channel: NotificationChannel.WHATSAPP,
-          template: NotificationTemplate.ENQUIRY_UPDATED,
-          recipient: NotificationRecipient.SALES_GROUP,
-          entityType: 'Enquiry',
-          entityId: updatedEnquiry.id,
-          companyId: user?.companyId || null,
-          payload, // The template handler inside dispatch service will recreate it or we can just send the generated message? Wait, `send` requires `payload`. Dispatch service calls `WhatsAppTemplates.enquiryUpdated` again.
-        }).catch(err => {
-          this.logger.error(
-            `[Notification] Unhandled error for ${updatedEnquiry.enquiryNo} update: ${err?.message}`,
-            err?.stack,
-          );
-        });
+        this.notificationDispatchService
+          .send({
+            channel: NotificationChannel.WHATSAPP,
+            template: NotificationTemplate.ENQUIRY_UPDATED,
+            recipient: NotificationRecipient.SALES_GROUP,
+            entityType: 'Enquiry',
+            entityId: updatedEnquiry.id,
+            companyId: user?.companyId || null,
+            payload, // The template handler inside dispatch service will recreate it or we can just send the generated message? Wait, `send` requires `payload`. Dispatch service calls `WhatsAppTemplates.enquiryUpdated` again.
+          })
+          .catch((err) => {
+            this.logger.error(
+              `[Notification] Unhandled error for ${updatedEnquiry.enquiryNo} update: ${err?.message}`,
+              err?.stack,
+            );
+          });
       }
     }
 
@@ -602,7 +691,10 @@ export class EnquiriesService {
     }
   }
 
-  async getLoadingPoints(enquiryId: string, companyId: number): Promise<string[]> {
+  async getLoadingPoints(
+    enquiryId: string,
+    companyId: number,
+  ): Promise<string[]> {
     const points = await this.enquiryLoadingPointModel.findAll({
       where: { enquiryId, companyId },
       order: [['createdAt', 'ASC']],
@@ -632,7 +724,11 @@ export class EnquiriesService {
       // Bulk insert the new ones
       if (cleaned.length > 0) {
         await this.enquiryLoadingPointModel.bulkCreate(
-          cleaned.map((loadingPoint) => ({ enquiryId, companyId, loadingPoint })),
+          cleaned.map((loadingPoint) => ({
+            enquiryId,
+            companyId,
+            loadingPoint,
+          })),
           { transaction },
         );
       }
@@ -643,15 +739,21 @@ export class EnquiriesService {
       enquiry,
       (enquiry.product as any)?.name,
       (enquiry.partner as any)?.entityName,
-      companyId
-    ).catch(err => {
-      this.logger.error(`[Transport Notification] Error: ${err?.message}`, err?.stack);
+      companyId,
+    ).catch((err) => {
+      this.logger.error(
+        `[Transport Notification] Error: ${err?.message}`,
+        err?.stack,
+      );
     });
 
     return cleaned;
   }
 
-  async getDestinations(enquiryId: string, companyId: number): Promise<string[]> {
+  async getDestinations(
+    enquiryId: string,
+    companyId: number,
+  ): Promise<string[]> {
     const rows = await this.enquiryDestinationModel.findAll({
       where: { enquiryId, companyId },
       order: [['createdAt', 'ASC']],
@@ -684,14 +786,24 @@ export class EnquiriesService {
     return cleaned;
   }
 
-  async notifyTransportTeam(enquiry: Enquiry, productName: string, buyerName: string, companyId?: number): Promise<void> {
+  async notifyTransportTeam(
+    enquiry: Enquiry,
+    productName: string,
+    buyerName: string,
+    companyId?: number,
+  ): Promise<void> {
     if (!enquiry?.id) return;
-    
+
     try {
       // Fetch users with access to the Transport Management page (logistics:read)
       // Delegating to RbacService directly instead of raw queries in the business layer
       // The exact resource mapping in the database (phase-15-logistics.ts) is module='logistics', action='VIEW'
-      const userIds = await this.rbacService.getUsersWithPermission('logistics', 'VIEW', companyId || null, enquiry.createdBy);
+      const userIds = await this.rbacService.getUsersWithPermission(
+        'logistics',
+        'VIEW',
+        companyId || null,
+        enquiry.createdBy,
+      );
 
       if (userIds.length > 0) {
         const payload = {
@@ -704,7 +816,11 @@ export class EnquiriesService {
         };
 
         for (const uid of userIds) {
-          this.notificationsGateway.emitToUser(uid, 'transport:new-enquiry', payload);
+          this.notificationsGateway.emitToUser(
+            uid,
+            'transport:new-enquiry',
+            payload,
+          );
         }
 
         await this.notificationsService.createNotification({
@@ -719,7 +835,10 @@ export class EnquiriesService {
         });
       }
     } catch (err) {
-      this.logger.error(`Error notifying transport team: ${err.message}`, err.stack);
+      this.logger.error(
+        `Error notifying transport team: ${err.message}`,
+        err.stack,
+      );
     }
   }
 }

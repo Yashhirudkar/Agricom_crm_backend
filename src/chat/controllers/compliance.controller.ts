@@ -25,7 +25,11 @@ export class ComplianceController {
     @Param('conversationId', ParseIntPipe) conversationId: number,
     @CurrentUser() user: any,
   ) {
-    return this.complianceService.exportTranscript(conversationId, user.companyId, user);
+    return this.complianceService.exportTranscript(
+      conversationId,
+      user.companyId,
+      user,
+    );
   }
 
   @Post('compliance/retention/execute')

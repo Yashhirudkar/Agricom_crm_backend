@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel as InjectSequelizeModel } from '@nestjs/sequelize';
 import { Op, Sequelize } from 'sequelize';
 import { CargoAvailability } from './models/cargo-availability.model';
@@ -38,7 +43,9 @@ export class CargoAvailabilityService {
   ) {}
 
   // ─── 1. AUTO-SYNC FROM PURCHASE CONTRACT ITEM ─────────────────────────────
-  async syncFromPurchaseContractItem(itemId: number): Promise<CargoAvailability | null> {
+  async syncFromPurchaseContractItem(
+    itemId: number,
+  ): Promise<CargoAvailability | null> {
     const item = await this.purchaseContractItemModel.findByPk(itemId, {
       include: [{ model: PurchaseContract }],
     });
@@ -58,7 +65,9 @@ export class CargoAvailabilityService {
         status: 'Pending Readiness',
         companyId: item.purchaseContract?.companyId,
       });
-      this.logger.log(`Created CargoAvailability #${record.id} for PurchaseContractItem #${item.id}`);
+      this.logger.log(
+        `Created CargoAvailability #${record.id} for PurchaseContractItem #${item.id}`,
+      );
     } else {
       record.purchaseQty = item.quantity || 0;
       record.productId = item.productId || record.productId;
@@ -107,7 +116,16 @@ export class CargoAvailabilityService {
     const loadedRes = await this.cargoLoadingModel.sum('loadedQty', {
       where: {
         cargoAvailabilityId: record.id,
-        status: { [Op.in]: ['Loaded', 'Dispatched', 'Reached Destination', 'Unloaded', 'Verified', 'Completed'] },
+        status: {
+          [Op.in]: [
+            'Loaded',
+            'Dispatched',
+            'Reached Destination',
+            'Unloaded',
+            'Verified',
+            'Completed',
+          ],
+        },
       },
     });
     const loadedQty = Number(loadedRes || 0);
@@ -116,7 +134,15 @@ export class CargoAvailabilityService {
     const dispatchRes = await this.cargoLoadingModel.sum('loadedQty', {
       where: {
         cargoAvailabilityId: record.id,
-        status: { [Op.in]: ['Dispatched', 'Reached Destination', 'Unloaded', 'Verified', 'Completed'] },
+        status: {
+          [Op.in]: [
+            'Dispatched',
+            'Reached Destination',
+            'Unloaded',
+            'Verified',
+            'Completed',
+          ],
+        },
       },
     });
     const dispatchedQty = Number(dispatchRes || 0);
@@ -148,7 +174,8 @@ export class CargoAvailabilityService {
       } else if (allocatedQty > 0) {
         computedStatus = 'Allocated';
       } else {
-        computedStatus = readyQty >= plain.purchaseQty ? 'Ready Pool' : 'Partially Ready';
+        computedStatus =
+          readyQty >= plain.purchaseQty ? 'Ready Pool' : 'Partially Ready';
       }
     }
 
@@ -179,7 +206,16 @@ export class CargoAvailabilityService {
   }
 
   async findAll(query: any = {}): Promise<{ data: any[]; total: number }> {
-    const { search, purchaseContractId, supplierId, productId, status, limit = 50, page = 1, companyId } = query;
+    const {
+      search,
+      purchaseContractId,
+      supplierId,
+      productId,
+      status,
+      limit = 50,
+      page = 1,
+      companyId,
+    } = query;
 
     // Auto-sync if grid is currently empty
     const totalCount = await this.cargoAvailabilityModel.count();
@@ -220,7 +256,9 @@ export class CargoAvailabilityService {
       offset: (Number(page) - 1) * Number(limit),
     });
 
-    const enriched = await Promise.all(rows.map((row) => this.attachCalculatedMetrics(row)));
+    const enriched = await Promise.all(
+      rows.map((row) => this.attachCalculatedMetrics(row)),
+    );
     return { data: enriched, total: count };
   }
 
@@ -234,7 +272,10 @@ export class CargoAvailabilityService {
     const whereCond: any = {};
     if (companyId) whereCond.companyId = companyId;
 
-    const totalPurchaseRes = await this.cargoAvailabilityModel.sum('purchaseQty', { where: whereCond });
+    const totalPurchaseRes = await this.cargoAvailabilityModel.sum(
+      'purchaseQty',
+      { where: whereCond },
+    );
     const totalPurchaseQty = Number(totalPurchaseRes || 0);
 
     const readyWhere: any = { status: 'Approved' };
@@ -260,18 +301,33 @@ export class CargoAvailabilityService {
     });
     const totalLoadedQty = Number(totalLoadedRes || 0);
 
-    const dispWhere: any = { status: { [Op.in]: ['Dispatched', 'Reached Destination', 'Unloaded', 'Verified', 'Completed'] } };
+    const dispWhere: any = {
+      status: {
+        [Op.in]: [
+          'Dispatched',
+          'Reached Destination',
+          'Unloaded',
+          'Verified',
+          'Completed',
+        ],
+      },
+    };
     if (companyId) dispWhere.companyId = companyId;
     const totalDispatchedRes = await this.cargoLoadingModel.sum('loadedQty', {
       where: dispWhere,
     });
     const totalDispatchedQty = Number(totalDispatchedRes || 0);
 
-    const delivWhere: any = { status: { [Op.in]: ['Unloaded', 'Verified', 'Completed'] } };
+    const delivWhere: any = {
+      status: { [Op.in]: ['Unloaded', 'Verified', 'Completed'] },
+    };
     if (companyId) delivWhere.companyId = companyId;
-    const totalDeliveredRes = await this.cargoLoadingModel.sum('unloadedWeight', {
-      where: delivWhere,
-    });
+    const totalDeliveredRes = await this.cargoLoadingModel.sum(
+      'unloadedWeight',
+      {
+        where: delivWhere,
+      },
+    );
     const totalDeliveredQty = Number(totalDeliveredRes || 0);
 
     const pendingReadWhere: any = { status: 'Pending Approval' };
@@ -280,7 +336,11 @@ export class CargoAvailabilityService {
       where: pendingReadWhere,
     });
 
-    const pendTruckWhere: any = { status: { [Op.in]: ['Draft', 'Truck Arrived', 'Weighment In', 'Loading Started'] } };
+    const pendTruckWhere: any = {
+      status: {
+        [Op.in]: ['Draft', 'Truck Arrived', 'Weighment In', 'Loading Started'],
+      },
+    };
     if (companyId) pendTruckWhere.companyId = companyId;
     const pendingTrucksCount = await this.cargoLoadingModel.count({
       where: pendTruckWhere,
@@ -298,7 +358,9 @@ export class CargoAvailabilityService {
       where: varWhere,
     });
 
-    const todayTruckWhere: any = { loadingDate: new Date().toISOString().split('T')[0] };
+    const todayTruckWhere: any = {
+      loadingDate: new Date().toISOString().split('T')[0],
+    };
     if (companyId) todayTruckWhere.companyId = companyId;
     const trucksToday = await this.cargoLoadingModel.count({
       where: todayTruckWhere,
@@ -402,7 +464,10 @@ export class CargoAvailabilityService {
       },
     });
     const alreadyLoadedQty = Number(loadedRes || 0);
-    const remainingShipmentQty = Math.max(0, Number(plainShipment.quantity || 0) - alreadyLoadedQty);
+    const remainingShipmentQty = Math.max(
+      0,
+      Number(plainShipment.quantity || 0) - alreadyLoadedQty,
+    );
 
     return {
       shipment: plainShipment,
@@ -456,16 +521,23 @@ export class CargoAvailabilityService {
       allocations.map(async (alloc) => {
         const plain = alloc.get({ plain: true });
         if (alloc.cargoAvailability) {
-          plain.cargoAvailability = await this.attachCalculatedMetrics(alloc.cargoAvailability);
+          plain.cargoAvailability = await this.attachCalculatedMetrics(
+            alloc.cargoAvailability,
+          );
         }
         return plain;
       }),
     );
 
     // Also check if there are standalone CargoAvailability records linked to the shipment's contract
-    let cargoAvailabilityRecords = enrichedAllocations.map((a) => a.cargoAvailability).filter(Boolean);
+    let cargoAvailabilityRecords = enrichedAllocations
+      .map((a) => a.cargoAvailability)
+      .filter(Boolean);
 
-    if (cargoAvailabilityRecords.length === 0 && shipmentInfo.shipment?.salesContractId) {
+    if (
+      cargoAvailabilityRecords.length === 0 &&
+      shipmentInfo.shipment?.salesContractId
+    ) {
       const pcList = await this.purchaseContractModel.findAll({
         where: { salesContractId: shipmentInfo.shipment.salesContractId },
       });
@@ -505,19 +577,31 @@ export class CargoAvailabilityService {
     };
   }
 
-
   // ─── 7. READINESS OPERATIONS ─────────────────────────────────────────────
-  async createReadiness(dto: any, userId?: number, companyId?: number): Promise<CargoReadiness> {
+  async createReadiness(
+    dto: any,
+    userId?: number,
+    companyId?: number,
+  ): Promise<CargoReadiness> {
     const recordWhere: any = { id: dto.cargoAvailabilityId };
     if (companyId) recordWhere.companyId = companyId;
-    const record = await this.cargoAvailabilityModel.findOne({ where: recordWhere });
+    const record = await this.cargoAvailabilityModel.findOne({
+      where: recordWhere,
+    });
     if (!record) {
-      throw new NotFoundException(`CargoAvailability #${dto.cargoAvailabilityId} not found`);
+      throw new NotFoundException(
+        `CargoAvailability #${dto.cargoAvailabilityId} not found`,
+      );
     }
 
     if (dto.warehouseId) {
-      const warehouse = await Partner.findOne({ where: { id: dto.warehouseId, companyId: record.companyId } });
-      if (!warehouse) throw new BadRequestException('Warehouse not found or does not belong to company');
+      const warehouse = await Partner.findOne({
+        where: { id: dto.warehouseId, companyId: record.companyId },
+      });
+      if (!warehouse)
+        throw new BadRequestException(
+          'Warehouse not found or does not belong to company',
+        );
     }
 
     const entry = await this.cargoReadinessModel.create({
@@ -530,7 +614,12 @@ export class CargoAvailabilityService {
     return entry;
   }
 
-  async approveReadiness(id: number, status: string, userId?: number, companyId?: number): Promise<CargoReadiness> {
+  async approveReadiness(
+    id: number,
+    status: string,
+    userId?: number,
+    companyId?: number,
+  ): Promise<CargoReadiness> {
     const entryWhere: any = { id };
     if (companyId) entryWhere.companyId = companyId;
     const entry = await this.cargoReadinessModel.findOne({ where: entryWhere });
@@ -548,20 +637,33 @@ export class CargoAvailabilityService {
   }
 
   // ─── 8. SHIPMENT ALLOCATION OPERATIONS ───────────────────────────────────
-  async createAllocation(dto: any, userId?: number, companyId?: number): Promise<CargoShipmentAllocation> {
+  async createAllocation(
+    dto: any,
+    userId?: number,
+    companyId?: number,
+  ): Promise<CargoShipmentAllocation> {
     const cargoWhere: any = { id: dto.cargoAvailabilityId };
     if (companyId) cargoWhere.companyId = companyId;
-    const cargo = await this.cargoAvailabilityModel.findOne({ where: cargoWhere });
+    const cargo = await this.cargoAvailabilityModel.findOne({
+      where: cargoWhere,
+    });
     if (!cargo) {
-      throw new NotFoundException(`CargoAvailability #${dto.cargoAvailabilityId} not found`);
+      throw new NotFoundException(
+        `CargoAvailability #${dto.cargoAvailabilityId} not found`,
+      );
     }
 
     if (dto.shipmentId) {
       const shipment = await this.shipmentModel.findOne({
         where: { id: dto.shipmentId },
-        include: [{ model: SalesContract, where: { companyId: cargo.companyId } }],
+        include: [
+          { model: SalesContract, where: { companyId: cargo.companyId } },
+        ],
       });
-      if (!shipment) throw new BadRequestException('Shipment not found or does not belong to company');
+      if (!shipment)
+        throw new BadRequestException(
+          'Shipment not found or does not belong to company',
+        );
     }
 
     const metrics = await this.attachCalculatedMetrics(cargo);
@@ -609,7 +711,11 @@ export class CargoAvailabilityService {
   }
 
   // ─── 9. EXPORTER LOADING OPERATIONS ──────────────────────────────────────
-  async createLoading(dto: any, userId?: number, companyId?: number): Promise<CargoLoading> {
+  async createLoading(
+    dto: any,
+    userId?: number,
+    companyId?: number,
+  ): Promise<CargoLoading> {
     // a. Hard block duplicate truck check on same date
     if (dto.truckNo && dto.loadingDate) {
       const activeTruckWhere: any = {
@@ -631,11 +737,15 @@ export class CargoAvailabilityService {
 
     // b. Validate Shipment Quantity
     if (!dto.shipmentId) {
-      throw new BadRequestException('Selecting a Shipment is mandatory for truck loading execution.');
+      throw new BadRequestException(
+        'Selecting a Shipment is mandatory for truck loading execution.',
+      );
     }
 
     const shipmentInfo = await this.getShipmentInfo(dto.shipmentId, companyId);
-    if (Number(dto.loadedQty || 0) > Number(shipmentInfo.remainingShipmentQty)) {
+    if (
+      Number(dto.loadedQty || 0) > Number(shipmentInfo.remainingShipmentQty)
+    ) {
       throw new BadRequestException(
         `Loaded Quantity (${dto.loadedQty} MT) exceeds Remaining Shipment Quantity (${shipmentInfo.remainingShipmentQty} MT).`,
       );
@@ -645,9 +755,13 @@ export class CargoAvailabilityService {
     if (dto.cargoAvailabilityId) {
       const cargoWhere: any = { id: dto.cargoAvailabilityId };
       if (companyId) cargoWhere.companyId = companyId;
-      const cargo = await this.cargoAvailabilityModel.findOne({ where: cargoWhere });
+      const cargo = await this.cargoAvailabilityModel.findOne({
+        where: cargoWhere,
+      });
       if (!cargo) {
-        throw new NotFoundException(`CargoAvailability #${dto.cargoAvailabilityId} not found`);
+        throw new NotFoundException(
+          `CargoAvailability #${dto.cargoAvailabilityId} not found`,
+        );
       }
 
       const metrics = await this.attachCalculatedMetrics(cargo);
@@ -657,7 +771,6 @@ export class CargoAvailabilityService {
         );
       }
     }
-
 
     const initialTimeline = [
       {
@@ -678,10 +791,17 @@ export class CargoAvailabilityService {
     return loading;
   }
 
-  async updateLoadingStatus(id: number, dto: any, userId?: number, companyId?: number): Promise<CargoLoading> {
+  async updateLoadingStatus(
+    id: number,
+    dto: any,
+    userId?: number,
+    companyId?: number,
+  ): Promise<CargoLoading> {
     const loadingWhere: any = { id };
     if (companyId) loadingWhere.companyId = companyId;
-    const loading = await this.cargoLoadingModel.findOne({ where: loadingWhere });
+    const loading = await this.cargoLoadingModel.findOne({
+      where: loadingWhere,
+    });
     if (!loading) {
       throw new NotFoundException(`CargoLoading #${id} not found`);
     }
@@ -689,8 +809,10 @@ export class CargoAvailabilityService {
     if (dto.status) loading.status = dto.status;
     if (dto.loadedQty !== undefined) loading.loadedQty = dto.loadedQty;
     if (dto.loadedWeight !== undefined) loading.loadedWeight = dto.loadedWeight;
-    if (dto.weighmentInWeight !== undefined) loading.weighmentInWeight = dto.weighmentInWeight;
-    if (dto.weighmentOutWeight !== undefined) loading.weighmentOutWeight = dto.weighmentOutWeight;
+    if (dto.weighmentInWeight !== undefined)
+      loading.weighmentInWeight = dto.weighmentInWeight;
+    if (dto.weighmentOutWeight !== undefined)
+      loading.weighmentOutWeight = dto.weighmentOutWeight;
 
     if (dto.unloadedWeight !== undefined) {
       loading.unloadedWeight = dto.unloadedWeight;
@@ -727,7 +849,10 @@ export class CargoAvailabilityService {
       stage: dto.status || loading.status,
       timestamp: new Date().toISOString(),
       user: userId || 'System',
-      remarks: dto.stageRemarks || dto.remarks || `Stage updated to ${dto.status || loading.status}`,
+      remarks:
+        dto.stageRemarks ||
+        dto.remarks ||
+        `Stage updated to ${dto.status || loading.status}`,
     });
     loading.timeline = timeline;
 

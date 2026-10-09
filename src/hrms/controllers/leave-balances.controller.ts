@@ -17,8 +17,7 @@ import { RequirePermission } from '../../rbac/decorators/require-permission.deco
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('leave-balances')
 export class LeaveBalancesController {
-  constructor(private readonly leaveBalancesService: LeaveBalancesService) { }
-
+  constructor(private readonly leaveBalancesService: LeaveBalancesService) {}
 
   @Get('employee/:employeeId')
   @RequirePermission('leave:create')
@@ -28,7 +27,8 @@ export class LeaveBalancesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = {
       userId: req.user.userId || req.user.sub || null,
       type: req.user.type || null,
@@ -61,7 +61,9 @@ export class LeaveBalancesController {
       const hasRead = req.userPermissions?.has('leave:read');
       const hasApprove = req.userPermissions?.has('leave:approve');
       if (!isSuper && !hasRead && !hasApprove) {
-        throw new ForbiddenException('Access denied to view other employee balances');
+        throw new ForbiddenException(
+          'Access denied to view other employee balances',
+        );
       }
     }
 

@@ -4,9 +4,19 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { AttendanceException, AttendanceExceptionStatus } from '../models/attendance-exception.model';
-import { AttendanceRecord, AttendanceStatus } from '../models/attendance-record.model';
-import { LeaveRequest, LeaveRequestStatus, HalfDayType } from '../../hrms/models/leave-request.model';
+import {
+  AttendanceException,
+  AttendanceExceptionStatus,
+} from '../models/attendance-exception.model';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+} from '../models/attendance-record.model';
+import {
+  LeaveRequest,
+  LeaveRequestStatus,
+  HalfDayType,
+} from '../../hrms/models/leave-request.model';
 import { Employee } from '../../hrms/models/employee.model';
 import { User } from '../../users/models/user.model';
 import { Role } from '../../rbac/models/role.model';
@@ -14,7 +24,10 @@ import { UserCompany } from '../../users/models/user-company.model';
 import { EmployeeLeaveBalance } from '../../hrms/models/employee-leave-balance.model';
 import { LeaveBalanceHistory } from '../../hrms/models/leave-balance-history.model';
 import { AuditLog } from '../../audit/models/audit-log.model';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 import { Op, Transaction } from 'sequelize';
 
 @Injectable()
@@ -71,7 +84,12 @@ export class AttendanceConflictService {
         attendanceId: attendanceRecordId,
         leaveId: activeLeave.id,
         exceptionType: 'LEAVE_CONFLICT',
-        status: { [Op.in]: [AttendanceExceptionStatus.OPEN, AttendanceExceptionStatus.UNDER_REVIEW] },
+        status: {
+          [Op.in]: [
+            AttendanceExceptionStatus.OPEN,
+            AttendanceExceptionStatus.UNDER_REVIEW,
+          ],
+        },
       },
       transaction,
     });
@@ -104,7 +122,7 @@ export class AttendanceConflictService {
             },
           ],
         },
-      } as any,
+      },
       { transaction },
     );
 
@@ -115,7 +133,9 @@ export class AttendanceConflictService {
     await conflict.save({ transaction });
 
     // 5. Freeze attendance record by setting isConflict = true
-    const record = await this.recordModel.findByPk(attendanceRecordId, { transaction });
+    const record = await this.recordModel.findByPk(attendanceRecordId, {
+      transaction,
+    });
     if (record) {
       record.isConflict = true;
       await record.save({ transaction });
@@ -130,7 +150,10 @@ export class AttendanceConflictService {
   /**
    * Action to move conflict status from OPEN -> UNDER_REVIEW (Rule 10)
    */
-  async startReview(conflictId: number, userId: number): Promise<AttendanceException> {
+  async startReview(
+    conflictId: number,
+    userId: number,
+  ): Promise<AttendanceException> {
     const conflict = await this.exceptionModel.findByPk(conflictId);
     if (!conflict) {
       throw new NotFoundException('Conflict exception not found');
@@ -138,11 +161,13 @@ export class AttendanceConflictService {
 
     // Rule 10: Only OPEN conflicts are editable
     if (conflict.status !== AttendanceExceptionStatus.OPEN) {
-      throw new BadRequestException(`Cannot start review on a conflict that is ${conflict.status}`);
+      throw new BadRequestException(
+        `Cannot start review on a conflict that is ${conflict.status}`,
+      );
     }
 
     conflict.status = AttendanceExceptionStatus.UNDER_REVIEW;
-    
+
     // Log timeline history
     const history = conflict.metadata?.history || [];
     history.push({
@@ -151,7 +176,7 @@ export class AttendanceConflictService {
       performerId: userId,
     });
     conflict.metadata = { ...conflict.metadata, history };
-    
+
     await conflict.save();
     return conflict;
   }
@@ -188,7 +213,9 @@ export class AttendanceConflictService {
         conflict.status === AttendanceExceptionStatus.RESOLVED ||
         conflict.status === AttendanceExceptionStatus.CANCELLED
       ) {
-        throw new BadRequestException('Conflict is already resolved or cancelled');
+        throw new BadRequestException(
+          'Conflict is already resolved or cancelled',
+        );
       }
 
       const leave = conflict.leaveRequest;
@@ -198,15 +225,18 @@ export class AttendanceConflictService {
       const oldAttendanceStatus = record ? record.attendanceStatus : null;
 
       const history = conflict.metadata?.history || [];
-      const year = record ? new Date(record.date).getFullYear() : new Date().getFullYear();
+      const year = record
+        ? new Date(record.date).getFullYear()
+        : new Date().getFullYear();
 
       let newLeaveStatus = oldLeaveStatus;
       let newAttendanceStatus = oldAttendanceStatus;
 
       // Option A: Convert Leave -> Present
       if (dto.resolution === 'CONVERT_PRESENT') {
-        if (!leave) throw new BadRequestException('Leave request record is missing');
-        
+        if (!leave)
+          throw new BadRequestException('Leave request record is missing');
+
         // Cancel Leave (Rule 4: Leave is never hard deleted)
         leave.status = LeaveRequestStatus.CANCELLED;
         await leave.save({ transaction: t });
@@ -214,7 +244,11 @@ export class AttendanceConflictService {
 
         // Restore Leave Balance (Rule 5: tracks using balance history)
         const balance = await this.leaveBalanceModel.findOne({
-          where: { employeeId: conflict.employeeId, leaveTypeId: leave.leaveTypeId, year },
+          where: {
+            employeeId: conflict.employeeId,
+            leaveTypeId: leave.leaveTypeId,
+            year,
+          },
           transaction: t,
           lock: t.LOCK.UPDATE,
         });
@@ -222,7 +256,7 @@ export class AttendanceConflictService {
         if (balance) {
           const balanceBefore = Number(balance.remainingDays);
           const refundAmount = Number(leave.totalDays);
-          
+
           await balance.update(
             {
               usedDays: Math.max(0, Number(balance.usedDays) - refundAmount),
@@ -253,7 +287,10 @@ export class AttendanceConflictService {
           record.isConflict = false;
           record.isIgnored = false;
           // Set attendanceStatus back to Present or calculated value
-          if (!record.attendanceStatus || record.attendanceStatus === AttendanceStatus.ON_LEAVE) {
+          if (
+            !record.attendanceStatus ||
+            record.attendanceStatus === AttendanceStatus.ON_LEAVE
+          ) {
             record.attendanceStatus = AttendanceStatus.PRESENT;
           }
           await record.save({ transaction: t });
@@ -268,11 +305,12 @@ export class AttendanceConflictService {
           remarks: dto.remarks,
         });
       }
-      
+
       // Option B: Convert Leave -> Half Day
       else if (dto.resolution === 'CONVERT_HALF_DAY') {
-        if (!leave) throw new BadRequestException('Leave request record is missing');
-        
+        if (!leave)
+          throw new BadRequestException('Leave request record is missing');
+
         const originalTotalDays = Number(leave.totalDays);
         const daysToRefund = originalTotalDays - 0.5;
 
@@ -285,7 +323,11 @@ export class AttendanceConflictService {
         // Refund the difference (if any) to Leave Balance
         if (daysToRefund > 0) {
           const balance = await this.leaveBalanceModel.findOne({
-            where: { employeeId: conflict.employeeId, leaveTypeId: leave.leaveTypeId, year },
+            where: {
+              employeeId: conflict.employeeId,
+              leaveTypeId: leave.leaveTypeId,
+              year,
+            },
             transaction: t,
             lock: t.LOCK.UPDATE,
           });
@@ -343,7 +385,10 @@ export class AttendanceConflictService {
           record.isConflict = false;
           record.isIgnored = true;
           // Set to PRESENT (preserving checkout history) but flagged isIgnored
-          if (!record.attendanceStatus || record.attendanceStatus === AttendanceStatus.ON_LEAVE) {
+          if (
+            !record.attendanceStatus ||
+            record.attendanceStatus === AttendanceStatus.ON_LEAVE
+          ) {
             record.attendanceStatus = AttendanceStatus.PRESENT;
           }
           await record.save({ transaction: t });
@@ -371,7 +416,10 @@ export class AttendanceConflictService {
         });
 
         // Trigger notification to employee
-        const employee = await this.employeeModel.findByPk(conflict.employeeId, { transaction: t });
+        const employee = await this.employeeModel.findByPk(
+          conflict.employeeId,
+          { transaction: t },
+        );
         if (employee && employee.userId) {
           await this.notificationsService.createNotification({
             recipients: [employee.userId],
@@ -383,13 +431,16 @@ export class AttendanceConflictService {
               conflictId: conflict.id,
               conflictRef: conflict.conflictRef,
               date: record?.date,
-              message: 'Your attendance conflicts with an approved leave. Please submit an explanation to HR.',
+              message:
+                'Your attendance conflicts with an approved leave. Please submit an explanation to HR.',
               url: '/attendance',
             },
           });
         }
       } else {
-        throw new BadRequestException(`Invalid resolution option: ${dto.resolution}`);
+        throw new BadRequestException(
+          `Invalid resolution option: ${dto.resolution}`,
+        );
       }
 
       // Save conflict changes
@@ -422,7 +473,7 @@ export class AttendanceConflictService {
           },
           ipAddress: ipAddress || '127.0.0.1',
           userAgent: userAgent || 'System/Cron',
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -447,7 +498,9 @@ export class AttendanceConflictService {
       const employee = await this.employeeModel.findByPk(employeeId, {
         include: [{ model: User, as: 'user', attributes: ['id'] }],
       });
-      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Employee';
+      const employeeName = employee
+        ? `${employee.firstName} ${employee.lastName}`
+        : 'Employee';
       const employeeUserId = employee?.user?.id;
 
       // 1. Notify employee
@@ -462,7 +515,8 @@ export class AttendanceConflictService {
             conflictId: conflict.id,
             conflictRef: conflict.conflictRef,
             date: dateStr,
-            message: 'Your attendance conflicts with an approved leave. HR review is pending.',
+            message:
+              'Your attendance conflicts with an approved leave. HR review is pending.',
             url: '/attendance',
           },
         });
@@ -489,8 +543,14 @@ export class AttendanceConflictService {
       const recipientIds = usersToNotify
         .filter((u) => {
           if (u.email === 'admin@agricom.com') return true;
-          if (u.roles?.some((r) => ['Admin', 'Client Admin'].includes(r.name))) return true;
-          if (u.userCompanies?.some((uc) => ['Admin', 'Client Admin'].includes(uc.role?.name))) return true;
+          if (u.roles?.some((r) => ['Admin', 'Client Admin'].includes(r.name)))
+            return true;
+          if (
+            u.userCompanies?.some((uc) =>
+              ['Admin', 'Client Admin'].includes(uc.role?.name),
+            )
+          )
+            return true;
           return false;
         })
         .map((u) => u.id);
@@ -530,7 +590,9 @@ export class AttendanceConflictService {
         {
           model: Employee,
           as: 'employee',
-          include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+          include: [
+            { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+          ],
         },
         { model: AttendanceRecord, as: 'attendanceRecordRef' },
         { model: LeaveRequest, as: 'leaveRequest' },

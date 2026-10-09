@@ -40,7 +40,6 @@ import { extname } from 'path';
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
-
   private getActor(req: any) {
     return {
       userId: req.user.userId || req.user.sub || null,
@@ -56,7 +55,8 @@ export class EmployeesController {
   @HttpCode(HttpStatus.CREATED)
   createEmployee(@Body() dto: CreateEmployeeDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.createEmployee(companyId, dto, actor);
   }
@@ -65,7 +65,8 @@ export class EmployeesController {
   @RequirePermission('employees:read')
   getEmployees(@Query() query: GetEmployeesFilterDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getEmployees(companyId, query);
   }
 
@@ -77,7 +78,8 @@ export class EmployeesController {
     @Query('limit') limit?: string,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getEmployeesForOptions(
       companyId,
       search,
@@ -90,14 +92,16 @@ export class EmployeesController {
   @RequirePermission('employee_hierarchy:view_hierarchy')
   getOrgChart(@Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getOrgChart(companyId);
   }
 
   @Get('today-birthdays')
   getTodayBirthdays(@Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getTodayBirthdays(companyId);
   }
 
@@ -105,7 +109,8 @@ export class EmployeesController {
   @RequirePermission('employees:read')
   async getEmployeeById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
 
     return this.employeesService.getEmployeeById(id, companyId);
   }
@@ -118,7 +123,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.updateEmployee(id, companyId, dto, actor);
   }
@@ -127,7 +133,8 @@ export class EmployeesController {
   @RequirePermission('employees:delete')
   deleteEmployee(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.deleteEmployee(id, companyId, actor);
   }
@@ -142,7 +149,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -161,7 +169,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -180,7 +189,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -199,7 +209,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -218,7 +229,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -237,7 +249,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.transitionLifecycle(
       id,
@@ -254,7 +267,8 @@ export class EmployeesController {
   @RequirePermission('employee_hierarchy:view_team')
   getTeam(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getTeam(id, companyId);
   }
 
@@ -262,7 +276,8 @@ export class EmployeesController {
   @RequirePermission('employee_hierarchy:view_hierarchy')
   getAllSubordinates(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getAllSubordinates(id, companyId);
   }
 
@@ -270,7 +285,8 @@ export class EmployeesController {
   @RequirePermission('employee_hierarchy:view_hierarchy')
   getReportingChain(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.employeesService.getReportingChain(id, companyId);
   }
 
@@ -282,7 +298,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.changeManager(id, companyId, dto, actor);
   }
@@ -330,7 +347,8 @@ export class EmployeesController {
     }
 
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.addDocument(
       employeeId,
@@ -348,7 +366,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
 
     return this.employeesService.getDocuments(employeeId, companyId, actor);
@@ -363,7 +382,8 @@ export class EmployeesController {
     @Res() res: Response,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
 
     const absolutePath = await this.employeesService.downloadDocument(
@@ -384,7 +404,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.verifyDocument(
       employeeId,
@@ -403,7 +424,8 @@ export class EmployeesController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     return this.employeesService.deleteDocument(
       employeeId,

@@ -30,11 +30,15 @@ export class ComplianceRetentionService {
   /**
    * Run automated retention cleanup (Prunes messages exceeding retentionDays unless Legal Hold is active)
    */
-  async executeRetentionCleanup(companyId: number): Promise<{ prunedCount: number }> {
+  async executeRetentionCleanup(
+    companyId: number,
+  ): Promise<{ prunedCount: number }> {
     const policy = await this.policyService.getCompanyPolicy(companyId);
 
     if (policy.legalHoldActive) {
-      this.logger.warn(`Retention cleanup skipped for company ${companyId} due to active Legal Hold.`);
+      this.logger.warn(
+        `Retention cleanup skipped for company ${companyId} due to active Legal Hold.`,
+      );
       return { prunedCount: 0 };
     }
 
@@ -62,7 +66,9 @@ export class ComplianceRetentionService {
       },
     });
 
-    this.logger.log(`Pruned ${deleted} expired messages for company ${companyId}.`);
+    this.logger.log(
+      `Pruned ${deleted} expired messages for company ${companyId}.`,
+    );
     return { prunedCount: deleted };
   }
 
@@ -84,7 +90,9 @@ export class ComplianceRetentionService {
 
     const policy = await this.policyService.getCompanyPolicy(companyId);
     if (!policy.allowExport) {
-      throw new ForbiddenException('Message export is disabled by company policy');
+      throw new ForbiddenException(
+        'Message export is disabled by company policy',
+      );
     }
 
     const messages = await this.messageRepository.findAll({
@@ -110,7 +118,9 @@ export class ComplianceRetentionService {
       totalMessages: messages.length,
       messages: messages.map((m) => ({
         id: m.id,
-        sender: m.sender ? { id: m.sender.id, name: m.sender.name, email: m.sender.email } : 'SYSTEM',
+        sender: m.sender
+          ? { id: m.sender.id, name: m.sender.name, email: m.sender.email }
+          : 'SYSTEM',
         content: m.content,
         type: m.type,
         version: m.version,

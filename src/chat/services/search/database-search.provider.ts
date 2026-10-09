@@ -121,8 +121,16 @@ export class DatabaseSearchProvider implements ISearchProvider {
     };
   }
 
-  async getAccessibleConversationIds(userId: number, companyId: number, userType: string = 'standard'): Promise<number[]> {
-    return this.policyService.getAccessibleConversationIds(userId, companyId, userType);
+  async getAccessibleConversationIds(
+    userId: number,
+    companyId: number,
+    userType: string = 'standard',
+  ): Promise<number[]> {
+    return this.policyService.getAccessibleConversationIds(
+      userId,
+      companyId,
+      userType,
+    );
   }
 
   async searchConversations(
@@ -132,7 +140,11 @@ export class DatabaseSearchProvider implements ISearchProvider {
     query: string,
     limit: number = 20,
   ): Promise<any[]> {
-    const accessibleConversationIds = await this.getAccessibleConversationIds(userId, companyId, userType);
+    const accessibleConversationIds = await this.getAccessibleConversationIds(
+      userId,
+      companyId,
+      userType,
+    );
 
     if (accessibleConversationIds.length === 0) {
       return [];
@@ -192,7 +204,10 @@ export class DatabaseSearchProvider implements ISearchProvider {
         {
           model: Attachment,
           as: 'attachment',
-          where: Object.keys(whereAttachment).length > 0 ? whereAttachment : undefined,
+          where:
+            Object.keys(whereAttachment).length > 0
+              ? whereAttachment
+              : undefined,
         },
       ],
       limit,

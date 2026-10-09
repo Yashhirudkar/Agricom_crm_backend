@@ -35,7 +35,7 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     private readonly clientActionAccessModel: typeof ClientActionAccess,
     @InjectModel(ClientModuleAccess)
     private readonly clientModuleAccessModel: typeof ClientModuleAccess,
-  ) { }
+  ) {}
 
   async onApplicationBootstrap() {
     this.logger.log('Starting dynamic permission discovery (v2)...');
@@ -106,7 +106,10 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       actionName = actionName.toUpperCase(); // e.g. create -> CREATE
 
       // Normalize resourceName
-      if (resourceName === 'sales-contract' || resourceName === 'sales_contracts') {
+      if (
+        resourceName === 'sales-contract' ||
+        resourceName === 'sales_contracts'
+      ) {
         resourceName = 'sales_contract';
       }
       if (resourceName === 'follow-up' || resourceName === 'follow_ups') {

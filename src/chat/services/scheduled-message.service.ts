@@ -18,7 +18,9 @@ import { IScheduledMessageDispatcher } from './scheduled-message-dispatcher.inte
 import { MemberRole } from '../constants/chat.constants';
 
 @Injectable()
-export class ScheduledMessageService implements IScheduledMessageDispatcher, OnModuleDestroy {
+export class ScheduledMessageService
+  implements IScheduledMessageDispatcher, OnModuleDestroy
+{
   private readonly logger = new Logger(ScheduledMessageService.name);
   private intervalTimer: NodeJS.Timeout | null = null;
 
@@ -60,7 +62,8 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
       throw new BadRequestException('Scheduled date must be in the future.');
     }
 
-    const conversation = await this.conversationRepository.findByPk(conversationId);
+    const conversation =
+      await this.conversationRepository.findByPk(conversationId);
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
@@ -77,7 +80,7 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
       payload: dto.payload || null,
       scheduledFor: targetDate,
       isSent: false,
-    } as any);
+    });
 
     return record;
   }
@@ -85,8 +88,12 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
   /**
    * Cancel / Delete a scheduled message
    */
-  async cancelScheduled(scheduledMessageId: number, requestingUserId?: number): Promise<boolean> {
-    const scheduled = await this.scheduledRepository.findByPk(scheduledMessageId);
+  async cancelScheduled(
+    scheduledMessageId: number,
+    requestingUserId?: number,
+  ): Promise<boolean> {
+    const scheduled =
+      await this.scheduledRepository.findByPk(scheduledMessageId);
     if (!scheduled) {
       throw new NotFoundException('Scheduled message not found');
     }
@@ -97,11 +104,16 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
 
     if (requestingUserId && scheduled.senderId !== requestingUserId) {
       const member = await this.memberRepository.findOne({
-        where: { conversationId: scheduled.conversationId, userId: requestingUserId },
+        where: {
+          conversationId: scheduled.conversationId,
+          userId: requestingUserId,
+        },
       });
       const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN];
       if (!member || !allowedRoles.includes(member.role)) {
-        throw new ForbiddenException('You can only cancel your own scheduled messages');
+        throw new ForbiddenException(
+          'You can only cancel your own scheduled messages',
+        );
       }
     }
 
@@ -144,7 +156,9 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
 
     for (const msg of dueMessages) {
       try {
-        const conversation = await this.conversationRepository.findByPk(msg.conversationId);
+        const conversation = await this.conversationRepository.findByPk(
+          msg.conversationId,
+        );
         if (!conversation) {
           msg.isSent = true;
           await msg.save();
@@ -157,7 +171,7 @@ export class ScheduledMessageService implements IScheduledMessageDispatcher, OnM
           conversation.companyId,
           {
             content: msg.content,
-            type: msg.type as any,
+            type: msg.type,
             payload: msg.payload,
           },
           {

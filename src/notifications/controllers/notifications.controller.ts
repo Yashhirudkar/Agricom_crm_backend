@@ -27,7 +27,10 @@ export class NotificationsController {
   async findAll(@Req() req: any) {
     const userId = req.user?.id || req.user?.userId;
     const companyId = req.user?.companyId;
-    const notifications = await this.notificationsService.findAll(userId, companyId);
+    const notifications = await this.notificationsService.findAll(
+      userId,
+      companyId,
+    );
     return { success: true, data: notifications };
   }
 
@@ -37,7 +40,11 @@ export class NotificationsController {
   async markAsRead(@Req() req: any, @Param('id') id: string) {
     const userId = req.user?.id || req.user?.userId;
     const companyId = req.user?.companyId;
-    const notification = await this.notificationsService.markAsRead(+id, userId, companyId);
+    const notification = await this.notificationsService.markAsRead(
+      +id,
+      userId,
+      companyId,
+    );
     return { success: true, data: notification };
   }
 
@@ -47,7 +54,10 @@ export class NotificationsController {
   async markAllRead(@Req() req: any) {
     const userId = req.user?.id || req.user?.userId;
     const companyId = req.user?.companyId;
-    const result = await this.notificationsService.markAllRead(userId, companyId);
+    const result = await this.notificationsService.markAllRead(
+      userId,
+      companyId,
+    );
     return { success: true, data: result };
   }
 
@@ -91,7 +101,10 @@ export class NotificationsController {
   @RequirePermission('notification:manage')
   @ApiOperation({ summary: 'Toggle notification mute settings for a user' })
   async toggleUserMute(@Body() body: { userId: number; mute: boolean }) {
-    const result = await this.notificationsService.toggleUserMute(body.userId, body.mute);
+    const result = await this.notificationsService.toggleUserMute(
+      body.userId,
+      body.mute,
+    );
     return { success: true, data: result };
   }
 
@@ -109,7 +122,10 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Set if notification copying to admin is enabled' })
   async setCopySetting(@Req() req: any, @Body() body: { enabled: boolean }) {
     const userId = req.user?.id || req.user?.userId;
-    const result = await this.notificationsService.setCopySetting(userId, body.enabled);
+    const result = await this.notificationsService.setCopySetting(
+      userId,
+      body.enabled,
+    );
     return { success: true, data: result };
   }
 }

@@ -62,10 +62,22 @@ export class NotificationDispatchService {
    * ```
    */
   async send(options: NotificationSendOptions): Promise<void> {
-    const { channel, template, recipient, entityType, entityId, payload, companyId } = options;
+    const {
+      channel,
+      template,
+      recipient,
+      entityType,
+      entityId,
+      payload,
+      companyId,
+    } = options;
 
     // 1. Resolve actual JID / email from symbolic recipient name
-    const resolution = await this.resolveRecipient(channel, recipient, companyId);
+    const resolution = await this.resolveRecipient(
+      channel,
+      recipient,
+      companyId,
+    );
 
     if (resolution.disabled) {
       // Intentionally disabled, silently ignore to avoid spamming logs
@@ -75,7 +87,7 @@ export class NotificationDispatchService {
     if (!resolution.recipient) {
       this.logger.warn(
         `[Dispatch] No recipient resolved for ${channel}:${template} — ` +
-        `companyId=${companyId} has WhatsApp enabled but Group Name/ID is missing or invalid.`,
+          `companyId=${companyId} has WhatsApp enabled but Group Name/ID is missing or invalid.`,
       );
       return;
     }
@@ -85,7 +97,9 @@ export class NotificationDispatchService {
     // 2. Build message
     const message = this.buildMessage(channel, template, payload);
     if (!message) {
-      this.logger.warn(`[Dispatch] No template handler for ${channel}:${template}`);
+      this.logger.warn(
+        `[Dispatch] No template handler for ${channel}:${template}`,
+      );
       return;
     }
 
@@ -117,12 +131,19 @@ export class NotificationDispatchService {
     );
 
     if (!message) {
-      this.logger.warn(`[Dispatch] Cannot retry — no template for ${log.channel}:${log.template}`);
+      this.logger.warn(
+        `[Dispatch] Cannot retry — no template for ${log.channel}:${log.template}`,
+      );
       await this.markExhausted(log, 'No template handler found during retry');
       return;
     }
 
-    await this.attemptSend(log, log.channel as NotificationChannel, log.recipient, message);
+    await this.attemptSend(
+      log,
+      log.channel as NotificationChannel,
+      log.recipient,
+      message,
+    );
   }
 
   // ─── Recipient Resolution ─────────────────────────────────────────────────────
@@ -137,7 +158,9 @@ export class NotificationDispatchService {
   ): Promise<{ recipient: string | null; disabled: boolean }> {
     if (channel === NotificationChannel.WHATSAPP) {
       if (!companyId) {
-        this.logger.warn(`[Dispatch] Cannot resolve WhatsApp recipient without companyId`);
+        this.logger.warn(
+          `[Dispatch] Cannot resolve WhatsApp recipient without companyId`,
+        );
         return { recipient: null, disabled: false };
       }
 
@@ -159,19 +182,26 @@ export class NotificationDispatchService {
 
       // Priority 2: Resolve by Group Name
       if (company.whatsappGroupName) {
-        const jid = await this.whatsAppService.resolveGroupJidByName(company.whatsappGroupName);
+        const jid = await this.whatsAppService.resolveGroupJidByName(
+          company.whatsappGroupName,
+        );
         if (jid) {
           // Auto-cache the resolved JID
           company.whatsappGroupId = jid;
           company.whatsappConnectedAt = new Date();
           await company.save();
-          this.logger.log(`[Dispatch] Auto-cached resolved WhatsApp Group JID for company ${companyId}`);
+          this.logger.log(
+            `[Dispatch] Auto-cached resolved WhatsApp Group JID for company ${companyId}`,
+          );
           return { recipient: jid, disabled: false };
         }
       }
 
       // Priority 3: Fallback to global config (backward compatibility)
-      return { recipient: this.whatsAppService.getResolvedGroupJid(), disabled: false };
+      return {
+        recipient: this.whatsAppService.getResolvedGroupJid(),
+        disabled: false,
+      };
     }
     return { recipient: null, disabled: false };
   }
@@ -187,7 +217,7 @@ export class NotificationDispatchService {
       switch (template) {
         case NotificationTemplate.NEW_ENQUIRY:
           return WhatsAppTemplates.enquiryCreated(payload as any);
-        
+
         case NotificationTemplate.ENQUIRY_UPDATED:
           return WhatsAppTemplates.enquiryUpdated(payload as any);
 
@@ -229,10 +259,13 @@ export class NotificationDispatchService {
         await log.save();
         this.logger.log(
           `[Dispatch] ✅ ${channel}:${log.template} → ${recipient} ` +
-          `(retryCount=${log.retryCount})`,
+            `(retryCount=${log.retryCount})`,
         );
       } else {
-        await this.scheduleRetryOrExhaust(log, 'Channel returned false (not connected)');
+        await this.scheduleRetryOrExhaust(
+          log,
+          'Channel returned false (not connected)',
+        );
       }
     } catch (err: any) {
       await this.scheduleRetryOrExhaust(log, err?.message || 'Unknown error');
@@ -243,7 +276,10 @@ export class NotificationDispatchService {
    * If retries remain, mark as failed + set nextRetryAt.
    * Otherwise mark as exhausted.
    */
-  async scheduleRetryOrExhaust(log: NotificationLog, errorMessage: string): Promise<void> {
+  async scheduleRetryOrExhaust(
+    log: NotificationLog,
+    errorMessage: string,
+  ): Promise<void> {
     const retryIndex = log.retryCount; // 0-based index into RETRY_DELAYS_MINUTES
     const hasMoreRetries = retryIndex < MAX_WORKER_RETRIES;
 
@@ -256,25 +292,30 @@ export class NotificationDispatchService {
       await log.save();
       this.logger.warn(
         `[Dispatch] ⚠️ ${log.channel}:${log.template} failed — ` +
-        `retry ${retryIndex + 1}/${MAX_WORKER_RETRIES} scheduled in ${delayMinutes}min`,
+          `retry ${retryIndex + 1}/${MAX_WORKER_RETRIES} scheduled in ${delayMinutes}min`,
       );
     } else {
       await this.markExhausted(log, errorMessage);
     }
   }
 
-  private async markExhausted(log: NotificationLog, errorMessage: string): Promise<void> {
+  private async markExhausted(
+    log: NotificationLog,
+    errorMessage: string,
+  ): Promise<void> {
     log.status = 'exhausted';
     log.errorMessage = errorMessage;
     log.nextRetryAt = null;
     try {
       await log.save();
     } catch (saveErr: any) {
-      this.logger.error(`[Dispatch] Failed to save exhausted log: ${saveErr?.message}`);
+      this.logger.error(
+        `[Dispatch] Failed to save exhausted log: ${saveErr?.message}`,
+      );
     }
     this.logger.error(
       `[Dispatch] ❌ ${log.channel}:${log.template} exhausted after ` +
-      `${MAX_WORKER_RETRIES} retries. Last error: ${errorMessage}`,
+        `${MAX_WORKER_RETRIES} retries. Last error: ${errorMessage}`,
     );
   }
 

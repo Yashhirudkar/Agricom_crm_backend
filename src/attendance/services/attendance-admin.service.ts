@@ -157,7 +157,9 @@ export class AttendanceAdminService {
             : null;
 
       if (finalCheckIn && finalCheckOut && finalCheckOut <= finalCheckIn) {
-        throw new BadRequestException('Check-out time must be after check-in time');
+        throw new BadRequestException(
+          'Check-out time must be after check-in time',
+        );
       }
 
       if (finalCheckOut) {
@@ -189,7 +191,8 @@ export class AttendanceAdminService {
           breakStartStr = policy?.defaultBreakStartTime || '13:00';
         }
 
-        const checkInMins = finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
+        const checkInMins =
+          finalCheckIn.getHours() * 60 + finalCheckIn.getMinutes();
         const [bH, bM] = breakStartStr.split(':').map((n) => parseInt(n, 10));
         const breakStartMins = (bH || 13) * 60 + (bM || 0);
 
@@ -244,13 +247,18 @@ export class AttendanceAdminService {
 
       try {
         const [yearStr, monthStr] = record.date.split('-');
-        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
-          companyId,
-          record.employeeId,
-          parseInt(yearStr),
-          parseInt(monthStr),
+        const monthlyReportData =
+          await this.summaryService.getEmployeeMonthlySummary(
+            companyId,
+            record.employeeId,
+            parseInt(yearStr),
+            parseInt(monthStr),
+          );
+        this.attendanceGateway.emitAttendanceUpdate(
+          'manual_override',
+          record,
+          monthlyReportData.summary,
         );
-        this.attendanceGateway.emitAttendanceUpdate('manual_override', record, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in manualOverride:', err);
       }
@@ -410,10 +418,15 @@ export class AttendanceAdminService {
           );
         }
 
-        const effectiveTotal = leaveType.daysPerYear != null
-          ? Number(leaveType.daysPerYear)
-          : Number(balance.totalAllocated || 0);
-        const effectiveRemaining = effectiveTotal - Number(balance.usedDays || 0) - Number(balance.pendingDays || 0) + Number(balance.carryForwardDays || 0);
+        const effectiveTotal =
+          leaveType.daysPerYear != null
+            ? Number(leaveType.daysPerYear)
+            : Number(balance.totalAllocated || 0);
+        const effectiveRemaining =
+          effectiveTotal -
+          Number(balance.usedDays || 0) -
+          Number(balance.pendingDays || 0) +
+          Number(balance.carryForwardDays || 0);
 
         if (effectiveRemaining < 1) {
           throw new BadRequestException(
@@ -437,7 +450,9 @@ export class AttendanceAdminService {
         : null;
 
       if (finalCheckIn && finalCheckOut && finalCheckOut <= finalCheckIn) {
-        throw new BadRequestException('Check-out time must be after check-in time');
+        throw new BadRequestException(
+          'Check-out time must be after check-in time',
+        );
       }
 
       let totalHours = 0;
@@ -510,12 +525,13 @@ export class AttendanceAdminService {
 
       try {
         const [yearStr, monthStr] = record.date.split('-');
-        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
-          companyId,
-          dto.employeeId,
-          parseInt(yearStr),
-          parseInt(monthStr),
-        );
+        const monthlyReportData =
+          await this.summaryService.getEmployeeMonthlySummary(
+            companyId,
+            dto.employeeId,
+            parseInt(yearStr),
+            parseInt(monthStr),
+          );
         this.attendanceGateway.emitAttendanceUpdate(
           'manual_attendance',
           record,

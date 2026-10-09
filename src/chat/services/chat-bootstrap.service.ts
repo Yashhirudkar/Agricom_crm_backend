@@ -6,7 +6,11 @@ import { ConversationMember } from '../models/conversation-member.model';
 import { ConversationSetting } from '../models/conversation-setting.model';
 import { Message } from '../models/message.model';
 import { User } from '../../users/models/user.model';
-import { ConversationType, MemberRole, MessageType } from '../constants/chat.constants';
+import {
+  ConversationType,
+  MemberRole,
+  MessageType,
+} from '../constants/chat.constants';
 
 export const DEFAULT_ENTERPRISE_CHANNELS = [
   {
@@ -16,37 +20,44 @@ export const DEFAULT_ENTERPRISE_CHANNELS = [
   },
   {
     name: 'announcements',
-    description: 'Official company-wide announcements, policies, and executive memos (Broadcast Only)',
+    description:
+      'Official company-wide announcements, policies, and executive memos (Broadcast Only)',
     announcementMode: true,
   },
   {
     name: 'sales',
-    description: 'Sales team deals, leads pipeline, client closures and revenue updates',
+    description:
+      'Sales team deals, leads pipeline, client closures and revenue updates',
     announcementMode: false,
   },
   {
     name: 'purchase',
-    description: 'Procurement, vendor negotiations, quotations and purchase orders',
+    description:
+      'Procurement, vendor negotiations, quotations and purchase orders',
     announcementMode: false,
   },
   {
     name: 'warehouse',
-    description: 'Inventory management, stock dispatch, delivery status and warehouse logistics',
+    description:
+      'Inventory management, stock dispatch, delivery status and warehouse logistics',
     announcementMode: false,
   },
   {
     name: 'hr-helpdesk',
-    description: 'Human resources updates, attendance, leaves, payroll and employee support',
+    description:
+      'Human resources updates, attendance, leaves, payroll and employee support',
     announcementMode: false,
   },
   {
     name: 'finance-accounts',
-    description: 'Accounting, tax invoices, vendor payments and financial compliance',
+    description:
+      'Accounting, tax invoices, vendor payments and financial compliance',
     announcementMode: false,
   },
   {
     name: 'customer-support',
-    description: 'Customer tickets, service escalations and client satisfaction',
+    description:
+      'Customer tickets, service escalations and client satisfaction',
     announcementMode: false,
   },
 ];
@@ -80,7 +91,9 @@ export class ChatBootstrapService {
       where: { companyId, type: ConversationType.CHANNEL },
     });
 
-    const existingNames = new Set(existingChannels.map((c) => c.name.toLowerCase()));
+    const existingNames = new Set(
+      existingChannels.map((c) => c.name.toLowerCase()),
+    );
     const createdChannels: Conversation[] = [];
 
     // Find company users to auto-add to general & announcements
@@ -103,7 +116,7 @@ export class ChatBootstrapService {
               isArchived: false,
               isLocked: false,
               createdBy: adminUserId,
-            } as any,
+            },
             { transaction: t },
           );
 
@@ -122,7 +135,7 @@ export class ChatBootstrapService {
               allowMention: true,
               allowExport: true,
               maxUploadSize: 104857600,
-            } as any,
+            },
             { transaction: t },
           );
 
@@ -133,7 +146,7 @@ export class ChatBootstrapService {
               userId: adminUserId,
               role: MemberRole.OWNER,
               joinedAt: new Date(),
-            } as any,
+            },
             { transaction: t },
           );
 
@@ -146,7 +159,9 @@ export class ChatBootstrapService {
               role: MemberRole.MEMBER,
               joinedAt: new Date(),
             }));
-            await this.memberRepository.bulkCreate(memberRows as any, { transaction: t });
+            await this.memberRepository.bulkCreate(memberRows, {
+              transaction: t,
+            });
           }
 
           // Welcome message
@@ -159,7 +174,7 @@ export class ChatBootstrapService {
               isEdited: false,
               version: 1,
               isDeleted: false,
-            } as any,
+            },
             { transaction: t },
           );
 

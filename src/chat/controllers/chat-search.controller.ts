@@ -1,9 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ChatSearchService } from '../services/chat-search.service';
 import { ChatSearchDto } from '../dto/search.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -18,11 +13,13 @@ export class ChatSearchController {
 
   @Get('messages')
   @RequirePermission('chat:read')
-  async searchMessages(
-    @Query() dto: ChatSearchDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.searchService.searchMessages(user.companyId, user.id, user.type || '', dto);
+  async searchMessages(@Query() dto: ChatSearchDto, @CurrentUser() user: any) {
+    return this.searchService.searchMessages(
+      user.companyId,
+      user.id,
+      user.type || '',
+      dto,
+    );
   }
 
   @Get('conversations')
@@ -31,7 +28,12 @@ export class ChatSearchController {
     @Query('q') query: string,
     @CurrentUser() user: any,
   ) {
-    return this.searchService.searchConversations(user.companyId, user.id, user.type || '', query || '');
+    return this.searchService.searchConversations(
+      user.companyId,
+      user.id,
+      user.type || '',
+      query || '',
+    );
   }
 
   @Get('attachments')
@@ -41,6 +43,12 @@ export class ChatSearchController {
     @Query('mimeType') mimeType: string,
     @CurrentUser() user: any,
   ) {
-    return this.searchService.searchAttachments(user.companyId, user.id, user.type || '', query, mimeType);
+    return this.searchService.searchAttachments(
+      user.companyId,
+      user.id,
+      user.type || '',
+      query,
+      mimeType,
+    );
   }
 }

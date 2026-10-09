@@ -47,7 +47,10 @@ export class PartnerRoleController {
   async findOptions(@Query('limit') limit?: string, @Req() req?: any) {
     // Super admin: return all
     if (req?.user?.type === 'super_admin') {
-      const result = await this.partnerRoleService.findAll({ limit: limit ? parseInt(limit) : 100, isActive: true } as any);
+      const result = await this.partnerRoleService.findAll({
+        limit: limit ? parseInt(limit) : 100,
+        isActive: true,
+      });
       return result;
     }
 
@@ -62,7 +65,7 @@ export class PartnerRoleController {
       isActive: true,
       allowedIds,
       companyId: req?.user?.companyId,
-    } as any);
+    });
     return result;
   }
 
@@ -87,7 +90,7 @@ export class PartnerRoleController {
     const result = await this.partnerRoleService.findAll({
       ...query,
       companyId: req.user?.companyId,
-    } as any);
+    });
     return result;
   }
 

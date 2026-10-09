@@ -17,9 +17,7 @@ import { PartnerRole } from '../partner-role/partner-role.model';
 @Table({
   tableName: 'role_partner_role_access',
   timestamps: true,
-  indexes: [
-    { unique: true, fields: ['role_id', 'partner_role_id'] },
-  ],
+  indexes: [{ unique: true, fields: ['role_id', 'partner_role_id'] }],
 })
 export class RolePartnerRoleAccess extends Model<RolePartnerRoleAccess> {
   @PrimaryKey
@@ -37,7 +35,11 @@ export class RolePartnerRoleAccess extends Model<RolePartnerRoleAccess> {
 
   @Index
   @ForeignKey(() => PartnerRole)
-  @Column({ type: DataType.INTEGER, allowNull: false, field: 'partner_role_id' })
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    field: 'partner_role_id',
+  })
   declare partnerRoleId: number;
 
   @BelongsTo(() => PartnerRole, { onDelete: 'CASCADE' })

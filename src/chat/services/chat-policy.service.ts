@@ -38,7 +38,10 @@ export class ChatPolicyService {
   /**
    * Update chat policy for company
    */
-  async updateCompanyPolicy(companyId: number, dto: Partial<ChatPolicy>): Promise<ChatPolicy> {
+  async updateCompanyPolicy(
+    companyId: number,
+    dto: Partial<ChatPolicy>,
+  ): Promise<ChatPolicy> {
     const policy = await this.getCompanyPolicy(companyId);
     Object.assign(policy, dto);
     await policy.save();

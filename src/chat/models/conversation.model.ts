@@ -339,7 +339,10 @@ export class Conversation extends Model<Conversation> {
   @BelongsTo(() => RetentionPolicy)
   declare retentionPolicy: RetentionPolicy | null;
 
-  @HasMany(() => ConversationPermissionOverride, { onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => ConversationPermissionOverride, {
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare permissionOverrides: ConversationPermissionOverride[];
 
   @CreatedAt

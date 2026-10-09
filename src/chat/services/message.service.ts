@@ -26,7 +26,10 @@ import { Attachment } from '../../attachments/models/attachment.model';
 import { SendMessageDto, ReactMessageDto } from '../dto/chat.dto';
 import { MessageType, MemberRole } from '../constants/chat.constants';
 import { AuditService } from '../../audit/services/audit.service';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 import { PolicyService } from './policy.service';
 import { UnreadService } from './unread.service';
@@ -81,7 +84,10 @@ export class MessageService implements OnModuleDestroy {
     private readonly unreadService: UnreadService,
   ) {
     // Periodic cleanup of idempotency cache every 5 minutes
-    this.cleanupTimer = setInterval(() => this.cleanupIdempotencyCache(), 5 * 60 * 1000);
+    this.cleanupTimer = setInterval(
+      () => this.cleanupIdempotencyCache(),
+      5 * 60 * 1000,
+    );
   }
 
   onModuleDestroy() {
@@ -102,10 +108,14 @@ export class MessageService implements OnModuleDestroy {
 
   private verifyPermissions(settings: ConversationSetting, type: MessageType) {
     if (type === MessageType.VOICE && !settings.allowVoice) {
-      throw new ForbiddenException('Voice notes are disabled in this conversation.');
+      throw new ForbiddenException(
+        'Voice notes are disabled in this conversation.',
+      );
     }
     if (type === MessageType.VIDEO && !settings.allowVideo) {
-      throw new ForbiddenException('Video messages are disabled in this conversation.');
+      throw new ForbiddenException(
+        'Video messages are disabled in this conversation.',
+      );
     }
     if (type === MessageType.POLL && !settings.allowPoll) {
       throw new ForbiddenException('Polls are disabled in this conversation.');
@@ -116,7 +126,12 @@ export class MessageService implements OnModuleDestroy {
     conversationId: number,
     companyId: number,
     dto: SendMessageDto,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
     clientMessageId?: string,
   ): Promise<Message> {
     const senderId = actor.userId;
@@ -181,7 +196,7 @@ export class MessageService implements OnModuleDestroy {
           version: 1,
           parentId: dto.parentId || null,
           isDeleted: false,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -189,14 +204,19 @@ export class MessageService implements OnModuleDestroy {
 
       // 6. Handle Attachments
       if (dto.attachmentId) {
-        const attachment = await this.attachmentModel.findByPk(dto.attachmentId, { transaction: t });
+        const attachment = await this.attachmentModel.findByPk(
+          dto.attachmentId,
+          { transaction: t },
+        );
         if (!attachment) {
           throw new NotFoundException('Attachment not found.');
         }
 
         if (conversation.settings && conversation.settings.maxUploadSize) {
           if (attachment.fileSize > conversation.settings.maxUploadSize) {
-            throw new BadRequestException('Attached file size exceeds channel limit.');
+            throw new BadRequestException(
+              'Attached file size exceeds channel limit.',
+            );
           }
         }
 
@@ -204,7 +224,7 @@ export class MessageService implements OnModuleDestroy {
           {
             messageId: message.id,
             attachmentId: dto.attachmentId,
-          } as any,
+          },
           { transaction: t },
         );
 
@@ -240,7 +260,7 @@ export class MessageService implements OnModuleDestroy {
             {
               messageId: message.id,
               userId: mentionedId,
-            } as any,
+            },
             { transaction: t },
           );
         }
@@ -256,7 +276,7 @@ export class MessageService implements OnModuleDestroy {
           messageId: message.id,
           isRead: true,
           readAt: new Date(),
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -284,7 +304,7 @@ export class MessageService implements OnModuleDestroy {
       // Force updatedAt update on conversation to bubble to top
       await this.conversationModel.update(
         { updatedAt: new Date() },
-        { where: { id: conversationId }, transaction: t }
+        { where: { id: conversationId }, transaction: t },
       );
 
       // COMMIT TRANSACTION
@@ -322,7 +342,8 @@ export class MessageService implements OnModuleDestroy {
       ],
     });
 
-    const resultMessage = fullMessage || (await this.messageModel.findByPk(createdMessageId));
+    const resultMessage =
+      fullMessage || (await this.messageModel.findByPk(createdMessageId));
 
     // Cache for idempotency
     if (clientMessageId) {
@@ -339,18 +360,31 @@ export class MessageService implements OnModuleDestroy {
     if (unhidMembers) {
       this.eventEmitter.emit(
         ChatEventNames.CONVERSATION_UPDATED,
-        new ConversationUpdatedEvent(conversationId, companyId, { id: conversationId }),
+        new ConversationUpdatedEvent(conversationId, companyId, {
+          id: conversationId,
+        }),
       );
     }
 
     // EMIT DOMAIN EVENT STRICTLY AFTER COMMIT
     this.eventEmitter.emit(
       ChatEventNames.MESSAGE_CREATED,
-      new MessageCreatedEvent(conversationId, companyId, resultMessage, clientMessageId),
+      new MessageCreatedEvent(
+        conversationId,
+        companyId,
+        resultMessage,
+        clientMessageId,
+      ),
     );
 
     // Asynchronously dispatch notifications to members
-    this.dispatchMessageNotifications(conversation, resultMessage, senderId, mentionedUserIds, dto.content);
+    this.dispatchMessageNotifications(
+      conversation,
+      resultMessage,
+      senderId,
+      mentionedUserIds,
+      dto.content,
+    );
 
     return resultMessage;
   }
@@ -364,30 +398,46 @@ export class MessageService implements OnModuleDestroy {
   ) {
     try {
       const activeMembers = await this.memberModel.findAll({
-        where: { conversationId: conversation.id, userId: { [Op.ne]: senderId } },
+        where: {
+          conversationId: conversation.id,
+          userId: { [Op.ne]: senderId },
+        },
       });
       const recipients = activeMembers.map((m) => m.userId);
 
       if (recipients.length > 0) {
-        const mentionRecipients = Array.from(mentionedUserIds).filter((id) => recipients.includes(id));
+        const mentionRecipients = Array.from(mentionedUserIds).filter((id) =>
+          recipients.includes(id),
+        );
         const regularRecipients = activeMembers
-          .filter((m) => !m.isNotificationMuted && !mentionedUserIds.has(m.userId))
+          .filter(
+            (m) => !m.isNotificationMuted && !mentionedUserIds.has(m.userId),
+          )
           .map((m) => m.userId);
 
         const senderName = message.sender?.name || 'Someone';
-        const snippetText = content || (message.type === 'FILE' ? '📎 Sent a file' : message.type === 'VOICE' ? '🎤 Sent a voice note' : 'Sent a message');
+        const snippetText =
+          content ||
+          (message.type === 'FILE'
+            ? '📎 Sent a file'
+            : message.type === 'VOICE'
+              ? '🎤 Sent a voice note'
+              : 'Sent a message');
 
-        const notificationTitle = conversation.type === 'DIRECT'
-          ? `${senderName}`
-          : `New message in: ${conversation.name || 'Group'}`;
+        const notificationTitle =
+          conversation.type === 'DIRECT'
+            ? `${senderName}`
+            : `New message in: ${conversation.name || 'Group'}`;
 
-        const mentionTitle = conversation.type === 'DIRECT'
-          ? `You were tagged by ${senderName}`
-          : `You were tagged in: ${conversation.name || 'Group'}`;
+        const mentionTitle =
+          conversation.type === 'DIRECT'
+            ? `You were tagged by ${senderName}`
+            : `You were tagged in: ${conversation.name || 'Group'}`;
 
-        const notificationBody = conversation.type === 'DIRECT'
-          ? snippetText
-          : `${senderName}: ${snippetText}`;
+        const notificationBody =
+          conversation.type === 'DIRECT'
+            ? snippetText
+            : `${senderName}: ${snippetText}`;
 
         if (mentionRecipients.length > 0) {
           await this.notificationsService.createNotification(
@@ -402,7 +452,7 @@ export class MessageService implements OnModuleDestroy {
                 conversationId: conversation.id,
                 senderId,
                 snippet: content,
-                message: notificationBody
+                message: notificationBody,
               },
             },
             senderId,
@@ -422,7 +472,7 @@ export class MessageService implements OnModuleDestroy {
                 conversationId: conversation.id,
                 senderId,
                 snippet: content,
-                message: notificationBody
+                message: notificationBody,
               },
             },
             senderId,
@@ -430,7 +480,9 @@ export class MessageService implements OnModuleDestroy {
         }
       }
     } catch (err) {
-      this.logger.error(`Failed to dispatch message notification: ${err.message}`);
+      this.logger.error(
+        `Failed to dispatch message notification: ${err.message}`,
+      );
     }
   }
 
@@ -439,7 +491,12 @@ export class MessageService implements OnModuleDestroy {
     messageId: number,
     content: string,
     companyId: number,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<Message> {
     const message = await this.messageModel.findOne({
       where: { id: messageId, conversationId },
@@ -450,7 +507,12 @@ export class MessageService implements OnModuleDestroy {
       throw new NotFoundException('Message not found.');
     }
 
-    await this.policyService.canEditMessage(conversationId, actor, companyId, message.senderId);
+    await this.policyService.canEditMessage(
+      conversationId,
+      actor,
+      companyId,
+      message.senderId,
+    );
 
     if (message.isDeleted) {
       throw new BadRequestException('Cannot edit a deleted message.');
@@ -466,7 +528,7 @@ export class MessageService implements OnModuleDestroy {
           content: message.content,
           payload: message.payload,
           editedBy: actor.userId,
-        } as any,
+        },
         { transaction: t },
       );
 
@@ -500,7 +562,10 @@ export class MessageService implements OnModuleDestroy {
     return message;
   }
 
-  async getMessageVersions(messageId: number, companyId: number): Promise<MessageVersion[]> {
+  async getMessageVersions(
+    messageId: number,
+    companyId: number,
+  ): Promise<MessageVersion[]> {
     const message = await this.messageModel.findOne({
       where: { id: messageId },
       include: [{ model: Conversation, where: { companyId } }],
@@ -513,7 +578,9 @@ export class MessageService implements OnModuleDestroy {
     return this.versionModel.findAll({
       where: { messageId },
       order: [['version', 'ASC']],
-      include: [{ model: User, as: 'editor', attributes: ['id', 'name', 'email'] }],
+      include: [
+        { model: User, as: 'editor', attributes: ['id', 'name', 'email'] },
+      ],
     });
   }
 
@@ -527,12 +594,19 @@ export class MessageService implements OnModuleDestroy {
 
       for (const msgAtt of msgAttachments) {
         if (msgAtt.attachment) {
-          const filename = msgAtt.attachment.storagePath || msgAtt.attachment.storedName;
+          const filename =
+            msgAtt.attachment.storagePath || msgAtt.attachment.storedName;
           if (filename) {
-            const diskPath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);
+            const diskPath = join(
+              process.cwd(),
+              ATTACHMENT_UPLOAD_DIR,
+              filename,
+            );
             if (fs.existsSync(diskPath)) {
               fs.unlinkSync(diskPath);
-              this.logger.log(`Physically deleted attachment file from storage: ${diskPath}`);
+              this.logger.log(
+                `Physically deleted attachment file from storage: ${diskPath}`,
+              );
             }
           }
           await msgAtt.attachment.destroy({ force: true });
@@ -546,21 +620,36 @@ export class MessageService implements OnModuleDestroy {
         const filename = filePathStr.split('/').pop();
         if (filename) {
           // Check ./storage/attachments
-          const storagePath = join(process.cwd(), ATTACHMENT_UPLOAD_DIR, filename);
+          const storagePath = join(
+            process.cwd(),
+            ATTACHMENT_UPLOAD_DIR,
+            filename,
+          );
           if (fs.existsSync(storagePath)) {
             fs.unlinkSync(storagePath);
-            this.logger.log(`Physically deleted payload file from storage/attachments: ${storagePath}`);
+            this.logger.log(
+              `Physically deleted payload file from storage/attachments: ${storagePath}`,
+            );
           }
           // Check ./uploads/chat
-          const uploadsChatPath = join(process.cwd(), 'uploads', 'chat', filename);
+          const uploadsChatPath = join(
+            process.cwd(),
+            'uploads',
+            'chat',
+            filename,
+          );
           if (fs.existsSync(uploadsChatPath)) {
             fs.unlinkSync(uploadsChatPath);
-            this.logger.log(`Physically deleted payload file from uploads/chat: ${uploadsChatPath}`);
+            this.logger.log(
+              `Physically deleted payload file from uploads/chat: ${uploadsChatPath}`,
+            );
           }
         }
       }
     } catch (err) {
-      this.logger.error(`Error deleting physical attachment files for message ${message.id}: ${err.message}`);
+      this.logger.error(
+        `Error deleting physical attachment files for message ${message.id}: ${err.message}`,
+      );
     }
   }
 
@@ -569,7 +658,12 @@ export class MessageService implements OnModuleDestroy {
     messageId: number,
     mode: 'everyone' | 'me',
     companyId: number,
-    actor: { userId: number; clientId: number | null; ipAddress?: string; userAgent?: string },
+    actor: {
+      userId: number;
+      clientId: number | null;
+      ipAddress?: string;
+      userAgent?: string;
+    },
   ): Promise<void> {
     const message = await this.messageModel.findOne({
       where: { id: messageId, conversationId },
@@ -583,7 +677,12 @@ export class MessageService implements OnModuleDestroy {
     await this.policyService.canView(conversationId, actor, companyId);
 
     if (mode === 'everyone') {
-      await this.policyService.canDeleteMessage(conversationId, actor, companyId, message.senderId);
+      await this.policyService.canDeleteMessage(
+        conversationId,
+        actor,
+        companyId,
+        message.senderId,
+      );
 
       // Hard delete physical files from disk & attachment DB entries
       await this.deletePhysicalAttachment(message);
@@ -611,7 +710,13 @@ export class MessageService implements OnModuleDestroy {
       // EMIT DOMAIN EVENT
       this.eventEmitter.emit(
         ChatEventNames.MESSAGE_DELETED,
-        new MessageDeletedEvent(conversationId, companyId, messageId, actor.userId, 'everyone'),
+        new MessageDeletedEvent(
+          conversationId,
+          companyId,
+          messageId,
+          actor.userId,
+          'everyone',
+        ),
       );
     } else {
       // Delete for Me
@@ -621,11 +726,17 @@ export class MessageService implements OnModuleDestroy {
         isRead: true,
         readAt: new Date(),
         deletedAt: new Date(),
-      } as any);
+      });
 
       this.eventEmitter.emit(
         ChatEventNames.MESSAGE_DELETED,
-        new MessageDeletedEvent(conversationId, companyId, messageId, actor.userId, 'me'),
+        new MessageDeletedEvent(
+          conversationId,
+          companyId,
+          messageId,
+          actor.userId,
+          'me',
+        ),
       );
     }
   }
@@ -669,7 +780,9 @@ export class MessageService implements OnModuleDestroy {
         attributes: ['messageId'],
       });
 
-      const existingMessageIds = new Set(existingStates.map((s) => s.messageId));
+      const existingMessageIds = new Set(
+        existingStates.map((s) => s.messageId),
+      );
 
       // Update existing states
       if (existingStates.length > 0) {
@@ -732,26 +845,38 @@ export class MessageService implements OnModuleDestroy {
         messageId,
         userId,
         reaction: dto.reaction,
-      } as any);
+      });
     }
 
     // EMIT DOMAIN EVENT
     this.eventEmitter.emit(
       ChatEventNames.MESSAGE_REACTED,
-      new MessageReactedEvent(conversationId, companyId, messageId, userId, dto.reaction, reactionRecord),
+      new MessageReactedEvent(
+        conversationId,
+        companyId,
+        messageId,
+        userId,
+        dto.reaction,
+        reactionRecord,
+      ),
     );
 
     return reactionRecord;
   }
 
-  async markRead(conversationId: number, lastMessageId: number, userId: number): Promise<void> {
+  async markRead(
+    conversationId: number,
+    lastMessageId: number,
+    userId: number,
+  ): Promise<void> {
     let member = await this.memberModel.findOne({
       where: { conversationId, userId },
       include: [Conversation],
     });
 
     if (!member) {
-      const conversation = await this.conversationModel.findByPk(conversationId);
+      const conversation =
+        await this.conversationModel.findByPk(conversationId);
       if (!conversation) {
         return;
       }
@@ -766,7 +891,7 @@ export class MessageService implements OnModuleDestroy {
         unreadMessagesCount: 0,
         unreadMentionsCount: 0,
         unreadThreadsCount: 0,
-      } as any);
+      });
 
       (member as any).conversation = conversation;
     } else {
@@ -783,7 +908,7 @@ export class MessageService implements OnModuleDestroy {
         messageId: lastMessageId,
         isRead: true,
         readAt: new Date(),
-      } as any);
+      });
     }
 
     const companyId = (member as any).conversation?.companyId || 0;
@@ -869,7 +994,8 @@ export class MessageService implements OnModuleDestroy {
     // Map items to plain objects and inject pinnedAt attribute
     const mappedItems = items.map((msg) => {
       const plain = msg.get({ plain: true }) as any;
-      plain.pinnedAt = plain.pins && plain.pins.length > 0 ? plain.pins[0].pinnedAt : null;
+      plain.pinnedAt =
+        plain.pins && plain.pins.length > 0 ? plain.pins[0].pinnedAt : null;
       return plain;
     });
 

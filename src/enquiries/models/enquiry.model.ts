@@ -1,3 +1,4 @@
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -37,7 +38,7 @@ import { EnquiryDestination } from './enquiry-destination.model';
     { fields: ['status'] },
   ],
 })
-export class Enquiry extends Model<Enquiry> {
+export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -181,7 +182,6 @@ export class Enquiry extends Model<Enquiry> {
   @Default(true)
   @Column({ field: 'potential_enquiry', type: DataType.BOOLEAN })
   declare potentialEnquiry: boolean;
-
 
   @AllowNull(false)
   @Default('TARGET')

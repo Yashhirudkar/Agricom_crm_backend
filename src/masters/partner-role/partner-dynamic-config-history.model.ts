@@ -25,10 +25,7 @@ import { Company } from '../../companies/models/company.model';
   tableName: 'partner_dynamic_config_history',
   timestamps: true,
   updatedAt: false,
-  indexes: [
-    { fields: ['config_id'] },
-    { fields: ['created_at'] },
-  ],
+  indexes: [{ fields: ['config_id'] }, { fields: ['created_at'] }],
 })
 export class PartnerDynamicConfigHistory extends Model<PartnerDynamicConfigHistory> {
   @ForeignKey(() => Company)

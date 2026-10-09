@@ -1,30 +1,56 @@
 import { QueryInterface, DataTypes } from 'sequelize';
 
 export const phase = '15';
-export const name = 'Enterprise Logistics & Freight Management Module Architecture';
+export const name =
+  'Enterprise Logistics & Freight Management Module Architecture';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   const sequelize = queryInterface.sequelize;
 
   // 1. Create Sequences for LOG/YYYY/###### and FQ/YYYY/######
-  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`).catch(() => { });
-  await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`).catch(() => { });
+  await sequelize
+    .query(`CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`)
+    .catch(() => {});
+  await sequelize
+    .query(`CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`)
+    .catch(() => {});
 
   // 2. Create logistics Table
   await queryInterface.createTable(
     'logistics',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      logistics_number: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      logistics_number: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        unique: true,
+      },
       enquiry_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'enquiries', key: 'id' },
         onDelete: 'CASCADE',
       },
-      mode: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Domestic' },
-      transport_mode: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Road' },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Pending' },
+      mode: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Domestic',
+      },
+      transport_mode: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Road',
+      },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Pending',
+      },
       selected_freight_id: { type: DataTypes.INTEGER, allowNull: true },
       estimated_dispatch_date: { type: DataTypes.DATEONLY, allowNull: true },
       estimated_arrival_date: { type: DataTypes.DATEONLY, allowNull: true },
@@ -61,8 +87,17 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'freight_quotes',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      quote_number: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      quote_number: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        unique: true,
+      },
       logistics_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -87,15 +122,39 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       contact_person: { type: DataTypes.STRING(100), allowNull: true },
       contact_number: { type: DataTypes.STRING(50), allowNull: true },
       freight_amount: { type: DataTypes.DECIMAL(15, 4), allowNull: false },
-      currency: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'INR' },
-      fuel_charges: { type: DataTypes.DECIMAL(15, 4), allowNull: true, defaultValue: 0 },
-      additional_charges: { type: DataTypes.DECIMAL(15, 4), allowNull: true, defaultValue: 0 },
-      transit_days: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      currency: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: 'INR',
+      },
+      fuel_charges: {
+        type: DataTypes.DECIMAL(15, 4),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      additional_charges: {
+        type: DataTypes.DECIMAL(15, 4),
+        allowNull: true,
+        defaultValue: 0,
+      },
+      transit_days: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
       validity_date: { type: DataTypes.DATEONLY, allowNull: false },
       payment_terms: { type: DataTypes.STRING(255), allowNull: true },
       remarks: { type: DataTypes.TEXT, allowNull: true },
-      is_preferred: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-      is_rejected: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      is_preferred: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      is_rejected: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
       version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
       pol: { type: DataTypes.STRING(100), allowNull: true },
       pod: { type: DataTypes.STRING(100), allowNull: true },
@@ -133,39 +192,59 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   `);
 
   // 4. Add foreign key to logistics for selected_freight_id
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE logistics 
     ADD CONSTRAINT fk_logistics_selected_freight_id 
     FOREIGN KEY (selected_freight_id) 
     REFERENCES freight_quotes(id) 
     ON DELETE SET NULL;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // 5. Add columns/relationships to existing tables
   // Add enquiry_id (UUID) to sales_contracts table
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE sales_contracts 
     ADD COLUMN IF NOT EXISTS enquiry_id UUID REFERENCES enquiries(id) ON DELETE SET NULL;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // Add logistics_id (INTEGER) to sales_contract_shipments table
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE sales_contract_shipments 
     ADD COLUMN IF NOT EXISTS logistics_id INTEGER REFERENCES logistics(id) ON DELETE SET NULL;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // Add contact_person (VARCHAR(100)) to freight_quotes table if missing
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE freight_quotes 
     ADD COLUMN IF NOT EXISTS contact_person VARCHAR(100);
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // Add entity_type & entity_id to attachments table if missing
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     ALTER TABLE attachments 
     ADD COLUMN IF NOT EXISTS entity_type VARCHAR(100),
     ADD COLUMN IF NOT EXISTS entity_id INTEGER;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // 6. RBAC Configuration: App Module
   const [appModuleRes]: any = await sequelize.query(`
@@ -195,11 +274,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       { replacements: { targetModuleId, targetResourceId } },
     );
   } else {
-    const [insertResourceRes]: any = await sequelize.query(`
+    const [insertResourceRes]: any = await sequelize.query(
+      `
       INSERT INTO module_resources (name, display_name, sort_order, module_id, "createdAt", "updatedAt")
       VALUES ('logistics', 'Logistics & Freight', 0, :targetModuleId, NOW(), NOW())
       RETURNING id;
-    `, { replacements: { targetModuleId } });
+    `,
+      { replacements: { targetModuleId } },
+    );
     targetResourceId = insertResourceRes[0].id;
   }
 
@@ -231,7 +313,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         `INSERT INTO resource_actions (name, display_name, sort_order, resource_id, "createdAt", "updatedAt")
          VALUES (:actionName, :actionName, :sortOrder, :targetResourceId, NOW(), NOW())
          RETURNING id;`,
-        { replacements: { actionName: act.name, sortOrder: act.sort, targetResourceId } },
+        {
+          replacements: {
+            actionName: act.name,
+            sortOrder: act.sort,
+            targetResourceId,
+          },
+        },
       );
       actionId = insertRes[0].id;
     }
@@ -240,7 +328,10 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   // 9. Grant Role Permissions (Roles 1, 2 & 3)
   for (const roleId of [1, 2, 3]) {
-    const [roleExists]: any = await sequelize.query(`SELECT id FROM roles WHERE id = :roleId;`, { replacements: { roleId } });
+    const [roleExists]: any = await sequelize.query(
+      `SELECT id FROM roles WHERE id = :roleId;`,
+      { replacements: { roleId } },
+    );
     if (roleExists.length === 0) continue;
 
     for (const actionId of actionIds) {
@@ -366,31 +457,79 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
   const sequelize = queryInterface.sequelize;
 
   // Cleanup Sidebar Access & Items
-  await sequelize.query(`DELETE FROM client_folder_access WHERE folder_id IN (SELECT id FROM sidebar_folders WHERE name = 'Logistics');`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/logistics/transport-management');`).catch(() => { });
-  await sequelize.query(`DELETE FROM sidebar_items WHERE route = '/logistics/transport-management';`).catch(() => { });
-  await sequelize.query(`DELETE FROM sidebar_folders WHERE name = 'Logistics';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_folder_access WHERE folder_id IN (SELECT id FROM sidebar_folders WHERE name = 'Logistics');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/logistics/transport-management');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM sidebar_items WHERE route = '/logistics/transport-management';`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM sidebar_folders WHERE name = 'Logistics';`)
+    .catch(() => {});
 
   // Cleanup RBAC Actions & Permissions
-  await sequelize.query(`DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics');`).catch(() => { });
-  await sequelize.query(`DELETE FROM module_resources WHERE name = 'logistics';`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Logistics');`).catch(() => { });
-  await sequelize.query(`DELETE FROM app_modules WHERE name = 'Logistics';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'logistics');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM module_resources WHERE name = 'logistics';`)
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Logistics');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM app_modules WHERE name = 'Logistics';`)
+    .catch(() => {});
 
   // Remove columns from existing tables
-  await sequelize.query(`ALTER TABLE sales_contract_shipments DROP COLUMN IF EXISTS logistics_id;`).catch(() => { });
-  await sequelize.query(`ALTER TABLE sales_contracts DROP COLUMN IF EXISTS enquiry_id;`).catch(() => { });
+  await sequelize
+    .query(
+      `ALTER TABLE sales_contract_shipments DROP COLUMN IF EXISTS logistics_id;`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`ALTER TABLE sales_contracts DROP COLUMN IF EXISTS enquiry_id;`)
+    .catch(() => {});
 
   // Drop tables
-  await sequelize.query(`ALTER TABLE logistics DROP CONSTRAINT IF EXISTS fk_logistics_selected_freight_id;`).catch(() => { });
-  await queryInterface.dropTable('freight_quotes').catch(() => { });
-  await queryInterface.dropTable('logistics').catch(() => { });
+  await sequelize
+    .query(
+      `ALTER TABLE logistics DROP CONSTRAINT IF EXISTS fk_logistics_selected_freight_id;`,
+    )
+    .catch(() => {});
+  await queryInterface.dropTable('freight_quotes').catch(() => {});
+  await queryInterface.dropTable('logistics').catch(() => {});
 
   // Drop Sequences
-  await sequelize.query(`DROP SEQUENCE IF EXISTS freight_quotes_no_seq;`).catch(() => { });
-  await sequelize.query(`DROP SEQUENCE IF EXISTS logistics_no_seq;`).catch(() => { });
+  await sequelize
+    .query(`DROP SEQUENCE IF EXISTS freight_quotes_no_seq;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP SEQUENCE IF EXISTS logistics_no_seq;`)
+    .catch(() => {});
 
   console.log('✅ Phase 15 - Logistics Module reverted');
 }

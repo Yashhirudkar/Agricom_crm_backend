@@ -36,7 +36,7 @@ export class PaymentTermService {
       ...dto,
       createdBy: user?.userId,
       companyId: user?.companyId,
-    } as any);
+    });
   }
 
   async findAll(query: QueryPaymentTermDto & { companyId?: number }) {
@@ -61,7 +61,10 @@ export class PaymentTermService {
       where: whereClause,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['sortOrder', 'ASC'], ['createdAt', 'DESC']],
+      order: [
+        ['sortOrder', 'ASC'],
+        ['createdAt', 'DESC'],
+      ],
     });
 
     return {
@@ -76,7 +79,7 @@ export class PaymentTermService {
   async findOne(id: number, companyId?: number): Promise<PaymentTerm> {
     const whereCondition: any = { id, status: 'Active' };
     if (companyId) whereCondition.companyId = companyId;
-    
+
     const item = await this.model.findOne({
       where: whereCondition,
     });
@@ -86,7 +89,11 @@ export class PaymentTermService {
     return item;
   }
 
-  async update(id: number, dto: UpdatePaymentTermDto, user: any): Promise<PaymentTerm> {
+  async update(
+    id: number,
+    dto: UpdatePaymentTermDto,
+    user: any,
+  ): Promise<PaymentTerm> {
     const item = await this.findOne(id, user?.companyId);
 
     if (dto.code) {

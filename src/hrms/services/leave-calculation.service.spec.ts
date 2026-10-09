@@ -9,9 +9,15 @@ import { Employee } from '../models/employee.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Company } from '../../companies/models/company.model';
 import { Shift } from '../../attendance/models/shift.model';
-import { LeaveRequest, LeaveRequestStatus } from '../models/leave-request.model';
+import {
+  LeaveRequest,
+  LeaveRequestStatus,
+} from '../models/leave-request.model';
 import { EmployeeLeaveBalance } from '../models/employee-leave-balance.model';
-import { LeaveApprovalLog, LeaveAction } from '../models/leave-approval-log.model';
+import {
+  LeaveApprovalLog,
+  LeaveAction,
+} from '../models/leave-approval-log.model';
 
 describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
   let calculationService: LeaveCalculationService;
@@ -73,19 +79,40 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
         LeaveRevalidationService,
         LeaveReconciliationService,
         { provide: getModelToken(Holiday), useValue: mockHolidayModel },
-        { provide: getModelToken(HolidayCompany), useValue: mockHolidayCompanyModel },
+        {
+          provide: getModelToken(HolidayCompany),
+          useValue: mockHolidayCompanyModel,
+        },
         { provide: getModelToken(Employee), useValue: mockEmployeeModel },
-        { provide: getModelToken(CompanyHrPolicy), useValue: mockHrPolicyModel },
+        {
+          provide: getModelToken(CompanyHrPolicy),
+          useValue: mockHrPolicyModel,
+        },
         { provide: getModelToken(Company), useValue: mockCompanyModel },
-        { provide: getModelToken(LeaveRequest), useValue: mockLeaveRequestModel },
-        { provide: getModelToken(EmployeeLeaveBalance), useValue: mockEmployeeLeaveBalanceModel },
-        { provide: getModelToken(LeaveApprovalLog), useValue: mockLeaveApprovalLogModel },
+        {
+          provide: getModelToken(LeaveRequest),
+          useValue: mockLeaveRequestModel,
+        },
+        {
+          provide: getModelToken(EmployeeLeaveBalance),
+          useValue: mockEmployeeLeaveBalanceModel,
+        },
+        {
+          provide: getModelToken(LeaveApprovalLog),
+          useValue: mockLeaveApprovalLogModel,
+        },
       ],
     }).compile();
 
-    calculationService = module.get<LeaveCalculationService>(LeaveCalculationService);
-    revalidationService = module.get<LeaveRevalidationService>(LeaveRevalidationService);
-    reconciliationService = module.get<LeaveReconciliationService>(LeaveReconciliationService);
+    calculationService = module.get<LeaveCalculationService>(
+      LeaveCalculationService,
+    );
+    revalidationService = module.get<LeaveRevalidationService>(
+      LeaveRevalidationService,
+    );
+    reconciliationService = module.get<LeaveReconciliationService>(
+      LeaveReconciliationService,
+    );
   });
 
   // ─── T1: Current case (24 Aug - 1 Sep 2026, weeklyOff=[0], 28 Aug Rakshabandhan) ───
@@ -183,7 +210,13 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     ]);
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(8, 4, 7, 'Rakshabandhan', 'CREATED');
+    const res = await revalidationService.recalculateSingleLeave(
+      8,
+      4,
+      7,
+      'Rakshabandhan',
+      'CREATED',
+    );
 
     expect(res.status).toBe('UPDATED');
     expect(mockLeave.update).toHaveBeenCalledWith(
@@ -240,11 +273,23 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     ]);
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(8, 4, 7, 'Rakshabandhan', 'CREATED');
+    const res = await revalidationService.recalculateSingleLeave(
+      8,
+      4,
+      7,
+      'Rakshabandhan',
+      'CREATED',
+    );
 
     expect(res.status).toBe('UPDATED');
-    expect(mockLeave.update).toHaveBeenCalledWith({ totalDays: 7 }, expect.any(Object));
-    expect(mockBalance.update).toHaveBeenCalledWith({ usedDays: 7, remainingDays: 5 }, expect.any(Object));
+    expect(mockLeave.update).toHaveBeenCalledWith(
+      { totalDays: 7 },
+      expect.any(Object),
+    );
+    expect(mockBalance.update).toHaveBeenCalledWith(
+      { usedDays: 7, remainingDays: 5 },
+      expect.any(Object),
+    );
   });
 
   // ─── T6: Holiday removed (7 -> 8, balance reverses) ────────────────────────
@@ -276,11 +321,23 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     mockHolidayModel.findAll.mockResolvedValue([]);
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(8, 4, 7, 'Rakshabandhan', 'DELETED');
+    const res = await revalidationService.recalculateSingleLeave(
+      8,
+      4,
+      7,
+      'Rakshabandhan',
+      'DELETED',
+    );
 
     expect(res.status).toBe('UPDATED');
-    expect(mockLeave.update).toHaveBeenCalledWith({ totalDays: 8 }, expect.any(Object));
-    expect(mockBalance.update).toHaveBeenCalledWith({ usedDays: 8, remainingDays: 4 }, expect.any(Object));
+    expect(mockLeave.update).toHaveBeenCalledWith(
+      { totalDays: 8 },
+      expect.any(Object),
+    );
+    expect(mockBalance.update).toHaveBeenCalledWith(
+      { usedDays: 8, remainingDays: 4 },
+      expect.any(Object),
+    );
   });
 
   // ─── T7: Holiday outside leave range ──────────────────────────────────────
@@ -383,7 +440,13 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     ]);
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(8, 4, 7, 'Rakshabandhan', 'UPDATED');
+    const res = await revalidationService.recalculateSingleLeave(
+      8,
+      4,
+      7,
+      'Rakshabandhan',
+      'UPDATED',
+    );
 
     expect(res.status).toBe('SKIPPED');
     expect(mockLeave.update).not.toHaveBeenCalled();
@@ -426,7 +489,13 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     ]);
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(12, 4, 7, 'Rakshabandhan', 'CREATED');
+    const res = await revalidationService.recalculateSingleLeave(
+      12,
+      4,
+      7,
+      'Rakshabandhan',
+      'CREATED',
+    );
 
     expect(res.status).toBe('UPDATED');
     expect(mockBalance.update).toHaveBeenCalledWith(
@@ -463,7 +532,9 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
       },
     ]);
 
-    const spy = jest.spyOn(revalidationService, 'recalculateSingleLeave').mockResolvedValue({ status: 'UPDATED' });
+    const spy = jest
+      .spyOn(revalidationService, 'recalculateSingleLeave')
+      .mockResolvedValue({ status: 'UPDATED' });
 
     const result = await revalidationService.revalidateAffectedLeaves({
       action: 'UPDATED',
@@ -555,7 +626,13 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
     mockHolidayModel.findAll.mockResolvedValue([]); // recalculates to 8 (+3 diff)
     mockHrPolicyModel.findOne.mockResolvedValue({ weeklyOffDays: [0] });
 
-    const res = await revalidationService.recalculateSingleLeave(8, 4, 7, 'Holiday', 'UPDATED');
+    const res = await revalidationService.recalculateSingleLeave(
+      8,
+      4,
+      7,
+      'Holiday',
+      'UPDATED',
+    );
 
     expect(res.status).toBe('ERROR');
     expect(res.message).toContain('Invalid resulting balance');
@@ -591,7 +668,8 @@ describe('LeaveCalculationService & Revalidation Suite (T1 - T18)', () => {
   it('T18: Daily reconciliation inspects active leaves and updates discrepant ones', async () => {
     mockLeaveRequestModel.findAll.mockResolvedValue([{ id: 101 }, { id: 102 }]);
 
-    const spy = jest.spyOn(revalidationService, 'recalculateSingleLeave')
+    const spy = jest
+      .spyOn(revalidationService, 'recalculateSingleLeave')
       .mockResolvedValueOnce({ status: 'UPDATED' })
       .mockResolvedValueOnce({ status: 'SKIPPED' });
 

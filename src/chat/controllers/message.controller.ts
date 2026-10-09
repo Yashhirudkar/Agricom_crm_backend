@@ -69,7 +69,13 @@ export class MessageController {
     }
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.messageService.edit(conversationId, messageId, content, companyId, actor);
+    return this.messageService.edit(
+      conversationId,
+      messageId,
+      content,
+      companyId,
+      actor,
+    );
   }
 
   @Delete('clear')
@@ -95,11 +101,19 @@ export class MessageController {
     @Request() req,
   ) {
     if (!mode || !['everyone', 'me'].includes(mode)) {
-      throw new BadRequestException('Delete mode must be either "everyone" or "me".');
+      throw new BadRequestException(
+        'Delete mode must be either "everyone" or "me".',
+      );
     }
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    await this.messageService.delete(conversationId, messageId, mode, companyId, actor);
+    await this.messageService.delete(
+      conversationId,
+      messageId,
+      mode,
+      companyId,
+      actor,
+    );
   }
 
   @Post(':messageId/react')
@@ -112,7 +126,13 @@ export class MessageController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.messageService.react(conversationId, messageId, dto, companyId, actor);
+    return this.messageService.react(
+      conversationId,
+      messageId,
+      dto,
+      companyId,
+      actor,
+    );
   }
 
   @Post('read')
@@ -140,7 +160,13 @@ export class MessageController {
     const parsedCursor = cursor ? parseInt(cursor, 10) : undefined;
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
 
-    return this.messageService.getHistory(conversationId, companyId, req.user, parsedCursor, parsedLimit);
+    return this.messageService.getHistory(
+      conversationId,
+      companyId,
+      req.user,
+      parsedCursor,
+      parsedLimit,
+    );
   }
 
   @Get(':messageId/versions')

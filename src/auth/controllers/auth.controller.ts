@@ -54,8 +54,11 @@ export class AuthController {
     if (result && result.user && result.user.id) {
       const companyId = result.user.lastCompanyId || result.workspaces?.[0]?.id;
       if (companyId) {
-        this.followUpNotificationService.checkAndSendUserReminders(result.user.id, companyId)
-          .catch((err) => console.error('Failed to trigger login reminders:', err));
+        this.followUpNotificationService
+          .checkAndSendUserReminders(result.user.id, companyId)
+          .catch((err) =>
+            console.error('Failed to trigger login reminders:', err),
+          );
       }
     }
     return result;
@@ -300,7 +303,9 @@ export class AuthController {
         }
       : { name: 'Agricom', logoUrl: null, country: null };
 
-    const prefs = await this.profileService.getPreferences(userId).catch(() => null);
+    const prefs = await this.profileService
+      .getPreferences(userId)
+      .catch(() => null);
 
     return {
       id: user.id,
@@ -352,20 +357,30 @@ export class AuthController {
       const c1 = stripPluralSuffix(cleanStr(reqRes));
       const c2 = stripPluralSuffix(cleanStr(userRes));
 
-      if (c1 === 'salesmaster' && ['shipmenttype', 'paymentterm', 'tradedocument', 'currency'].includes(c2)) {
+      if (
+        c1 === 'salesmaster' &&
+        ['shipmenttype', 'paymentterm', 'tradedocument', 'currency'].includes(
+          c2,
+        )
+      ) {
         return true;
       }
 
       // Prevent greedy prefix matching where 'hr' matches 'hrpolicy', 'partner' matches 'partnerrole', etc.
-      if (c1 === 'partner' && c2 !== 'partner' && c2.startsWith('partner')) return false;
-      if (c2 === 'partner' && c1 !== 'partner' && c1.startsWith('partner')) return false;
+      if (c1 === 'partner' && c2 !== 'partner' && c2.startsWith('partner'))
+        return false;
+      if (c2 === 'partner' && c1 !== 'partner' && c1.startsWith('partner'))
+        return false;
       if (c1 === 'hr' && c2 !== 'hr' && c2.startsWith('hr')) return false;
       if (c2 === 'hr' && c1 !== 'hr' && c1.startsWith('hr')) return false;
 
       return c1 === c2;
     };
 
-    const hasSidebarPermission = (requiredLink: string, userPerms: string[]): boolean => {
+    const hasSidebarPermission = (
+      requiredLink: string,
+      userPerms: string[],
+    ): boolean => {
       const [reqResource, reqAction] = requiredLink.split(':');
       if (!reqResource || !reqAction) return false;
 
@@ -376,7 +391,8 @@ export class AuthController {
         // Action match: read and view are equivalent
         const isActionMatch =
           reqAction === userAction ||
-          (['read', 'view'].includes(reqAction) && ['read', 'view'].includes(userAction));
+          (['read', 'view'].includes(reqAction) &&
+            ['read', 'view'].includes(userAction));
 
         if (!isActionMatch) return false;
 
@@ -490,7 +506,9 @@ export class AuthController {
             entityType: 'CompanySwitch',
             entityId: companyId,
             action: 'FORBIDDEN_TENANT_ACCESS',
-            newValue: { message: `Client Admin attempted to switch to unauthorized company ${companyId}` },
+            newValue: {
+              message: `Client Admin attempted to switch to unauthorized company ${companyId}`,
+            },
             ipAddress: req.ip,
           });
           throw new ForbiddenException(
@@ -505,7 +523,9 @@ export class AuthController {
           entityType: 'CompanySwitch',
           entityId: companyId,
           action: 'FORBIDDEN_TENANT_ACCESS',
-          newValue: { message: `User attempted to switch to unauthorized company ${companyId}` },
+          newValue: {
+            message: `User attempted to switch to unauthorized company ${companyId}`,
+          },
           ipAddress: req.ip,
         });
         throw new ForbiddenException(
@@ -519,8 +539,11 @@ export class AuthController {
       await this.usersService.updateUser(req.user.userId, {
         lastCompanyId: companyId,
       });
-      this.followUpNotificationService.checkAndSendUserReminders(req.user.userId, companyId)
-        .catch((err) => console.error('Failed to trigger workspace reminders:', err));
+      this.followUpNotificationService
+        .checkAndSendUserReminders(req.user.userId, companyId)
+        .catch((err) =>
+          console.error('Failed to trigger workspace reminders:', err),
+        );
     }
 
     if (req.user.type === 'super_admin' && !membership) {

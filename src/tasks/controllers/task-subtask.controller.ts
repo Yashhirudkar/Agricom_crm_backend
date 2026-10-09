@@ -28,7 +28,9 @@ export class TaskSubtaskController {
   private getClientId(req: any): number {
     const isSuperAdmin = req.user?.type === 'super_admin';
     if (isSuperAdmin && !req.user?.clientId) {
-      throw new BadRequestException('Super admins must select a company context to perform this action');
+      throw new BadRequestException(
+        'Super admins must select a company context to perform this action',
+      );
     }
     return req.user?.clientId || 1;
   }

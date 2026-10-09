@@ -93,7 +93,10 @@ export class PartnerRoleDynamicConfig extends Model<PartnerRoleDynamicConfig> {
   @Column({ field: 'is_active', type: DataType.BOOLEAN })
   declare isActive: boolean;
 
-  @HasMany(() => PartnerDynamicConfigHistory, { onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => PartnerDynamicConfigHistory, {
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare history: PartnerDynamicConfigHistory[];
 
   @CreatedAt

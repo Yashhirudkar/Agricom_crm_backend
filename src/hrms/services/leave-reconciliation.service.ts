@@ -39,9 +39,12 @@ export class LeaveReconciliationService {
    * Reconciles all future/active PENDING and APPROVED leave requests.
    * Idempotent: only updates if calculated days differ from stored days.
    */
-  async reconcileActiveLeaves(
-    companyId?: number,
-  ): Promise<{ inspected: number; updated: number; skipped: number; errors: number }> {
+  async reconcileActiveLeaves(companyId?: number): Promise<{
+    inspected: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  }> {
     const todayStr = new Date().toISOString().split('T')[0];
 
     const where: any = {

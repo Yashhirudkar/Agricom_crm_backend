@@ -18,9 +18,14 @@ export interface AllocationSummaryResult {
  * Enterprise Purchase Allocation Business Logic.
  * Single source of truth for contract allocation calculations.
  */
-export function calculatePurchaseAllocation(input: AllocationSummaryInput): AllocationSummaryResult {
+export function calculatePurchaseAllocation(
+  input: AllocationSummaryInput,
+): AllocationSummaryResult {
   const salesContractQty = Math.max(0, Number(input.salesContractQty) || 0);
-  const alreadyAllocatedQty = Math.max(0, Number(input.alreadyAllocatedQty) || 0);
+  const alreadyAllocatedQty = Math.max(
+    0,
+    Number(input.alreadyAllocatedQty) || 0,
+  );
   const currentPurchaseQty = Math.max(0, Number(input.currentPurchaseQty) || 0);
 
   const rawAvailable = salesContractQty - alreadyAllocatedQty;
@@ -28,7 +33,9 @@ export function calculatePurchaseAllocation(input: AllocationSummaryInput): Allo
   const remaining = availableBalanceQty - currentPurchaseQty;
 
   const isOverAllocated = currentPurchaseQty > availableBalanceQty;
-  const overAllocatedQty = isOverAllocated ? currentPurchaseQty - availableBalanceQty : 0;
+  const overAllocatedQty = isOverAllocated
+    ? currentPurchaseQty - availableBalanceQty
+    : 0;
   const remainingBalance = isOverAllocated ? 0 : Math.max(0, remaining);
 
   return {

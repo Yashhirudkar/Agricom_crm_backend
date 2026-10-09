@@ -8,7 +8,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'company_break_policies',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       companyId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -17,10 +22,28 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'CASCADE',
       },
       name: { type: DataTypes.STRING(255), allowNull: false },
-      startTime: { type: DataTypes.STRING(50), allowNull: false, field: 'startTime' },
-      durationMinutes: { type: DataTypes.INTEGER, allowNull: false, field: 'durationMinutes' },
-      isAutomatic: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isAutomatic' },
-      isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isActive' },
+      startTime: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        field: 'startTime',
+      },
+      durationMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        field: 'durationMinutes',
+      },
+      isAutomatic: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'isAutomatic',
+      },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'isActive',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
@@ -28,14 +51,21 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   );
 
   await queryInterface
-    .addIndex('company_break_policies', ['companyId'], { name: 'company_break_policies_company_id' })
-    .catch(() => { });
+    .addIndex('company_break_policies', ['companyId'], {
+      name: 'company_break_policies_company_id',
+    })
+    .catch(() => {});
 
   // ─── 2. attendance_records ───────────────────────────────────────────────────
   await queryInterface.createTable(
     'attendance_records',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -51,30 +81,82 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'CASCADE',
       },
       date: { type: DataTypes.DATEONLY, allowNull: false },
-      checkInTime: { type: DataTypes.DATE, allowNull: true, field: 'checkInTime' },
-      checkOutTime: { type: DataTypes.DATE, allowNull: true, field: 'checkOutTime' },
-      totalHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0, field: 'totalHours' },
-      overtimeHours: { type: DataTypes.DECIMAL(5, 2), allowNull: true, defaultValue: 0, field: 'overtimeHours' },
-      lateMinutes: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0, field: 'lateMinutes' },
+      checkInTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'checkInTime',
+      },
+      checkOutTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'checkOutTime',
+      },
+      totalHours: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 0,
+        field: 'totalHours',
+      },
+      overtimeHours: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: true,
+        defaultValue: 0,
+        field: 'overtimeHours',
+      },
+      lateMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+        field: 'lateMinutes',
+      },
       attendanceState: {
-        type: DataTypes.ENUM('NOT_CHECKED_IN', 'WORKING', 'ON_BREAK', 'CHECKED_OUT'),
+        type: DataTypes.ENUM(
+          'NOT_CHECKED_IN',
+          'WORKING',
+          'ON_BREAK',
+          'CHECKED_OUT',
+        ),
         allowNull: false,
         defaultValue: 'NOT_CHECKED_IN',
-        field: 'attendanceState'
+        field: 'attendanceState',
       },
       attendanceStatus: {
-        type: DataTypes.ENUM('PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'WEEK_OFF', 'ON_LEAVE', 'HOLIDAY', 'UPCOMING'),
+        type: DataTypes.ENUM(
+          'PRESENT',
+          'ABSENT',
+          'HALF_DAY',
+          'LATE',
+          'WEEK_OFF',
+          'ON_LEAVE',
+          'HOLIDAY',
+          'UPCOMING',
+        ),
         allowNull: true,
-        field: 'attendanceStatus'
+        field: 'attendanceStatus',
       },
       attendanceSource: {
-        type: DataTypes.ENUM('SELF_PUNCH', 'ADMIN_MARKED', 'REGULARIZATION_APPROVED', 'AUTO_BREAK_SYSTEM', 'BIOMETRIC', 'API_IMPORT'),
+        type: DataTypes.ENUM(
+          'SELF_PUNCH',
+          'ADMIN_MARKED',
+          'REGULARIZATION_APPROVED',
+          'AUTO_BREAK_SYSTEM',
+          'BIOMETRIC',
+          'API_IMPORT',
+        ),
         allowNull: false,
         defaultValue: 'SELF_PUNCH',
-        field: 'attendanceSource'
+        field: 'attendanceSource',
       },
-      locationLat: { type: DataTypes.DECIMAL(10, 8), allowNull: true, field: 'locationLat' },
-      locationLng: { type: DataTypes.DECIMAL(11, 8), allowNull: true, field: 'locationLng' },
+      locationLat: {
+        type: DataTypes.DECIMAL(10, 8),
+        allowNull: true,
+        field: 'locationLat',
+      },
+      locationLng: {
+        type: DataTypes.DECIMAL(11, 8),
+        allowNull: true,
+        field: 'locationLng',
+      },
       shiftId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -82,9 +164,24 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'shifts', key: 'id' },
         onDelete: 'SET NULL',
       },
-      isPayrollLocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isPayrollLocked' },
-      isConflict: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isConflict' },
-      isIgnored: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isIgnored' },
+      isPayrollLocked: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isPayrollLocked',
+      },
+      isConflict: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isConflict',
+      },
+      isIgnored: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isIgnored',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
@@ -92,17 +189,27 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   );
 
   await queryInterface
-    .addIndex('attendance_records', ['employeeId', 'date'], { name: 'attendance_records_employee_date', unique: true })
-    .catch(() => { });
+    .addIndex('attendance_records', ['employeeId', 'date'], {
+      name: 'attendance_records_employee_date',
+      unique: true,
+    })
+    .catch(() => {});
   await queryInterface
-    .addIndex('attendance_records', ['companyId', 'date'], { name: 'attendance_records_company_date' })
-    .catch(() => { });
+    .addIndex('attendance_records', ['companyId', 'date'], {
+      name: 'attendance_records_company_date',
+    })
+    .catch(() => {});
 
   // ─── 3. attendance_logs ──────────────────────────────────────────────────────
   await queryInterface.createTable(
     'attendance_logs',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -119,9 +226,17 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       },
       timestamp: { type: DataTypes.DATE, allowNull: false, field: 'timestamp' },
       actionType: {
-        type: DataTypes.ENUM('CHECK_IN', 'CHECK_OUT', 'BREAK_START', 'BREAK_END', 'AUTO_CORRECTION', 'REGULARIZATION_APPROVED', 'ADMIN_MARKED'),
+        type: DataTypes.ENUM(
+          'CHECK_IN',
+          'CHECK_OUT',
+          'BREAK_START',
+          'BREAK_END',
+          'AUTO_CORRECTION',
+          'REGULARIZATION_APPROVED',
+          'ADMIN_MARKED',
+        ),
         allowNull: false,
-        field: 'actionType'
+        field: 'actionType',
       },
       metadata: { type: DataTypes.JSON, allowNull: true, field: 'metadata' },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
@@ -133,7 +248,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'leave_types',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       companyId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -144,12 +264,42 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       name: { type: DataTypes.STRING(100), allowNull: false },
       code: { type: DataTypes.STRING(20), allowNull: false },
       description: { type: DataTypes.TEXT, allowNull: true },
-      daysPerYear: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0, field: 'daysPerYear' },
-      isPaid: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isPaid' },
-      isCarryForward: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isCarryForward' },
-      maxCarryForwardDays: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0, field: 'maxCarryForwardDays' },
-      isEncashable: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'isEncashable' },
-      isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'isActive' },
+      daysPerYear: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'daysPerYear',
+      },
+      isPaid: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'isPaid',
+      },
+      isCarryForward: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isCarryForward',
+      },
+      maxCarryForwardDays: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'maxCarryForwardDays',
+      },
+      isEncashable: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: 'isEncashable',
+      },
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        field: 'isActive',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
@@ -160,7 +310,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'leave_allocations',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -176,9 +331,24 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'CASCADE',
       },
       year: { type: DataTypes.INTEGER, allowNull: false },
-      allocatedDays: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0, field: 'allocatedDays' },
-      usedDays: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0, field: 'usedDays' },
-      pendingDays: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: 0, field: 'pendingDays' },
+      allocatedDays: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'allocatedDays',
+      },
+      usedDays: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'usedDays',
+      },
+      pendingDays: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        defaultValue: 0,
+        field: 'pendingDays',
+      },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
       updatedAt: { type: DataTypes.DATE, allowNull: false, field: 'updatedAt' },
     },
@@ -189,7 +359,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'leave_applications',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -204,9 +379,17 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'leave_types', key: 'id' },
         onDelete: 'CASCADE',
       },
-      startDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'startDate' },
+      startDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        field: 'startDate',
+      },
       endDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'endDate' },
-      totalDays: { type: DataTypes.DECIMAL(5, 2), allowNull: false, field: 'totalDays' },
+      totalDays: {
+        type: DataTypes.DECIMAL(5, 2),
+        allowNull: false,
+        field: 'totalDays',
+      },
       reason: { type: DataTypes.TEXT, allowNull: false },
       status: {
         type: DataTypes.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'),
@@ -223,7 +406,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'attendance_exceptions',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       employeeId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -260,7 +448,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         onDelete: 'SET NULL',
       },
       type: { type: DataTypes.STRING(100), allowNull: true },
-      exceptionType: { type: DataTypes.STRING(100), allowNull: true, field: 'exceptionType' },
+      exceptionType: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: 'exceptionType',
+      },
       reason: { type: DataTypes.TEXT, allowNull: true },
       resolution: { type: DataTypes.STRING(255), allowNull: true },
       status: {
@@ -273,7 +465,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         allowNull: false,
         defaultValue: 'MEDIUM',
       },
-      conflictRef: { type: DataTypes.STRING(50), allowNull: true, unique: true, field: 'conflictRef' },
+      conflictRef: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        unique: true,
+        field: 'conflictRef',
+      },
       approvedBy: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -288,7 +485,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'users', key: 'id' },
         onDelete: 'SET NULL',
       },
-      resolvedAt: { type: DataTypes.DATE, allowNull: true, field: 'resolvedAt' },
+      resolvedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'resolvedAt',
+      },
       remarks: { type: DataTypes.TEXT, allowNull: true },
       metadata: { type: DataTypes.JSON, allowNull: true },
       createdAt: { type: DataTypes.DATE, allowNull: false, field: 'createdAt' },
@@ -297,10 +498,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  console.log('✅ Phase 03 - Attendance & Leave Management tables created successfully');
+  console.log(
+    '✅ Phase 03 - Attendance & Leave Management tables created successfully',
+  );
 
   // --- From phase 12 ---
-  await queryInterface.sequelize.query(`
+  await queryInterface.sequelize
+    .query(
+      `
     DO $$
     BEGIN
       IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_leave_approval_logs_action') THEN
@@ -308,34 +513,48 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       END IF;
     END
     $$;
-  `).catch(() => {});
+  `,
+    )
+    .catch(() => {});
 
   // --- From phase 24 ---
-  await queryInterface.sequelize.query(`
+  await queryInterface.sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_lr_company_pending_cursor
     ON leave_requests ("companyId", "createdAt" DESC, id DESC)
     WHERE status = 'PENDING';
-  `).catch(() => {});
+  `,
+    )
+    .catch(() => {});
 
-  await queryInterface.sequelize.query(`
+  await queryInterface.sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_lr_company_history_cursor
     ON leave_requests ("companyId", "createdAt" DESC, id DESC)
     WHERE status <> 'PENDING';
-  `).catch(() => {});
+  `,
+    )
+    .catch(() => {});
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
-  await queryInterface.dropTable('attendance_exceptions').catch(() => { });
-  await queryInterface.dropTable('leave_applications').catch(() => { });
-  await queryInterface.dropTable('leave_allocations').catch(() => { });
-  await queryInterface.dropTable('leave_types').catch(() => { });
-  await queryInterface.dropTable('attendance_logs').catch(() => { });
-  await queryInterface.dropTable('attendance_records').catch(() => { });
-  await queryInterface.dropTable('company_break_policies').catch(() => { });
-  
+  await queryInterface.dropTable('attendance_exceptions').catch(() => {});
+  await queryInterface.dropTable('leave_applications').catch(() => {});
+  await queryInterface.dropTable('leave_allocations').catch(() => {});
+  await queryInterface.dropTable('leave_types').catch(() => {});
+  await queryInterface.dropTable('attendance_logs').catch(() => {});
+  await queryInterface.dropTable('attendance_records').catch(() => {});
+  await queryInterface.dropTable('company_break_policies').catch(() => {});
+
   // --- From phase 24 ---
-  await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_lr_company_pending_cursor;`).catch(() => {});
-  await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_lr_company_history_cursor;`).catch(() => {});
+  await queryInterface.sequelize
+    .query(`DROP INDEX IF EXISTS idx_lr_company_pending_cursor;`)
+    .catch(() => {});
+  await queryInterface.sequelize
+    .query(`DROP INDEX IF EXISTS idx_lr_company_history_cursor;`)
+    .catch(() => {});
 
   console.log('✅ Phase 03 - Attendance & Leave Management tables dropped');
 }

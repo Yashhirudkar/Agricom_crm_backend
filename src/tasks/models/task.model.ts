@@ -24,7 +24,6 @@ import { TaskLabelMap } from './task-label-map.model';
 import { HasMany } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'tasks',
   timestamps: true,
@@ -36,14 +35,19 @@ import { Company } from '../../companies/models/company.model';
     { fields: ['clientId', 'createdById'], name: 'tasks_client_created_by' },
     { fields: ['clientId', 'priorityId'], name: 'tasks_client_priority' },
     { fields: ['clientId', 'updatedAt'], name: 'tasks_client_updated' },
-    { fields: ['clientId', 'createdAt', 'id'], name: 'tasks_client_created_at_composite' },
-    { fields: ['clientId', 'statusId', 'createdAt'], name: 'tasks_client_status_created_at' },
+    {
+      fields: ['clientId', 'createdAt', 'id'],
+      name: 'tasks_client_created_at_composite',
+    },
+    {
+      fields: ['clientId', 'statusId', 'createdAt'],
+      name: 'tasks_client_status_created_at',
+    },
     { fields: ['clientId', 'ownerId'], name: 'tasks_client_owner' },
     { fields: ['clientId', 'dueDate'], name: 'tasks_client_due_date' },
   ],
 })
 export class Task extends Model<Task> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

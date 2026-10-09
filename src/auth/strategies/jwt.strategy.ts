@@ -36,7 +36,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sessionId: string;
     },
   ) {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const UUID_REGEX =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!payload.sessionId || !UUID_REGEX.test(payload.sessionId)) {
       throw new UnauthorizedException('Invalid session token format');
     }
@@ -54,7 +55,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (requestedCompanyId) {
       const parsedCompanyId = parseInt(requestedCompanyId, 10);
-      
+
       // Super Admin bypass
       if (payload.type === 'super_admin') {
         const companyCheck = (await this.userSessionModel.sequelize.query(
@@ -62,14 +63,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           {
             replacements: { companyId: parsedCompanyId },
             type: 'SELECT',
-          }
+          },
         )) as any[];
-        
+
         if (companyCheck && companyCheck.length > 0) {
           validCompanyId = parsedCompanyId;
           payload.clientId = companyCheck[0].clientId;
         } else {
-          throw new UnauthorizedException('Requested company does not exist or is inactive.');
+          throw new UnauthorizedException(
+            'Requested company does not exist or is inactive.',
+          );
         }
       } else {
         // Normal user validation
@@ -85,16 +88,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           LIMIT 1;
           `,
           {
-            replacements: { userId: payload.userId, companyId: parsedCompanyId },
+            replacements: {
+              userId: payload.userId,
+              companyId: parsedCompanyId,
+            },
             type: 'SELECT',
-          }
+          },
         )) as any[];
 
         if (userCompanyCheck && userCompanyCheck.length > 0) {
           validCompanyId = parsedCompanyId;
           payload.clientId = userCompanyCheck[0].clientId;
         } else {
-          throw new UnauthorizedException('You do not have access to this company or it is inactive.');
+          throw new UnauthorizedException(
+            'You do not have access to this company or it is inactive.',
+          );
         }
       }
     }
@@ -149,7 +157,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Super Admin active clientId is already resolved in the validation block above
-    let activeClientId = payload.clientId;
+    const activeClientId = payload.clientId;
 
     return {
       id: payload.sub,

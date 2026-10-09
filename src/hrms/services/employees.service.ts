@@ -494,9 +494,12 @@ export class EmployeesService {
         }
 
         if (data.firstName !== undefined || data.lastName !== undefined) {
-          const updatedFirstName = data.firstName !== undefined ? data.firstName : employee.firstName;
-          const updatedLastName = data.lastName !== undefined ? data.lastName : employee.lastName;
-          userUpdate.name = `${updatedFirstName} ${updatedLastName || ''}`.trim();
+          const updatedFirstName =
+            data.firstName !== undefined ? data.firstName : employee.firstName;
+          const updatedLastName =
+            data.lastName !== undefined ? data.lastName : employee.lastName;
+          userUpdate.name =
+            `${updatedFirstName} ${updatedLastName || ''}`.trim();
         }
 
         if (Object.keys(userUpdate).length > 0) {
@@ -645,7 +648,9 @@ export class EmployeesService {
   }
 
   async getTodayBirthdays(companyId: number): Promise<Employee[]> {
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    const todayStr = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Kolkata',
+    }); // YYYY-MM-DD
     const [, currentMonth, currentDay] = todayStr.split('-');
 
     const employees = await this.employeeModel.findAll({
@@ -660,9 +665,10 @@ export class EmployeesService {
 
     return employees.filter((emp) => {
       if (!emp.dob) return false;
-      const dobStr = typeof emp.dob === 'string'
-        ? emp.dob
-        : (emp.dob as any).toISOString().split('T')[0];
+      const dobStr =
+        typeof emp.dob === 'string'
+          ? emp.dob
+          : (emp.dob as any).toISOString().split('T')[0];
       const [, dobMonth, dobDay] = dobStr.split('-');
       return dobMonth === currentMonth && dobDay === currentDay;
     });

@@ -3,7 +3,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { NotificationLog } from '../models/notification-log.model';
-import { NotificationDispatchService, MAX_WORKER_RETRIES } from './notification-dispatch.service';
+import {
+  NotificationDispatchService,
+  MAX_WORKER_RETRIES,
+} from './notification-dispatch.service';
 import { NotificationChannel } from '../notification.types';
 
 const BATCH_SIZE = 20; // Max rows to process per cron tick
@@ -55,7 +58,10 @@ export class NotificationRetryWorker {
     try {
       await this.processBatch();
     } catch (err: any) {
-      this.logger.error(`[RetryWorker] Unhandled error in batch: ${err?.message}`, err?.stack);
+      this.logger.error(
+        `[RetryWorker] Unhandled error in batch: ${err?.message}`,
+        err?.stack,
+      );
     } finally {
       this.isRunning = false;
     }
@@ -95,13 +101,15 @@ export class NotificationRetryWorker {
     try {
       await log.save();
     } catch (saveErr: any) {
-      this.logger.warn(`[RetryWorker] Could not lock log #${log.id}: ${saveErr?.message}`);
+      this.logger.warn(
+        `[RetryWorker] Could not lock log #${log.id}: ${saveErr?.message}`,
+      );
       return;
     }
 
     this.logger.log(
       `[RetryWorker] 🔄 Retrying log #${log.id} ` +
-      `(${log.channel}:${log.template}, attempt ${log.retryCount}/${MAX_WORKER_RETRIES})`,
+        `(${log.channel}:${log.template}, attempt ${log.retryCount}/${MAX_WORKER_RETRIES})`,
     );
 
     try {
@@ -109,8 +117,13 @@ export class NotificationRetryWorker {
       await this.dispatchService.retryLog(log);
     } catch (err: any) {
       // retryLog should never throw — but just in case:
-      this.logger.error(`[RetryWorker] retryLog threw for #${log.id}: ${err?.message}`);
-      await this.dispatchService.scheduleRetryOrExhaust(log, err?.message || 'Worker error');
+      this.logger.error(
+        `[RetryWorker] retryLog threw for #${log.id}: ${err?.message}`,
+      );
+      await this.dispatchService.scheduleRetryOrExhaust(
+        log,
+        err?.message || 'Worker error',
+      );
     }
   }
 
@@ -120,18 +133,24 @@ export class NotificationRetryWorker {
    * Returns a count of logs by status — useful for admin dashboards.
    */
   async getStats(): Promise<Record<string, number>> {
-    const results = await this.notificationLogModel.findAll({
+    const results = (await this.notificationLogModel.findAll({
       attributes: [
         'status',
-        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count'],
+        [
+          require('sequelize').fn('COUNT', require('sequelize').col('id')),
+          'count',
+        ],
       ],
       group: ['status'],
       raw: true,
-    }) as any[];
+    })) as any[];
 
-    return results.reduce((acc, row) => {
-      acc[row.status] = parseInt(row.count, 10);
-      return acc;
-    }, {} as Record<string, number>);
+    return results.reduce(
+      (acc, row) => {
+        acc[row.status] = parseInt(row.count, 10);
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
   }
 }

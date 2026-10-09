@@ -10,26 +10,51 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'sales_contract_shipments',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       sales_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: 'sales_contracts', key: 'id' },
         onDelete: 'CASCADE',
       },
-      shipment_no: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      shipment_no: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+      },
       shipment_reference: { type: DataTypes.STRING(100), allowNull: true },
       shipment_date: { type: DataTypes.DATEONLY, allowNull: false },
-      quantity: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+      quantity: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
       no_of_containers: { type: DataTypes.INTEGER, allowNull: true },
       rate_per_mt: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
       purchase_rate: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
       forex: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
       freight: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Scheduled' },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Scheduled',
+      },
       remarks: { type: DataTypes.STRING(500), allowNull: true },
-      created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
-      updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: 'created_at',
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: 'updated_at',
+      },
     },
     { ifNotExists: true } as any,
   );
@@ -84,14 +109,17 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     targetResourceId = modResourceRes[0].id;
     await sequelize.query(
       `UPDATE module_resources SET display_name = 'Shipments', module_id = :targetModuleId, "updatedAt" = NOW() WHERE id = :targetResourceId;`,
-      { replacements: { targetModuleId, targetResourceId } }
+      { replacements: { targetModuleId, targetResourceId } },
     );
   } else {
-    const [insertResourceRes]: any = await sequelize.query(`
+    const [insertResourceRes]: any = await sequelize.query(
+      `
       INSERT INTO module_resources (name, display_name, sort_order, module_id, "createdAt", "updatedAt")
       VALUES ('shipments', 'Shipments', 0, :targetModuleId, NOW(), NOW())
       RETURNING id;
-    `, { replacements: { targetModuleId } });
+    `,
+      { replacements: { targetModuleId } },
+    );
     targetResourceId = insertResourceRes[0].id;
   }
 
@@ -112,7 +140,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   for (const act of shipmentActions) {
     const [checkRes]: any = await sequelize.query(
       `SELECT id FROM resource_actions WHERE resource_id = :targetResourceId AND name = :actionName;`,
-      { replacements: { targetResourceId, actionName: act.name } }
+      { replacements: { targetResourceId, actionName: act.name } },
     );
 
     let actionId: number;
@@ -120,14 +148,20 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       actionId = checkRes[0].id;
       await sequelize.query(
         `UPDATE resource_actions SET sort_order = :sortOrder, "updatedAt" = NOW() WHERE id = :actionId;`,
-        { replacements: { sortOrder: act.sort, actionId } }
+        { replacements: { sortOrder: act.sort, actionId } },
       );
     } else {
       const [insertRes]: any = await sequelize.query(
         `INSERT INTO resource_actions (name, display_name, sort_order, resource_id, "createdAt", "updatedAt")
          VALUES (:actionName, :actionName, :sortOrder, :targetResourceId, NOW(), NOW())
          RETURNING id;`,
-        { replacements: { actionName: act.name, sortOrder: act.sort, targetResourceId } }
+        {
+          replacements: {
+            actionName: act.name,
+            sortOrder: act.sort,
+            targetResourceId,
+          },
+        },
       );
       actionId = insertRes[0].id;
     }
@@ -137,19 +171,22 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   // ─── 6. Grant Role Action Permissions (Roles 1 & 2 if exist) ───────────────
   const targetRoles = [1, 2];
   for (const roleId of targetRoles) {
-    const [roleExists]: any = await sequelize.query(`SELECT id FROM roles WHERE id = :roleId;`, { replacements: { roleId } });
+    const [roleExists]: any = await sequelize.query(
+      `SELECT id FROM roles WHERE id = :roleId;`,
+      { replacements: { roleId } },
+    );
     if (roleExists.length === 0) continue;
 
     for (const actionId of shipmentsActionIds) {
       const [hasPerm]: any = await sequelize.query(
         `SELECT id FROM role_action_permissions WHERE role_id = :roleId AND resource_action_id = :actionId;`,
-        { replacements: { roleId, actionId } }
+        { replacements: { roleId, actionId } },
       );
       if (hasPerm.length === 0) {
         await sequelize.query(
           `INSERT INTO role_action_permissions (role_id, resource_action_id, "createdAt", "updatedAt")
            VALUES (:roleId, :actionId, NOW(), NOW());`,
-          { replacements: { roleId, actionId } }
+          { replacements: { roleId, actionId } },
         );
       }
     }
@@ -163,26 +200,26 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     for (const actionId of shipmentsActionIds) {
       const [hasAccess]: any = await sequelize.query(
         `SELECT id FROM client_action_access WHERE client_id = :clientId AND resource_action_id = :actionId;`,
-        { replacements: { clientId, actionId } }
+        { replacements: { clientId, actionId } },
       );
       if (hasAccess.length === 0) {
         await sequelize.query(
           `INSERT INTO client_action_access (client_id, resource_action_id, created_at)
            VALUES (:clientId, :actionId, NOW());`,
-          { replacements: { clientId, actionId } }
+          { replacements: { clientId, actionId } },
         );
       }
     }
 
     const [hasModuleAccess]: any = await sequelize.query(
       `SELECT id FROM client_module_access WHERE client_id = :clientId AND module_id = :targetModuleId;`,
-      { replacements: { clientId, targetModuleId } }
+      { replacements: { clientId, targetModuleId } },
     );
     if (hasModuleAccess.length === 0) {
       await sequelize.query(
         `INSERT INTO client_module_access (client_id, module_id, created_at)
          VALUES (:clientId, :targetModuleId, NOW());`,
-        { replacements: { clientId, targetModuleId } }
+        { replacements: { clientId, targetModuleId } },
       );
     }
   }
@@ -205,14 +242,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         `UPDATE sidebar_items 
          SET name = 'Shipments', folder_id = :folderId, sort_order = 20, permission_link = 'shipments:view', "updatedAt" = NOW()
          WHERE id = :itemId;`,
-        { replacements: { folderId, itemId } }
+        { replacements: { folderId, itemId } },
       );
     } else {
       const [insertItemRes]: any = await sequelize.query(
         `INSERT INTO sidebar_items (name, route, icon_name, folder_id, sort_order, is_active, permission_link, "createdAt", "updatedAt")
          VALUES ('Shipments', '/sales/shipments', 'Ship', :folderId, 20, true, 'shipments:view', NOW(), NOW())
          RETURNING id;`,
-        { replacements: { folderId } }
+        { replacements: { folderId } },
       );
       itemId = insertItemRes[0].id;
     }
@@ -220,13 +257,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     for (const clientId of clientIds) {
       const [hasItemAccess]: any = await sequelize.query(
         `SELECT id FROM client_item_access WHERE client_id = :clientId AND item_id = :itemId;`,
-        { replacements: { clientId, itemId } }
+        { replacements: { clientId, itemId } },
       );
       if (hasItemAccess.length === 0) {
         await sequelize.query(
           `INSERT INTO client_item_access (client_id, item_id, created_at)
            VALUES (:clientId, :itemId, NOW());`,
-          { replacements: { clientId, itemId } }
+          { replacements: { clientId, itemId } },
         );
       }
     }
@@ -238,19 +275,49 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const sequelize = queryInterface.sequelize;
 
-  await sequelize.query(`DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/sales/shipments');`).catch(() => { });
-  await sequelize.query(`DELETE FROM sidebar_items WHERE route = '/sales/shipments';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/sales/shipments');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM sidebar_items WHERE route = '/sales/shipments';`)
+    .catch(() => {});
 
-  await sequelize.query(`DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments');`).catch(() => { });
-  await sequelize.query(`DELETE FROM module_resources WHERE name = 'shipments';`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Shipments');`).catch(() => { });
-  await sequelize.query(`DELETE FROM app_modules WHERE name = 'Shipments';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'shipments');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM module_resources WHERE name = 'shipments';`)
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Shipments');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM app_modules WHERE name = 'Shipments';`)
+    .catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_shipment_contract_no;`).catch(() => { });
-  await sequelize.query(`DROP INDEX IF EXISTS idx_sales_contract_shipments_shipment_ref;`).catch(() => { });
-  await queryInterface.dropTable('sales_contract_shipments').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_shipment_contract_no;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_sales_contract_shipments_shipment_ref;`)
+    .catch(() => {});
+  await queryInterface.dropTable('sales_contract_shipments').catch(() => {});
 
   console.log('✅ Phase 07 - Shipments Module dropped');
 }

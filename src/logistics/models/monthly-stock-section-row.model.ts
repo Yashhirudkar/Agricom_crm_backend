@@ -36,12 +36,17 @@ export class MonthlyStockSectionRow extends Model<MonthlyStockSectionRow> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
-  @ForeignKey(() => require('./monthly-stock-section.model').MonthlyStockSection)
+  @ForeignKey(
+    () => require('./monthly-stock-section.model').MonthlyStockSection,
+  )
   @AllowNull(false)
   @Column({ field: 'section_id', type: DataType.INTEGER })
   declare sectionId: number;
 
-  @BelongsTo(() => require('./monthly-stock-section.model').MonthlyStockSection, { onDelete: 'CASCADE' })
+  @BelongsTo(
+    () => require('./monthly-stock-section.model').MonthlyStockSection,
+    { onDelete: 'CASCADE' },
+  )
   declare section: any;
 
   @AllowNull(false)
@@ -66,6 +71,9 @@ export class MonthlyStockSectionRow extends Model<MonthlyStockSectionRow> {
   @Column({ field: 'deleted_at' })
   declare deletedAt: Date;
 
-  @HasMany(() => MonthlyStockRowCell, { foreignKey: 'rowId', onDelete: 'CASCADE' })
+  @HasMany(() => MonthlyStockRowCell, {
+    foreignKey: 'rowId',
+    onDelete: 'CASCADE',
+  })
   declare cells: MonthlyStockRowCell[];
 }

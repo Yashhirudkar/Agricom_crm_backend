@@ -31,10 +31,17 @@ export class CustomLocationsController {
   @Post('states')
   @HttpCode(HttpStatus.CREATED)
   async createState(
-    @Body() dto: { countryCode: string; countryName: string; stateName: string },
+    @Body()
+    dto: {
+      countryCode: string;
+      countryName: string;
+      stateName: string;
+    },
   ) {
-    if (!dto.countryCode?.trim()) throw new BadRequestException('countryCode is required');
-    if (!dto.stateName?.trim()) throw new BadRequestException('stateName is required');
+    if (!dto.countryCode?.trim())
+      throw new BadRequestException('countryCode is required');
+    if (!dto.stateName?.trim())
+      throw new BadRequestException('stateName is required');
     const created = await this.service.createState(dto);
     return { data: created, message: 'State created successfully' };
   }
@@ -49,23 +56,30 @@ export class CustomLocationsController {
     if (!countryCode?.trim() || !stateName?.trim()) {
       return { data: [] };
     }
-    const cities = await this.service.getCustomCities(countryCode.trim(), stateName.trim());
+    const cities = await this.service.getCustomCities(
+      countryCode.trim(),
+      stateName.trim(),
+    );
     return { data: cities };
   }
 
   @Post('cities')
   @HttpCode(HttpStatus.CREATED)
   async createCity(
-    @Body() dto: {
+    @Body()
+    dto: {
       countryCode: string;
       countryName: string;
       stateName: string;
       cityName: string;
     },
   ) {
-    if (!dto.countryCode?.trim()) throw new BadRequestException('countryCode is required');
-    if (!dto.stateName?.trim()) throw new BadRequestException('stateName is required');
-    if (!dto.cityName?.trim()) throw new BadRequestException('cityName is required');
+    if (!dto.countryCode?.trim())
+      throw new BadRequestException('countryCode is required');
+    if (!dto.stateName?.trim())
+      throw new BadRequestException('stateName is required');
+    if (!dto.cityName?.trim())
+      throw new BadRequestException('cityName is required');
     const created = await this.service.createCity(dto);
     return { data: created, message: 'City created successfully' };
   }

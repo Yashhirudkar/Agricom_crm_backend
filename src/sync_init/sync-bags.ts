@@ -13,5 +13,7 @@ export const syncBags = async () => {
   await PackingType.sync({ alter: true });
   await BagSpecification.sync({ alter: true });
   await ProductBagAssignment.sync({ alter: true });
-  console.log('--- Bag Specifications & Masters Models Synced successfully ---');
+  console.log(
+    '--- Bag Specifications & Masters Models Synced successfully ---',
+  );
 };

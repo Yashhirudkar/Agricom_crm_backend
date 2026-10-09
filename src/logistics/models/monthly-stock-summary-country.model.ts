@@ -32,12 +32,17 @@ export class MonthlyStockSummaryCountry extends Model<MonthlyStockSummaryCountry
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
-  @ForeignKey(() => require('./monthly-stock-summary.model').MonthlyStockSummary)
+  @ForeignKey(
+    () => require('./monthly-stock-summary.model').MonthlyStockSummary,
+  )
   @AllowNull(false)
   @Column({ field: 'summary_id', type: DataType.INTEGER })
   declare summaryId: number;
 
-  @BelongsTo(() => require('./monthly-stock-summary.model').MonthlyStockSummary, { onDelete: 'CASCADE' })
+  @BelongsTo(
+    () => require('./monthly-stock-summary.model').MonthlyStockSummary,
+    { onDelete: 'CASCADE' },
+  )
   declare summary: MonthlyStockSummary;
 
   @AllowNull(false)

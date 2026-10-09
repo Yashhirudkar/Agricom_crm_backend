@@ -1,7 +1,15 @@
-import { Injectable, BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Inject,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Attachment } from '../models/attachment.model';
-import { STORAGE_PROVIDER, StorageProvider } from '../providers/storage.provider';
+import {
+  STORAGE_PROVIDER,
+  StorageProvider,
+} from '../providers/storage.provider';
 import { extname } from 'path';
 
 @Injectable()

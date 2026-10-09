@@ -309,7 +309,9 @@ export class PermissionsGuard implements CanActivate {
         // Also check anyPermissions before throwing — maybe the route has OR fallback
         const hasAny =
           anyPermissions && anyPermissions.length > 0
-            ? anyPermissions.some((perm) => grantedSet.has(standardizePermission(perm).name))
+            ? anyPermissions.some((perm) =>
+                grantedSet.has(standardizePermission(perm).name),
+              )
             : false;
 
         if (!hasAny) {

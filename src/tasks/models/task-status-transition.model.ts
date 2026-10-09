@@ -14,7 +14,6 @@ import { Client } from '../../clients/models/client.model';
 import { TaskStatus } from './task-status.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_status_transitions',
   timestamps: true,
@@ -27,7 +26,6 @@ import { Company } from '../../companies/models/company.model';
   ],
 })
 export class TaskStatusTransition extends Model<TaskStatusTransition> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

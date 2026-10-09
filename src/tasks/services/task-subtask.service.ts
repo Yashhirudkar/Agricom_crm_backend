@@ -25,10 +25,11 @@ export class TaskSubtaskService {
   async findAllSubtasks(parentId: number, clientId: number): Promise<Task[]> {
     return this.taskModel.findAll({
       where: { parentTaskId: parentId, clientId, isDeleted: false },
-      include: [
-        { model: TaskStatus, as: 'status' },
+      include: [{ model: TaskStatus, as: 'status' }],
+      order: [
+        ['displayOrder', 'ASC'],
+        ['id', 'ASC'],
       ],
-      order: [['displayOrder', 'ASC'], ['id', 'ASC']],
     });
   }
 
@@ -72,7 +73,13 @@ export class TaskSubtaskService {
       throw new NotFoundException('Subtask not found under this parent');
     }
 
-    return this.tasksService.update(subtaskId, clientId, companyId, userId, dto);
+    return this.tasksService.update(
+      subtaskId,
+      clientId,
+      companyId,
+      userId,
+      dto,
+    );
   }
 
   async deleteSubtask(

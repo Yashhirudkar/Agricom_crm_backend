@@ -44,7 +44,7 @@ export class RbacService {
     private readonly rolePartnerRoleAccessModel: typeof RolePartnerRoleAccess,
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
 
   /**
    * Retrieves users who possess a specific permission (resource:action)
@@ -72,7 +72,7 @@ export class RbacService {
          OR (r1.name IN ('Admin', 'Client Admin') AND u."clientId" = (SELECT "clientId" FROM users WHERE id = :creatorId))
          OR (r2.name IN ('Admin', 'Client Admin') AND u."clientId" = (SELECT "clientId" FROM users WHERE id = :creatorId))
     `;
-    
+
     const users: any[] = await this.userModel.sequelize.query(query, {
       replacements: { resourceName, actionName, creatorId },
       type: QueryTypes.SELECT,
@@ -461,9 +461,11 @@ export class RbacService {
    * Returns the list of partner_role IDs explicitly assigned to this RBAC role.
    * Empty array means: no rows configured → role is UNRESTRICTED (all partner roles allowed).
    */
-  async getRolePartnerRoleAccess(
-    roleId: number,
-  ): Promise<{ roleId: number; partnerRoleIds: number[]; isUnrestricted: boolean }> {
+  async getRolePartnerRoleAccess(roleId: number): Promise<{
+    roleId: number;
+    partnerRoleIds: number[];
+    isUnrestricted: boolean;
+  }> {
     const role = await this.roleModel.findByPk(roleId);
     if (!role) throw new NotFoundException(`Role with id ${roleId} not found`);
 
@@ -552,9 +554,7 @@ export class RbacService {
         where: membershipWhere,
         include: [{ model: Role, where: { isActive: true }, required: true }],
       });
-      roleIds = memberships
-        .filter((m) => m.roleId)
-        .map((m) => m.roleId);
+      roleIds = memberships.filter((m) => m.roleId).map((m) => m.roleId);
     }
 
     if (roleIds.length === 0) return null;

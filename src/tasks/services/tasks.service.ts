@@ -23,10 +23,19 @@ import {
   BulkStatusDto,
   BulkActionDto,
 } from '../dto';
-import { TaskSequence, TaskStatus, TaskPriority, Task, TaskAssignee } from '../models';
+import {
+  TaskSequence,
+  TaskStatus,
+  TaskPriority,
+  Task,
+  TaskAssignee,
+} from '../models';
 import { User } from '../../users/models/user.model';
 import { Op } from 'sequelize';
-import { NotificationsService, NotificationType } from '../../notifications/services/notifications.service';
+import {
+  NotificationsService,
+  NotificationType,
+} from '../../notifications/services/notifications.service';
 
 @Injectable()
 export class TasksService {
@@ -53,12 +62,21 @@ export class TasksService {
     @InjectModel(TaskAssignee)
     private readonly taskAssigneeModel: typeof TaskAssignee,
     private readonly notificationsService: NotificationsService,
-  ) { }
+  ) {}
 
-  async findAll(clientId: number, companyId: number, userId: number, query: TaskQueryDto) {
+  async findAll(
+    clientId: number,
+    companyId: number,
+    userId: number,
+    query: TaskQueryDto,
+  ) {
     // Inject userId into query for presets that need it
     (query as any).userId = userId;
-    const result = await this.taskQueryRepo.findAndCountAll(clientId, companyId, query);
+    const result = await this.taskQueryRepo.findAndCountAll(
+      clientId,
+      companyId,
+      query,
+    );
 
     // Enrich with sync health/due status
     const enrichedData = result.data.map((task) => {
@@ -89,7 +107,11 @@ export class TasksService {
   }
 
   async findOne(id: number, clientId: number, companyId: number) {
-    const task = await this.taskQueryRepo.getDetailHydrated(id, clientId, companyId);
+    const task = await this.taskQueryRepo.getDetailHydrated(
+      id,
+      clientId,
+      companyId,
+    );
     if (!task) throw new NotFoundException('Task not found');
 
     const isCompleted = task.status?.isCompleted || false;
@@ -170,7 +192,12 @@ export class TasksService {
     return priorities;
   }
 
-  async create(clientId: number, companyId: number, userId: number, dto: CreateTaskDto) {
+  async create(
+    clientId: number,
+    companyId: number,
+    userId: number,
+    dto: CreateTaskDto,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       // 1. Generate Task Code safely
@@ -267,7 +294,10 @@ export class TasksService {
         resolvedPriorityId = priority.id;
       } else if (dto.priorityId) {
         const priority = await this.priorityModel.findOne({
-          where: { id: dto.priorityId, [Op.or]: [{ clientId, companyId }, { clientId: null }] },
+          where: {
+            id: dto.priorityId,
+            [Op.or]: [{ clientId, companyId }, { clientId: null }],
+          },
         });
         if (!priority)
           throw new NotFoundException(
@@ -279,7 +309,8 @@ export class TasksService {
           where: { id: dto.ownerId },
           transaction,
         });
-        if (!ownerUser) throw new NotFoundException('Owner not found or invalid');
+        if (!ownerUser)
+          throw new NotFoundException('Owner not found or invalid');
       }
 
       if (dto.assigneeIds?.length) {
@@ -291,7 +322,8 @@ export class TasksService {
       }
 
       // 3. Create Task
-      const taskPayload: any = { companyId,
+      const taskPayload: any = {
+        companyId,
         ...dto,
         statusId: resolvedStatusId,
         priorityId: resolvedPriorityId,
@@ -338,8 +370,15 @@ export class TasksService {
 
       await transaction.commit();
 
-      this.triggerTaskNotification(task.id, clientId, 'Task Assigned', userId).catch((err) => {
-        console.error(`Failed to trigger task created notification: ${err.message}`);
+      this.triggerTaskNotification(
+        task.id,
+        clientId,
+        'Task Assigned',
+        userId,
+      ).catch((err) => {
+        console.error(
+          `Failed to trigger task created notification: ${err.message}`,
+        );
       });
 
       this.eventEmitter.emit('task.created', {
@@ -390,7 +429,7 @@ export class TasksService {
         const priority = await this.priorityModel.findOne({
           where: {
             id: dto.priorityId,
-            [Op.or]: [{ clientId, companyId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }],
           },
         });
         if (!priority) throw new NotFoundException('Priority not found');
@@ -408,7 +447,7 @@ export class TasksService {
         const status = await this.statusModel.findOne({
           where: {
             id: dto.statusId,
-            [Op.or]: [{ clientId, companyId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }],
           },
         });
         if (!status) throw new NotFoundException('Status not found');
@@ -418,18 +457,19 @@ export class TasksService {
         const ownerUser = await this.userModel.findOne({
           where: {
             id: dto.ownerId,
-            [Op.or]: [{ clientId, companyId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }],
           },
           transaction,
         });
-        if (!ownerUser) throw new NotFoundException('Owner not found or invalid');
+        if (!ownerUser)
+          throw new NotFoundException('Owner not found or invalid');
       }
 
       if (dto.assigneeIds?.length) {
         const count = await this.userModel.count({
           where: {
             id: { [Op.in]: dto.assigneeIds },
-            [Op.or]: [{ clientId, companyId }, { clientId: null }]
+            [Op.or]: [{ clientId, companyId }, { clientId: null }],
           },
         });
         if (count !== dto.assigneeIds.length)
@@ -437,8 +477,12 @@ export class TasksService {
       }
 
       const updatePayload: any = { ...dto };
-      if (dto.startDate !== undefined) updatePayload.startDate = dto.startDate ? new Date(dto.startDate) : null;
-      if (dto.dueDate !== undefined) updatePayload.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+      if (dto.startDate !== undefined)
+        updatePayload.startDate = dto.startDate
+          ? new Date(dto.startDate)
+          : null;
+      if (dto.dueDate !== undefined)
+        updatePayload.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
 
       // 1. Calculate diffs and log
       await this.activityService.generateUpdateLogs(
@@ -472,22 +516,44 @@ export class TasksService {
 
       await transaction.commit();
 
-      const targetStatusId = dto.statusId !== undefined ? dto.statusId : oldTask.statusId;
+      const targetStatusId =
+        dto.statusId !== undefined ? dto.statusId : oldTask.statusId;
       if (targetStatusId) {
-        this.statusModel.findOne({
-          where: { id: targetStatusId, clientId },
-        }).then((statusObj) => {
-          const isCompleted = statusObj?.isCompleted || false;
-          const notificationTitle = isCompleted ? 'Task Completed' : 'Task Updated';
-          this.triggerTaskNotification(id, clientId, notificationTitle, userId).catch((err) => {
-            console.error(`Failed to trigger task updated notification: ${err.message}`);
+        this.statusModel
+          .findOne({
+            where: { id: targetStatusId, clientId },
+          })
+          .then((statusObj) => {
+            const isCompleted = statusObj?.isCompleted || false;
+            const notificationTitle = isCompleted
+              ? 'Task Completed'
+              : 'Task Updated';
+            this.triggerTaskNotification(
+              id,
+              clientId,
+              notificationTitle,
+              userId,
+            ).catch((err) => {
+              console.error(
+                `Failed to trigger task updated notification: ${err.message}`,
+              );
+            });
+          })
+          .catch((err) => {
+            console.error(
+              `Failed to query status model for notification: ${err.message}`,
+            );
           });
-        }).catch((err) => {
-          console.error(`Failed to query status model for notification: ${err.message}`);
-        });
       } else {
-        this.triggerTaskNotification(id, clientId, 'Task Updated', userId).catch((err) => {
-          console.error(`Failed to trigger task updated notification: ${err.message}`);
+        this.triggerTaskNotification(
+          id,
+          clientId,
+          'Task Updated',
+          userId,
+        ).catch((err) => {
+          console.error(
+            `Failed to trigger task updated notification: ${err.message}`,
+          );
         });
       }
 
@@ -499,7 +565,11 @@ export class TasksService {
         });
         const isParentTask = !oldTask.parentTaskId; // Only cascade from true parent tasks
         if (updatedStatus?.isCompleted && isParentTask) {
-          await this.subtaskService.cascadeStatusToSubtasks(id, clientId, dto.statusId);
+          await this.subtaskService.cascadeStatusToSubtasks(
+            id,
+            clientId,
+            dto.statusId,
+          );
         }
       }
 
@@ -525,7 +595,12 @@ export class TasksService {
   ) {
     const transaction = await this.sequelize.transaction();
     try {
-      const task = await this.taskRepo.findByIdAndClient(id, clientId, companyId, transaction);
+      const task = await this.taskRepo.findByIdAndClient(
+        id,
+        clientId,
+        companyId,
+        transaction,
+      );
       if (!task) throw new NotFoundException('Task not found');
 
       const isArchived = dto.isArchived ?? true;
@@ -553,7 +628,12 @@ export class TasksService {
 
       // ── CASCADE: Mirror archive state to all subtasks ─────────────────────
       if (!task.parentTaskId) {
-        await this.subtaskService.cascadeArchiveToSubtasks(id, clientId, isArchived, userId);
+        await this.subtaskService.cascadeArchiveToSubtasks(
+          id,
+          clientId,
+          isArchived,
+          userId,
+        );
       }
 
       this.eventEmitter.emit(isArchived ? 'task.archived' : 'task.unarchived', {
@@ -569,7 +649,12 @@ export class TasksService {
     }
   }
 
-  async delete(id: number, clientId: number, companyId: number, userId: number) {
+  async delete(
+    id: number,
+    clientId: number,
+    companyId: number,
+    userId: number,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       const task = await this.taskRepo.findByIdAndClient(
@@ -581,9 +666,13 @@ export class TasksService {
       if (!task) throw new NotFoundException('Task not found');
 
       // Deletion Restriction Check: Only the task owner (or creator if no owner is assigned) can delete the task.
-      const isOwner = task.ownerId ? task.ownerId === userId : task.createdById === userId;
+      const isOwner = task.ownerId
+        ? task.ownerId === userId
+        : task.createdById === userId;
       if (!isOwner) {
-        throw new ForbiddenException('Only the task owner is allowed to delete this task.');
+        throw new ForbiddenException(
+          'Only the task owner is allowed to delete this task.',
+        );
       }
 
       await this.taskRepo.softDelete(id, clientId, companyId, transaction);
@@ -604,8 +693,16 @@ export class TasksService {
 
       this.eventEmitter.emit('task.deleted', { taskId: id, clientId, userId });
 
-      this.triggerTaskNotification(id, clientId, 'Task Deleted', userId, task).catch((err) => {
-        console.error(`Failed to trigger task deleted notification: ${err.message}`);
+      this.triggerTaskNotification(
+        id,
+        clientId,
+        'Task Deleted',
+        userId,
+        task,
+      ).catch((err) => {
+        console.error(
+          `Failed to trigger task deleted notification: ${err.message}`,
+        );
       });
 
       return { success: true };
@@ -615,7 +712,12 @@ export class TasksService {
     }
   }
 
-  async restore(id: number, clientId: number, companyId: number, userId: number) {
+  async restore(
+    id: number,
+    clientId: number,
+    companyId: number,
+    userId: number,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       const task = await this.taskModel.findOne({
@@ -640,8 +742,16 @@ export class TasksService {
 
       this.eventEmitter.emit('task.restored', { taskId: id, clientId, userId });
 
-      this.triggerTaskNotification(id, clientId, 'Task Restored', userId, task).catch((err) => {
-        console.error(`Failed to trigger task restored notification: ${err.message}`);
+      this.triggerTaskNotification(
+        id,
+        clientId,
+        'Task Restored',
+        userId,
+        task,
+      ).catch((err) => {
+        console.error(
+          `Failed to trigger task restored notification: ${err.message}`,
+        );
       });
 
       return { success: true };
@@ -681,7 +791,11 @@ export class TasksService {
       const createdById = task.createdById;
       const assigneeIds = task.assignees?.map((a: any) => a.userId) || [];
       const recipients = Array.from(
-        new Set([ownerId, createdById, ...assigneeIds, actorId].filter((id): id is number => !!id)),
+        new Set(
+          [ownerId, createdById, ...assigneeIds, actorId].filter(
+            (id): id is number => !!id,
+          ),
+        ),
       );
 
       const statusName = task.status?.name || 'Open';
@@ -714,14 +828,23 @@ export class TasksService {
     }
   }
 
-  private buildBulkWhere(clientId: number, companyId: number, dto: any, userId?: number): any {
+  private buildBulkWhere(
+    clientId: number,
+    companyId: number,
+    dto: any,
+    userId?: number,
+  ): any {
     if (dto.selectAll) {
       const filters = { ...dto.filters };
       if (userId && (filters.userId === undefined || filters.userId === null)) {
         filters.userId = userId;
       }
-      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(clientId, companyId, filters);
-      
+      const { where, filterCompleted } = this.taskQueryRepo.buildWhereClause(
+        clientId,
+        companyId,
+        filters,
+      );
+
       if (dto.excludedIds && dto.excludedIds.length > 0) {
         where.id = { [Op.notIn]: dto.excludedIds };
       }
@@ -733,14 +856,14 @@ export class TasksService {
             this.sequelize.literal(`("Task"."statusId" IS NULL OR EXISTS (
               SELECT 1 FROM "task_statuses" AS "status"
               WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = false
-            ))`)
+            ))`),
           );
         } else {
           where[Op.and].push(
             this.sequelize.literal(`EXISTS (
               SELECT 1 FROM "task_statuses" AS "status"
               WHERE "status"."id" = "Task"."statusId" AND "status"."isCompleted" = true
-            )`)
+            )`),
           );
         }
       }
@@ -751,7 +874,7 @@ export class TasksService {
           this.sequelize.literal(`EXISTS (
             SELECT 1 FROM "task_assignees" AS "assignees"
             WHERE "assignees"."taskId" = "Task"."id" AND "assignees"."userId" IN (${dto.filters.assigneeIds.join(',')})
-          )`)
+          )`),
         );
       }
       return where;
@@ -759,23 +882,28 @@ export class TasksService {
       return {
         clientId,
         companyId,
-        id: { [Op.in]: dto.ids || [] }
+        id: { [Op.in]: dto.ids || [] },
       };
     }
   }
 
-  async bulkArchive(clientId: number, companyId: number, userId: number, dto: BulkArchiveDto) {
+  async bulkArchive(
+    clientId: number,
+    companyId: number,
+    userId: number,
+    dto: BulkArchiveDto,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       const where = this.buildBulkWhere(clientId, companyId, dto, userId);
-      
+
       const tasks = await this.taskModel.findAll({
         where,
         attributes: ['id', 'isArchived'],
         transaction,
       });
 
-      const matchedIds = tasks.map(t => t.id);
+      const matchedIds = tasks.map((t) => t.id);
       if (matchedIds.length === 0) {
         await transaction.commit();
         return { success: true, count: 0 };
@@ -791,7 +919,7 @@ export class TasksService {
         {
           where: { id: { [Op.in]: matchedIds }, clientId, companyId },
           transaction,
-        }
+        },
       );
 
       for (const id of matchedIds) {
@@ -812,25 +940,30 @@ export class TasksService {
     }
   }
 
-  async bulkChangeStatus(clientId: number, companyId: number, userId: number, dto: BulkStatusDto) {
+  async bulkChangeStatus(
+    clientId: number,
+    companyId: number,
+    userId: number,
+    dto: BulkStatusDto,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       const where = this.buildBulkWhere(clientId, companyId, dto, userId);
-      
+
       const tasks = await this.taskModel.findAll({
         where,
         attributes: ['id', 'statusId', 'version'],
         transaction,
       });
 
-      const matchedIds = tasks.map(t => t.id);
+      const matchedIds = tasks.map((t) => t.id);
       if (matchedIds.length === 0) {
         await transaction.commit();
         return { success: true, count: 0 };
       }
 
       if (dto.version !== undefined) {
-        const outOfSync = tasks.some(t => t.version !== dto.version);
+        const outOfSync = tasks.some((t) => t.version !== dto.version);
         if (outOfSync) {
           throw new ConflictException(
             'Some tasks were modified by another user. Please refresh and try again.',
@@ -852,7 +985,7 @@ export class TasksService {
         {
           where: { id: { [Op.in]: matchedIds }, clientId, companyId },
           transaction,
-        }
+        },
       );
 
       for (const id of matchedIds) {
@@ -873,11 +1006,16 @@ export class TasksService {
     }
   }
 
-  async bulkDelete(clientId: number, companyId: number, userId: number, dto: BulkActionDto) {
+  async bulkDelete(
+    clientId: number,
+    companyId: number,
+    userId: number,
+    dto: BulkActionDto,
+  ) {
     const transaction = await this.sequelize.transaction();
     try {
       const where = this.buildBulkWhere(clientId, companyId, dto, userId);
-      
+
       const tasks = await this.taskModel.findAll({
         where,
         attributes: ['id', 'ownerId', 'createdById', 'title'],
@@ -885,7 +1023,7 @@ export class TasksService {
         transaction,
       });
 
-      const matchedIds = tasks.map(t => t.id);
+      const matchedIds = tasks.map((t) => t.id);
       if (matchedIds.length === 0) {
         await transaction.commit();
         return { success: true, count: 0 };
@@ -909,8 +1047,16 @@ export class TasksService {
       await transaction.commit();
 
       for (const task of tasks) {
-        this.triggerTaskNotification(task.id, clientId, 'Task Deleted', userId, task).catch((err) => {
-          console.error(`Failed to trigger task deleted notification for task ${task.id}: ${err.message}`);
+        this.triggerTaskNotification(
+          task.id,
+          clientId,
+          'Task Deleted',
+          userId,
+          task,
+        ).catch((err) => {
+          console.error(
+            `Failed to trigger task deleted notification for task ${task.id}: ${err.message}`,
+          );
         });
       }
 

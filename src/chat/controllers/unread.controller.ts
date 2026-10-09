@@ -1,8 +1,4 @@
-import {
-  Controller,
-  Get,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { UnreadService } from '../services/unread.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -23,6 +19,9 @@ export class UnreadController {
   @Get('sidebar')
   @RequirePermission('chat:read')
   async getSidebarUnread(@CurrentUser() user: any) {
-    return this.unreadService.getSidebarUnreadBreakdown(user.id, user.companyId);
+    return this.unreadService.getSidebarUnreadBreakdown(
+      user.id,
+      user.companyId,
+    );
   }
 }

@@ -114,7 +114,9 @@ export class DesignationsService {
       SELECT * FROM desig_tree;
     `;
 
-    const subDesignations = await this.designationModel.sequelize.query<{ id: number }>(query, {
+    const subDesignations = await this.designationModel.sequelize.query<{
+      id: number;
+    }>(query, {
       replacements: { companyId, designationId },
       type: QueryTypes.SELECT,
     });

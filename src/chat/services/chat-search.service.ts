@@ -23,7 +23,12 @@ export class ChatSearchService {
     userType: string,
     dto: ChatSearchDto,
   ) {
-    const accessibleConversationIds = await this.searchProvider.getAccessibleConversationIds(userId, companyId, userType);
+    const accessibleConversationIds =
+      await this.searchProvider.getAccessibleConversationIds(
+        userId,
+        companyId,
+        userType,
+      );
 
     return this.searchProvider.searchMessages(
       companyId,
@@ -42,7 +47,12 @@ export class ChatSearchService {
     userType: string,
     query: string,
   ) {
-    return this.searchProvider.searchConversations(companyId, userId, userType, query);
+    return this.searchProvider.searchConversations(
+      companyId,
+      userId,
+      userType,
+      query,
+    );
   }
 
   /**
@@ -55,7 +65,12 @@ export class ChatSearchService {
     query?: string,
     mimeType?: string,
   ) {
-    const accessibleConversationIds = await this.searchProvider.getAccessibleConversationIds(userId, companyId, userType);
+    const accessibleConversationIds =
+      await this.searchProvider.getAccessibleConversationIds(
+        userId,
+        companyId,
+        userType,
+      );
 
     return this.searchProvider.searchAttachments(
       companyId,

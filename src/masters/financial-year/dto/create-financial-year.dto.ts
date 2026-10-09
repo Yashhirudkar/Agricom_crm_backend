@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsBoolean, IsOptional, IsDateString } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsBoolean,
+  IsOptional,
+  IsDateString,
+} from 'class-validator';
 
 export class CreateFinancialYearDto {
   @IsNotEmpty()

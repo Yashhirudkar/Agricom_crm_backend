@@ -107,8 +107,7 @@ export class WhatsAppAdminController {
    */
   private requireSuperAdmin(req: any): void {
     const isSuperAdmin =
-      req.user?.type === 'super_admin' ||
-      req.user?.role === 'super_admin';
+      req.user?.type === 'super_admin' || req.user?.role === 'super_admin';
 
     if (!isSuperAdmin) {
       throw new ForbiddenException(

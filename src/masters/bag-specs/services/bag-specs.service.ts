@@ -45,11 +45,14 @@ export class BagSpecsService {
     private readonly assignmentModel: typeof ProductBagAssignment,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
-  ) { }
+  ) {}
 
   // ─── BAG TYPES ────────────────────────────────────────────────────────────
 
-  async findAllBagTypes(isActive?: boolean, companyId?: number): Promise<BagType[]> {
+  async findAllBagTypes(
+    isActive?: boolean,
+    companyId?: number,
+  ): Promise<BagType[]> {
     const where: any = {};
     if (isActive !== undefined) where.isActive = isActive;
     if (companyId) where.companyId = companyId;
@@ -59,7 +62,10 @@ export class BagSpecsService {
     });
   }
 
-  async createBagType(dto: CreateBagTypeDto, companyId?: number): Promise<BagType> {
+  async createBagType(
+    dto: CreateBagTypeDto,
+    companyId?: number,
+  ): Promise<BagType> {
     const normalized = dto.name.trim().toUpperCase();
     const whereCondition: any = { name: normalized };
     if (companyId) whereCondition.companyId = companyId;
@@ -67,14 +73,20 @@ export class BagSpecsService {
       where: whereCondition,
     });
     if (existing) {
-      throw new BadRequestException(
-        `Bag Type '${normalized}' already exists`,
-      );
+      throw new BadRequestException(`Bag Type '${normalized}' already exists`);
     }
-    return this.bagTypeModel.create({ ...dto, name: normalized, companyId } as any);
+    return this.bagTypeModel.create({
+      ...dto,
+      name: normalized,
+      companyId,
+    });
   }
 
-  async updateBagType(id: number, dto: UpdateBagTypeDto, companyId?: number): Promise<BagType> {
+  async updateBagType(
+    id: number,
+    dto: UpdateBagTypeDto,
+    companyId?: number,
+  ): Promise<BagType> {
     const whereCondition: any = { id };
     if (companyId) whereCondition.companyId = companyId;
     const bagType = await this.bagTypeModel.findOne({ where: whereCondition });
@@ -117,7 +129,10 @@ export class BagSpecsService {
 
   // ─── PACKING TYPES ────────────────────────────────────────────────────────
 
-  async findAllPackingTypes(isActive?: boolean, companyId?: number): Promise<PackingType[]> {
+  async findAllPackingTypes(
+    isActive?: boolean,
+    companyId?: number,
+  ): Promise<PackingType[]> {
     const where: any = {};
     if (isActive !== undefined) where.isActive = isActive;
     if (companyId) where.companyId = companyId;
@@ -127,7 +142,10 @@ export class BagSpecsService {
     });
   }
 
-  async createPackingType(dto: CreatePackingTypeDto, companyId?: number): Promise<PackingType> {
+  async createPackingType(
+    dto: CreatePackingTypeDto,
+    companyId?: number,
+  ): Promise<PackingType> {
     const normalized = dto.name.trim().toUpperCase();
     const whereCondition: any = { name: normalized };
     if (companyId) whereCondition.companyId = companyId;
@@ -139,7 +157,11 @@ export class BagSpecsService {
         `Packing Type '${normalized}' already exists`,
       );
     }
-    return this.packingTypeModel.create({ ...dto, name: normalized, companyId } as any);
+    return this.packingTypeModel.create({
+      ...dto,
+      name: normalized,
+      companyId,
+    });
   }
 
   async updatePackingType(
@@ -149,7 +171,9 @@ export class BagSpecsService {
   ): Promise<PackingType> {
     const whereCondition: any = { id };
     if (companyId) whereCondition.companyId = companyId;
-    const packingType = await this.packingTypeModel.findOne({ where: whereCondition });
+    const packingType = await this.packingTypeModel.findOne({
+      where: whereCondition,
+    });
     if (!packingType) throw new NotFoundException('Packing Type not found');
 
     if (dto.name) {
@@ -174,7 +198,9 @@ export class BagSpecsService {
   async deletePackingType(id: number, companyId?: number): Promise<void> {
     const whereCondition: any = { id };
     if (companyId) whereCondition.companyId = companyId;
-    const packingType = await this.packingTypeModel.findOne({ where: whereCondition });
+    const packingType = await this.packingTypeModel.findOne({
+      where: whereCondition,
+    });
     if (!packingType) throw new NotFoundException('Packing Type not found');
 
     const count = await this.bagSpecModel.count({
@@ -192,7 +218,15 @@ export class BagSpecsService {
   // ─── BAG SPECIFICATIONS ───────────────────────────────────────────────────
 
   async findAllSpecs(query: QueryBagSpecDto & { companyId?: number }) {
-    const { search, bagTypeId, packingTypeId, isActive, page, limit, companyId } = query;
+    const {
+      search,
+      bagTypeId,
+      packingTypeId,
+      isActive,
+      page,
+      limit,
+      companyId,
+    } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {};
@@ -242,16 +276,23 @@ export class BagSpecsService {
     return spec;
   }
 
-  async createSpec(dto: CreateBagSpecDto, companyId?: number): Promise<BagSpecification> {
+  async createSpec(
+    dto: CreateBagSpecDto,
+    companyId?: number,
+  ): Promise<BagSpecification> {
     const bagTypeWhereCond: any = { id: dto.bagTypeId, isActive: true };
     if (companyId) bagTypeWhereCond.companyId = companyId;
     const bagType = await this.bagTypeModel.findOne({
       where: bagTypeWhereCond,
     });
-    if (!bagType) throw new BadRequestException('Bag Type not found or inactive');
+    if (!bagType)
+      throw new BadRequestException('Bag Type not found or inactive');
 
     if (dto.packingTypeId) {
-      const packingTypeWhereCond: any = { id: dto.packingTypeId, isActive: true };
+      const packingTypeWhereCond: any = {
+        id: dto.packingTypeId,
+        isActive: true,
+      };
       if (companyId) packingTypeWhereCond.companyId = companyId;
       const packingType = await this.packingTypeModel.findOne({
         where: packingTypeWhereCond,
@@ -260,7 +301,7 @@ export class BagSpecsService {
         throw new BadRequestException('Packing Type not found or inactive');
     }
 
-    const spec = await this.bagSpecModel.create({ ...dto, companyId } as any);
+    const spec = await this.bagSpecModel.create({ ...dto, companyId });
     return spec.reload({ include: BAG_SPEC_INCLUDE });
   }
 
@@ -280,11 +321,15 @@ export class BagSpecsService {
       const bagType = await this.bagTypeModel.findOne({
         where: bagTypeWhereCond,
       });
-      if (!bagType) throw new BadRequestException('Bag Type not found or inactive');
+      if (!bagType)
+        throw new BadRequestException('Bag Type not found or inactive');
     }
 
     if (dto.packingTypeId) {
-      const packingTypeWhereCond: any = { id: dto.packingTypeId, isActive: true };
+      const packingTypeWhereCond: any = {
+        id: dto.packingTypeId,
+        isActive: true,
+      };
       if (companyId) packingTypeWhereCond.companyId = companyId;
       const packingType = await this.packingTypeModel.findOne({
         where: packingTypeWhereCond,
@@ -308,7 +353,10 @@ export class BagSpecsService {
 
   // ─── PRODUCT PACKAGING ASSIGNMENTS ───────────────────────────────────────
 
-  async getProductPackaging(productId: number, companyId?: number): Promise<BagSpecification[]> {
+  async getProductPackaging(
+    productId: number,
+    companyId?: number,
+  ): Promise<BagSpecification[]> {
     const productWhere: any = { id: productId };
     if (companyId) productWhere.companyId = companyId;
     const product = await this.productModel.findOne({ where: productWhere });
@@ -363,7 +411,7 @@ export class BagSpecsService {
         bagSpecificationId,
         companyId,
       }));
-      await this.assignmentModel.bulkCreate(newAssignments as any, {
+      await this.assignmentModel.bulkCreate(newAssignments, {
         ignoreDuplicates: true,
       });
     }

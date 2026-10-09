@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateChargeMasterDto {
   @IsString()

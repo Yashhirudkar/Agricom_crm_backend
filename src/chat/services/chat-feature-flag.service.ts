@@ -11,7 +11,10 @@ export class ChatFeatureFlagService {
     private readonly flagRepository: typeof ChatFeatureFlag,
   ) {}
 
-  async isFeatureEnabled(companyId: number, featureKey: string): Promise<boolean> {
+  async isFeatureEnabled(
+    companyId: number,
+    featureKey: string,
+  ): Promise<boolean> {
     const flag = await this.flagRepository.findOne({
       where: { companyId, featureKey },
     });

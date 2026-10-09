@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Param,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, UseGuards } from '@nestjs/common';
 import { ChatPolicyService } from '../services/chat-policy.service';
 import { ChatFeatureFlagService } from '../services/chat-feature-flag.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -29,10 +22,7 @@ export class ChatPolicyController {
 
   @Put('policies')
   @RequirePermission('chat:moderate')
-  async updatePolicy(
-    @Body() dto: any,
-    @CurrentUser() user: any,
-  ) {
+  async updatePolicy(@Body() dto: any, @CurrentUser() user: any) {
     return this.policyService.updateCompanyPolicy(user.companyId, dto);
   }
 
@@ -49,6 +39,11 @@ export class ChatPolicyController {
     @Body() body: { isEnabled: boolean; description?: string },
     @CurrentUser() user: any,
   ) {
-    return this.flagService.setFeatureFlag(user.companyId, key, body.isEnabled, body.description);
+    return this.flagService.setFeatureFlag(
+      user.companyId,
+      key,
+      body.isEnabled,
+      body.description,
+    );
   }
 }

@@ -17,13 +17,27 @@ import { NotificationsModule } from '../../notifications/notifications.module';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Company, CompanyHrPolicy, AuditLog, User, AttendanceRecord]),
+    SequelizeModule.forFeature([
+      Company,
+      CompanyHrPolicy,
+      AuditLog,
+      User,
+      AttendanceRecord,
+    ]),
     RbacModule,
     AuditModule,
     NotificationsModule,
   ],
   controllers: [CompaniesController, CompanyHrPoliciesController],
-  providers: [CompaniesService, CompanyHrPoliciesService, AttendancePolicyEngineService],
-  exports: [CompaniesService, CompanyHrPoliciesService, AttendancePolicyEngineService],
+  providers: [
+    CompaniesService,
+    CompanyHrPoliciesService,
+    AttendancePolicyEngineService,
+  ],
+  exports: [
+    CompaniesService,
+    CompanyHrPoliciesService,
+    AttendancePolicyEngineService,
+  ],
 })
 export class CompaniesModule {}

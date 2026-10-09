@@ -99,26 +99,51 @@ export class QuotationService {
   ) {}
   private async validateForeignKeys(companyId: number, dto: any) {
     if (dto.buyerId) {
-      const buyer = await Partner.findOne({ where: { id: dto.buyerId, companyId } });
-      if (!buyer) throw new BadRequestException('Buyer not found or does not belong to company');
+      const buyer = await Partner.findOne({
+        where: { id: dto.buyerId, companyId },
+      });
+      if (!buyer)
+        throw new BadRequestException(
+          'Buyer not found or does not belong to company',
+        );
     }
     if (dto.importerId) {
-      const importer = await Partner.findOne({ where: { id: dto.importerId, companyId } });
-      if (!importer) throw new BadRequestException('Importer not found or does not belong to company');
+      const importer = await Partner.findOne({
+        where: { id: dto.importerId, companyId },
+      });
+      if (!importer)
+        throw new BadRequestException(
+          'Importer not found or does not belong to company',
+        );
     }
     if (dto.items && dto.items.length > 0) {
       for (const item of dto.items) {
         if (item.productId) {
-          const prod = await Product.findOne({ where: { id: item.productId, companyId } });
-          if (!prod) throw new BadRequestException('Product not found or does not belong to company');
+          const prod = await Product.findOne({
+            where: { id: item.productId, companyId },
+          });
+          if (!prod)
+            throw new BadRequestException(
+              'Product not found or does not belong to company',
+            );
         }
         if (item.packagingId) {
-          const bagType = await BagType.findOne({ where: { id: item.packagingId, companyId } });
-          if (!bagType) throw new BadRequestException('Packaging/Bag Type not found or does not belong to company');
+          const bagType = await BagType.findOne({
+            where: { id: item.packagingId, companyId },
+          });
+          if (!bagType)
+            throw new BadRequestException(
+              'Packaging/Bag Type not found or does not belong to company',
+            );
         }
         if (item.packingTypeId) {
-          const pack = await PackingType.findOne({ where: { id: item.packingTypeId, companyId } });
-          if (!pack) throw new BadRequestException('Packing Type not found or does not belong to company');
+          const pack = await PackingType.findOne({
+            where: { id: item.packingTypeId, companyId },
+          });
+          if (!pack)
+            throw new BadRequestException(
+              'Packing Type not found or does not belong to company',
+            );
         }
       }
     }
@@ -126,7 +151,11 @@ export class QuotationService {
 
   // ─── CREATE ───────────────────────────────────────────────────────────────
 
-  async create(dto: CreateQuotationDto, userId: number, companyId?: number): Promise<Quotation> {
+  async create(
+    dto: CreateQuotationDto,
+    userId: number,
+    companyId?: number,
+  ): Promise<Quotation> {
     if (companyId) {
       await this.validateForeignKeys(companyId, dto);
     }
@@ -155,7 +184,7 @@ export class QuotationService {
             generatedAt: new Date(),
             createdBy: userId,
             companyId: companyId ?? null,
-          } as any,
+          },
           { transaction: tx },
         );
 
@@ -171,7 +200,7 @@ export class QuotationService {
             purity: itemDto.purity ?? null,
             offeredPrice: itemDto.offeredPrice,
             sortOrder: 0,
-          } as any,
+          },
           { transaction: tx },
         );
 
@@ -187,7 +216,7 @@ export class QuotationService {
             ourResponse: null,
             createdBy: userId,
             isActive: true,
-          } as any,
+          },
           { transaction: tx },
         );
 
@@ -241,7 +270,11 @@ export class QuotationService {
 
   // ─── READ (SINGLE) ────────────────────────────────────────────────────────
 
-  async findOne(id: number, transaction?: Transaction, companyId?: number): Promise<Quotation> {
+  async findOne(
+    id: number,
+    transaction?: Transaction,
+    companyId?: number,
+  ): Promise<Quotation> {
     const where: any = { id, deletedAt: null };
     if (companyId) where.companyId = companyId;
     const quotation = await this.quotationModel.findOne({
@@ -284,7 +317,13 @@ export class QuotationService {
     }
 
     const allowedStatuses = [
-      'Draft', 'Generated', 'Sent', 'Accepted', 'Rejected', 'Expired', 'Cancelled',
+      'Draft',
+      'Generated',
+      'Sent',
+      'Accepted',
+      'Rejected',
+      'Expired',
+      'Cancelled',
     ];
     if (dto.status && !allowedStatuses.includes(dto.status)) {
       throw new BadRequestException(`Invalid status: ${dto.status}`);
@@ -292,7 +331,9 @@ export class QuotationService {
 
     await quotation.update({
       ...(dto.importerId !== undefined && { importerId: dto.importerId }),
-      ...(dto.destinationCountry && { destinationCountry: dto.destinationCountry }),
+      ...(dto.destinationCountry && {
+        destinationCountry: dto.destinationCountry,
+      }),
       ...(dto.currencyCode && { currencyCode: dto.currencyCode }),
       ...(dto.validUntil !== undefined && { validUntil: dto.validUntil }),
       ...(dto.status && { status: dto.status }),
@@ -305,7 +346,11 @@ export class QuotationService {
 
   // ─── SOFT DELETE ──────────────────────────────────────────────────────────
 
-  async softDelete(id: number, userId: number, companyId?: number): Promise<{ success: boolean; message: string }> {
+  async softDelete(
+    id: number,
+    userId: number,
+    companyId?: number,
+  ): Promise<{ success: boolean; message: string }> {
     const where: any = { id, deletedAt: null };
     if (companyId) where.companyId = companyId;
     const quotation = await this.quotationModel.findOne({ where });
@@ -322,6 +367,9 @@ export class QuotationService {
       lastModifiedAt: new Date(),
     });
 
-    return { success: true, message: `Quotation ${quotation.quotationNumber} cancelled and soft-deleted` };
+    return {
+      success: true,
+      message: `Quotation ${quotation.quotationNumber} cancelled and soft-deleted`,
+    };
   }
 }

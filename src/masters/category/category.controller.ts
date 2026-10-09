@@ -42,14 +42,17 @@ export class CategoryController {
     const result = await this.categoryService.findAll({
       ...query,
       companyId: req.user?.companyId,
-    } as any);
+    });
     return result;
   }
 
   @Get(':id')
   @RequirePermission('category:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    const category = await this.categoryService.findOne(id, req.user?.companyId);
+    const category = await this.categoryService.findOne(
+      id,
+      req.user?.companyId,
+    );
     return category;
   }
 

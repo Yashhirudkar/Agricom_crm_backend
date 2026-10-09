@@ -1,3 +1,4 @@
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -16,6 +17,7 @@ import {
 } from 'sequelize-typescript';
 import { Partner } from '../../masters/partner/partner.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
+import { User } from '../../users/models/user.model';
 
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
@@ -37,7 +39,7 @@ import { PurchaseContract } from '../../purchase-contracts/models/purchase-contr
     { fields: ['financial_year'] },
   ],
 })
-export class SalesContract extends Model<SalesContract> {
+export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -242,9 +244,13 @@ export class SalesContract extends Model<SalesContract> {
   @Column({ type: DataType.STRING(20) })
   declare status: string;
 
+  @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
+
+  @BelongsTo(() => User, { foreignKey: 'createdBy', as: 'contractCreator' })
+  declare contractCreator: User;
 
   @AllowNull(true)
   @Column({ field: 'updated_by', type: DataType.INTEGER })

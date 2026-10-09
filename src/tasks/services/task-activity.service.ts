@@ -8,7 +8,6 @@ import { Transaction } from 'sequelize';
 export class TaskActivityService {
   constructor(private readonly activityRepo: TaskActivityRepository) {}
 
-
   /**
    * Compares old and new task states to generate field-level diff logs.
    */

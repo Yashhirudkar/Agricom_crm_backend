@@ -20,17 +20,17 @@ export enum NotificationChannel {
  *  4. Call send() from the feature service
  */
 export enum NotificationTemplate {
-  NEW_ENQUIRY          = 'NEW_ENQUIRY',
-  ENQUIRY_UPDATED      = 'ENQUIRY_UPDATED',
-  NEW_QUOTATION        = 'NEW_QUOTATION',           // future
-  NEW_PURCHASE_CONTRACT = 'NEW_PURCHASE_CONTRACT',  // future
-  NEW_SALES_CONTRACT   = 'NEW_SALES_CONTRACT',      // future
-  NEW_SHIPMENT         = 'NEW_SHIPMENT',            // future
-  CARGO_AVAILABLE      = 'CARGO_AVAILABLE',         // future
-  PAYMENT_RECEIVED     = 'PAYMENT_RECEIVED',        // future
-  ATTENDANCE_ALERT     = 'ATTENDANCE_ALERT',        // future
-  FOLLOW_UP_DUE        = 'FOLLOW_UP_DUE',           // future
-  TEST_MESSAGE         = 'TEST_MESSAGE',
+  NEW_ENQUIRY = 'NEW_ENQUIRY',
+  ENQUIRY_UPDATED = 'ENQUIRY_UPDATED',
+  NEW_QUOTATION = 'NEW_QUOTATION', // future
+  NEW_PURCHASE_CONTRACT = 'NEW_PURCHASE_CONTRACT', // future
+  NEW_SALES_CONTRACT = 'NEW_SALES_CONTRACT', // future
+  NEW_SHIPMENT = 'NEW_SHIPMENT', // future
+  CARGO_AVAILABLE = 'CARGO_AVAILABLE', // future
+  PAYMENT_RECEIVED = 'PAYMENT_RECEIVED', // future
+  ATTENDANCE_ALERT = 'ATTENDANCE_ALERT', // future
+  FOLLOW_UP_DUE = 'FOLLOW_UP_DUE', // future
+  TEST_MESSAGE = 'TEST_MESSAGE',
 }
 
 /**
@@ -44,7 +44,7 @@ export enum NotificationTemplate {
  */
 export enum NotificationRecipient {
   /** Default group for sales enquiries / quotations */
-  SALES_GROUP      = 'SALES_GROUP',
+  SALES_GROUP = 'SALES_GROUP',
   /** Future: management / executive group */
   MANAGEMENT_GROUP = 'MANAGEMENT_GROUP',
   // Add more groups here as needed
@@ -66,8 +66,8 @@ export enum NotificationRecipient {
  * ```
  */
 export interface NotificationSendOptions {
-  channel:   NotificationChannel;
-  template:  NotificationTemplate;
+  channel: NotificationChannel;
+  template: NotificationTemplate;
 
   /**
    * Symbolic recipient name (resolved to JID/email by dispatch service).

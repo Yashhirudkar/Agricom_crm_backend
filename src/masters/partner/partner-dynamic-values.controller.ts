@@ -19,9 +19,7 @@ import { AuditLog } from '../../audit/decorators/audit-log.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/partners/:partnerId/additional-info')
 export class PartnerDynamicValuesController {
-  constructor(
-    private readonly valuesService: PartnerDynamicValuesService,
-  ) {}
+  constructor(private readonly valuesService: PartnerDynamicValuesService) {}
 
   /**
    * GET /masters/partners/:partnerId/additional-info
@@ -60,9 +58,7 @@ export class PartnerDynamicValuesController {
     'purchase-contract:view',
     'purchase-contract:read',
   )
-  async getAdditionalInfo(
-    @Param('partnerId', ParseIntPipe) partnerId: number,
-  ) {
+  async getAdditionalInfo(@Param('partnerId', ParseIntPipe) partnerId: number) {
     return this.valuesService.getAdditionalInfo(partnerId);
   }
 

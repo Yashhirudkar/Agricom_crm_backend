@@ -86,7 +86,10 @@ export class UnreadService {
   /**
    * Get user total aggregated unread badges across all company channels
    */
-  async getUserTotalUnread(userId: number, companyId: number): Promise<{
+  async getUserTotalUnread(
+    userId: number,
+    companyId: number,
+  ): Promise<{
     totalUnreadMessages: number;
     totalUnreadMentions: number;
     totalUnreadThreads: number;
@@ -102,7 +105,11 @@ export class UnreadService {
           attributes: ['id'],
         },
       ],
-      attributes: ['unreadMessagesCount', 'unreadMentionsCount', 'unreadThreadsCount'],
+      attributes: [
+        'unreadMessagesCount',
+        'unreadMentionsCount',
+        'unreadThreadsCount',
+      ],
     });
 
     let totalUnreadMessages = 0;
@@ -134,7 +141,14 @@ export class UnreadService {
           model: Conversation,
           as: 'conversation',
           where: { companyId, isArchived: false },
-          attributes: ['id', 'name', 'type', 'entityType', 'entityId', 'updatedAt'],
+          attributes: [
+            'id',
+            'name',
+            'type',
+            'entityType',
+            'entityId',
+            'updatedAt',
+          ],
         },
       ],
       attributes: [

@@ -19,7 +19,11 @@ import { Company } from '../../companies/models/company.model';
 @Table({
   tableName: 'partner_followups',
   timestamps: true,
-  indexes: [{ fields: ['partner_id'] }, { fields: ['status'] }, { fields: ['followup_date'] }],
+  indexes: [
+    { fields: ['partner_id'] },
+    { fields: ['status'] },
+    { fields: ['followup_date'] },
+  ],
 })
 export class PartnerFollowUp extends Model<PartnerFollowUp> {
   @ForeignKey(() => Company)

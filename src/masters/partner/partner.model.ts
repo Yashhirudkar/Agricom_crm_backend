@@ -74,7 +74,10 @@ export class Partner extends Model<Partner> {
   @HasMany(() => PartnerFollowUp, { onDelete: 'CASCADE', hooks: true })
   declare followUps: PartnerFollowUp[];
 
-  @HasMany(() => PartnerDnbReport, { foreignKey: 'partnerId', as: 'dnbReports' })
+  @HasMany(() => PartnerDnbReport, {
+    foreignKey: 'partnerId',
+    as: 'dnbReports',
+  })
   declare dnbReports: PartnerDnbReport[];
 
   @HasOne(() => PartnerDnbReport, {

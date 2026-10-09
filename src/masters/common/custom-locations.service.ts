@@ -34,7 +34,8 @@ export class CustomLocationsService {
 
     if (!countryCode) throw new BadRequestException('countryCode is required');
     if (!stateName) throw new BadRequestException('stateName is required');
-    if (stateName.length > 150) throw new BadRequestException('State name too long (max 150 chars)');
+    if (stateName.length > 150)
+      throw new BadRequestException('State name too long (max 150 chars)');
 
     // Case-insensitive duplicate check
     const existing = await this.customStateModel.findOne({
@@ -44,19 +45,24 @@ export class CustomLocationsService {
       },
     });
     if (existing) {
-      throw new BadRequestException(`State "${stateName}" already exists for this country`);
+      throw new BadRequestException(
+        `State "${stateName}" already exists for this country`,
+      );
     }
 
     return this.customStateModel.create({
       countryCode,
       countryName,
       stateName,
-    } as any);
+    });
   }
 
   // ─── Cities ────────────────────────────────────────────────────────────────
 
-  async getCustomCities(countryCode: string, stateName: string): Promise<CustomCity[]> {
+  async getCustomCities(
+    countryCode: string,
+    stateName: string,
+  ): Promise<CustomCity[]> {
     if (!countryCode?.trim() || !stateName?.trim()) return [];
     return this.customCityModel.findAll({
       where: {
@@ -81,7 +87,8 @@ export class CustomLocationsService {
     if (!countryCode) throw new BadRequestException('countryCode is required');
     if (!stateName) throw new BadRequestException('stateName is required');
     if (!cityName) throw new BadRequestException('cityName is required');
-    if (cityName.length > 150) throw new BadRequestException('City name too long (max 150 chars)');
+    if (cityName.length > 150)
+      throw new BadRequestException('City name too long (max 150 chars)');
 
     // Case-insensitive duplicate check
     const existing = await this.customCityModel.findOne({
@@ -92,7 +99,9 @@ export class CustomLocationsService {
       },
     });
     if (existing) {
-      throw new BadRequestException(`City "${cityName}" already exists in ${stateName}`);
+      throw new BadRequestException(
+        `City "${cityName}" already exists in ${stateName}`,
+      );
     }
 
     return this.customCityModel.create({
@@ -100,6 +109,6 @@ export class CustomLocationsService {
       countryName,
       stateName,
       cityName,
-    } as any);
+    });
   }
 }

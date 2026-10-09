@@ -17,10 +17,7 @@ import { Company } from '../../companies/models/company.model';
 @Table({
   tableName: 'enquiry_destinations',
   timestamps: true,
-  indexes: [
-    { fields: ['enquiry_id'] },
-    { fields: ['company_id'] },
-  ],
+  indexes: [{ fields: ['enquiry_id'] }, { fields: ['company_id'] }],
 })
 export class EnquiryDestination extends Model<EnquiryDestination> {
   @PrimaryKey

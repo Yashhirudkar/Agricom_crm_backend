@@ -147,11 +147,19 @@ export class AttendanceReportService {
       for (const dStr of requiredDates) {
         if (!recordDates.has(dStr)) {
           const matchedLeave = (activeLeaves as any[]).find((l: any) => {
-            const fromStr = typeof l.fromDate === 'string' ? l.fromDate.split('T')[0] : new Date(l.fromDate).toISOString().split('T')[0];
-            const toStr = typeof l.toDate === 'string' ? l.toDate.split('T')[0] : new Date(l.toDate).toISOString().split('T')[0];
+            const fromStr =
+              typeof l.fromDate === 'string'
+                ? l.fromDate.split('T')[0]
+                : new Date(l.fromDate).toISOString().split('T')[0];
+            const toStr =
+              typeof l.toDate === 'string'
+                ? l.toDate.split('T')[0]
+                : new Date(l.toDate).toISOString().split('T')[0];
             return fromStr <= dStr && toStr >= dStr;
           });
-          const status = matchedLeave?.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+          const status = matchedLeave?.isHalfDay
+            ? AttendanceStatus.HALF_DAY
+            : AttendanceStatus.ON_LEAVE;
 
           const transientRecord = this.recordModel.build({
             employeeId,
@@ -164,7 +172,7 @@ export class AttendanceReportService {
             lateMinutes: 0,
             shiftId: null,
             logs: [],
-          } as any);
+          });
           mergedRecords.push(transientRecord);
         }
       }
@@ -236,7 +244,9 @@ export class AttendanceReportService {
 
       for (const leave of activeLeaves) {
         if (!recordEmpIds.has(leave.employeeId)) {
-          const status = leave.isHalfDay ? AttendanceStatus.HALF_DAY : AttendanceStatus.ON_LEAVE;
+          const status = leave.isHalfDay
+            ? AttendanceStatus.HALF_DAY
+            : AttendanceStatus.ON_LEAVE;
           const transientRecord = this.recordModel.build({
             employeeId: leave.employeeId,
             companyId,
@@ -248,7 +258,7 @@ export class AttendanceReportService {
             lateMinutes: 0,
             shiftId: null,
             employee: leave.employee,
-          } as any);
+          });
           mergedRecords.push(transientRecord);
         }
       }
@@ -279,7 +289,13 @@ export class AttendanceReportService {
   // 10. Monthly Attendance Report
   async getMonthlyReport(
     companyId: number,
-    query: { month: number; year: number; employeeId?: number; page?: number; limit?: number },
+    query: {
+      month: number;
+      year: number;
+      employeeId?: number;
+      page?: number;
+      limit?: number;
+    },
   ): Promise<any> {
     // Pagination support
     const page = query.page ? parseInt(query.page as any, 10) : undefined;

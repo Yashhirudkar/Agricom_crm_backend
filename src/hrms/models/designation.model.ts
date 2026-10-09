@@ -63,10 +63,11 @@ export class Designation extends Model<Designation> {
   @Column({ type: DataType.INTEGER, onDelete: 'CASCADE' })
   declare parentDesignationId: number;
 
-  @BelongsTo(() => Designation, { foreignKey: 'parentDesignationId', onDelete: 'CASCADE' })
+  @BelongsTo(() => Designation, {
+    foreignKey: 'parentDesignationId',
+    onDelete: 'CASCADE',
+  })
   declare parentDesignation: Designation;
-
-
 
   @AllowNull(true)
   @Column({ type: DataType.DECIMAL(10, 2) })
@@ -112,7 +113,11 @@ export class Designation extends Model<Designation> {
   @UpdatedAt
   declare updatedAt: Date;
 
-  @HasMany(() => Designation, { foreignKey: 'parentDesignationId', onDelete: 'CASCADE', hooks: true })
+  @HasMany(() => Designation, {
+    foreignKey: 'parentDesignationId',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
   declare subDesignations: Designation[];
 
   @HasMany(() => Employee, { onDelete: 'CASCADE', hooks: true })

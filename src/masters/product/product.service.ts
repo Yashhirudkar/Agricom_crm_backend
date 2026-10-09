@@ -71,7 +71,8 @@ export class ProductService implements OnModuleInit {
   }
 
   async findAll(query: QueryProductDto & { companyId?: number }) {
-    const { search, isActive, categoryId, country, hsCode, page, limit } = query;
+    const { search, isActive, categoryId, country, hsCode, page, limit } =
+      query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
@@ -89,7 +90,13 @@ export class ProductService implements OnModuleInit {
     if (country) {
       const cTrim = country.trim();
       const cLower = cTrim.toLowerCase();
-      if (cLower === 'china' || cLower.includes('people') || cLower.includes('republic of china') || cLower === 'cn' || cLower === 'chn') {
+      if (
+        cLower === 'china' ||
+        cLower.includes('people') ||
+        cLower.includes('republic of china') ||
+        cLower === 'cn' ||
+        cLower === 'chn'
+      ) {
         whereClause[Op.or] = [
           { country: { [Op.iLike]: '%China%' } },
           { country: { [Op.iLike]: '%People%Republic of China%' } },
@@ -143,7 +150,11 @@ export class ProductService implements OnModuleInit {
     return product;
   }
 
-  async update(id: number, dto: UpdateProductDto, user?: any): Promise<Product> {
+  async update(
+    id: number,
+    dto: UpdateProductDto,
+    user?: any,
+  ): Promise<Product> {
     const product = await this.findOneActive(id, user?.companyId);
 
     if (dto.name) {

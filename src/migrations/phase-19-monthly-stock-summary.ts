@@ -10,10 +10,19 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'monthly_stock_summaries',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       month: { type: DataTypes.INTEGER, allowNull: false }, // 1 = Jan, 12 = Dec
       year: { type: DataTypes.INTEGER, allowNull: false },
-      status: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'Draft' },
+      status: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Draft',
+      },
       company_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -46,17 +55,26 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE UNIQUE INDEX IF NOT EXISTS idx_monthly_stock_summary_month_year_company 
     ON monthly_stock_summaries (company_id, month, year) 
     WHERE deleted_at IS NULL;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // 2. Create monthly_stock_summary_countries Relational Bridge Table
   await queryInterface.createTable(
     'monthly_stock_summary_countries',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       summary_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -71,9 +89,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     { ifNotExists: true } as any,
   );
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_mss_countries_summary_id ON monthly_stock_summary_countries (summary_id);
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
   // 3. Seed Sidebar Item under Logistics Folder
   const [logisticsFolder]: any = await sequelize.query(`
@@ -146,130 +168,204 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }
   }
 
-  console.log('✅ Phase 19 - Monthly Stock Summary Module created and seeded successfully');
+  console.log(
+    '✅ Phase 19 - Monthly Stock Summary Module created and seeded successfully',
+  );
 
   // --- From Phase 20 ---
-  await queryInterface.createTable(
-    'monthly_stock_sections',
-    {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      monthly_stock_summary_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'monthly_stock_summaries', key: 'id' },
-        onDelete: 'CASCADE',
+  await queryInterface
+    .createTable(
+      'monthly_stock_sections',
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false,
+        },
+        monthly_stock_summary_id: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: { model: 'monthly_stock_summaries', key: 'id' },
+          onDelete: 'CASCADE',
+        },
+        section_name: { type: DataTypes.STRING(255), allowNull: false },
+        display_order: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+        },
+        created_at: { type: DataTypes.DATE, allowNull: false },
+        updated_at: { type: DataTypes.DATE, allowNull: false },
+        deleted_at: { type: DataTypes.DATE, allowNull: true },
       },
-      section_name: { type: DataTypes.STRING(255), allowNull: false },
-      display_order: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-      created_at: { type: DataTypes.DATE, allowNull: false },
-      updated_at: { type: DataTypes.DATE, allowNull: false },
-      deleted_at: { type: DataTypes.DATE, allowNull: true },
-    },
-    { ifNotExists: true } as any,
-  ).catch(() => {});
+      { ifNotExists: true } as any,
+    )
+    .catch(() => {});
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_mss_sections_summary_id 
     ON monthly_stock_sections (monthly_stock_summary_id);
     ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_x INT DEFAULT 0;
     ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_y INT DEFAULT 0;
     ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_width INT DEFAULT 12;
     ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_height INT DEFAULT 1;
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
-  await queryInterface.createTable(
-    'monthly_stock_section_columns',
-    {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      section_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'monthly_stock_sections', key: 'id' },
-        onDelete: 'CASCADE',
+  await queryInterface
+    .createTable(
+      'monthly_stock_section_columns',
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false,
+        },
+        section_id: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: { model: 'monthly_stock_sections', key: 'id' },
+          onDelete: 'CASCADE',
+        },
+        column_name: { type: DataTypes.STRING(255), allowNull: false },
+        column_key: { type: DataTypes.STRING(100), allowNull: false },
+        display_order: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+        },
+        created_at: { type: DataTypes.DATE, allowNull: false },
+        updated_at: { type: DataTypes.DATE, allowNull: false },
       },
-      column_name: { type: DataTypes.STRING(255), allowNull: false },
-      column_key: { type: DataTypes.STRING(100), allowNull: false },
-      display_order: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-      created_at: { type: DataTypes.DATE, allowNull: false },
-      updated_at: { type: DataTypes.DATE, allowNull: false },
-    },
-    { ifNotExists: true } as any,
-  ).catch(() => {});
+      { ifNotExists: true } as any,
+    )
+    .catch(() => {});
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_mss_columns_section_id 
     ON monthly_stock_section_columns (section_id);
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
-  await queryInterface.createTable(
-    'monthly_stock_section_rows',
-    {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      section_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'monthly_stock_sections', key: 'id' },
-        onDelete: 'CASCADE',
+  await queryInterface
+    .createTable(
+      'monthly_stock_section_rows',
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false,
+        },
+        section_id: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: { model: 'monthly_stock_sections', key: 'id' },
+          onDelete: 'CASCADE',
+        },
+        row_order: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          defaultValue: 0,
+        },
+        is_total_row: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        created_at: { type: DataTypes.DATE, allowNull: false },
+        updated_at: { type: DataTypes.DATE, allowNull: false },
+        deleted_at: { type: DataTypes.DATE, allowNull: true },
       },
-      row_order: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-      is_total_row: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-      created_at: { type: DataTypes.DATE, allowNull: false },
-      updated_at: { type: DataTypes.DATE, allowNull: false },
-      deleted_at: { type: DataTypes.DATE, allowNull: true },
-    },
-    { ifNotExists: true } as any,
-  ).catch(() => {});
+      { ifNotExists: true } as any,
+    )
+    .catch(() => {});
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE INDEX IF NOT EXISTS idx_mss_rows_section_id 
     ON monthly_stock_section_rows (section_id);
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 
-  await queryInterface.createTable(
-    'monthly_stock_row_cells',
-    {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-      row_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'monthly_stock_section_rows', key: 'id' },
-        onDelete: 'CASCADE',
+  await queryInterface
+    .createTable(
+      'monthly_stock_row_cells',
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          primaryKey: true,
+          autoIncrement: true,
+          allowNull: false,
+        },
+        row_id: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: { model: 'monthly_stock_section_rows', key: 'id' },
+          onDelete: 'CASCADE',
+        },
+        column_id: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: { model: 'monthly_stock_section_columns', key: 'id' },
+          onDelete: 'CASCADE',
+        },
+        value: { type: DataTypes.TEXT, allowNull: true },
+        created_at: { type: DataTypes.DATE, allowNull: false },
+        updated_at: { type: DataTypes.DATE, allowNull: false },
       },
-      column_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: 'monthly_stock_section_columns', key: 'id' },
-        onDelete: 'CASCADE',
-      },
-      value: { type: DataTypes.TEXT, allowNull: true },
-      created_at: { type: DataTypes.DATE, allowNull: false },
-      updated_at: { type: DataTypes.DATE, allowNull: false },
-    },
-    { ifNotExists: true } as any,
-  ).catch(() => {});
+      { ifNotExists: true } as any,
+    )
+    .catch(() => {});
 
-  await sequelize.query(`
+  await sequelize
+    .query(
+      `
     CREATE UNIQUE INDEX IF NOT EXISTS idx_mss_row_column_unique 
     ON monthly_stock_row_cells (row_id, column_id);
-  `).catch(() => { });
+  `,
+    )
+    .catch(() => {});
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const sequelize = queryInterface.sequelize;
 
   // Cleanup Sidebar Access & Items
-  await sequelize.query(`DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/logistics/monthly-stock-summary');`).catch(() => { });
-  await sequelize.query(`DELETE FROM sidebar_items WHERE route = '/logistics/monthly-stock-summary';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/logistics/monthly-stock-summary');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM sidebar_items WHERE route = '/logistics/monthly-stock-summary';`,
+    )
+    .catch(() => {});
 
   // Drop Tables
-  await queryInterface.dropTable('monthly_stock_summary_countries').catch(() => { });
-  await queryInterface.dropTable('monthly_stock_summaries').catch(() => { });
+  await queryInterface
+    .dropTable('monthly_stock_summary_countries')
+    .catch(() => {});
+  await queryInterface.dropTable('monthly_stock_summaries').catch(() => {});
 
   // --- From Phase 20 ---
-  await queryInterface.dropTable('monthly_stock_row_cells').catch(() => { });
-  await queryInterface.dropTable('monthly_stock_section_rows').catch(() => { });
-  await queryInterface.dropTable('monthly_stock_section_columns').catch(() => { });
-  await queryInterface.dropTable('monthly_stock_sections').catch(() => { });
+  await queryInterface.dropTable('monthly_stock_row_cells').catch(() => {});
+  await queryInterface.dropTable('monthly_stock_section_rows').catch(() => {});
+  await queryInterface
+    .dropTable('monthly_stock_section_columns')
+    .catch(() => {});
+  await queryInterface.dropTable('monthly_stock_sections').catch(() => {});
 
   console.log('✅ Phase 19 - Monthly Stock Summary Module reverted');
 }

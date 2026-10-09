@@ -17,7 +17,10 @@ import {
   COMPANY_SIZES,
 } from '../../constants/company-options';
 import { NotificationDispatchService } from '../../notifications/services/notification-dispatch.service';
-import { NotificationChannel, NotificationTemplate } from '../../notifications/notification.types';
+import {
+  NotificationChannel,
+  NotificationTemplate,
+} from '../../notifications/notification.types';
 
 @Injectable()
 export class CompaniesService {
@@ -86,7 +89,7 @@ export class CompaniesService {
       establishedYear: data.establishedYear ?? null,
       isActive: data.isActive !== undefined ? data.isActive : true,
       status: 'Active',
-      
+
       ...(actor?.type === 'super_admin' && {
         whatsappEnabled: data.whatsappEnabled ?? false,
         whatsappGroupId: data.whatsappGroupId ?? null,
@@ -175,11 +178,22 @@ export class CompaniesService {
       }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
       ...(data.status !== undefined && { status: data.status }),
-      
-      ...(actor?.type === 'super_admin' && data.whatsappEnabled !== undefined && { whatsappEnabled: data.whatsappEnabled }),
-      ...(actor?.type === 'super_admin' && data.whatsappGroupId !== undefined && { whatsappGroupId: data.whatsappGroupId }),
-      ...(actor?.type === 'super_admin' && data.whatsappGroupName !== undefined && { whatsappGroupName: data.whatsappGroupName }),
-      ...(data.displayOrder !== undefined && { displayOrder: data.displayOrder }),
+
+      ...(actor?.type === 'super_admin' &&
+        data.whatsappEnabled !== undefined && {
+          whatsappEnabled: data.whatsappEnabled,
+        }),
+      ...(actor?.type === 'super_admin' &&
+        data.whatsappGroupId !== undefined && {
+          whatsappGroupId: data.whatsappGroupId,
+        }),
+      ...(actor?.type === 'super_admin' &&
+        data.whatsappGroupName !== undefined && {
+          whatsappGroupName: data.whatsappGroupName,
+        }),
+      ...(data.displayOrder !== undefined && {
+        displayOrder: data.displayOrder,
+      }),
     });
 
     const updated = await company.reload();
@@ -277,7 +291,10 @@ export class CompaniesService {
         { model: Client, attributes: ['id', 'name'] },
         { model: User, attributes: ['id', 'name', 'email'] },
       ],
-      order: [[sortField, sortOrder], ['id', 'DESC']],
+      order: [
+        [sortField, sortOrder],
+        ['id', 'DESC'],
+      ],
       distinct: true,
     };
 
@@ -350,7 +367,10 @@ export class CompaniesService {
       attributes: ['id', 'name'],
       limit: parsedLimit,
       offset: (parsedPage - 1) * parsedLimit,
-      order: [['displayOrder', 'ASC'], ['name', 'ASC']],
+      order: [
+        ['displayOrder', 'ASC'],
+        ['name', 'ASC'],
+      ],
     });
 
     return {
@@ -369,7 +389,9 @@ export class CompaniesService {
   async sendTestMessage(id: number, clientId: number | null) {
     const company = await this.getCompanyById(id, clientId);
     if (!company.whatsappEnabled) {
-      throw new ConflictException('WhatsApp notifications are disabled for this company');
+      throw new ConflictException(
+        'WhatsApp notifications are disabled for this company',
+      );
     }
 
     await this.notificationDispatchService.send({
@@ -381,6 +403,9 @@ export class CompaniesService {
       },
     });
 
-    return { success: true, message: 'Test message requested. Check notification logs for status.' };
+    return {
+      success: true,
+      message: 'Test message requested. Check notification logs for status.',
+    };
   }
 }

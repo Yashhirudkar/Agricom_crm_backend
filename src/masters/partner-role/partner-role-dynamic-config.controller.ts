@@ -64,9 +64,7 @@ export class PartnerRoleDynamicConfigController {
    */
   @Get()
   @RequirePermission('partner_dynamic_schema:view')
-  async getActiveConfig(
-    @Param('roleId', ParseIntPipe) roleId: number,
-  ) {
+  async getActiveConfig(@Param('roleId', ParseIntPipe) roleId: number) {
     return this.configService.getActiveConfig(roleId);
   }
 

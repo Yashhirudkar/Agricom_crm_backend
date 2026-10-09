@@ -28,12 +28,22 @@ const ALL_WORLD_CURRENCIES = [
   { code: 'AFN', name: 'Afghan Afghani', symbol: '؋', isActive: false },
   { code: 'ALL', name: 'Albanian Lek', symbol: 'L', isActive: false },
   { code: 'AMD', name: 'Armenian Dram', symbol: '֏', isActive: false },
-  { code: 'ANG', name: 'Netherlands Antillean Guilder', symbol: 'ƒ', isActive: false },
+  {
+    code: 'ANG',
+    name: 'Netherlands Antillean Guilder',
+    symbol: 'ƒ',
+    isActive: false,
+  },
   { code: 'AOA', name: 'Angolan Kwanza', symbol: 'Kz', isActive: false },
   { code: 'ARS', name: 'Argentine Peso', symbol: '$', isActive: false },
   { code: 'AWG', name: 'Aruban Florin', symbol: 'ƒ', isActive: false },
   { code: 'AZN', name: 'Azerbaijani Manat', symbol: '₼', isActive: false },
-  { code: 'BAM', name: 'Bosnia-Herzegovina Convertible Mark', symbol: 'KM', isActive: false },
+  {
+    code: 'BAM',
+    name: 'Bosnia-Herzegovina Convertible Mark',
+    symbol: 'KM',
+    isActive: false,
+  },
   { code: 'BBD', name: 'Barbadian Dollar', symbol: '$', isActive: false },
   { code: 'BDT', name: 'Bangladeshi Taka', symbol: '৳', isActive: false },
   { code: 'BGN', name: 'Bulgarian Lev', symbol: 'лв', isActive: false },
@@ -140,7 +150,12 @@ const ALL_WORLD_CURRENCIES = [
   { code: 'SOS', name: 'Somali Shilling', symbol: 'S', isActive: false },
   { code: 'SRD', name: 'Surinamese Dollar', symbol: '$', isActive: false },
   { code: 'SSP', name: 'South Sudanese Pound', symbol: '£', isActive: false },
-  { code: 'STN', name: 'São Tomé & Príncipe Dobra', symbol: 'Db', isActive: false },
+  {
+    code: 'STN',
+    name: 'São Tomé & Príncipe Dobra',
+    symbol: 'Db',
+    isActive: false,
+  },
   { code: 'SYP', name: 'Syrian Pound', symbol: '£', isActive: false },
   { code: 'SZL', name: 'Swazi Lilangeni', symbol: 'L', isActive: false },
   { code: 'THB', name: 'Thai Baht', symbol: '฿', isActive: false },
@@ -149,7 +164,12 @@ const ALL_WORLD_CURRENCIES = [
   { code: 'TND', name: 'Tunisian Dinar', symbol: 'د.ت', isActive: false },
   { code: 'TOP', name: 'Tongan Paʻanga', symbol: 'T$', isActive: false },
   { code: 'TRY', name: 'Turkish Lira', symbol: '₺', isActive: false },
-  { code: 'TTD', name: 'Trinidad & Tobago Dollar', symbol: '$', isActive: false },
+  {
+    code: 'TTD',
+    name: 'Trinidad & Tobago Dollar',
+    symbol: '$',
+    isActive: false,
+  },
   { code: 'TWD', name: 'New Taiwan Dollar', symbol: 'NT$', isActive: false },
   { code: 'TZS', name: 'Tanzanian Shilling', symbol: 'TSh', isActive: false },
   { code: 'UAH', name: 'Ukrainian Hryvnia', symbol: '₴', isActive: false },
@@ -160,9 +180,19 @@ const ALL_WORLD_CURRENCIES = [
   { code: 'VND', name: 'Vietnamese Dong', symbol: '₫', isActive: false },
   { code: 'VUV', name: 'Vanuatu Vatu', symbol: 'VT', isActive: false },
   { code: 'WST', name: 'Samoan Tala', symbol: 'WS$', isActive: false },
-  { code: 'XAF', name: 'Central African CFA Franc', symbol: 'FCFA', isActive: false },
+  {
+    code: 'XAF',
+    name: 'Central African CFA Franc',
+    symbol: 'FCFA',
+    isActive: false,
+  },
   { code: 'XCD', name: 'East Caribbean Dollar', symbol: '$', isActive: false },
-  { code: 'XOF', name: 'West African CFA Franc', symbol: 'CFA', isActive: false },
+  {
+    code: 'XOF',
+    name: 'West African CFA Franc',
+    symbol: 'CFA',
+    isActive: false,
+  },
   { code: 'XPF', name: 'CFP Franc', symbol: '₣', isActive: false },
   { code: 'YER', name: 'Yemeni Rial', symbol: '﷼', isActive: false },
   { code: 'ZAR', name: 'South African Rand', symbol: 'R', isActive: false },
@@ -183,9 +213,11 @@ export class CurrencyService implements OnModuleInit {
     try {
       await this.model.sync({ alter: true });
       this.logger.log('Syncing all world currencies into database...');
-      
+
       for (const curr of ALL_WORLD_CURRENCIES) {
-        const existing = await this.model.findOne({ where: { code: curr.code } });
+        const existing = await this.model.findOne({
+          where: { code: curr.code },
+        });
         if (!existing) {
           await this.model.create({
             code: curr.code,
@@ -193,7 +225,7 @@ export class CurrencyService implements OnModuleInit {
             symbol: curr.symbol,
             isActive: curr.isActive,
             status: curr.isActive ? 'Active' : 'Inactive',
-          } as any);
+          });
         }
       }
       this.logger.log('All world currencies seeded/verified.');
@@ -206,10 +238,13 @@ export class CurrencyService implements OnModuleInit {
     const codeUpper = dto.code.toUpperCase().trim();
     const existing = await this.model.findOne({ where: { code: codeUpper } });
     if (existing) {
-      throw new BadRequestException(`Currency code "${codeUpper}" already exists.`);
+      throw new BadRequestException(
+        `Currency code "${codeUpper}" already exists.`,
+      );
     }
 
-    const isActive = dto.isActive !== undefined ? dto.isActive : dto.status !== 'Inactive';
+    const isActive =
+      dto.isActive !== undefined ? dto.isActive : dto.status !== 'Inactive';
     const status = isActive ? 'Active' : 'Inactive';
 
     return await this.model.create({
@@ -219,7 +254,7 @@ export class CurrencyService implements OnModuleInit {
       symbol: dto.symbol || codeUpper,
       isActive,
       status,
-    } as any);
+    });
   }
 
   async findAll(query: QueryCurrencyDto) {
@@ -266,7 +301,11 @@ export class CurrencyService implements OnModuleInit {
     return currency;
   }
 
-  async update(id: number, dto: UpdateCurrencyDto, user?: any): Promise<Currency> {
+  async update(
+    id: number,
+    dto: UpdateCurrencyDto,
+    user?: any,
+  ): Promise<Currency> {
     const currency = await this.findOne(id);
 
     const updateData: any = { ...dto };

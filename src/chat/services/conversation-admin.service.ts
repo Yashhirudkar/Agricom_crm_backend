@@ -53,7 +53,11 @@ export class ConversationAdminService {
   async createLabel(
     companyId: number,
     userId: number,
-    dto: { name: string; color?: string; scope?: 'GLOBAL' | 'COMPANY' | 'PERSONAL' },
+    dto: {
+      name: string;
+      color?: string;
+      scope?: 'GLOBAL' | 'COMPANY' | 'PERSONAL';
+    },
   ): Promise<ConversationLabel> {
     const scope = dto.scope || 'COMPANY';
     return this.labelRepository.create({
@@ -68,7 +72,10 @@ export class ConversationAdminService {
   /**
    * Get accessible labels for user (Company + Personal)
    */
-  async getLabels(companyId: number, userId: number): Promise<ConversationLabel[]> {
+  async getLabels(
+    companyId: number,
+    userId: number,
+  ): Promise<ConversationLabel[]> {
     return this.labelRepository.findAll({
       where: {
         [Op.or]: [
@@ -103,7 +110,9 @@ export class ConversationAdminService {
   /**
    * Get all labels attached to conversation
    */
-  async getConversationLabels(conversationId: number): Promise<ConversationLabel[]> {
+  async getConversationLabels(
+    conversationId: number,
+  ): Promise<ConversationLabel[]> {
     const maps = await this.labelMapRepository.findAll({
       where: { conversationId },
       include: [{ model: ConversationLabel, as: 'label' }],
@@ -129,7 +138,9 @@ export class ConversationAdminService {
     });
     const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN];
     if (!member || !allowedRoles.includes(member.role)) {
-      throw new ForbiddenException('Only channel owner or admins can freeze conversation');
+      throw new ForbiddenException(
+        'Only channel owner or admins can freeze conversation',
+      );
     }
 
     conv.isLocked = isFrozen;
@@ -147,7 +158,12 @@ export class ConversationAdminService {
 
     this.eventEmitter.emit(
       ChatEventNames.CONVERSATION_FROZEN,
-      new ConversationFrozenEvent(conversationId, actor.companyId, isFrozen, actor.id),
+      new ConversationFrozenEvent(
+        conversationId,
+        actor.companyId,
+        isFrozen,
+        actor.id,
+      ),
     );
 
     return { success: true, isFrozen };
@@ -172,7 +188,9 @@ export class ConversationAdminService {
       where: { conversationId, userId: newOwnerUserId },
     });
     if (!targetMember) {
-      throw new BadRequestException('Target user is not a member of this conversation');
+      throw new BadRequestException(
+        'Target user is not a member of this conversation',
+      );
     }
 
     await this.sequelize.transaction(async (t) => {
@@ -222,7 +240,7 @@ export class ConversationAdminService {
       joinedAt: new Date(),
     }));
 
-    await this.memberRepository.bulkCreate(rows as any);
+    await this.memberRepository.bulkCreate(rows);
 
     const addedUsers = await this.userRepository.findAll({
       where: { id: { [Op.in]: toAddIds } },
@@ -238,7 +256,10 @@ export class ConversationAdminService {
     for (const uId of toAddIds) {
       this.eventEmitter.emit(
         ChatEventNames.MEMBER_ADDED,
-        new MemberAddedEvent(conversationId, actor.companyId, { userId: uId, role }),
+        new MemberAddedEvent(conversationId, actor.companyId, {
+          userId: uId,
+          role,
+        }),
       );
 
       const addedUser = addedUsers.find((u) => u.id === uId);
@@ -260,7 +281,7 @@ export class ConversationAdminService {
         isEdited: false,
         version: 1,
         isDeleted: false,
-      } as any);
+      });
 
       this.eventEmitter.emit(
         ChatEventNames.MESSAGE_CREATED,
@@ -270,7 +291,7 @@ export class ConversationAdminService {
 
     await this.conversationRepository.update(
       { updatedAt: new Date() },
-      { where: { id: conversationId } }
+      { where: { id: conversationId } },
     );
 
     return { addedCount: toAddIds.length, userIds: toAddIds };

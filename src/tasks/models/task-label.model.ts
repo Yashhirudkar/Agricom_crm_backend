@@ -12,13 +12,11 @@ import {
 import { Client } from '../../clients/models/client.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_labels',
   timestamps: true,
 })
 export class TaskLabel extends Model<TaskLabel> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

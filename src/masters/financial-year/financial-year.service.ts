@@ -80,7 +80,11 @@ export class FinancialYearService {
     return item;
   }
 
-  async update(id: number, dto: UpdateFinancialYearDto, user: any): Promise<FinancialYear> {
+  async update(
+    id: number,
+    dto: UpdateFinancialYearDto,
+    user: any,
+  ): Promise<FinancialYear> {
     const item = await this.findOne(id, user?.companyId);
 
     if (dto.year) {

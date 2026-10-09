@@ -35,7 +35,6 @@ import { extname } from 'path';
 export class LeaveRequestsController {
   constructor(private readonly leaveRequestsService: LeaveRequestsService) {}
 
-
   private getActor(req: any) {
     const userPermissions = req.userPermissions || new Set();
     const permissionsArray = Array.from(userPermissions);
@@ -81,7 +80,8 @@ export class LeaveRequestsController {
     }
 
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     const employeeId = req.user.employeeId;
 
@@ -104,7 +104,8 @@ export class LeaveRequestsController {
   @RequirePermission('leave:approve')
   getLeaveRequests(@Query() query: GetLeaveRequestsFilterDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.leaveRequestsService.getLeaveRequests(companyId, query);
   }
 
@@ -112,7 +113,8 @@ export class LeaveRequestsController {
   @RequirePermission('leave:create')
   async getMyLeaves(@Query() query: GetLeaveRequestsFilterDto, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const employeeId = req.user.employeeId;
 
     if (!employeeId) {
@@ -128,7 +130,8 @@ export class LeaveRequestsController {
   @RequirePermission('leave:create')
   async getDashboardSummary(@Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const employeeId = req.user.employeeId;
 
     if (!employeeId) {
@@ -146,11 +149,20 @@ export class LeaveRequestsController {
   @Get('monthly-summary')
   @RequirePermission('leave:approve')
   async getMonthlyLeaveSummary(
-    @Query() query: { month?: string; year?: number; departmentId?: number; branchId?: number; page?: number; limit?: number },
+    @Query()
+    query: {
+      month?: string;
+      year?: number;
+      departmentId?: number;
+      branchId?: number;
+      page?: number;
+      limit?: number;
+    },
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.leaveRequestsService.getMonthlyLeaveSummary(companyId, query);
   }
 
@@ -166,7 +178,8 @@ export class LeaveRequestsController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const tab = query.tab ?? 'PENDING';
     const cursor = query.cursor;
     const limit = query.limit;
@@ -186,7 +199,8 @@ export class LeaveRequestsController {
   @RequirePermission('leave:approve')
   async getManagerSummaryStats(@Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.leaveRequestsService.getManagerSummaryStats(companyId);
   }
 
@@ -194,7 +208,8 @@ export class LeaveRequestsController {
   @RequirePermission('leave:read')
   getLeaveRequestById(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     return this.leaveRequestsService.getLeaveRequestById(id, companyId);
   }
 
@@ -206,7 +221,8 @@ export class LeaveRequestsController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
@@ -241,7 +257,8 @@ export class LeaveRequestsController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     let approverId = req.user.employeeId;
 
@@ -276,7 +293,8 @@ export class LeaveRequestsController {
     @Request() req,
   ) {
     const companyId = req.user.companyId;
-    if (!companyId) throw new BadRequestException('Company context is required');
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
     const actor = this.getActor(req);
     let employeeId = req.user.employeeId;
 

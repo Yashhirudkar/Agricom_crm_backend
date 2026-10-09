@@ -17,7 +17,11 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { ConversationGuard } from '../guards/conversation.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
-import { AddMemberDto, UpdateMemberRoleDto, MuteMemberDto } from '../dto/chat.dto';
+import {
+  AddMemberDto,
+  UpdateMemberRoleDto,
+  MuteMemberDto,
+} from '../dto/chat.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard, ConversationGuard)
 @Controller('conversations/:conversationId/members')
@@ -64,7 +68,12 @@ export class MemberController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    await this.memberService.removeMember(conversationId, companyId, userId, actor);
+    await this.memberService.removeMember(
+      conversationId,
+      companyId,
+      userId,
+      actor,
+    );
   }
 
   @Put(':userId/role')
@@ -77,7 +86,13 @@ export class MemberController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.memberService.updateRole(conversationId, companyId, userId, dto, actor);
+    return this.memberService.updateRole(
+      conversationId,
+      companyId,
+      userId,
+      dto,
+      actor,
+    );
   }
 
   @Post(':userId/mute')
@@ -90,7 +105,13 @@ export class MemberController {
   ) {
     const companyId = this.getCompanyId(req);
     const actor = this.getActor(req);
-    return this.memberService.muteMember(conversationId, companyId, userId, dto, actor);
+    return this.memberService.muteMember(
+      conversationId,
+      companyId,
+      userId,
+      dto,
+      actor,
+    );
   }
 
   // ── Per-user conversation pin/unpin (sidebar ordering) ────────────────────
@@ -112,7 +133,6 @@ export class MemberController {
   ) {
     return this.memberService.unpinConversation(conversationId, userId);
   }
-
 
   // ── Per-user notification mute/unmute toggle ──
 
@@ -146,4 +166,3 @@ export class MemberController {
     return this.memberService.unfavoriteConversation(conversationId, userId);
   }
 }
-

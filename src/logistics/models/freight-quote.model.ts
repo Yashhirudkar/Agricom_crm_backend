@@ -1,4 +1,5 @@
 // Freight Quote Details Model
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -29,7 +30,7 @@ import { FreightRoute } from './freight-route.model';
   timestamps: true,
   paranoid: true,
 })
-export class FreightQuote extends Model<FreightQuote> {
+export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -260,4 +261,8 @@ export class FreightQuote extends Model<FreightQuote> {
       Number(this.additionalCharges || 0)
     );
   }
+
+  @AllowNull(true)
+  @Column({ field: 'shipment_sequence', type: DataType.INTEGER })
+  declare shipmentSequence: number;
 }

@@ -1,3 +1,4 @@
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -20,7 +21,7 @@ import { Company } from '../../companies/models/company.model';
   tableName: 'sales_contract_shipments',
   timestamps: true,
 })
-export class SalesContractShipment extends Model<SalesContractShipment> {
+export class SalesContractShipment extends BusinessReferenceEntity<SalesContractShipment> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -104,4 +105,8 @@ export class SalesContractShipment extends Model<SalesContractShipment> {
   @UpdatedAt
   @Column({ field: 'updated_at' })
   declare updatedAt: Date;
+
+  @AllowNull(true)
+  @Column({ field: 'shipment_sequence', type: DataType.INTEGER })
+  declare shipmentSequence: number;
 }

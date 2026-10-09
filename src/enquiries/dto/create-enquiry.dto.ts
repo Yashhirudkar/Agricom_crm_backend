@@ -10,7 +10,11 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EnquiryPurity, EnquiryShipmentType, EnquiryShipmentMode } from '../enquiry.constants';
+import {
+  EnquiryPurity,
+  EnquiryShipmentType,
+  EnquiryShipmentMode,
+} from '../enquiry.constants';
 
 export class CreateEnquiryDto {
   @IsInt()
@@ -127,4 +131,3 @@ export class CreateEnquiryDto {
   @IsString()
   note?: string;
 }
-

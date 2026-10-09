@@ -258,13 +258,17 @@ export class AttendanceService {
 
       try {
         const [yearStr, monthStr] = freshRecord.date.split('-');
-        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
-          companyId,
-          employeeId,
-          parseInt(yearStr),
-          parseInt(monthStr),
+        const monthlyReportData =
+          await this.summaryService.getEmployeeMonthlySummary(
+            companyId,
+            employeeId,
+            parseInt(yearStr),
+            parseInt(monthStr),
+          );
+        this.attendanceGateway.emitCheckedIn(
+          freshRecord,
+          monthlyReportData.summary,
         );
-        this.attendanceGateway.emitCheckedIn(freshRecord, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkIn:', err);
       }
@@ -365,13 +369,14 @@ export class AttendanceService {
           log.actionType === AttendanceActionType.BREAK_END &&
           breakStart
         ) {
-          breakDurationMs += new Date(log.timestamp).getTime() - breakStart.getTime();
+          breakDurationMs +=
+            new Date(log.timestamp).getTime() - breakStart.getTime();
           breakStart = null;
         }
       }
 
       // Calculate total work from CURRENT checkInTime to avoid stale sessions
-      let totalWorkMs = checkOutTime.getTime() - checkInTime.getTime();
+      const totalWorkMs = checkOutTime.getTime() - checkInTime.getTime();
 
       if (breakStart) {
         // Log auto break end if checked out during break
@@ -388,8 +393,6 @@ export class AttendanceService {
         );
       }
 
-
-
       // Fetch policy details
       const policy = await this.policyModel.findOne({
         where: { companyId },
@@ -403,18 +406,19 @@ export class AttendanceService {
         });
       }
 
-      const evalResult = await this.policyEngineService.evaluateAttendanceStatus(
-        employeeId,
-        companyId,
-        record.date,
-        record.checkInTime,
-        checkOutTime,
-        shift,
-        policy,
-        logs,
-        timezone,
-        t,
-      );
+      const evalResult =
+        await this.policyEngineService.evaluateAttendanceStatus(
+          employeeId,
+          companyId,
+          record.date,
+          record.checkInTime,
+          checkOutTime,
+          shift,
+          policy,
+          logs,
+          timezone,
+          t,
+        );
 
       let finalStatus = evalResult.attendanceStatus;
       const totalHours = evalResult.netWorkingHours;
@@ -474,13 +478,17 @@ export class AttendanceService {
 
       try {
         const [yearStr, monthStr] = record.date.split('-');
-        const monthlyReportData = await this.summaryService.getEmployeeMonthlySummary(
-          companyId,
-          employeeId,
-          parseInt(yearStr),
-          parseInt(monthStr),
+        const monthlyReportData =
+          await this.summaryService.getEmployeeMonthlySummary(
+            companyId,
+            employeeId,
+            parseInt(yearStr),
+            parseInt(monthStr),
+          );
+        this.attendanceGateway.emitCheckedOut(
+          record,
+          monthlyReportData.summary,
         );
-        this.attendanceGateway.emitCheckedOut(record, monthlyReportData.summary);
       } catch (err) {
         console.error('Socket emit error in checkOut:', err);
       }
@@ -594,7 +602,13 @@ export class AttendanceService {
   // 10. Monthly Attendance Report
   async getMonthlyReport(
     companyId: number,
-    query: { month: number; year: number; employeeId?: number; page?: number; limit?: number },
+    query: {
+      month: number;
+      year: number;
+      employeeId?: number;
+      page?: number;
+      limit?: number;
+    },
   ): Promise<any> {
     return this.reportService.getMonthlyReport(companyId, query);
   }

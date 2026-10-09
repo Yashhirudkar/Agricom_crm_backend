@@ -62,9 +62,15 @@ export class MessageExtraService {
     const member = await this.memberRepository.findOne({
       where: { conversationId, userId: actor.id },
     });
-    const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR];
+    const allowedRoles = [
+      MemberRole.OWNER,
+      MemberRole.ADMIN,
+      MemberRole.MODERATOR,
+    ];
     if (!member || !allowedRoles.includes(member.role)) {
-      throw new ForbiddenException('Only channel admins or moderators can pin messages');
+      throw new ForbiddenException(
+        'Only channel admins or moderators can pin messages',
+      );
     }
 
     await this.sequelize.transaction(async (t) => {
@@ -93,7 +99,13 @@ export class MessageExtraService {
     // Emit Domain Event
     this.eventEmitter.emit(
       ChatEventNames.MESSAGE_PINNED,
-      new MessagePinnedEvent(conversationId, actor.companyId, messageId, actor.id, true),
+      new MessagePinnedEvent(
+        conversationId,
+        actor.companyId,
+        messageId,
+        actor.id,
+        true,
+      ),
     );
 
     return { message: 'Message pinned successfully', messageId };
@@ -110,9 +122,15 @@ export class MessageExtraService {
     const member = await this.memberRepository.findOne({
       where: { conversationId, userId: actor.id },
     });
-    const allowedRoles = [MemberRole.OWNER, MemberRole.ADMIN, MemberRole.MODERATOR];
+    const allowedRoles = [
+      MemberRole.OWNER,
+      MemberRole.ADMIN,
+      MemberRole.MODERATOR,
+    ];
     if (!member || !allowedRoles.includes(member.role)) {
-      throw new ForbiddenException('Only channel admins or moderators can unpin messages');
+      throw new ForbiddenException(
+        'Only channel admins or moderators can unpin messages',
+      );
     }
 
     await this.sequelize.transaction(async (t) => {
@@ -135,7 +153,13 @@ export class MessageExtraService {
     // Emit Domain Event
     this.eventEmitter.emit(
       ChatEventNames.MESSAGE_PINNED,
-      new MessagePinnedEvent(conversationId, actor.companyId, messageId, actor.id, false),
+      new MessagePinnedEvent(
+        conversationId,
+        actor.companyId,
+        messageId,
+        actor.id,
+        false,
+      ),
     );
 
     return { message: 'Message unpinned successfully', messageId };
@@ -182,7 +206,11 @@ export class MessageExtraService {
     readState.isStarred = true;
     await readState.save();
 
-    return { message: 'Message starred successfully', messageId, isStarred: true };
+    return {
+      message: 'Message starred successfully',
+      messageId,
+      isStarred: true,
+    };
   }
 
   /**
@@ -198,7 +226,11 @@ export class MessageExtraService {
       await readState.save();
     }
 
-    return { message: 'Message unstarred successfully', messageId, isStarred: false };
+    return {
+      message: 'Message unstarred successfully',
+      messageId,
+      isStarred: false,
+    };
   }
 
   /**
@@ -214,7 +246,11 @@ export class MessageExtraService {
           include: [
             { model: User, as: 'sender', attributes: ['id', 'name', 'email'] },
             { model: MessageAttachment, as: 'attachments' },
-            { model: Conversation, as: 'conversation', attributes: ['id', 'name', 'type', 'companyId'] },
+            {
+              model: Conversation,
+              as: 'conversation',
+              attributes: ['id', 'name', 'type', 'companyId'],
+            },
           ],
         },
       ],
@@ -223,7 +259,12 @@ export class MessageExtraService {
 
     // Filter by company isolation
     return starredStates
-      .filter((s) => s.message && s.message.conversation && s.message.conversation.companyId === companyId)
+      .filter(
+        (s) =>
+          s.message &&
+          s.message.conversation &&
+          s.message.conversation.companyId === companyId,
+      )
       .map((s) => s.message);
   }
 
@@ -233,7 +274,12 @@ export class MessageExtraService {
   async saveDraft(conversationId: number, userId: number, dto: SaveDraftDto) {
     const [draft] = await this.draftRepository.findOrCreate({
       where: { conversationId, userId },
-      defaults: { conversationId, userId, content: dto.content, payload: dto.payload } as any,
+      defaults: {
+        conversationId,
+        userId,
+        content: dto.content,
+        payload: dto.payload,
+      } as any,
     });
 
     draft.content = dto.content || null;

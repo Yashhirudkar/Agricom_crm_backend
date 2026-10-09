@@ -10,7 +10,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'purchase_contracts',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       sales_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -108,7 +113,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'purchase_contract_shipments',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       purchase_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -139,7 +149,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'purchase_contract_required_documents',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       purchase_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -175,7 +190,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'purchase_contract_activities',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       purchase_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -204,7 +224,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
   await queryInterface.createTable(
     'purchase_contract_attachments',
     {
-      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
       purchase_contract_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -217,7 +242,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         references: { model: 'attachments', key: 'id' },
         onDelete: 'CASCADE',
       },
-      category: { type: DataTypes.STRING(100), allowNull: false, defaultValue: 'general' },
+      category: {
+        type: DataTypes.STRING(100),
+        allowNull: false,
+        defaultValue: 'general',
+      },
       uploaded_by: { type: DataTypes.INTEGER, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false },
       updated_at: { type: DataTypes.DATE, allowNull: false },
@@ -262,11 +291,14 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       { replacements: { targetModuleId, targetResourceId } },
     );
   } else {
-    const [insertResourceRes]: any = await sequelize.query(`
+    const [insertResourceRes]: any = await sequelize.query(
+      `
       INSERT INTO module_resources (name, display_name, sort_order, module_id, "createdAt", "updatedAt")
       VALUES ('purchase-contracts', 'Purchase Contracts', 0, :targetModuleId, NOW(), NOW())
       RETURNING id;
-    `, { replacements: { targetModuleId } });
+    `,
+      { replacements: { targetModuleId } },
+    );
     targetResourceId = insertResourceRes[0].id;
   }
 
@@ -300,7 +332,13 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         `INSERT INTO resource_actions (name, display_name, sort_order, resource_id, "createdAt", "updatedAt")
          VALUES (:actionName, :actionName, :sortOrder, :targetResourceId, NOW(), NOW())
          RETURNING id;`,
-        { replacements: { actionName: act.name, sortOrder: act.sort, targetResourceId } },
+        {
+          replacements: {
+            actionName: act.name,
+            sortOrder: act.sort,
+            targetResourceId,
+          },
+        },
       );
       actionId = insertRes[0].id;
     }
@@ -309,7 +347,10 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
   // ─── 8. Grant Role Permissions (Roles 1 & 2) ─────────────────────────────────
   for (const roleId of [1, 2]) {
-    const [roleExists]: any = await sequelize.query(`SELECT id FROM roles WHERE id = :roleId;`, { replacements: { roleId } });
+    const [roleExists]: any = await sequelize.query(
+      `SELECT id FROM roles WHERE id = :roleId;`,
+      { replacements: { roleId } },
+    );
     if (roleExists.length === 0) continue;
 
     for (const actionId of pcActionIds) {
@@ -405,39 +446,93 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     }
   }
 
-  console.log('✅ Phase 11 - Purchase Contract Module created and seeded successfully');
+  console.log(
+    '✅ Phase 11 - Purchase Contract Module created and seeded successfully',
+  );
 }
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const sequelize = queryInterface.sequelize;
 
-  await sequelize.query(`DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/sales/purchase-contracts');`).catch(() => { });
-  await sequelize.query(`DELETE FROM sidebar_items WHERE route = '/sales/purchase-contracts';`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts'));`).catch(() => { });
-  await sequelize.query(`DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts');`).catch(() => { });
-  await sequelize.query(`DELETE FROM module_resources WHERE name = 'purchase-contracts';`).catch(() => { });
-  await sequelize.query(`DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Purchase Contracts');`).catch(() => { });
-  await sequelize.query(`DELETE FROM app_modules WHERE name = 'Purchase Contracts';`).catch(() => { });
+  await sequelize
+    .query(
+      `DELETE FROM client_item_access WHERE item_id IN (SELECT id FROM sidebar_items WHERE route = '/sales/purchase-contracts');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM sidebar_items WHERE route = '/sales/purchase-contracts';`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM client_action_access WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM role_action_permissions WHERE resource_action_id IN (SELECT id FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts'));`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM resource_actions WHERE resource_id IN (SELECT id FROM module_resources WHERE name = 'purchase-contracts');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM module_resources WHERE name = 'purchase-contracts';`)
+    .catch(() => {});
+  await sequelize
+    .query(
+      `DELETE FROM client_module_access WHERE module_id IN (SELECT id FROM app_modules WHERE name = 'Purchase Contracts');`,
+    )
+    .catch(() => {});
+  await sequelize
+    .query(`DELETE FROM app_modules WHERE name = 'Purchase Contracts';`)
+    .catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pca_attachment_id;`).catch(() => { });
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pca_contract_id;`).catch(() => { });
-  await queryInterface.dropTable('purchase_contract_attachments').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pca_attachment_id;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pca_contract_id;`)
+    .catch(() => {});
+  await queryInterface
+    .dropTable('purchase_contract_attachments')
+    .catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pc_activities_created_at;`).catch(() => { });
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pc_activities_contract_id;`).catch(() => { });
-  await queryInterface.dropTable('purchase_contract_activities').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pc_activities_created_at;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pc_activities_contract_id;`)
+    .catch(() => {});
+  await queryInterface
+    .dropTable('purchase_contract_activities')
+    .catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pc_required_docs_unique;`).catch(() => { });
-  await queryInterface.dropTable('purchase_contract_required_documents').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pc_required_docs_unique;`)
+    .catch(() => {});
+  await queryInterface
+    .dropTable('purchase_contract_required_documents')
+    .catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pc_shipments_unique;`).catch(() => { });
-  await sequelize.query(`DROP INDEX IF EXISTS idx_pc_shipments_shipment_id;`).catch(() => { });
-  await queryInterface.dropTable('purchase_contract_shipments').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pc_shipments_unique;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_pc_shipments_shipment_id;`)
+    .catch(() => {});
+  await queryInterface.dropTable('purchase_contract_shipments').catch(() => {});
 
-  await sequelize.query(`DROP INDEX IF EXISTS idx_purchase_contracts_status;`).catch(() => { });
-  await sequelize.query(`DROP INDEX IF EXISTS idx_purchase_contracts_sales_contract_id;`).catch(() => { });
-  await queryInterface.dropTable('purchase_contracts').catch(() => { });
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_purchase_contracts_status;`)
+    .catch(() => {});
+  await sequelize
+    .query(`DROP INDEX IF EXISTS idx_purchase_contracts_sales_contract_id;`)
+    .catch(() => {});
+  await queryInterface.dropTable('purchase_contracts').catch(() => {});
 
   console.log('✅ Phase 11 - Purchase Contract Module dropped');
 }

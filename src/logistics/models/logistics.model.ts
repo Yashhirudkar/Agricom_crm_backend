@@ -1,4 +1,5 @@
 // Logistics & Freight Header Model
+import { BusinessReferenceEntity } from '../../system/models/business-reference.entity';
 import {
   Table,
   Column,
@@ -26,7 +27,7 @@ import { Company } from '../../companies/models/company.model';
   timestamps: true,
   paranoid: true,
 })
-export class Logistics extends Model<Logistics> {
+export class Logistics extends BusinessReferenceEntity<Logistics> {
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })
@@ -72,7 +73,10 @@ export class Logistics extends Model<Logistics> {
   @Column({ field: 'selected_freight_id', type: DataType.INTEGER })
   declare selectedFreightId: number;
 
-  @BelongsTo(() => FreightQuote, { foreignKey: 'selectedFreightId', constraints: false })
+  @BelongsTo(() => FreightQuote, {
+    foreignKey: 'selectedFreightId',
+    constraints: false,
+  })
   declare selectedFreight: FreightQuote;
 
   @AllowNull(true)
@@ -128,4 +132,8 @@ export class Logistics extends Model<Logistics> {
 
   @HasMany(() => SalesContractShipment)
   declare shipments: SalesContractShipment[];
+
+  @AllowNull(true)
+  @Column({ field: 'shipment_sequence', type: DataType.INTEGER })
+  declare shipmentSequence: number;
 }

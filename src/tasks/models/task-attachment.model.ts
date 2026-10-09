@@ -14,14 +14,12 @@ import { User } from '../../users/models/user.model';
 import { Task } from './task.model';
 import { Company } from '../../companies/models/company.model';
 
-
 @Table({
   tableName: 'task_attachments',
   timestamps: true,
   updatedAt: false, // Attachments generally don't change, they are deleted or uploaded
 })
 export class TaskAttachment extends Model<TaskAttachment> {
-
   @ForeignKey(() => Company)
   @AllowNull(true)
   @Column({ field: 'company_id', type: DataType.INTEGER })

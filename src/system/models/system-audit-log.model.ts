@@ -15,8 +15,8 @@ import { User } from '../../users/models/user.model';
 
 @Table({
   tableName: 'system_audit_logs',
-  timestamps: true,   // Enable so Sequelize auto-populates created_at
-  updatedAt: false,   // No updated_at column in this table
+  timestamps: true, // Enable so Sequelize auto-populates created_at
+  updatedAt: false, // No updated_at column in this table
   createdAt: 'created_at', // Map to snake_case column name
 })
 export class SystemAuditLog extends Model<SystemAuditLog> {

@@ -1,7 +1,19 @@
-import { Injectable, PreconditionFailedException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  PreconditionFailedException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { AttendanceRecord, AttendanceStatus, AttendanceState } from '../models/attendance-record.model';
-import { AttendanceLog, AttendanceActionType } from '../models/attendance-log.model';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+  AttendanceState,
+} from '../models/attendance-record.model';
+import {
+  AttendanceLog,
+  AttendanceActionType,
+} from '../models/attendance-log.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Shift } from '../models/shift.model';
 import { Op, Transaction } from 'sequelize';
@@ -143,7 +155,9 @@ export class AttendancePolicyEngineService implements OnModuleInit {
     const netWorkingHours = parseFloat((netWorkingMins / 60).toFixed(2));
 
     const rawGrace =
-      dto.lateComingGraceMinutes !== undefined && dto.lateComingGraceMinutes !== null && dto.lateComingGraceMinutes !== ''
+      dto.lateComingGraceMinutes !== undefined &&
+      dto.lateComingGraceMinutes !== null &&
+      dto.lateComingGraceMinutes !== ''
         ? dto.lateComingGraceMinutes
         : dto.lateMarkGraceMinutes;
 
@@ -186,7 +200,9 @@ export class AttendancePolicyEngineService implements OnModuleInit {
     }
 
     const rawReqHours =
-      dto.minHoursForPresent !== undefined && dto.minHoursForPresent !== null && dto.minHoursForPresent !== ''
+      dto.minHoursForPresent !== undefined &&
+      dto.minHoursForPresent !== null &&
+      dto.minHoursForPresent !== ''
         ? dto.minHoursForPresent
         : dto.minFullDayHours;
 
@@ -271,7 +287,8 @@ export class AttendancePolicyEngineService implements OnModuleInit {
 
     if (logs && logs.length > 0) {
       const sortedLogs = [...logs].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       );
 
       let currentBreakStartMs: number | null = null;
@@ -295,7 +312,8 @@ export class AttendancePolicyEngineService implements OnModuleInit {
 
     if (!breakLogsExist) {
       if (policy && (policy as any).mandatoryBreakDeduction === true) {
-        const defaultBreakMins = shift?.breakMinutes ?? (policy?.defaultBreakMinutes ?? 0);
+        const defaultBreakMins =
+          shift?.breakMinutes ?? policy?.defaultBreakMinutes ?? 0;
         breakDurationMs = (defaultBreakMins || 0) * 60 * 1000;
       } else {
         breakDurationMs = 0;
@@ -303,8 +321,12 @@ export class AttendancePolicyEngineService implements OnModuleInit {
     }
 
     const netWorkingMs = Math.max(0, grossWorkingMs - breakDurationMs);
-    const grossWorkingHours = parseFloat((grossWorkingMs / (1000 * 60 * 60)).toFixed(2));
-    const netWorkingHours = parseFloat((netWorkingMs / (1000 * 60 * 60)).toFixed(2));
+    const grossWorkingHours = parseFloat(
+      (grossWorkingMs / (1000 * 60 * 60)).toFixed(2),
+    );
+    const netWorkingHours = parseFloat(
+      (netWorkingMs / (1000 * 60 * 60)).toFixed(2),
+    );
 
     const checkoutGraceMinutes = policy?.checkoutGraceMinutes ?? 0;
     const netWorkingMinutes = Math.round(netWorkingMs / (1000 * 60));
@@ -342,8 +364,12 @@ export class AttendancePolicyEngineService implements OnModuleInit {
 
     const shiftStartMinutes = this.timeStrToMinutes(shiftStartTimeStr, '00:00');
     const graceEndMinutes = shiftStartMinutes + graceMinutes;
-    const halfDayAfterMinutes = halfDayAfterTimeStr ? this.timeStrToMinutes(halfDayAfterTimeStr, '00:00') : Infinity;
-    const absentAfterMinutes = absentAfterTimeStr ? this.timeStrToMinutes(absentAfterTimeStr, '00:00') : Infinity;
+    const halfDayAfterMinutes = halfDayAfterTimeStr
+      ? this.timeStrToMinutes(halfDayAfterTimeStr, '00:00')
+      : Infinity;
+    const absentAfterMinutes = absentAfterTimeStr
+      ? this.timeStrToMinutes(absentAfterTimeStr, '00:00')
+      : Infinity;
 
     if (checkInMinutes <= graceEndMinutes) {
       return {
@@ -429,7 +455,8 @@ export class AttendancePolicyEngineService implements OnModuleInit {
 
     const shiftStartTimeStr = shift?.startTime || policy?.defaultShiftStartTime;
     const shiftEndTimeStr = shift?.endTime || policy?.defaultShiftEndTime;
-    const graceMinutes = shift?.gracePeriodMinutes ?? (policy?.lateComingGraceMinutes ?? 0);
+    const graceMinutes =
+      shift?.gracePeriodMinutes ?? policy?.lateComingGraceMinutes ?? 0;
     const halfDayAfterTimeStr = policy?.halfDayAfterTime;
     const absentAfterTimeStr = policy?.absentAfterTime;
 
@@ -459,7 +486,10 @@ export class AttendancePolicyEngineService implements OnModuleInit {
         monthlyLateCount = priorLateCount + 1;
         const monthlyLateThreshold = policy?.monthlyLateThreshold ?? 0;
 
-        if (monthlyLateThreshold > 0 && monthlyLateCount > monthlyLateThreshold) {
+        if (
+          monthlyLateThreshold > 0 &&
+          monthlyLateCount > monthlyLateThreshold
+        ) {
           windowStatus = AttendanceStatus.HALF_DAY;
         } else {
           windowStatus = windowEval.windowStatus;
@@ -485,8 +515,14 @@ export class AttendancePolicyEngineService implements OnModuleInit {
     let isMissedCheckout = false;
 
     if (checkInTime && checkOutTime) {
-      const minHoursPresent = policy?.minHoursForPresent !== undefined ? Number(policy.minHoursForPresent) : 7;
-      const minHoursHalfDay = policy?.minHoursForHalfDay !== undefined ? Number(policy.minHoursForHalfDay) : 4;
+      const minHoursPresent =
+        policy?.minHoursForPresent !== undefined
+          ? Number(policy.minHoursForPresent)
+          : 7;
+      const minHoursHalfDay =
+        policy?.minHoursForHalfDay !== undefined
+          ? Number(policy.minHoursForHalfDay)
+          : 4;
       const requiredNetMinutes = Math.round(minHoursPresent * 60);
       const requiredHalfDayMinutes = Math.round(minHoursHalfDay * 60);
 
@@ -495,10 +531,16 @@ export class AttendancePolicyEngineService implements OnModuleInit {
       // Hours-based evaluation — hours always take priority over check-in window
       // If employee completed required hours → PRESENT, regardless of late check-in time
       // Late marker (isLate) is tracked separately for reporting purposes
-      if (requiredHalfDayMinutes > 0 && effectiveMinutes < requiredHalfDayMinutes) {
+      if (
+        requiredHalfDayMinutes > 0 &&
+        effectiveMinutes < requiredHalfDayMinutes
+      ) {
         // Too few hours even for half day → ABSENT
         finalStatus = AttendanceStatus.ABSENT;
-      } else if (requiredNetMinutes > 0 && effectiveMinutes >= requiredNetMinutes) {
+      } else if (
+        requiredNetMinutes > 0 &&
+        effectiveMinutes >= requiredNetMinutes
+      ) {
         // Completed full day hours → always PRESENT (even if late check-in)
         finalStatus = AttendanceStatus.PRESENT;
       } else {
@@ -517,22 +559,31 @@ export class AttendancePolicyEngineService implements OnModuleInit {
       const shiftEndMinutes = this.timeStrToMinutes(shiftEndTimeStr, '00:00');
       const checkoutGrace = policy?.checkoutGraceMinutes ?? 0;
 
-      if (shiftEndTimeStr && checkOutMinutes < shiftEndMinutes - checkoutGrace) {
+      if (
+        shiftEndTimeStr &&
+        checkOutMinutes < shiftEndMinutes - checkoutGrace
+      ) {
         isEarlyExit = true;
         earlyExitMinutes = shiftEndMinutes - checkOutMinutes;
       }
 
       // Shift duration for Overtime
-      const shiftStartMinutes = this.timeStrToMinutes(shiftStartTimeStr, '00:00');
+      const shiftStartMinutes = this.timeStrToMinutes(
+        shiftStartTimeStr,
+        '00:00',
+      );
       let shiftDiff = shiftEndMinutes - shiftStartMinutes;
       if (shiftDiff < 0) shiftDiff += 24 * 60;
-      const breakMins = shift?.breakMinutes ?? (policy?.defaultBreakMinutes ?? 0);
+      const breakMins = shift?.breakMinutes ?? policy?.defaultBreakMinutes ?? 0;
       const shiftHours = Math.max(0, (shiftDiff - breakMins) / 60);
 
       const otStartAfterHours = (policy?.overtimeStartAfter || 0) / 60;
       const otThreshold = shiftHours + otStartAfterHours;
 
-      if (policy?.overtimeAllowed && workingHoursInfo.netWorkingHours > otThreshold) {
+      if (
+        policy?.overtimeAllowed &&
+        workingHoursInfo.netWorkingHours > otThreshold
+      ) {
         isOvertime = true;
         overtimeHours = parseFloat(
           (workingHoursInfo.netWorkingHours - shiftHours).toFixed(2),
@@ -540,7 +591,10 @@ export class AttendancePolicyEngineService implements OnModuleInit {
       }
     } else if (checkInTime && !checkOutTime) {
       const autoCheckoutTimeStr = policy?.autoCheckoutTime;
-      const autoCheckoutMins = this.timeStrToMinutes(autoCheckoutTimeStr, '23:59');
+      const autoCheckoutMins = this.timeStrToMinutes(
+        autoCheckoutTimeStr,
+        '23:59',
+      );
       const now = new Date();
       const nowLocalStr = now.toLocaleTimeString('en-US', {
         hour12: false,
@@ -550,7 +604,10 @@ export class AttendancePolicyEngineService implements OnModuleInit {
       const nowMins = nowH * 60 + nowM;
 
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
-      if (dateStr < todayStr || (dateStr === todayStr && nowMins >= autoCheckoutMins)) {
+      if (
+        dateStr < todayStr ||
+        (dateStr === todayStr && nowMins >= autoCheckoutMins)
+      ) {
         isMissedCheckout = true;
       }
     }
