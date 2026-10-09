@@ -139,6 +139,10 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   @Column({ field: 'seller_contract_no', type: DataType.STRING(100) })
   declare sellerContractNo: string;
 
+  @AllowNull(true)
+  @Column({ field: 'purchase_date', type: DataType.DATEONLY })
+  declare purchaseDate: string;
+
   /** Additional contract notes / conditions */
   @AllowNull(true)
   @Column({ type: DataType.TEXT })

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsIn, IsArray, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsIn, IsArray, IsNumber, IsDateString } from 'class-validator';
 
 export const VALID_PC_STATUSES = [
   'Draft',
@@ -27,6 +27,10 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   sellerContractNo?: any;
+
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
 
   @IsOptional()
   specificationNo?: any;

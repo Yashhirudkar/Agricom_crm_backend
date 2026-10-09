@@ -31,6 +31,9 @@ import * as phase39 from './phase-39-add-display-order-to-companies';
 import * as phase40 from './phase-40-add-place-of-loading-to-purchase-contracts';
 import * as phase41 from './phase-41-add-freight-routes-and-rates';
 import * as phase42 from './phase-42-add-shipment-sequence';
+import * as phase43 from './phase-43-add-purchase-date-to-purchase-contracts';
+import * as phase44 from './phase-44-allow-direct-freight-quotes-without-seller';
+import * as phase45 from './phase-45-make-validity-date-nullable';
 
 export interface MigrationPhase {
   phase: string;
@@ -77,4 +80,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase40,
   phase41,
   phase42,
+  phase43,
+  phase44,
+  phase45,
 ];

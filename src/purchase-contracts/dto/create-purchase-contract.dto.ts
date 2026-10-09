@@ -4,6 +4,7 @@ import {
   IsInt,
   IsArray,
   ValidateNested,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -92,6 +93,10 @@ export class CreatePurchaseContractDto {
   @IsOptional()
   @IsString()
   sellerContractNo?: string;
+
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
 
   @IsOptional()
   @IsString()

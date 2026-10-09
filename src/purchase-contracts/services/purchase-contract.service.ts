@@ -13,6 +13,7 @@ import { PurchaseContractRequiredDocument } from '../models/purchase-contract-re
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Partner } from '../../masters/partner/partner.model';
+import { PartnerRole } from '../../masters/partner-role/partner-role.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import { SalesContractItem } from '../../sales-contracts/models/sales-contract-item.model';
@@ -67,7 +68,11 @@ export class PurchaseContractService {
     private readonly sequelize: Sequelize,
   ) {}
 
-  private async validateForeignKeys(companyId: number, dto: any) {
+  private async validateForeignKeys(
+    companyId: number,
+    dto: any,
+    contractType = 'MTT',
+  ) {
     if (dto.buyerId) {
       const buyer = await Partner.findOne({
         where: { id: dto.buyerId, companyId },
@@ -93,6 +98,22 @@ export class PurchaseContractService {
       if (!broker)
         throw new BadRequestException(
           'Broker not found or does not belong to company',
+        );
+
+      const requiredRoleName =
+        String(contractType).toLowerCase() === 'export'
+          ? 'DOMESTIC BROKER'
+          : 'INTERNATIONAL BROKER';
+      const requiredRole = await PartnerRole.findOne({
+        where: { name: { [Op.iLike]: requiredRoleName } },
+      });
+      if (!requiredRole)
+        throw new BadRequestException(
+          `Required broker role "${requiredRoleName}" is not configured`,
+        );
+      if (broker.partnerRoleId !== requiredRole.id)
+        throw new BadRequestException(
+          `Broker must have the "${requiredRoleName}" role for ${contractType} contracts`,
         );
     }
     if (dto.paymentTermId) {
@@ -186,13 +207,27 @@ export class PurchaseContractService {
           throw new NotFoundException(
             'Sales Contract not found or does not belong to company',
           );
+        await this.validateForeignKeys(
+          user?.companyId,
+          {
+            brokerId:
+              dto.brokerId === undefined
+                ? salesContract.brokerId
+                : dto.brokerId,
+          },
+          salesContract.contractType || 'Import',
+        );
         pc = await this.ensureExists(
           dto.salesContractId,
           user?.userId,
           dto.shipmentIds,
         );
       } else {
-        await this.validateForeignKeys(user?.companyId, dto);
+        await this.validateForeignKeys(
+          user?.companyId,
+          dto,
+          dto.purchaseType || 'MTT',
+        );
 
         // Manual MTT creation flow
         const count = await this.model.count({
@@ -208,6 +243,7 @@ export class PurchaseContractService {
           buyerId: dto.buyerId || null,
           sellerId: dto.sellerId || null,
           sellerContractNo: dto.sellerContractNo || null,
+          purchaseDate: dto.purchaseDate || null,
           paymentTermId: dto.paymentTermId || null,
           paymentTermsText: dto.paymentTermsText || null,
           advancePercent:
@@ -284,8 +320,8 @@ export class PurchaseContractService {
                 : null,
               allocatedQuantity:
                 alloc.allocatedQuantity != null
-                  ? Number(alloc.allocatedQuantity)
-                  : null,
+                    ? Number(alloc.allocatedQuantity)
+                    : null,
             });
           }
         }
@@ -299,6 +335,10 @@ export class PurchaseContractService {
             shipmentId: Number(shipmentId),
           });
         }
+      }
+
+      if (dto.purchaseDate !== undefined) {
+        await pc.update({ purchaseDate: dto.purchaseDate || null });
       }
 
       // Add required documents
@@ -364,7 +404,15 @@ export class PurchaseContractService {
     user: any,
   ): Promise<PurchaseContract> {
     const pc = await this.findOne(id, user?.companyId);
-    await this.validateForeignKeys(user?.companyId, dto);
+    const contractType =
+      String(dto.purchaseType ?? pc.purchaseType).toLowerCase() === 'mtt'
+        ? 'MTT'
+        : pc.salesContract?.contractType || 'Import';
+    await this.validateForeignKeys(
+      user?.companyId,
+      dto.brokerId === undefined ? { ...dto, brokerId: pc.brokerId } : dto,
+      contractType,
+    );
 
     const {
       shipmentIds,
@@ -394,6 +442,10 @@ export class PurchaseContractService {
     if (updateData.sellerContractNo !== undefined)
       sanitizeData.sellerContractNo = updateData.sellerContractNo
         ? String(updateData.sellerContractNo)
+        : null;
+    if (updateData.purchaseDate !== undefined)
+      sanitizeData.purchaseDate = updateData.purchaseDate
+        ? String(updateData.purchaseDate)
         : null;
     if (updateData.paymentTermId !== undefined)
       sanitizeData.paymentTermId = updateData.paymentTermId

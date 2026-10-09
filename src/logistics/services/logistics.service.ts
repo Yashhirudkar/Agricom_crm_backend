@@ -283,7 +283,7 @@ export class LogisticsService {
       sortDir = 'DESC',
     } = query;
 
-    const quoteWhereConditions: any[] = [];
+    const quoteWhereConditions: any[] = [{ companyId }];
 
     // ── 1. Preferred / Rejected / Status Filtering ─────────────────────────
     if (isPreferred !== undefined && isPreferred !== null) {
@@ -354,37 +354,42 @@ export class LogisticsService {
       logisticsWhere.transportMode = transportMode;
     }
 
-    // ── 5. Origin & Destination Filters & Company Isolation ──
-    const enquiryWhereConditions: any[] = [{ companyId }];
+    // ── 5. Origin & Destination Filters ─────────────────────────────────────
     if (origin && origin !== 'all') {
-      const orig = origin.trim();
-      enquiryWhereConditions.push({
+      const orig = `%${origin.trim()}%`;
+      quoteWhereConditions.push({
         [Op.or]: [
-          { originCity: { [Op.iLike]: `%${orig}%` } },
-          { originPort: { [Op.iLike]: `%${orig}%` } },
-          { originState: { [Op.iLike]: `%${orig}%` } },
+          { '$logistics.enquiry.origin_city$': { [Op.iLike]: orig } },
+          { '$logistics.enquiry.origin_port$': { [Op.iLike]: orig } },
+          { '$logistics.enquiry.origin_state$': { [Op.iLike]: orig } },
+          { loadingPoint: { [Op.iLike]: orig } },
+          { '$freightRoutes.origin$': { [Op.iLike]: orig } },
         ],
       });
     }
+
     if (destination && destination !== 'all') {
-      const dest = destination.trim();
-      enquiryWhereConditions.push({
+      const dest = `%${destination.trim()}%`;
+      quoteWhereConditions.push({
         [Op.or]: [
-          { destinationCity: { [Op.iLike]: `%${dest}%` } },
-          { destinationPort: { [Op.iLike]: `%${dest}%` } },
-          { destinationState: { [Op.iLike]: `%${dest}%` } },
+          { '$logistics.enquiry.destination_city$': { [Op.iLike]: dest } },
+          { '$logistics.enquiry.destination_port$': { [Op.iLike]: dest } },
+          { '$logistics.enquiry.destination_state$': { [Op.iLike]: dest } },
+          { destination: { [Op.iLike]: dest } },
+          { '$freightRoutes.destination$': { [Op.iLike]: dest } },
         ],
       });
     }
-    const enquiryWhere =
-      enquiryWhereConditions.length > 0
-        ? { [Op.and]: enquiryWhereConditions }
-        : undefined;
 
     // ── 6. Product Filter ───────────────────────────────────────────────────
-    const productWhere: any = {};
     if (product && product !== 'all') {
-      productWhere.name = { [Op.iLike]: `%${product.trim()}%` };
+      const prod = `%${product.trim()}%`;
+      quoteWhereConditions.push({
+        [Op.or]: [
+          { '$logistics.enquiry.product.name$': { [Op.iLike]: prod } },
+          { '$product.name$': { [Op.iLike]: prod } },
+        ],
+      });
     }
 
     // ── 7. Order Map ────────────────────────────────────────────────────────
@@ -426,8 +431,8 @@ export class LogisticsService {
             {
               model: Enquiry,
               as: 'enquiry',
-              where: enquiryWhere,
-              required: true,
+              where: { companyId },
+              required: false,
               attributes: [
                 'id',
                 'enquiryNo',
@@ -444,11 +449,7 @@ export class LogisticsService {
                 {
                   model: Product,
                   as: 'product',
-                  where:
-                    Object.keys(productWhere).length > 0
-                      ? productWhere
-                      : undefined,
-                  required: Object.keys(productWhere).length > 0,
+                  required: false,
                   attributes: ['id', 'name'],
                 },
               ],
