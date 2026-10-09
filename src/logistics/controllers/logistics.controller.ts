@@ -140,6 +140,17 @@ export class LogisticsController {
     );
   }
 
+  // ─── Delete Direct Freight Quote ────────────────────────────────────────────────
+  @Delete('direct-quotes/:quoteId')
+  @RequirePermission('logistics:update')
+  async deleteDirectFreightQuote(
+    @Param('quoteId', ParseIntPipe) quoteId: number,
+    @Req() req: any,
+  ) {
+    const companyId = req.user?.companyId;
+    return this.service.deleteDirectFreightQuote(quoteId, req.user, companyId);
+  }
+
   // ─── Add Freight Quote ───────────────────────────────────────────────────────
   @Post(':id/quotes')
   @RequirePermission('logistics:update')
