@@ -60,6 +60,10 @@ export class CreateFreightQuoteDto {
   sellerId?: number;
 
   @IsOptional()
+  @IsInt()
+  seller_id?: number;
+
+  @IsOptional()
   @IsString()
   carrierReferenceNo?: string;
 

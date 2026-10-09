@@ -686,8 +686,9 @@ export class LogisticsService {
       throw new NotFoundException('Logistics record not found');
     }
 
-    if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+    const sellerId = dto.sellerId || dto.seller_id;
+    if (sellerId) {
+      const seller = await Partner.findOne({ where: { id: sellerId, companyId } });
       if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
     }
 
@@ -727,6 +728,7 @@ export class LogisticsService {
       const quote = await this.quoteModel.create(
         {
           ...dto,
+          sellerId: sellerId,
           freightAmount: calculatedFreightAmount,
           quoteNumber,
           logisticsId,
@@ -821,8 +823,9 @@ export class LogisticsService {
   }
 
   async createDirectFreightQuote(dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
-    if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
+    const sellerId = dto.sellerId || dto.seller_id;
+    if (sellerId) {
+      const seller = await Partner.findOne({ where: { id: sellerId, companyId } });
       if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
     }
 
@@ -865,6 +868,7 @@ export class LogisticsService {
       const quote = await this.quoteModel.create(
         {
           ...dto,
+          sellerId: sellerId,
           freightAmount: calculatedFreightAmount,
           quoteNumber,
           isDirect: true,
@@ -966,6 +970,37 @@ export class LogisticsService {
         transaction,
       });
     });
+  }
+
+  async deleteDirectFreightQuote(quoteId: number, user: any, companyId: number = 1) {
+    const quote = await this.quoteModel.findOne({
+      where: { id: quoteId, isDirect: true },
+    });
+    if (!quote) {
+      throw new NotFoundException('Direct freight quote not found');
+    }
+
+    if (quote.isPreferred) {
+      throw new BadRequestException(
+        'Cannot delete preferred quote.'
+      );
+    }
+
+    await this.sequelize.transaction(async (transaction) => {
+      await quote.destroy({ transaction });
+
+      await this.auditService.writeLog({
+        clientId: null,
+        companyId,
+        userId: user?.userId,
+        entityType: 'FreightQuote',
+        entityId: quoteId,
+        action: 'DIRECT_QUOTE_DELETED',
+        oldValue: { quoteNumber: quote.quoteNumber },
+      });
+    });
+
+    return { success: true };
   }
 
   async updateDirectFreightQuote(
