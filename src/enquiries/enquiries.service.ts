@@ -481,14 +481,24 @@ export class EnquiriesService {
     }
 
     if (withoutPurchaseContract) {
-      const pcCondition = {
-        [Op.notIn]: Sequelize.literal(
-          `(SELECT sc.enquiry_id FROM purchase_contracts pc JOIN sales_contracts sc ON pc.sales_contract_id = sc.id WHERE sc.enquiry_id IS NOT NULL AND pc.company_id = ${(query as any).companyId})`,
+      const companyId = (query as any).companyId;
+      const salesContractCondition = {
+        [Op.in]: Sequelize.literal(
+          `(SELECT enquiry_id FROM sales_contracts WHERE enquiry_id IS NOT NULL AND company_id = ${companyId})`,
         ),
       };
-      whereClause.id = whereClause.id
-        ? { [Op.and]: [whereClause.id, pcCondition] }
-        : pcCondition;
+      const withoutPurchaseContractCondition = {
+        [Op.notIn]: Sequelize.literal(
+          `(SELECT sc.enquiry_id FROM purchase_contracts pc JOIN sales_contracts sc ON pc.sales_contract_id = sc.id WHERE sc.enquiry_id IS NOT NULL AND sc.company_id = ${companyId})`,
+        ),
+      };
+      whereClause.id = {
+        [Op.and]: [
+          ...(whereClause.id ? [whereClause.id] : []),
+          salesContractCondition,
+          withoutPurchaseContractCondition,
+        ],
+      };
     }
 
     if (dateFrom && dateTo) {
@@ -507,6 +517,18 @@ export class EnquiriesService {
 
     const { rows, count } = await this.enquiryModel.findAndCountAll({
       where: { ...whereClause, companyId: (query as any).companyId },
+      ...(withoutPurchaseContract && {
+        attributes: {
+          include: [
+            [
+              Sequelize.literal(
+                `(SELECT sc.id FROM sales_contracts sc WHERE sc.enquiry_id = "Enquiry"."id" AND sc.company_id = ${(query as any).companyId} LIMIT 1)`,
+              ),
+              'salesContractId',
+            ],
+          ],
+        },
+      }),
       limit: finalLimit,
       offset,
       order: [
@@ -519,6 +541,7 @@ export class EnquiriesService {
 
     const mappedRows = rows.map((row: any) => ({
       id: row.id,
+      salesContractId: row.get('salesContractId') || null,
       enquiryNo: row.enquiryNo,
       enquiryDate: row.enquiryDate,
       roleName: row.partnerRole?.name,

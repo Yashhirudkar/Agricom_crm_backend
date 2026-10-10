@@ -4,6 +4,7 @@ import {
   Post,
   Patch,
   Delete,
+  ParseUUIDPipe,
   Body,
   Param,
   Query,
@@ -100,7 +101,33 @@ export class LogisticsController {
   @RequirePermission('logistics:view')
   async findQueue(@Query() query: QueryLogisticsDto, @Req() req: any) {
     const companyId = req.user?.companyId;
-    return this.service.findQueue(query, companyId);
+    return this.service.findQueue(query, companyId, req.user?.userId);
+  }
+
+  @Post('enquiry/:enquiryId/hide')
+  @RequirePermission('logistics:view')
+  async hideEnquiryFromTransport(
+    @Param('enquiryId', ParseUUIDPipe) enquiryId: string,
+    @Req() req: any,
+  ) {
+    return this.service.hideEnquiryFromTransport(
+      enquiryId,
+      req.user?.userId,
+      req.user?.companyId,
+    );
+  }
+
+  @Delete('enquiry/:enquiryId/hide')
+  @RequirePermission('logistics:view')
+  async unhideEnquiryFromTransport(
+    @Param('enquiryId', ParseUUIDPipe) enquiryId: string,
+    @Req() req: any,
+  ) {
+    return this.service.unhideEnquiryFromTransport(
+      enquiryId,
+      req.user?.userId,
+      req.user?.companyId,
+    );
   }
 
   // ─── Details Lookup & Auto-Initialization ────────────────────────────────────

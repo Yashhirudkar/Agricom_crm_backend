@@ -33,6 +33,7 @@ import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 
 import { PartnerContact } from '../../masters/partner/partner-contact.model';
 import { Company } from '../../companies/models/company.model';
+import { TransportEnquiryHidden } from '../models/transport-enquiry-hidden.model';
 
 @Injectable()
 export class LogisticsService {
@@ -61,6 +62,8 @@ export class LogisticsService {
     private readonly partnerModel: typeof Partner,
     @InjectModel(PartnerContact)
     private readonly partnerContactModel: typeof PartnerContact,
+    @InjectModel(TransportEnquiryHidden)
+    private readonly transportEnquiryHiddenModel: typeof TransportEnquiryHidden,
     private readonly attachmentsService: AttachmentsService,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
@@ -119,8 +122,12 @@ export class LogisticsService {
     'Closed',
   ];
 
-  async findQueue(query: QueryLogisticsDto, companyId: number = 1) {
-    const { search, mode, status, page = 1, limit = 10 } = query;
+  async findQueue(
+    query: QueryLogisticsDto,
+    companyId: number = 1,
+    userId?: number,
+  ) {
+    const { search, mode, status, hiddenOnly, page = 1, limit = 10 } = query;
     const offset = (page - 1) * limit;
 
     const company = (await this.sequelize.models.Company.findByPk(
@@ -134,6 +141,24 @@ export class LogisticsService {
       { status: { [Op.notIn]: ['CANCELLED'] } },
       { companyId },
     ];
+
+    if (userId) {
+      const hiddenRows = await this.transportEnquiryHiddenModel.findAll({
+        where: { userId, companyId },
+        attributes: ['enquiryId'],
+        raw: true,
+      });
+      const hiddenEnquiryIds = hiddenRows.map((row: any) => row.enquiryId);
+      if (hiddenOnly) {
+        whereConditions.push({
+          id: { [Op.in]: hiddenEnquiryIds },
+        });
+      } else if (hiddenEnquiryIds.length > 0) {
+        whereConditions.push({ id: { [Op.notIn]: hiddenEnquiryIds } });
+      }
+    } else if (hiddenOnly) {
+      whereConditions.push({ id: { [Op.in]: [] } });
+    }
 
     // ── Mode Filter (case-insensitive, null-safe) ─────────────────────────────
     // Normalize company country — trim + lowercase for consistent comparison.
@@ -180,11 +205,11 @@ export class LogisticsService {
     const effectiveStatus = status || 'Active';
     const terminalStatuses = LogisticsService.TERMINAL_LOGISTICS_STATUSES;
 
-    if (effectiveStatus === 'Closed') {
+    if (!hiddenOnly && effectiveStatus === 'Closed') {
       whereConditions.push({
         '$logistics.status$': { [Op.in]: terminalStatuses },
       });
-    } else if (effectiveStatus === 'Active') {
+    } else if (!hiddenOnly && effectiveStatus === 'Active') {
       whereConditions.push({
         [Op.or]: [
           { '$logistics.id$': null },
@@ -244,6 +269,48 @@ export class LogisticsService {
       limit: Number(limit),
       totalPages: Math.ceil(count / limit),
     };
+  }
+
+  async hideEnquiryFromTransport(
+    enquiryId: string,
+    userId: number,
+    companyId: number,
+  ) {
+    if (!userId || !companyId) {
+      throw new BadRequestException(
+        'A signed-in user and active company are required.',
+      );
+    }
+
+    const enquiry = await this.enquiryModel.findOne({
+      where: { id: enquiryId, companyId },
+      attributes: ['id'],
+    });
+    if (!enquiry) throw new NotFoundException('Enquiry not found');
+
+    await this.transportEnquiryHiddenModel.findOrCreate({
+      where: { userId, companyId, enquiryId },
+      defaults: { userId, companyId, enquiryId },
+    });
+
+    return { success: true };
+  }
+
+  async unhideEnquiryFromTransport(
+    enquiryId: string,
+    userId: number,
+    companyId: number,
+  ) {
+    if (!userId || !companyId) {
+      throw new BadRequestException(
+        'A signed-in user and active company are required.',
+      );
+    }
+
+    await this.transportEnquiryHiddenModel.destroy({
+      where: { userId, companyId, enquiryId },
+    });
+    return { success: true };
   }
 
   /**

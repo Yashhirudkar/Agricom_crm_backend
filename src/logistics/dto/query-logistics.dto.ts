@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsInt, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsInt, Min, IsBoolean } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class QueryLogisticsDto {
   @IsOptional()
@@ -13,6 +13,11 @@ export class QueryLogisticsDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  hiddenOnly?: boolean;
 
   @IsOptional()
   @Type(() => Number)

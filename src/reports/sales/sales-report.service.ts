@@ -632,6 +632,7 @@ export class SalesReportService {
 
     const enquiries = await this.enquiryModel.findAll({
       where,
+      paranoid: false,
       include: [
         {
           model: User,
