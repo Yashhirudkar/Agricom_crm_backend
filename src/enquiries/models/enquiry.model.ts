@@ -197,6 +197,11 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ type: DataType.STRING(50) })
   declare status: string;
 
+  @AllowNull(false)
+  @Default(false)
+  @Column({ field: 'freight_required', type: DataType.BOOLEAN })
+  declare freightRequired: boolean;
+
   @ForeignKey(() => User)
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })

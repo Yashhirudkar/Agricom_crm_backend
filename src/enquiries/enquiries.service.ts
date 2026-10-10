@@ -707,6 +707,7 @@ export class EnquiriesService {
     enquiryId: string,
     companyId: number,
     loadingPoints: string[],
+    freightRequired?: boolean,
   ): Promise<string[]> {
     // Verify enquiry belongs to this company
     const enquiry = await this.findOne(enquiryId, companyId);
@@ -715,6 +716,10 @@ export class EnquiriesService {
     const cleaned = loadingPoints.map((s) => s.trim()).filter(Boolean);
 
     await this.sequelize.transaction(async (transaction) => {
+      if (freightRequired !== undefined) {
+        await enquiry.update({ freightRequired }, { transaction });
+      }
+
       // Delete existing loading points for this enquiry
       await this.enquiryLoadingPointModel.destroy({
         where: { enquiryId, companyId },

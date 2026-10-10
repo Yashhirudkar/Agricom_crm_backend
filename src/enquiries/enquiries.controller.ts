@@ -83,13 +83,14 @@ export class EnquiriesController {
   @RequireAnyPermission('enquiry:update', 'sales_contract:update')
   updateLoadingPoints(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('loadingPoints') loadingPoints: string[],
+    @Body() body: { loadingPoints: string[], freightRequired?: boolean },
     @Req() req: any,
   ) {
     return this.enquiriesService.updateLoadingPoints(
       id,
       req.user?.companyId,
-      loadingPoints ?? [],
+      body.loadingPoints ?? [],
+      body.freightRequired,
     );
   }
 
