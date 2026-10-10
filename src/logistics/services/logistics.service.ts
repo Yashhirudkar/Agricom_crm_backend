@@ -133,7 +133,6 @@ export class LogisticsService {
     const whereConditions: any[] = [
       { status: { [Op.notIn]: ['CANCELLED'] } },
       { companyId },
-      { freightRequired: true },
     ];
 
     // ── Mode Filter (case-insensitive, null-safe) ─────────────────────────────
