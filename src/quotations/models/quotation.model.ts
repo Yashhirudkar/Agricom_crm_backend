@@ -20,6 +20,8 @@ import { PartnerFollowUp } from '../../masters/partner/partner-followup.model';
 import { User } from '../../users/models/user.model';
 import type { QuotationItem } from './quotation-item.model';
 import { Company } from '../../companies/models/company.model';
+import { Enquiry } from '../../enquiries/models/enquiry.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 /**
  * Quotation status lifecycle.
@@ -64,6 +66,22 @@ export class Quotation extends BusinessReferenceEntity<Quotation> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => Enquiry)
+  @AllowNull(true)
+  @Column({ field: 'enquiry_id', type: DataType.UUID })
+  declare enquiryId: string | null;
+
+  @BelongsTo(() => Enquiry)
+  declare enquiry: Enquiry;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   /**
    * Auto-generated, immutable quotation number.

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
-import { Op, QueryTypes } from 'sequelize';
+import { Op, Order, QueryTypes } from 'sequelize';
 import { Enquiry } from './models/enquiry.model';
 import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
 import { EnquiryDestination } from './models/enquiry-destination.model';
@@ -22,7 +22,7 @@ import { buildPagination } from '../masters/common/pagination.helper';
 import { buildSearchQuery } from '../masters/common/search.helper';
 import { buildPaginatedResponse } from '../masters/common/response.helper';
 import { AuditService } from '../audit/services/audit.service';
-import { EnquiryShipmentMode } from './enquiry.constants';
+import { EnquiryShipmentMode, EnquiryStatus } from './enquiry.constants';
 import { NotificationDispatchService } from '../notifications/services/notification-dispatch.service';
 import {
   NotificationChannel,
@@ -36,6 +36,12 @@ import {
 } from '../notifications/services/notifications.service';
 import { RbacService } from '../rbac/services/rbac.service';
 import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
+import { BusinessTransaction } from '../system/models/business-transaction.model';
+import { BusinessTransactionService } from '../system/services/business-transaction.service';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../system/utils/business-reference-query.util';
 
 const INCLUDE_RELATIONS = [
   {
@@ -62,6 +68,11 @@ const INCLUDE_RELATIONS = [
     model: User,
     as: 'creator',
     attributes: ['id', 'name', 'email'],
+    required: false,
+  },
+  {
+    model: BusinessTransaction,
+    attributes: ['id', 'businessReference'],
     required: false,
   },
 ];
@@ -91,6 +102,7 @@ export class EnquiriesService {
     private readonly notificationsGateway: NotificationsGateway,
     private readonly notificationsService: NotificationsService,
     private readonly rbacService: RbacService,
+    private readonly businessTransactionService: BusinessTransactionService,
   ) {}
 
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
@@ -401,6 +413,7 @@ export class EnquiriesService {
   async findAll(query: QueryEnquiryDto) {
     const {
       search,
+      businessReference,
       partnerRoleId,
       partnerId,
       productId,
@@ -423,9 +436,17 @@ export class EnquiriesService {
       ...buildSearchQuery(search, ['enquiryNo']), // Search on enquiryNo directly
     };
 
+    if (businessReference) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          businessReference,
+          (query as any).companyId,
+        )) ?? -1;
+    }
+
     if (search) {
       // Use EXISTS subqueries to prevent forcing INNER JOINs on optional relations
-      whereClause[Op.or] = [
+      const searchConditions: any[] = [
         { enquiryNo: { [Op.iLike]: `%${search}%` } },
         {
           [Op.and]: Sequelize.literal(
@@ -443,6 +464,16 @@ export class EnquiriesService {
           ),
         },
       ];
+      if (isBusinessReferenceSearch(search)) {
+        const transactionId = await resolveBusinessTransactionId(
+          search,
+          (query as any).companyId,
+        );
+        if (transactionId !== null) {
+          searchConditions.push({ businessTransactionId: transactionId });
+        }
+      }
+      whereClause[Op.or] = searchConditions;
       delete whereClause.enquiryNo;
     }
 
@@ -515,6 +546,24 @@ export class EnquiriesService {
       };
     }
 
+    const sortDirection =
+      String((query as any).sortOrder || 'DESC').toUpperCase() === 'ASC'
+        ? 'ASC'
+        : 'DESC';
+    const order: Order =
+      (query as any).sortBy === 'businessReference'
+        ? [
+            [
+              { model: BusinessTransaction, as: 'businessTransaction' },
+              'businessReference',
+              sortDirection,
+            ],
+          ]
+        : [
+            ['enquiryDate', 'DESC'],
+            ['createdAt', 'DESC'],
+          ];
+
     const { rows, count } = await this.enquiryModel.findAndCountAll({
       where: { ...whereClause, companyId: (query as any).companyId },
       ...(withoutPurchaseContract && {
@@ -531,10 +580,7 @@ export class EnquiriesService {
       }),
       limit: finalLimit,
       offset,
-      order: [
-        ['enquiryDate', 'DESC'],
-        ['createdAt', 'DESC'],
-      ],
+      order,
       include: INCLUDE_RELATIONS,
       distinct: true,
     });
@@ -543,6 +589,8 @@ export class EnquiriesService {
       id: row.id,
       salesContractId: row.get('salesContractId') || null,
       enquiryNo: row.enquiryNo,
+      businessTransactionId: row.businessTransactionId ?? null,
+      businessReference: row.businessTransaction?.businessReference ?? null,
       enquiryDate: row.enquiryDate,
       roleName: row.partnerRole?.name,
       partnerId: row.partnerId,
@@ -638,6 +686,13 @@ export class EnquiriesService {
         },
         { transaction },
       );
+      if (normalizedDto.status === EnquiryStatus.CONFIRMED) {
+        await this.businessTransactionService.ensureForEnquiry(
+          id,
+          user?.userId,
+          transaction,
+        );
+      }
     });
 
     const updatedEnquiry = await enquiry.reload({ include: INCLUDE_RELATIONS });

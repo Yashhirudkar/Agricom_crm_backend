@@ -2,10 +2,11 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op, QueryTypes } from 'sequelize';
+import { Op, Order, QueryTypes } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { SalesContract } from './models/sales-contract.model';
 import { SalesContractItem } from './models/sales-contract-item.model';
@@ -31,6 +32,12 @@ import {
 } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
+import { BusinessTransactionService } from '../system/services/business-transaction.service';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../system/utils/business-reference-query.util';
+import { BusinessTransaction } from '../system/models/business-transaction.model';
 import {
   getAutoContractConfig,
   generateNextContractNumber,
@@ -54,6 +61,7 @@ export class SalesContractService implements OnModuleInit {
     private readonly documentFileModel: typeof SalesContractDocumentFile,
     private readonly attachmentsService: AttachmentsService,
     private readonly sequelize: Sequelize,
+    private readonly businessTransactionService: BusinessTransactionService,
   ) {}
 
   async onModuleInit() {
@@ -293,6 +301,14 @@ export class SalesContractService implements OnModuleInit {
         await this.documentModel.bulkCreate(docsToCreate, { transaction: t });
       }
 
+      if (contract.status === 'Active') {
+        await this.businessTransactionService.ensureForSalesContract(
+          contract.id,
+          user?.userId,
+          t,
+        );
+      }
+
       return contract;
     });
   }
@@ -300,6 +316,7 @@ export class SalesContractService implements OnModuleInit {
   async findAll(query: QuerySalesContractDto & { companyId?: number }) {
     const {
       search,
+      businessReference,
       status,
       buyerId,
       financialYear,
@@ -312,16 +329,59 @@ export class SalesContractService implements OnModuleInit {
     // Tenant isolation
     if (query.companyId) whereClause.companyId = query.companyId;
     if (search) {
-      whereClause.contractNumber = { [Op.iLike]: `%${search}%` };
+      const searchConditions: any[] = [
+        { contractNumber: { [Op.iLike]: `%${search}%` } },
+      ];
+      if (isBusinessReferenceSearch(search)) {
+        const transactionId = await resolveBusinessTransactionId(
+          search,
+          query.companyId,
+        );
+        if (transactionId !== null) {
+          searchConditions.push({ businessTransactionId: transactionId });
+        }
+      }
+      whereClause[Op.or] = searchConditions;
+    }
+    if (businessReference) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          businessReference,
+          query.companyId,
+        )) ?? -1;
     }
     if (status) whereClause.status = status;
     if (buyerId) whereClause.buyerId = buyerId;
     if (financialYear) whereClause.financialYear = financialYear;
 
+    const sortDirection =
+      String(query.sortOrder || 'DESC').toUpperCase() === 'ASC'
+        ? 'ASC'
+        : 'DESC';
+    const order: Order =
+      query.sortBy === 'businessReference'
+        ? [
+            [
+              { model: BusinessTransaction, as: 'businessTransaction' },
+              'businessReference',
+              sortDirection,
+            ],
+          ]
+        : [
+            ['contractDate', 'DESC'],
+            ['createdAt', 'DESC'],
+          ];
+
     const { rows, count } = await this.model.findAndCountAll({
       where: whereClause,
       include: [
         { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: SalesContractDocument, attributes: ['id'] },
         { model: SalesContractDocumentFile, attributes: ['id'] },
         {
@@ -337,15 +397,14 @@ export class SalesContractService implements OnModuleInit {
       distinct: true,
       limit: Number(limit),
       offset: Number(offset),
-      order: [
-        ['contractDate', 'DESC'],
-        ['createdAt', 'DESC'],
-      ],
+      order,
     });
 
     // Attach hasPurchaseContract flag to each row
     const data = rows.map((row) => {
       const plain = row.toJSON() as any;
+      plain.businessReference =
+        plain.businessTransaction?.businessReference ?? null;
       plain.hasPurchaseContract = Array.isArray(plain.purchaseContracts)
         ? plain.purchaseContracts.length > 0
         : false;
@@ -370,6 +429,12 @@ export class SalesContractService implements OnModuleInit {
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: ShipmentType },
         { model: PaymentTerm },
         {
@@ -397,9 +462,26 @@ export class SalesContractService implements OnModuleInit {
   ): Promise<SalesContract> {
     const contract = await this.findOne(id, user?.companyId);
 
+    if (
+      dto.enquiryId !== undefined &&
+      dto.enquiryId !== contract.enquiryId &&
+      contract.businessTransactionId != null
+    ) {
+      throw new ConflictException(
+        'An allocated Sales Contract cannot be reassigned to a different Enquiry',
+      );
+    }
+
     await this.validateForeignKeys(user?.companyId, dto);
 
     await this.sequelize.transaction(async (t) => {
+      if (dto.status === 'Active' && (dto.enquiryId ?? contract.enquiryId)) {
+        await this.businessTransactionService.ensureForSalesContract(
+          contract.id,
+          user?.userId,
+          t,
+        );
+      }
       // Enforce Data Integrity: Recalculate Totals
       let calculatedTotalQty = dto.totalQuantity || contract.totalQuantity;
       let calculatedTotalAmt = dto.totalAmount || contract.totalAmount;
@@ -600,6 +682,14 @@ export class SalesContractService implements OnModuleInit {
           await doc.destroy({ transaction: t });
         }
       }
+
+      if (contract.status === 'Active') {
+        await this.businessTransactionService.ensureForSalesContract(
+          contract.id,
+          user?.userId,
+          t,
+        );
+      }
     });
 
     return await this.findOne(id);
@@ -637,7 +727,26 @@ export class SalesContractService implements OnModuleInit {
       }
     }
 
-    await contract.update({ status: dto.status, updatedBy: user?.userId });
+    await this.sequelize.transaction(async (transaction) => {
+      if (dto.status === 'Active' && contract.enquiryId) {
+        await this.businessTransactionService.ensureForSalesContract(
+          contract.id,
+          user?.userId,
+          transaction,
+        );
+      }
+      await contract.update(
+        { status: dto.status, updatedBy: user?.userId },
+        { transaction },
+      );
+      if (dto.status === 'Active') {
+        await this.businessTransactionService.ensureForSalesContract(
+          contract.id,
+          user?.userId,
+          transaction,
+        );
+      }
+    });
     return contract.reload();
   }
 

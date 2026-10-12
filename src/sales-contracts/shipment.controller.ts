@@ -10,7 +10,9 @@ import {
   HttpStatus,
   HttpCode,
   Req,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ShipmentService } from './shipment.service';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { QueryShipmentDto } from './dto/query-shipment.dto';
@@ -39,6 +41,28 @@ export class ShipmentController {
       ...query,
       companyId: req.user?.companyId,
     } as any);
+  }
+
+  @Get('export/excel')
+  @RequirePermission('shipments:view')
+  async exportExcel(
+    @Query() query: QueryShipmentDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.exportExcel({
+      ...query,
+      companyId: req.user?.companyId,
+    });
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="shipments.xlsx"',
+    );
+    res.send(buffer);
   }
 
   @Patch(':id')

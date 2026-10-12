@@ -24,6 +24,7 @@ import { Company } from '../../companies/models/company.model';
 import { FreightQuoteContainerRate } from './freight-quote-container-rate.model';
 import { Product } from '../../masters/product/product.model';
 import { FreightRoute } from './freight-route.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -43,6 +44,14 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @AllowNull(false)
   @Column({ field: 'quote_number', type: DataType.STRING(50) })

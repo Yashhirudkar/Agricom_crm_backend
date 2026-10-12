@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
-import { Op, QueryTypes } from 'sequelize';
+import { Op, Order, QueryTypes } from 'sequelize';
 
 import { Logistics } from '../models/logistics.model';
 import { FreightQuote } from '../models/freight-quote.model';
@@ -27,6 +27,11 @@ import { AuditService } from '../../audit/services/audit.service';
 import { User } from '../../users/models/user.model';
 
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../../system/utils/business-reference-query.util';
 import { CreateFreightQuoteDto } from '../dto/create-freight-quote.dto';
 import { CreateChargeMasterDto } from '../dto/create-charge-master.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
@@ -127,7 +132,17 @@ export class LogisticsService {
     companyId: number = 1,
     userId?: number,
   ) {
-    const { search, mode, status, hiddenOnly, page = 1, limit = 10 } = query;
+    const {
+      search,
+      businessReference,
+      mode,
+      status,
+      hiddenOnly,
+      page = 1,
+      limit = 10,
+      sortBy,
+      sortOrder,
+    } = query;
     const offset = (page - 1) * limit;
 
     const company = (await this.sequelize.models.Company.findByPk(
@@ -141,6 +156,14 @@ export class LogisticsService {
       { status: { [Op.notIn]: ['CANCELLED'] } },
       { companyId },
     ];
+
+    if (businessReference) {
+      whereConditions.push({
+        businessTransactionId:
+          (await resolveBusinessTransactionId(businessReference, companyId)) ??
+          -1,
+      });
+    }
 
     if (userId) {
       const hiddenRows = await this.transportEnquiryHiddenModel.findAll({
@@ -192,13 +215,22 @@ export class LogisticsService {
     // ── Search Filter ─────────────────────────────────────────────────────────
     if (search && search.trim()) {
       const s = search.trim();
-      whereConditions.push({
+      const searchCondition: any = {
         [Op.or]: [
           { enquiryNo: { [Op.iLike]: `%${s}%` } },
           { '$partner.entity_name$': { [Op.iLike]: `%${s}%` } },
           { '$product.name$': { [Op.iLike]: `%${s}%` } },
         ],
-      });
+      };
+      if (isBusinessReferenceSearch(s)) {
+        const transactionId = await resolveBusinessTransactionId(s, companyId);
+        if (transactionId !== null) {
+          searchCondition[Op.or].push({
+            businessTransactionId: transactionId,
+          });
+        }
+      }
+      whereConditions.push(searchCondition);
     }
 
     // ── Logistics Status Filter (Active vs Closed) ────────────────────────────
@@ -219,12 +251,28 @@ export class LogisticsService {
     }
 
     const whereEnquiry: any = { [Op.and]: whereConditions };
+    const order: Order =
+      sortBy === 'businessReference'
+        ? [
+            [
+              { model: BusinessTransaction, as: 'businessTransaction' },
+              'businessReference',
+              String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
+            ],
+          ]
+        : [['createdAt', 'DESC']];
 
     const { rows, count } = await this.enquiryModel.findAndCountAll({
       where: whereEnquiry,
       include: [
         { model: Partner, as: 'partner', attributes: ['id', 'entityName'] },
         { model: Product, as: 'product', attributes: ['id', 'name'] },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         {
           model: EnquiryLoadingPoint,
           as: 'loadingPoints',
@@ -259,7 +307,7 @@ export class LogisticsService {
       subQuery: false,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['createdAt', 'DESC']],
+      order,
     });
 
     return {
@@ -319,6 +367,7 @@ export class LogisticsService {
   async getAllFreightQuotes(
     query: {
       search?: string;
+      businessReference?: string;
       transportMode?: string;
       isPreferred?: boolean;
       status?: string;
@@ -336,6 +385,7 @@ export class LogisticsService {
   ) {
     const {
       search,
+      businessReference,
       transportMode,
       isPreferred,
       status,
@@ -351,6 +401,16 @@ export class LogisticsService {
     } = query;
 
     const quoteWhereConditions: any[] = [{ companyId }];
+
+    if (businessReference) {
+      quoteWhereConditions.push({
+        businessTransactionId:
+          (await resolveBusinessTransactionId(
+            businessReference,
+            companyId,
+          )) ?? -1,
+      });
+    }
 
     // ── 1. Preferred / Rejected / Status Filtering ─────────────────────────
     if (isPreferred !== undefined && isPreferred !== null) {
@@ -397,18 +457,29 @@ export class LogisticsService {
 
     // ── 3. Database Search Filter ───────────────────────────────────────────
     if (search && search.trim()) {
-      const s = `%${search.trim()}%`;
+      const term = search.trim();
+      const s = `%${term}%`;
+      const searchConditions: any[] = [
+        { quoteNumber: { [Op.iLike]: s } },
+        { '$seller.entity_name$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.enquiry_no$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.product.name$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.origin_city$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.origin_port$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.destination_city$': { [Op.iLike]: s } },
+        { '$logistics.enquiry.destination_port$': { [Op.iLike]: s } },
+      ];
+      if (isBusinessReferenceSearch(term)) {
+        const transactionId = await resolveBusinessTransactionId(
+          term,
+          companyId,
+        );
+        if (transactionId !== null) {
+          searchConditions.push({ businessTransactionId: transactionId });
+        }
+      }
       quoteWhereConditions.push({
-        [Op.or]: [
-          { quoteNumber: { [Op.iLike]: s } },
-          { '$seller.entity_name$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.enquiry_no$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.product.name$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.origin_city$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.origin_port$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.destination_city$': { [Op.iLike]: s } },
-          { '$logistics.enquiry.destination_port$': { [Op.iLike]: s } },
-        ],
+        [Op.or]: searchConditions,
       });
     }
 
@@ -474,6 +545,12 @@ export class LogisticsService {
     const { rows, count } = await this.quoteModel.findAndCountAll({
       where: quoteWhere,
       include: [
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         { model: FreightQuoteCharge, as: 'charges' },
         {
@@ -540,7 +617,16 @@ export class LogisticsService {
           ],
         },
       ],
-      order: [[orderCol, orderDir]],
+      order:
+        sortBy === 'businessReference'
+          ? [
+              [
+                { model: BusinessTransaction, as: 'businessTransaction' },
+                'businessReference',
+                orderDir,
+              ],
+            ]
+          : [[orderCol, orderDir]],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
       distinct: true,
@@ -548,7 +634,14 @@ export class LogisticsService {
     });
 
     return {
-      data: rows,
+      data: rows.map((row) => {
+        const data = row.toJSON() as any;
+        return {
+          ...data,
+          businessReference:
+            data.businessTransaction?.businessReference ?? null,
+        };
+      }),
       total: count,
       page: Number(page),
       limit: Number(limit),
@@ -704,6 +797,7 @@ export class LogisticsService {
           {
             logisticsNumber,
             enquiryId,
+            businessTransactionId: enquiry.businessTransactionId ?? null,
             mode,
             transportMode,
             status: 'Pending',
@@ -921,6 +1015,7 @@ export class LogisticsService {
           freightAmount: calculatedFreightAmount,
           quoteNumber,
           logisticsId,
+          businessTransactionId: logistics.businessTransactionId ?? null,
           createdBy: user?.userId,
           routeId: dto.routeId || null,
         } as any,
@@ -1769,6 +1864,10 @@ export class LogisticsService {
       const shipment = await this.shipmentModel.create(
         {
           salesContractId: salesContract.id,
+          businessTransactionId:
+            salesContract.businessTransactionId ??
+            logistics.businessTransactionId ??
+            null,
           logisticsId: logistics.id,
           shipmentDate,
           quantity,

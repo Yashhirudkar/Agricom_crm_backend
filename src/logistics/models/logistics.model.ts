@@ -21,6 +21,7 @@ import { FreightQuote } from './freight-quote.model';
 import { LogisticsRoute } from './logistics-route.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Company } from '../../companies/models/company.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'logistics',
@@ -40,6 +41,14 @@ export class Logistics extends BusinessReferenceEntity<Logistics> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @AllowNull(false)
   @Column({ field: 'logistics_number', type: DataType.STRING(50) })

@@ -52,6 +52,9 @@ import { join } from 'path';
 
 import { AttachmentsModule } from './attachments/modules/attachments.module';
 import { SystemModule } from './system/modules/system.module';
+import { BusinessTransactionsModule } from './system/modules/business-transactions.module';
+import { BusinessTransaction } from './system/models/business-transaction.model';
+import { BusinessTransactionCounter } from './system/models/business-transaction-counter.model';
 
 import { AuditMiddleware } from './audit/middlewares/audit.middleware';
 
@@ -247,6 +250,8 @@ import {
             SidebarFolder,
             SidebarItem,
             SystemAuditLog,
+            BusinessTransaction,
+            BusinessTransactionCounter,
             RoleActionPermission,
             ClientFolderAccess,
             ClientItemAccess,
@@ -362,6 +367,7 @@ import {
     HrmsModule,
     AttachmentsModule,
     SystemModule,
+    BusinessTransactionsModule,
     HolidaysModule,
     ProfileModule,
     AttendanceModule,

@@ -23,6 +23,7 @@ import { PurchaseContractRequiredDocument } from './purchase-contract-required-d
 import { PurchaseContractActivity } from './purchase-contract-activity.model';
 import { PurchaseContractAttachment } from './purchase-contract-attachment.model';
 import { Company } from '../../companies/models/company.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 /**
  * Purchase Contract execution / manual trade contract.
@@ -51,6 +52,14 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @ForeignKey(() => SalesContract)
   @AllowNull(true)

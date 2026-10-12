@@ -17,6 +17,18 @@ export class QueryEnquiryDto {
   search?: string;
 
   @IsOptional()
+  @IsString()
+  businessReference?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   partnerRoleId?: number;

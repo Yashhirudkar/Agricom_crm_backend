@@ -20,6 +20,7 @@ import { Partner } from '../../masters/partner/partner.model';
 import { User } from '../../users/models/user.model';
 import { CargoDocument } from './cargo-document.model';
 import { Company } from '../../companies/models/company.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'cargo_loading',
@@ -45,6 +46,14 @@ export class CargoLoading extends Model<CargoLoading> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @ForeignKey(() => CargoAvailability)
   @AllowNull(true)

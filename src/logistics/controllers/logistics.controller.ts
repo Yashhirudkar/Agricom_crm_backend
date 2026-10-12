@@ -65,6 +65,7 @@ export class LogisticsController {
     @Query()
     query: {
       search?: string;
+      businessReference?: string;
       transportMode?: string;
       isPreferred?: string;
       status?: string;

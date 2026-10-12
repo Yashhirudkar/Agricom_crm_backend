@@ -18,6 +18,11 @@ import { Partner } from '../masters/partner/partner.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { SalesContract } from '../sales-contracts/models/sales-contract.model';
 import { User } from '../users/models/user.model';
+import { BusinessTransaction } from '../system/models/business-transaction.model';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../system/utils/business-reference-query.util';
 
 @Injectable()
 export class CargoAvailabilityService {
@@ -59,6 +64,8 @@ export class CargoAvailabilityService {
     if (!record) {
       record = await this.cargoAvailabilityModel.create({
         purchaseContractId: item.purchaseContractId,
+        businessTransactionId:
+          item.purchaseContract?.businessTransactionId ?? null,
         purchaseContractItemId: item.id,
         productId: item.productId || 0,
         purchaseQty: item.quantity || 0,
@@ -215,6 +222,9 @@ export class CargoAvailabilityService {
       limit = 50,
       page = 1,
       companyId,
+      businessReference,
+      sortBy = 'created_at',
+      sortOrder = 'DESC',
     } = query;
 
     // Auto-sync if grid is currently empty
@@ -227,19 +237,42 @@ export class CargoAvailabilityService {
     if (companyId) where.companyId = companyId;
     if (purchaseContractId) where.purchaseContractId = purchaseContractId;
     if (productId) where.productId = productId;
+    if (businessReference) {
+      where.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          businessReference,
+          companyId,
+        )) ?? -1;
+    }
 
     const pcWhere: any = {};
     if (supplierId) pcWhere.sellerId = supplierId;
     if (search) {
-      pcWhere[Op.or] = [
+      const searchConditions: any[] = [
         { contractNumber: { [Op.iLike]: `%${search}%` } },
         { sellerContractNo: { [Op.iLike]: `%${search}%` } },
       ];
+      if (isBusinessReferenceSearch(search)) {
+        const transactionId = await resolveBusinessTransactionId(
+          search,
+          companyId,
+        );
+        if (transactionId !== null) {
+          where.businessTransactionId = transactionId;
+        }
+      }
+      pcWhere[Op.or] = searchConditions;
     }
 
     const { rows, count } = await this.cargoAvailabilityModel.findAndCountAll({
       where,
       include: [
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         {
           model: PurchaseContract,
           where: Object.keys(pcWhere).length > 0 ? pcWhere : undefined,
@@ -251,7 +284,16 @@ export class CargoAvailabilityService {
         { model: PurchaseContractItem },
         { model: Product },
       ],
-      order: [['created_at', 'DESC']],
+      order:
+        sortBy === 'businessReference'
+          ? [
+              [
+                { model: BusinessTransaction, as: 'businessTransaction' },
+                'businessReference',
+                String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
+              ],
+            ]
+          : [[sortBy, String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC']],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
     });
@@ -395,6 +437,12 @@ export class CargoAvailabilityService {
       where: whereCond,
       include: [
         {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
+        {
           model: PurchaseContract,
           include: [
             { model: Partner, as: 'buyer' },
@@ -512,6 +560,12 @@ export class CargoAvailabilityService {
       where: { shipmentId },
       include: [
         { model: CargoDocument, as: 'documents' },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: SalesContractShipment },
       ],
       order: [['created_at', 'DESC']],
@@ -686,12 +740,32 @@ export class CargoAvailabilityService {
     return allocation;
   }
 
-  async findAllLoading(companyId?: number): Promise<CargoLoading[]> {
+  async findAllLoading(
+    companyId?: number,
+    query: any = {},
+  ): Promise<CargoLoading[]> {
     const loadingWhere: any = {};
     if (companyId) loadingWhere.companyId = companyId;
+    if (query.businessReference) {
+      loadingWhere.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          query.businessReference,
+          companyId,
+        )) ?? -1;
+    }
+    if (query.search && isBusinessReferenceSearch(query.search)) {
+      loadingWhere.businessTransactionId =
+        (await resolveBusinessTransactionId(query.search, companyId)) ?? -1;
+    }
     return this.cargoLoadingModel.findAll({
       where: loadingWhere,
       include: [
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: CargoDocument, as: 'documents' },
         {
           model: SalesContractShipment,
@@ -706,7 +780,18 @@ export class CargoAvailabilityService {
           ],
         },
       ],
-      order: [['created_at', 'DESC']],
+      order:
+        query.sortBy === 'businessReference'
+          ? [
+              [
+                { model: BusinessTransaction, as: 'businessTransaction' },
+                'businessReference',
+                String(query.sortOrder).toUpperCase() === 'ASC'
+                  ? 'ASC'
+                  : 'DESC',
+              ],
+            ]
+          : [['created_at', 'DESC']],
     });
   }
 
@@ -785,6 +870,8 @@ export class CargoAvailabilityService {
       ...dto,
       timeline: initialTimeline,
       status: dto.status || 'Truck Arrived',
+      businessTransactionId:
+        shipmentInfo.shipment?.businessTransactionId ?? null,
       companyId: companyId || shipmentInfo.shipment?.salesContract?.companyId,
     });
 

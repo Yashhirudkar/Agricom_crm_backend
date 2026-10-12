@@ -8,6 +8,10 @@ export class QueryPurchaseContractDto {
 
   @IsOptional()
   @IsString()
+  businessReference?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
 
   @IsOptional()

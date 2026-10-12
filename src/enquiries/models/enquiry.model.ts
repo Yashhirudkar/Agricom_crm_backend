@@ -25,6 +25,7 @@ import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
 import { EnquiryLoadingPoint } from './enquiry-loading-point.model';
 import { EnquiryDestination } from './enquiry-destination.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'enquiries',
@@ -51,6 +52,14 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Default(DataType.UUIDV4)
   @Column({ type: DataType.UUID })
   declare id: string;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @AllowNull(false)
   @Column({ field: 'enquiry_no', type: DataType.STRING(50) })

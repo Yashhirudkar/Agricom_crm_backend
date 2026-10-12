@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize } from 'sequelize';
+import ExcelJS from 'exceljs';
 import { SalesContractShipment } from './models/sales-contract-shipment.model';
 import { SalesContract } from './models/sales-contract.model';
 import { Partner } from '../masters/partner/partner.model';
@@ -17,6 +18,11 @@ import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
 import { PurchaseContractService } from '../purchase-contracts/services/purchase-contract.service';
+import { BusinessTransaction } from '../system/models/business-transaction.model';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../system/utils/business-reference-query.util';
 
 @Injectable()
 export class ShipmentService {
@@ -85,7 +91,7 @@ export class ShipmentService {
     }
   }
 
-  private buildQueryOptions(query: any) {
+  private async buildQueryOptions(query: any) {
     const {
       search,
       status,
@@ -103,10 +109,17 @@ export class ShipmentService {
       shipmentDateFrom,
       shipmentDateTo,
       companyId,
+      businessReference,
     } = query;
 
     const whereClause: any = {};
     const contractWhereClause: any = {};
+
+    if (businessReference) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(businessReference, companyId)) ??
+        -1;
+    }
 
     if (companyId) {
       contractWhereClause.companyId = companyId;
@@ -208,11 +221,21 @@ export class ShipmentService {
 
     // 6. Search across multiple tables
     if (search) {
-      whereClause[Op.or] = [
+      const searchConditions: any[] = [
         { shipmentReference: { [Op.iLike]: `%${search}%` } },
         { '$salesContract.contract_number$': { [Op.iLike]: `%${search}%` } },
         { '$salesContract.buyer.entity_name$': { [Op.iLike]: `%${search}%` } },
       ];
+      if (isBusinessReferenceSearch(search)) {
+        const transactionId = await resolveBusinessTransactionId(
+          search,
+          companyId,
+        );
+        if (transactionId !== null) {
+          searchConditions.push({ businessTransactionId: transactionId });
+        }
+      }
+      whereClause[Op.or] = searchConditions;
     }
 
     // Strictly 1:1 Includes: 1 shipment = 1 SQL row (eliminates pagination bugs)
@@ -230,6 +253,12 @@ export class ShipmentService {
           { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         ],
       },
+      {
+        model: BusinessTransaction,
+        as: 'businessTransaction',
+        attributes: ['id', 'businessReference'],
+        required: false,
+      },
     ];
 
     return { whereClause, includes };
@@ -244,7 +273,7 @@ export class ShipmentService {
     } = query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    const { whereClause, includes } = this.buildQueryOptions(query);
+    const { whereClause, includes } = await this.buildQueryOptions(query);
 
     // Determine sorting
     let order: any[] = [['shipmentDate', 'ASC']];
@@ -256,6 +285,14 @@ export class ShipmentService {
       order = [['quantity', sortOrder]];
     } else if (sortBy === 'status') {
       order = [['status', sortOrder]];
+    } else if (sortBy === 'businessReference') {
+      order = [
+        [
+          { model: BusinessTransaction, as: 'businessTransaction' },
+          'businessReference',
+          String(sortOrder).toUpperCase() === 'DESC' ? 'DESC' : 'ASC',
+        ],
+      ];
     }
 
     const { rows, count } = await this.shipmentModel.findAndCountAll({
@@ -330,6 +367,8 @@ export class ShipmentService {
 
     const data = rows.map((shipment) => {
       const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
+      json.businessReference =
+        json.businessTransaction?.businessReference ?? null;
       const contractId = json.salesContractId || json.salesContract?.id;
       const contractItems = itemsByContract.get(contractId) || [];
       const contractDocs = docsByContract.get(contractId) || [];
@@ -390,7 +429,7 @@ export class ShipmentService {
   }
 
   async getStats(query: any) {
-    const { whereClause, includes } = this.buildQueryOptions(query);
+    const { whereClause, includes } = await this.buildQueryOptions(query);
     const todayStr = new Date().toISOString().split('T')[0];
     const next7DaysObj = new Date();
     next7DaysObj.setDate(next7DaysObj.getDate() + 7);
@@ -507,6 +546,46 @@ export class ShipmentService {
       totalContainers,
       totalQuantity: parseFloat(totalQuantity.toFixed(2)),
     };
+  }
+
+  async exportExcel(query: any): Promise<Buffer> {
+    const { whereClause, includes } = await this.buildQueryOptions(query);
+    const shipments = await this.shipmentModel.findAll({
+      where: whereClause,
+      include: includes,
+      order: [['shipmentDate', 'ASC']],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Shipments');
+    worksheet.columns = [
+      { header: 'Business Ref No.', key: 'businessReference', width: 22 },
+      { header: 'Shipment Ref', key: 'shipmentReference', width: 24 },
+      { header: 'Sales Contract No.', key: 'contractNumber', width: 24 },
+      { header: 'Buyer', key: 'buyer', width: 28 },
+      { header: 'Seller', key: 'seller', width: 28 },
+      { header: 'Shipment Date', key: 'shipmentDate', width: 16 },
+      { header: 'Status', key: 'status', width: 20 },
+      { header: 'Quantity (MT)', key: 'quantity', width: 16 },
+    ];
+
+    for (const shipment of shipments) {
+      const row: any = shipment.toJSON();
+      worksheet.addRow({
+        businessReference: row.businessTransaction?.businessReference ?? null,
+        shipmentReference: row.shipmentReference,
+        contractNumber: row.salesContract?.contractNumber ?? null,
+        buyer: row.salesContract?.buyer?.entityName ?? null,
+        seller: row.salesContract?.seller?.entityName ?? null,
+        shipmentDate: row.shipmentDate,
+        status: row.status,
+        quantity: Number(row.quantity ?? 0),
+      });
+    }
+
+    worksheet.getRow(1).font = { bold: true };
+    const contents = await workbook.xlsx.writeBuffer();
+    return Buffer.from(contents);
   }
 
   async update(id: number, dto: UpdateShipmentDto, user?: any) {

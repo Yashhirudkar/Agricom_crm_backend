@@ -8,6 +8,10 @@ export class QueryLogisticsDto {
 
   @IsOptional()
   @IsString()
+  businessReference?: string;
+
+  @IsOptional()
+  @IsString()
   mode?: string;
 
   @IsOptional()
@@ -30,4 +34,12 @@ export class QueryLogisticsDto {
   @IsInt()
   @Min(1)
   limit?: number = 10;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string;
 }

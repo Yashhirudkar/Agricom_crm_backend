@@ -7,6 +7,8 @@ import { User } from '../../users/models/user.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { Product } from '../../masters/product/product.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import { resolveBusinessTransactionId } from '../../system/utils/business-reference-query.util';
 
 export interface ConfirmedOrdersQuery {
   companyId?: string;
@@ -18,6 +20,7 @@ export interface ConfirmedOrdersQuery {
   year?: string;
   month?: string;
   limit?: string;
+  businessReference?: string;
 }
 
 @Injectable()
@@ -37,7 +40,7 @@ export class SalesReportService {
     private readonly enquiryModel: typeof Enquiry,
   ) {}
 
-  private buildWhereClause(query: any): any {
+  private async buildWhereClause(query: any): Promise<any> {
     const where: any = {
       status: {
         [Op.notIn]: ['Draft', 'Cancelled'],
@@ -46,6 +49,13 @@ export class SalesReportService {
 
     if (query.companyId) {
       where.companyId = query.companyId;
+    }
+    if (query.businessReference) {
+      where.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          query.businessReference,
+          query.companyId ? Number(query.companyId) : undefined,
+        )) ?? -1;
     }
 
     if (query.year) {
@@ -163,7 +173,7 @@ export class SalesReportService {
   }
 
   async getSummary(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes = this.getIncludes(query);
 
     // If productId is provided, we need to calculate sum from items, otherwise from contract
@@ -216,7 +226,7 @@ export class SalesReportService {
   }
 
   async getExecutives(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes = this.getIncludes(query);
 
     const contracts = await this.salesContractModel.findAll({
@@ -289,7 +299,7 @@ export class SalesReportService {
   }
 
   async getMonthly(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes = this.getIncludes(query);
 
     const contracts = await this.salesContractModel.findAll({
@@ -357,7 +367,7 @@ export class SalesReportService {
   }
 
   async getProducts(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     // For products, we always need items included regardless of filter, to see breakdown
     const includes: any[] = [
       {
@@ -405,7 +415,7 @@ export class SalesReportService {
   }
 
   async getCountries(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes = this.getIncludes(query);
 
     const contracts = await this.salesContractModel.findAll({
@@ -453,7 +463,7 @@ export class SalesReportService {
   }
 
   async getCustomers(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes = this.getIncludes(query);
 
     const contracts = await this.salesContractModel.findAll({
@@ -507,8 +517,14 @@ export class SalesReportService {
   }
 
   async getOrders(query: any) {
-    const where = this.buildWhereClause(query);
+    const where = await this.buildWhereClause(query);
     const includes: any[] = [
+      {
+        model: BusinessTransaction,
+        as: 'businessTransaction',
+        attributes: ['id', 'businessReference'],
+        required: false,
+      },
       {
         model: Partner,
         as: 'buyer',
@@ -568,6 +584,7 @@ export class SalesReportService {
         id: j.id,
         orderNumber: j.contractNumber,
         contractNumber: j.contractNumber,
+        businessReference: j.businessTransaction?.businessReference ?? null,
         date: j.contractDate,
         customer: j.buyer?.entityName || 'Unknown',
         salesExecutive,
@@ -587,6 +604,13 @@ export class SalesReportService {
     const where: any = { status: 'CONFIRMED' };
 
     if (query.companyId) where.companyId = query.companyId;
+    if (query.businessReference) {
+      where.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          query.businessReference,
+          query.companyId ? Number(query.companyId) : undefined,
+        )) ?? -1;
+    }
     if (query.salesExecutiveId) where.createdBy = query.salesExecutiveId;
     if (query.productId) where.productId = query.productId;
     if (query.customerId) where.partnerId = query.customerId;
@@ -652,6 +676,12 @@ export class SalesReportService {
           attributes: ['id', 'name'],
           required: false,
         },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
       ],
       order: [
         ['enquiryDate', 'DESC'],
@@ -667,6 +697,8 @@ export class SalesReportService {
       return {
         id: enquiry.id,
         orderNumber: enquiry.enquiryNo,
+        businessReference:
+          (enquiry as any).businessTransaction?.businessReference ?? null,
         date: enquiry.enquiryDate,
         customer: enquiry.partner?.entityName || 'Unknown',
         customerId: enquiry.partnerId,

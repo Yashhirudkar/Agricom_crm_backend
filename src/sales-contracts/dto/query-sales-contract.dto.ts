@@ -8,6 +8,18 @@ export class QuerySalesContractDto {
 
   @IsOptional()
   @IsString()
+  businessReference?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
 
   @IsOptional()

@@ -25,6 +25,7 @@ describe('EnquiriesService.findAll contract filters', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
     );
 
     return { service, enquiryModel };

@@ -7,6 +7,7 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   IsPositive,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -42,6 +43,10 @@ export class CreateQuotationItemDto {
 }
 
 export class CreateQuotationDto {
+  @IsOptional()
+  @IsUUID()
+  enquiryId?: string;
+
   @IsNumber()
   @IsNotEmpty()
   buyerId: number;

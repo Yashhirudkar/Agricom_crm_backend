@@ -19,6 +19,7 @@ import {
   FOLLOW_UP_REMINDER_PRIORITY,
   COMPLETED_STATUSES,
 } from '../utils/follow-up.utils';
+import { BusinessTransactionService } from '../../system/services/business-transaction.service';
 
 @Injectable()
 export class FollowUpManagementService {
@@ -31,6 +32,7 @@ export class FollowUpManagementService {
     private readonly partnerModel: typeof Partner,
     private readonly sequelize: Sequelize,
     private readonly followUpNotificationService: FollowUpNotificationService,
+    private readonly businessTransactionService: BusinessTransactionService,
   ) {}
 
   private getDateBoundaries() {
@@ -418,7 +420,11 @@ export class FollowUpManagementService {
       (followUp as any).enquiryId ||
       (followUp.entityType === 'enquiry' ? followUp.entityId : null);
     if (enquiryId) {
-      await this.syncEnquiryStatus(String(enquiryId), dto.status);
+      await this.businessTransactionService.syncEnquiryStatus(
+        String(enquiryId),
+        dto.status,
+        userId,
+      );
     }
 
     return followUp;
@@ -463,7 +469,11 @@ export class FollowUpManagementService {
       (followUp as any).enquiryId ||
       (followUp.entityType === 'enquiry' ? followUp.entityId : null);
     if (enquiryId) {
-      await this.syncEnquiryStatus(String(enquiryId), 'Pending');
+      await this.businessTransactionService.syncEnquiryStatus(
+        String(enquiryId),
+        'Pending',
+        userId,
+      );
     }
 
     // Delete any existing notification for this follow-up so it gets recreated with fresh details
@@ -479,29 +489,6 @@ export class FollowUpManagementService {
     );
 
     return followUp;
-  }
-
-  private async syncEnquiryStatus(enquiryId: string, followUpStatus: string) {
-    if (!enquiryId) return;
-    const EnquiryModel = this.sequelize.models.Enquiry;
-    if (!EnquiryModel) return;
-
-    let newStatus = 'PENDING';
-    if (followUpStatus === 'Waiting Response') {
-      newStatus = 'WAITING_RESPONSE';
-    } else if (
-      followUpStatus === 'Confirmed' ||
-      followUpStatus === 'Deal Finalized'
-    ) {
-      newStatus = 'CONFIRMED';
-    } else if (followUpStatus === 'Closed') {
-      newStatus = 'CLOSED';
-    }
-
-    await EnquiryModel.update(
-      { status: newStatus },
-      { where: { id: enquiryId } },
-    );
   }
 
   async getMarqueeReminders(

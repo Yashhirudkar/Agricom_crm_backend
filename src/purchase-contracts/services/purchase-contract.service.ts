@@ -27,6 +27,7 @@ import {
   PurchaseContractActivityService,
   PC_ACTIONS,
 } from './purchase-contract-activity.service';
+import { BusinessTransactionService } from '../../system/services/business-transaction.service';
 
 // Status transition rules
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -66,6 +67,7 @@ export class PurchaseContractService {
     private readonly salesShipmentModel: typeof SalesContractShipment,
     private readonly activityService: PurchaseContractActivityService,
     private readonly sequelize: Sequelize,
+    private readonly businessTransactionService: BusinessTransactionService,
   ) {}
 
   private async validateForeignKeys(
@@ -142,7 +144,13 @@ export class PurchaseContractService {
       const salesContract = await this.salesContractModel.findByPk(
         salesContractId,
         {
-          attributes: ['id', 'contractNumber', 'companyId', 'sellerId'],
+          attributes: [
+            'id',
+            'contractNumber',
+            'companyId',
+            'sellerId',
+            'businessTransactionId',
+          ],
         },
       );
       if (!salesContract)
@@ -150,6 +158,7 @@ export class PurchaseContractService {
 
       pc = await this.model.create({
         salesContractId,
+        businessTransactionId: salesContract.businessTransactionId ?? null,
         purchaseType: 'SC',
         buyerId: salesContract.sellerId || null,
         status: 'Draft',
@@ -357,6 +366,11 @@ export class PurchaseContractService {
         }
       }
 
+      await this.businessTransactionService.ensureForPurchaseContract(
+        pc.id,
+        user?.userId,
+        t,
+      );
       return pc.reload();
     });
   }
@@ -423,6 +437,7 @@ export class PurchaseContractService {
     } = dto;
 
     const sanitizeData: any = {};
+    const requestedStatus = updateData.status;
     if (updateData.purchaseType !== undefined)
       sanitizeData.purchaseType = updateData.purchaseType
         ? String(updateData.purchaseType)
@@ -543,9 +558,6 @@ export class PurchaseContractService {
       sanitizeData.specificationDate = updateData.specificationDate
         ? String(updateData.specificationDate)
         : null;
-    if (updateData.status !== undefined)
-      sanitizeData.status = String(updateData.status);
-
     await pc.update({ ...sanitizeData, updatedBy: user?.userId });
 
     // Handle items update
@@ -635,13 +647,40 @@ export class PurchaseContractService {
       }
     }
 
+    if (requestedStatus !== undefined) {
+      const nextStatus = String(requestedStatus);
+      await this.sequelize.transaction(async (transaction) => {
+        if (pc.salesContractId) {
+          await this.businessTransactionService.ensureForSalesContract(
+            pc.salesContractId,
+            user?.userId,
+            transaction,
+          );
+        }
+        await pc.update(
+          { status: nextStatus, updatedBy: user?.userId },
+          { transaction },
+        );
+        if (!pc.salesContractId) {
+          await this.businessTransactionService.ensureForPurchaseContract(
+            id,
+            user?.userId,
+            transaction,
+          );
+        }
+      });
+    } else {
+      await this.businessTransactionService.ensureForPurchaseContract(
+        id,
+        user?.userId,
+      );
+    }
     await this.activityService.log(
       id,
       PC_ACTIONS.PC_UPDATED,
       `Purchase Contract updated`,
       user?.userId,
     );
-
     return pc.reload();
   }
 
@@ -696,14 +735,35 @@ export class PurchaseContractService {
       const count = await this.shipmentLinkModel.count({
         where: { purchaseContractId: id },
       });
-      if (count === 0) {
+      const standaloneMtt =
+        pc.purchaseType === 'MTT' && pc.salesContractId == null;
+      if (count === 0 && !standaloneMtt) {
         throw new BadRequestException(
           'Cannot advance a Purchase Contract with no linked shipments',
         );
       }
     }
 
-    await pc.update({ status: nextStatus, updatedBy: user?.userId });
+    await this.sequelize.transaction(async (transaction) => {
+      if (pc.salesContractId) {
+        await this.businessTransactionService.ensureForSalesContract(
+          pc.salesContractId,
+          user?.userId,
+          transaction,
+        );
+      }
+      await pc.update(
+        { status: nextStatus, updatedBy: user?.userId },
+        { transaction },
+      );
+      if (!pc.salesContractId) {
+        await this.businessTransactionService.ensureForPurchaseContract(
+          id,
+          user?.userId,
+          transaction,
+        );
+      }
+    });
 
     await this.activityService.log(
       id,
@@ -720,6 +780,7 @@ export class PurchaseContractService {
     const where: any = { status: 'Draft' };
     if (user?.companyId) where.companyId = user.companyId;
 
+    where.businessTransactionId = null;
     const count = await this.model.destroy({ where });
     return { count };
   }

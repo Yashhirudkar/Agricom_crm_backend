@@ -19,6 +19,11 @@ import { PackingType } from '../../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../../masters/bag-specs/models/bag-specification.model';
 import { TradeDocument } from '../../masters/trade-document/trade-document.model';
 import { Attachment } from '../../attachments/models/attachment.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../../system/utils/business-reference-query.util';
 import { QueryPurchaseContractDto } from '../dto/query-purchase-contract.dto';
 import {
   calculatePurchaseAllocation,
@@ -45,6 +50,7 @@ export class PurchaseContractQueryService {
   async findAll(query: QueryPurchaseContractDto & { companyId?: number }) {
     const {
       search,
+      businessReference,
       status,
       buyerId,
       financialYear,
@@ -65,13 +71,30 @@ export class PurchaseContractQueryService {
     if (salesContractId) whereClause.salesContractId = salesContractId;
     if (buyerId) salesContractWhere.buyerId = buyerId;
     if (financialYear) salesContractWhere.financialYear = financialYear;
-    if (search) {
+    if (businessReference) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          businessReference,
+          query.companyId,
+        )) ?? -1;
+    }
+    if (search && !isBusinessReferenceSearch(search)) {
       salesContractWhere.contractNumber = { [Op.iLike]: `%${search}%` };
+    }
+    if (search && isBusinessReferenceSearch(search)) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(search, query.companyId)) ?? -1;
     }
 
     const { rows, count } = await this.model.findAndCountAll({
       where: whereClause,
       include: [
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
         {
@@ -114,13 +137,24 @@ export class PurchaseContractQueryService {
       distinct: true,
       limit: Number(limit),
       offset,
-      order: [[sortBy, sortOrder]],
+      order:
+        sortBy === 'businessReference'
+          ? [
+              [
+                { model: BusinessTransaction, as: 'businessTransaction' },
+                'businessReference',
+                sortOrder,
+              ],
+            ]
+          : [[sortBy, sortOrder]],
     });
 
     // Attach derived contract number, shipment count, and aggregated financials
     const data = await Promise.all(
       rows.map(async (pc) => {
         const json: any = pc.toJSON();
+        json.businessReference =
+          json.businessTransaction?.businessReference ?? null;
         json.contractNumber =
           pc.contractNumber ||
           (pc.salesContract
@@ -179,6 +213,12 @@ export class PurchaseContractQueryService {
     const pc = await this.model.findOne({
       where,
       include: [
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
         { model: Partner, as: 'buyer' },
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
@@ -236,6 +276,8 @@ export class PurchaseContractQueryService {
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
     const json: any = pc.toJSON();
+    json.businessReference =
+      json.businessTransaction?.businessReference ?? null;
     json.contractNumber =
       pc.contractNumber ||
       (pc.salesContract

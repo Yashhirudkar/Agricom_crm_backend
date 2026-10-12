@@ -22,8 +22,20 @@ import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
 import { QueryQuotationDto } from '../dto/query-quotation.dto';
 import { QuotationNumberService } from './quotation-number.service';
+import { Enquiry } from '../../enquiries/models/enquiry.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import {
+  isBusinessReferenceSearch,
+  resolveBusinessTransactionId,
+} from '../../system/utils/business-reference-query.util';
 
 const QUOTATION_INCLUDE = [
+  {
+    model: BusinessTransaction,
+    as: 'businessTransaction',
+    attributes: ['id', 'businessReference'],
+    required: false,
+  },
   {
     model: Partner,
     as: 'buyer',
@@ -159,6 +171,23 @@ export class QuotationService {
     if (companyId) {
       await this.validateForeignKeys(companyId, dto);
     }
+    if (dto.enquiryId && !companyId) {
+      throw new BadRequestException(
+        'A company context is required to link a quotation to an enquiry',
+      );
+    }
+    const linkedEnquiry = dto.enquiryId
+      ? await Enquiry.findOne({
+          where: {
+            id: dto.enquiryId,
+            ...(companyId ? { companyId } : {}),
+          },
+          attributes: ['id', 'businessTransactionId'],
+        })
+      : null;
+    if (dto.enquiryId && !linkedEnquiry) {
+      throw new NotFoundException('Enquiry not found or does not belong to company');
+    }
     return this.sequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
       async (tx) => {
@@ -177,6 +206,9 @@ export class QuotationService {
             buyerId: dto.buyerId,
             importerId: dto.importerId ?? null,
             destinationCountry: dto.destinationCountry,
+            enquiryId: linkedEnquiry?.id ?? null,
+            businessTransactionId:
+              linkedEnquiry?.businessTransactionId ?? null,
             followUpId: dto.followUpId ?? null,
             currencyCode: dto.currencyCode,
             validUntil: dto.validUntil ?? null,
@@ -229,7 +261,15 @@ export class QuotationService {
   // ─── READ (LIST) ──────────────────────────────────────────────────────────
 
   async findAll(query: QueryQuotationDto & { companyId?: number }) {
-    const { buyerId, importerId, status, search, page = 1, limit = 10 } = query;
+    const {
+      buyerId,
+      importerId,
+      status,
+      search,
+      businessReference,
+      page = 1,
+      limit = 10,
+    } = query;
     const offset = (page - 1) * limit;
 
     const whereClause: any = { deletedAt: null };
@@ -239,15 +279,47 @@ export class QuotationService {
     if (buyerId) whereClause.buyerId = buyerId;
     if (importerId) whereClause.importerId = importerId;
     if (status) whereClause.status = status;
+    if (businessReference) {
+      whereClause.businessTransactionId =
+        (await resolveBusinessTransactionId(
+          businessReference,
+          query.companyId,
+        )) ?? -1;
+    }
     if (search) {
-      whereClause.quotationNumber = { [Op.iLike]: `%${search}%` };
+      const searchConditions: any[] = [
+        { quotationNumber: { [Op.iLike]: `%${search}%` } },
+      ];
+      if (isBusinessReferenceSearch(search)) {
+        const transactionId = await resolveBusinessTransactionId(
+          search,
+          query.companyId,
+        );
+        if (transactionId !== null) {
+          searchConditions.push({ businessTransactionId: transactionId });
+        }
+      }
+      whereClause[Op.or] = searchConditions;
     }
 
+    const sortDirection =
+      String(query.sortOrder || 'DESC').toUpperCase() === 'ASC'
+        ? 'ASC'
+        : 'DESC';
     const { rows, count } = await this.quotationModel.findAndCountAll({
       where: whereClause,
       limit: Number(limit),
       offset: Number(offset),
-      order: [['createdAt', 'DESC']],
+      order:
+        query.sortBy === 'businessReference'
+          ? [
+              [
+                { model: BusinessTransaction, as: 'businessTransaction' },
+                'businessReference',
+                sortDirection,
+              ],
+            ]
+          : [['createdAt', 'DESC']],
       include: [
         ...QUOTATION_INCLUDE,
         {
@@ -260,7 +332,14 @@ export class QuotationService {
     });
 
     return {
-      data: rows,
+      data: rows.map((row) => {
+        const data = row.toJSON() as any;
+        return {
+          ...data,
+          businessReference:
+            data.businessTransaction?.businessReference ?? null,
+        };
+      }),
       total: count,
       page: Number(page),
       limit: Number(limit),

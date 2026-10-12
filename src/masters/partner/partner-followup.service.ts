@@ -13,6 +13,7 @@ import {
   transformFollowUpCreator,
   COMPLETED_STATUSES,
 } from '../../follow-up-management/utils/follow-up.utils';
+import { BusinessTransactionService } from '../../system/services/business-transaction.service';
 
 @Injectable()
 export class PartnerFollowUpService {
@@ -22,30 +23,8 @@ export class PartnerFollowUpService {
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
     private readonly followUpNotificationService: FollowUpNotificationService,
+    private readonly businessTransactionService: BusinessTransactionService,
   ) {}
-
-  private async syncEnquiryStatus(enquiryId: string, followUpStatus: string) {
-    if (!enquiryId) return;
-    const EnquiryModel = this.sequelize.models.Enquiry;
-    if (!EnquiryModel) return;
-
-    let newStatus = 'PENDING';
-    if (followUpStatus === 'Waiting Response') {
-      newStatus = 'WAITING_RESPONSE';
-    } else if (
-      followUpStatus === 'Confirmed' ||
-      followUpStatus === 'Deal Finalized'
-    ) {
-      newStatus = 'CONFIRMED';
-    } else if (followUpStatus === 'Closed') {
-      newStatus = 'CLOSED';
-    }
-
-    await EnquiryModel.update(
-      { status: newStatus },
-      { where: { id: enquiryId } },
-    );
-  }
 
   async create(
     dto: CreatePartnerFollowUpDto,
@@ -100,7 +79,11 @@ export class PartnerFollowUpService {
         const enquiryId =
           dto.enquiryId || (dto.entityType === 'enquiry' ? dto.entityId : null);
         if (enquiryId && dto.status) {
-          await this.syncEnquiryStatus(enquiryId.toString(), dto.status);
+          await this.businessTransactionService.syncEnquiryStatus(
+            enquiryId.toString(),
+            dto.status,
+            user?.userId,
+          );
         }
 
         if (followUp.workspaceId && followUp.createdBy) {
@@ -255,7 +238,11 @@ export class PartnerFollowUpService {
     await followUp.update(payload);
 
     if (enquiryId && dto.status) {
-      await this.syncEnquiryStatus(enquiryId, dto.status);
+      await this.businessTransactionService.syncEnquiryStatus(
+        enquiryId,
+        dto.status,
+        user?.userId,
+      );
     }
 
     if (followUp.workspaceId && followUp.createdBy) {

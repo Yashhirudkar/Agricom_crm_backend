@@ -21,6 +21,10 @@ export class QueryQuotationDto {
   search?: string;
 
   @IsOptional()
+  @IsString()
+  businessReference?: string;
+
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   page?: number;
@@ -29,4 +33,12 @@ export class QueryQuotationDto {
   @IsNumber()
   @Type(() => Number)
   limit?: number;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string;
 }

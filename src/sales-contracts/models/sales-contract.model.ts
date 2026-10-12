@@ -28,6 +28,7 @@ import { SalesContractDocumentFile } from './sales-contract-document-file.model'
 import { Company } from '../../companies/models/company.model';
 // Forward import to avoid circular dependency issues at runtime
 import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'sales_contracts',
@@ -52,6 +53,14 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @ForeignKey(() => Enquiry)
   @AllowNull(true)

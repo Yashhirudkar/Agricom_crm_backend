@@ -16,6 +16,7 @@ import {
 import { SalesContract } from './sales-contract.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
+import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
   tableName: 'sales_contract_shipments',
@@ -34,6 +35,14 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   @AutoIncrement
   @Column({ type: DataType.INTEGER })
   declare id: number;
+
+  @ForeignKey(() => BusinessTransaction)
+  @AllowNull(true)
+  @Column({ field: 'business_transaction_id', type: DataType.BIGINT })
+  declare businessTransactionId: number | null;
+
+  @BelongsTo(() => BusinessTransaction)
+  declare businessTransaction: BusinessTransaction;
 
   @ForeignKey(() => Logistics)
   @AllowNull(true)
