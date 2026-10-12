@@ -239,7 +239,7 @@ export class TasksController {
     @Body() updateTaskDto: UpdateTaskDto,
   ) {
     const clientId = req.user?.clientId || 1;
-    const companyId = req.user?.companyId;
+    const companyId = req.activeCompanyId || req.user?.companyId;
     const userId = req.user?.id || 1;
     const task = await this.tasksService.update(
       +id,

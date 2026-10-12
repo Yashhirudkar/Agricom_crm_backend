@@ -454,10 +454,15 @@ export class TasksService {
       }
 
       if (dto.ownerId && dto.ownerId !== oldTask.ownerId) {
+        const ownerScope = [
+          { clientId, companyId },
+          { clientId: null },
+          ...(companyId ? [{ lastCompanyId: companyId }] : []),
+        ];
         const ownerUser = await this.userModel.findOne({
           where: {
             id: dto.ownerId,
-            [Op.or]: [{ clientId, companyId }, { clientId: null }],
+            [Op.or]: ownerScope,
           },
           transaction,
         });
@@ -466,11 +471,17 @@ export class TasksService {
       }
 
       if (dto.assigneeIds?.length) {
+        const assigneeScope = [
+          { clientId, companyId },
+          { clientId: null },
+          ...(companyId ? [{ lastCompanyId: companyId }] : []),
+        ];
         const count = await this.userModel.count({
           where: {
             id: { [Op.in]: dto.assigneeIds },
-            [Op.or]: [{ clientId, companyId }, { clientId: null }],
+            [Op.or]: assigneeScope,
           },
+          transaction,
         });
         if (count !== dto.assigneeIds.length)
           throw new NotFoundException('One or more assignees invalid');
