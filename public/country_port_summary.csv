@@ -1,0 +1,108 @@
+﻿Country,Port,UN_LOCODE,No_of_Lines,Shipping_Lines
+China,Shanghai,CNSHA,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+China,Ningbo-Zhoushan,CNNGB,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+China,Shenzhen,CNSZX,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+China,Guangzhou (Nansha),CNGZG,10,MSC; Maersk; CMA CGM; COSCO; OOCL; ONE; Evergreen; Hapag-Lloyd; SITC; Wan Hai
+China,Qingdao,CNTAO,13,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; SITC; Wan Hai
+China,Tianjin,CNTSN,10,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; HMM; Hapag-Lloyd; SITC
+China,Xiamen,CNXMN,10,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Yang Ming; Hapag-Lloyd; SITC
+Hong Kong (SAR),Hong Kong,HKHKG,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+Taiwan,Kaohsiung,TWKHH,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+South Korea,Busan,KRPUS,17,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL; Heung-A Line; KMTC
+Japan,Tokyo,JPTYO,11,ONE; Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; HMM; Yang Ming; Hapag-Lloyd; Wan Hai
+Japan,Yokohama,JPYOK,11,ONE; Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; HMM; Yang Ming; Hapag-Lloyd; Wan Hai
+Japan,Kobe,JPUKB,11,ONE; Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; HMM; Yang Ming; Hapag-Lloyd; Wan Hai
+Singapore,Singapore,SGSIN,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+Malaysia,Port Klang,MYPKG,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+Malaysia,Tanjung Pelepas,MYTPP,11,Maersk; Evergreen; MSC; CMA CGM; COSCO; OOCL; ONE; Yang Ming; Hapag-Lloyd; HMM; Wan Hai
+Indonesia,Jakarta (Tanjung Priok),IDJKT,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Wan Hai; SITC; PIL; RCL; Samudera Indonesia
+Indonesia,Surabaya (Tanjung Perak),IDSUB,6,MSC; CMA CGM; COSCO; SITC; Maersk; Salam Pacific Indonesia Lines
+Thailand,Laem Chabang,THLCH,15,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL; RCL
+Vietnam,Ho Chi Minh City / Cai Mep,VNSGN / VNCMT,14,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; SITC; PIL
+Vietnam,Haiphong,VNHPH,11,MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Yang Ming; HMM; Wan Hai; SITC; Maersk
+Philippines,Manila,PHMNL,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Yang Ming; Wan Hai; SITC; PIL; RCL
+Cambodia,Sihanoukville,KHKOS,9,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Wan Hai; SITC
+India,Nhava Sheva (JNPT),INNSA,17,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; PIL; Shipping Corporation of India; X-Press Feeders; Emirates Shipping Line; Gold Star Line
+India,Mundra,INMUN,16,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; PIL; X-Press Feeders; Emirates Shipping Line; Gold Star Line
+India,Chennai,INMAA,14,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming; Wan Hai; PIL; X-Press Feeders; Shipping Corporation of India
+India,Cochin (Kochi),INCOK,8,MSC; Maersk; CMA CGM; COSCO; OOCL; Hapag-Lloyd; X-Press Feeders; Shipping Corporation of India
+India,Vizhinjam,INVIZ,2,MSC; Maersk
+India,Tuticorin (V.O. Chidambaranar),INTUT,6,MSC; Maersk; CMA CGM; X-Press Feeders; Shipping Corporation of India; Wan Hai
+Sri Lanka,Colombo,LKCMB,13,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; PIL; X-Press Feeders
+Bangladesh,Chattogram,BDCGP,7,MSC; Maersk; CMA CGM; X-Press Feeders; Evergreen; ONE; OOCL
+Pakistan,Karachi,PKKHI,8,Maersk; MSC; CMA CGM; ONE; Hapag-Lloyd; PIL; Gold Star Line; Pakistan National Shipping Corp
+United Arab Emirates,Jebel Ali (Dubai),AEJEA,14,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; PIL; X-Press Feeders; Emirates Shipping Line
+Saudi Arabia,Jeddah,SAJED,9,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM
+Saudi Arabia,Dammam,SADMM,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; ONE
+Oman,Salalah,OMSLL,5,Maersk; MSC; CMA CGM; ONE; Hapag-Lloyd
+Qatar,Hamad Port (Doha),QAHMD,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; ONE
+Israel,Haifa,ILHFA,5,ZIM; MSC; CMA CGM; Maersk; Hapag-Lloyd
+Turkey,Mersin,TRMER,11,MSC; CMA CGM; Maersk; COSCO; Evergreen; ONE; Yang Ming; ZIM; Hapag-Lloyd; Arkas; Turkon
+Turkey,Istanbul (Ambarli),TRAMB,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming; Arkas; Turkon
+Egypt,Port Said (East),EGPSD,10,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming
+Egypt,Alexandria,EGALY,6,MSC; CMA CGM; Maersk; COSCO; Evergreen; Hapag-Lloyd
+Djibouti,Djibouti,DJJIB,5,MSC; Maersk; CMA CGM; COSCO; Hapag-Lloyd
+Morocco,Tanger Med,MAPTM,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai
+Morocco,Casablanca,MACAS,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; COSCO
+Nigeria,Lagos (Apapa / Lekki),NGAPP / NGLEK,6,Maersk; MSC; CMA CGM; COSCO; Hapag-Lloyd; ONE
+Ghana,Tema,GHTEM,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; COSCO
+Ivory Coast,Abidjan,CIABJ,3,MSC; Maersk; CMA CGM
+Senegal,Dakar,SNDKR,3,MSC; Maersk; CMA CGM
+Angola,Luanda,AOLAD,3,MSC; Maersk; CMA CGM
+Kenya,Mombasa,KEMBA,7,Maersk; MSC; CMA CGM; COSCO; Hapag-Lloyd; ONE; PIL
+Tanzania,Dar es Salaam,TZDAR,6,Maersk; MSC; CMA CGM; COSCO; Hapag-Lloyd; ONE
+Mauritius,Port Louis,MUPLU,3,MSC; Maersk; CMA CGM
+South Africa,Durban,ZADUR,12,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Safmarine
+South Africa,Cape Town,ZACPT,10,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Safmarine
+Netherlands,Rotterdam,NLRTM,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Belgium,Antwerp-Bruges,BEANR,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Germany,Hamburg,DEHAM,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Germany,Bremerhaven,DEBRV,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+United Kingdom,Felixstowe,GBFXT,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai
+United Kingdom,London Gateway,GBLGP,7,Hapag-Lloyd; ONE; HMM; Yang Ming; MSC; CMA CGM; COSCO
+United Kingdom,Southampton,GBSOU,8,Maersk; MSC; CMA CGM; COSCO; OOCL; ONE; Hapag-Lloyd; Evergreen
+France,Le Havre,FRLEH,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+France,Marseille-Fos,FRMRS,6,CMA CGM; MSC; Maersk; COSCO; OOCL; Hapag-Lloyd
+Spain,Valencia,ESVLC,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Spain,Algeciras,ESALG,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Spain,Barcelona,ESBCN,10,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming
+Italy,Genoa,ITGOA,11,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming; HMM
+Italy,La Spezia,ITSPE,8,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd
+Italy,Gioia Tauro,ITGIT,6,MSC; Maersk; CMA CGM; Hapag-Lloyd; ONE; ZIM
+Greece,Piraeus,GRPIR,11,COSCO; MSC; Maersk; CMA CGM; OOCL; Evergreen; ONE; Hapag-Lloyd; ZIM; Yang Ming; HMM
+Malta,Marsaxlokk,MTMAR,2,CMA CGM; MSC
+Portugal,Sines,PTSIE,6,MSC; Maersk; CMA CGM; COSCO; ONE; Hapag-Lloyd
+Poland,Gdansk,PLGDN,6,Maersk; MSC; CMA CGM; COSCO; OOCL; Hapag-Lloyd
+Sweden,Gothenburg,SEGOT,4,Maersk; MSC; CMA CGM; Hapag-Lloyd
+Romania,Constanta,ROCND,6,MSC; Maersk; CMA CGM; COSCO; ONE; Hapag-Lloyd
+United States,Los Angeles,USLAX,13,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; Matson
+United States,Long Beach,USLGB,13,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai; Matson
+United States,New York / New Jersey,USNYC,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai
+United States,Savannah,USSAV,12,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; Wan Hai
+United States,Houston,USHOU,9,Maersk; MSC; CMA CGM; Hapag-Lloyd; ONE; Evergreen; Yang Ming; ZIM; COSCO
+United States,Seattle-Tacoma,USSEA / USTIW,8,COSCO; OOCL; Evergreen; ONE; Yang Ming; HMM; CMA CGM; Matson
+United States,Oakland,USOAK,11,Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; HMM; Yang Ming; ZIM; Hapag-Lloyd; Matson
+United States,Virginia (Norfolk),USORF,8,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd
+Canada,Vancouver,CAVAN,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Canada,Prince Rupert,CAPRR,7,COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; Yang Ming; HMM
+Canada,Montreal,CAMTR,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; ONE
+Mexico,Manzanillo,MXZLO,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Mexico,Lazaro Cardenas,MXLZC,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Mexico,Veracruz,MXVER,5,Maersk; MSC; CMA CGM; Hapag-Lloyd; COSCO
+Panama,Balboa / Colon (Manzanillo Intl),PABLB / PAMIT,11,Maersk; MSC; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Jamaica,Kingston,JMKIN,5,CMA CGM; MSC; Maersk; Hapag-Lloyd; ONE
+Dominican Republic,Caucedo,DOCAU,5,MSC; Maersk; CMA CGM; Hapag-Lloyd; ZIM
+Colombia,Cartagena,COCTG,11,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Ecuador,Guayaquil,ECGYE,7,MSC; Maersk; CMA CGM; Hapag-Lloyd; COSCO; Evergreen; ONE
+Peru,Callao,PECLL,11,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Chile,San Antonio,CLSAI,11,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Argentina,Buenos Aires,ARBUE,6,MSC; Maersk; CMA CGM; COSCO; Hapag-Lloyd; ONE
+Uruguay,Montevideo,UYMVD,4,MSC; Maersk; CMA CGM; Hapag-Lloyd
+Brazil,Santos,BRSSZ,11,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM
+Brazil,Paranagua,BRPNG,7,MSC; Maersk; CMA CGM; Hapag-Lloyd; COSCO; ONE; ZIM
+Australia,Sydney (Botany),AUSYD,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping
+Australia,Melbourne,AUMEL,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping
+Australia,Brisbane,AUBNE,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping
+Australia,Fremantle (Perth),AUFRE,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping
+New Zealand,Auckland,NZAKL,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping
+New Zealand,Tauranga,NZTRG,13,MSC; Maersk; CMA CGM; COSCO; OOCL; Evergreen; ONE; Hapag-Lloyd; HMM; Yang Ming; ZIM; ANL; Swire Shipping

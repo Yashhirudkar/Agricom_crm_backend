@@ -49,6 +49,9 @@ import { ClientActionAccess } from '../clients/models/client-action-access.model
 
 import { Category } from '../masters/category/category.model';
 import { Product } from '../masters/product/product.model';
+import { Country } from '../masters/country/country.model';
+import { Port, PortShippingLine } from '../masters/port/port.model';
+import { ShippingLine } from '../masters/shipping-line/shipping-line.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
@@ -123,6 +126,10 @@ export const sequelize = new Sequelize(
       ClientActionAccess,
       Category,
       Product,
+      Country,
+      Port,
+      ShippingLine,
+      PortShippingLine,
       BagType,
       PackingType,
       BagSpecification,

@@ -358,8 +358,8 @@ export class AuthController {
       const c2 = stripPluralSuffix(cleanStr(userRes));
 
       if (
-        c1 === 'salesmaster' &&
-        ['shipmenttype', 'paymentterm', 'tradedocument', 'currency'].includes(
+        (c1 === 'salesmaster' || c1 === 'master') &&
+        ['shipmenttype', 'paymentterm', 'tradedocument', 'currency', 'port', 'shippingline'].includes(
           c2,
         )
       ) {

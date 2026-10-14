@@ -62,6 +62,17 @@ import { EquipmentOption } from './equipment-option/equipment-option.model';
 import { EquipmentOptionController } from './equipment-option/equipment-option.controller';
 import { EquipmentOptionService } from './equipment-option/equipment-option.service';
 
+// Port & Shipping Line Masters
+import { Country } from './country/country.model';
+import { CountryController } from './country/country.controller';
+import { CountryService } from './country/country.service';
+import { Port, PortShippingLine } from './port/port.model';
+import { PortController } from './port/port.controller';
+import { PortService } from './port/port.service';
+import { ShippingLine } from './shipping-line/shipping-line.model';
+import { ShippingLineController } from './shipping-line/shipping-line.controller';
+import { ShippingLineService } from './shipping-line/shipping-line.service';
+
 @Module({
   imports: [
     SequelizeModule.forFeature([
@@ -90,6 +101,12 @@ import { EquipmentOptionService } from './equipment-option/equipment-option.serv
       PaymentTerm,
       TradeDocument,
       EquipmentOption,
+
+      // Port & Shipping Line Masters
+      Country,
+      Port,
+      ShippingLine,
+      PortShippingLine,
     ]),
     RbacModule,
     AuditModule,
@@ -113,6 +130,11 @@ import { EquipmentOptionService } from './equipment-option/equipment-option.serv
     PaymentTermController,
     TradeDocumentController,
     EquipmentOptionController,
+
+    // Port & Shipping Line Masters
+    CountryController,
+    PortController,
+    ShippingLineController,
   ],
   providers: [
     CategoryService,
@@ -133,6 +155,16 @@ import { EquipmentOptionService } from './equipment-option/equipment-option.serv
     PaymentTermService,
     TradeDocumentService,
     EquipmentOptionService,
+
+    // Port & Shipping Line Masters
+    CountryService,
+    PortService,
+    ShippingLineService,
+  ],
+  exports: [
+    CountryService,
+    PortService,
+    ShippingLineService,
   ],
 })
 export class MastersModule {}
