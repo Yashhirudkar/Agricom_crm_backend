@@ -144,7 +144,7 @@ async function runImport() {
       'vietnam': 'vietnam',
     };
 
-    function matchCountry(rawName?: string, unlocode?: string): Country | null {
+    async function matchOrCreateCountry(rawName?: string, unlocode?: string): Promise<Country | null> {
       if (!rawName) return null;
       const lower = rawName.toLowerCase().trim();
       if (byExact.has(lower)) return byExact.get(lower)!;
@@ -170,7 +170,30 @@ async function runImport() {
         }
       }
 
-      return null;
+      // ── Auto-create: country not in DB, derive from unlocode ──────────────
+      const iso2 = unlocode && unlocode.length >= 2
+        ? unlocode.substring(0, 2).toUpperCase()
+        : rawName.substring(0, 2).toUpperCase();
+      const iso3 = iso2.padEnd(3, iso2[1] || 'X').substring(0, 3);
+
+      // Avoid duplicate iso2 (use raw name initials as fallback)
+      const safeIso2 = byIso2.has(iso2.toLowerCase()) ? `X${iso2[0]}` : iso2;
+
+      console.log(`  🌐 Auto-creating country: "${rawName}" (iso2=${safeIso2}, iso3=${iso3})`);
+      const newCountry = await Country.create(
+        {
+          name: rawName.trim(),
+          iso2Code: safeIso2,
+          iso3Code: iso3,
+          isActive: true,
+        },
+        { transaction },
+      );
+      allCountries.push(newCountry);
+      byExact.set(lower, newCountry);
+      byClean.set(cClean, newCountry);
+      byIso2.set(safeIso2.toLowerCase(), newCountry);
+      return newCountry;
     }
 
     // ── 2. Load Existing Ports, Carriers, & Relations ─────────────────────────
@@ -231,9 +254,9 @@ async function runImport() {
           continue;
         }
 
-        const country = matchCountry(countryName, unlocode);
+        const country = await matchOrCreateCountry(countryName, unlocode);
         if (!country) {
-          console.warn(`[Summary CSV Row ${row.rowNumber}] Country not found for: "${countryName}".`);
+          console.warn(`[Summary CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`);
           continue;
         }
         matchedCountries.add(country.id);
@@ -323,9 +346,9 @@ async function runImport() {
           continue;
         }
 
-        const country = matchCountry(countryName, unlocode);
+        const country = await matchOrCreateCountry(countryName, unlocode);
         if (!country) {
-          console.warn(`[Detailed CSV Row ${row.rowNumber}] Country not found for: "${countryName}".`);
+          console.warn(`[Detailed CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`);
           continue;
         }
         matchedCountries.add(country.id);
