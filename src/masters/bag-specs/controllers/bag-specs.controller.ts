@@ -27,6 +27,7 @@ import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../../rbac/decorators/require-permission.decorator';
 import { RequireAnyPermission } from '../../../rbac/decorators/require-any-permission.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters')
@@ -180,6 +181,7 @@ export class BagSpecsController {
 
   // ─── PRODUCT PACKAGING ASSIGNMENTS ───────────────────────────────────────
 
+  @SkipThrottle()
   @Get('products/:id/packaging')
   @RequirePermission('product:view')
   getProductPackaging(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {

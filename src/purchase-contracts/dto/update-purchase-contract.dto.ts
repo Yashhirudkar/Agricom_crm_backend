@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsIn, IsArray, IsNumber, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsIn,
+  IsArray,
+  IsNumber,
+  IsDateString,
+  IsInt,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export const VALID_PC_STATUSES = [
   'Draft',
@@ -40,6 +49,14 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   paymentTermId?: any;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  shipmentTypeId?: number;
+
+  @IsOptional()
+  freightRequired?: any;
 
   @IsOptional()
   paymentTermsText?: any;

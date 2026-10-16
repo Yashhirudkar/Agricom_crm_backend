@@ -22,6 +22,7 @@ import { LogisticsRoute } from './logistics-route.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 
 @Table({
   tableName: 'logistics',
@@ -61,6 +62,14 @@ export class Logistics extends BusinessReferenceEntity<Logistics> {
 
   @BelongsTo(() => Enquiry)
   declare enquiry: Enquiry;
+
+  @ForeignKey(() => PurchaseContract)
+  @AllowNull(true)
+  @Column({ field: 'purchase_contract_id', type: DataType.INTEGER })
+  declare purchaseContractId: number | null;
+
+  @BelongsTo(() => PurchaseContract)
+  declare purchaseContract: PurchaseContract;
 
   @AllowNull(false)
   @Default('Domestic')

@@ -23,6 +23,7 @@ import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import { AuditLog } from '../../audit/decorators/audit-log.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('masters/products')
@@ -39,6 +40,7 @@ export class ProductController {
 
   // Lightweight options endpoint — accessible to any logged-in user
   // (used for dropdowns in shipments filter, partner forms, and quotation drawer)
+  @SkipThrottle()
   @Get('options')
   async findOptions(
     @Query('limit') limit?: string,
@@ -56,6 +58,7 @@ export class ProductController {
     return result;
   }
 
+  @SkipThrottle()
   @Get()
   @RequireAnyPermission('product:view', 'sales_contract:view', 'enquiry:view')
   async findAll(@Query() query: QueryProductDto, @Req() req: any) {

@@ -17,6 +17,7 @@ import {
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
+import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import { PurchaseContractItem } from './purchase-contract-item.model';
 import { PurchaseContractShipment } from './purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contract-required-document.model';
@@ -106,6 +107,18 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
 
   @BelongsTo(() => PaymentTerm)
   declare paymentTerm: PaymentTerm;
+
+  @ForeignKey(() => ShipmentType)
+  @AllowNull(true)
+  @Column({ field: 'shipment_type_id', type: DataType.INTEGER })
+  declare shipmentTypeId: number;
+
+  @BelongsTo(() => ShipmentType)
+  declare shipmentType: ShipmentType;
+
+  @Default(false)
+  @Column({ field: 'freight_required', type: DataType.BOOLEAN })
+  declare freightRequired: boolean;
 
   @AllowNull(true)
   @Column({ field: 'payment_terms_text', type: DataType.TEXT })

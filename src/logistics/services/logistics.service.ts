@@ -220,6 +220,7 @@ export class LogisticsService {
           { enquiryNo: { [Op.iLike]: `%${s}%` } },
           { '$partner.entity_name$': { [Op.iLike]: `%${s}%` } },
           { '$product.name$': { [Op.iLike]: `%${s}%` } },
+          { '$logistics.purchaseContract.contract_number$': { [Op.iLike]: `%${s}%` } },
         ],
       };
       if (isBusinessReferenceSearch(s)) {
@@ -227,6 +228,9 @@ export class LogisticsService {
         if (transactionId !== null) {
           searchCondition[Op.or].push({
             businessTransactionId: transactionId,
+          });
+          searchCondition[Op.or].push({
+            '$logistics.business_transaction_id$': transactionId,
           });
         }
       }
@@ -289,6 +293,12 @@ export class LogisticsService {
           required: effectiveStatus === 'Closed',
           include: [
             {
+              model: this.sequelize.models.PurchaseContract,
+              as: 'purchaseContract',
+              required: false,
+              attributes: ['id', 'contractNumber'],
+            },
+            {
               model: FreightQuote,
               as: 'selectedFreight',
               required: false,
@@ -310,13 +320,167 @@ export class LogisticsService {
       order,
     });
 
+    const data = await this.attachPurchaseContractsToEnquiries(
+      rows,
+      companyId,
+    );
+
     return {
-      data: rows,
+      data,
       total: count,
       page: Number(page),
       limit: Number(limit),
       totalPages: Math.ceil(count / limit),
     };
+  }
+
+  private async attachPurchaseContractsToEnquiries(
+    enquiries: Enquiry[],
+    companyId: number = 1,
+  ): Promise<any[]> {
+    if (!enquiries || enquiries.length === 0) return [];
+
+    const enquiryIds = enquiries.map((e) => e.id).filter(Boolean);
+    const btIds = enquiries
+      .map((e) => e.businessTransactionId)
+      .filter((id): id is number => typeof id === 'number' && id > 0);
+    const pcIds: number[] = [];
+    for (const e of enquiries) {
+      const pcId =
+        (e as any).logistics?.purchaseContractId ||
+        (e as any).logistics?.purchase_contract_id;
+      if (typeof pcId === 'number' && pcId > 0 && !pcIds.includes(pcId)) {
+        pcIds.push(pcId);
+      }
+    }
+
+    const pcById = new Map<number, any>();
+    const pcByEnquiryId = new Map<string, any>();
+    const pcByBtId = new Map<number, any>();
+
+    if (pcIds.length > 0 || enquiryIds.length > 0 || btIds.length > 0) {
+      try {
+        const query = `
+          SELECT 
+            pc.id,
+            pc.status,
+            pc.contract_number,
+            pc.freight_required,
+            pc.quantity,
+            pc.place_of_loading,
+            pc.delivery_place,
+            pc.purchase_date,
+            pc.sales_contract_id,
+            pc.business_transaction_id,
+            pc.shipment_type_id,
+            pc.buyer_id,
+            buyer.entity_name AS buyer_name,
+            st.name AS shipment_type_name,
+            bt.business_reference AS business_reference,
+            sc.enquiry_id AS sc_enquiry_id,
+            pci.product_id AS pci_product_id,
+            COALESCE(pci.product_name, prod.name) AS product_name
+          FROM purchase_contracts pc
+          LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
+          LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
+          LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
+          LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
+          LEFT JOIN LATERAL (
+            SELECT product_id, product_name 
+            FROM purchase_contract_items 
+            WHERE purchase_contract_id = pc.id 
+            ORDER BY id ASC LIMIT 1
+          ) pci ON true
+          LEFT JOIN products prod ON pci.product_id = prod.id
+          WHERE (
+            ${pcIds.length > 0 ? '(pc.id IN (:pcIds))' : '1=0'}
+            ${enquiryIds.length > 0 ? 'OR (sc.enquiry_id IN (:enquiryIds))' : ''}
+            ${btIds.length > 0 ? 'OR (pc.business_transaction_id IS NOT NULL AND pc.business_transaction_id IN (:btIds))' : ''}
+          )
+          AND (pc.company_id = :companyId OR pc.company_id IS NULL OR :companyId IS NULL)
+          ORDER BY pc.updated_at DESC, pc.id DESC
+        `;
+
+        const rows: any[] = await this.sequelize.query(query, {
+          replacements: {
+            ...(pcIds.length > 0 ? { pcIds } : {}),
+            ...(enquiryIds.length > 0 ? { enquiryIds } : {}),
+            ...(btIds.length > 0 ? { btIds } : {}),
+            companyId,
+          },
+          type: QueryTypes.SELECT,
+        });
+
+        for (const pc of rows) {
+          pcById.set(Number(pc.id), pc);
+          if (pc.sc_enquiry_id && !pcByEnquiryId.has(pc.sc_enquiry_id)) {
+            pcByEnquiryId.set(pc.sc_enquiry_id, pc);
+          }
+          if (
+            pc.business_transaction_id &&
+            !pcByBtId.has(Number(pc.business_transaction_id))
+          ) {
+            pcByBtId.set(Number(pc.business_transaction_id), pc);
+          }
+        }
+      } catch (err) {
+        console.error(
+          'Failed to query purchase contracts for transport queue:',
+          err,
+        );
+      }
+    }
+
+    return enquiries.map((enquiry) => {
+      const plain: any =
+        typeof enquiry.toJSON === 'function' ? enquiry.toJSON() : { ...enquiry };
+      const pcIdFromLogistics =
+        plain.logistics?.purchaseContractId ||
+        plain.logistics?.purchase_contract_id;
+
+      const matchedPc =
+        (pcIdFromLogistics ? pcById.get(Number(pcIdFromLogistics)) : null) ||
+        pcByEnquiryId.get(plain.id) ||
+        (plain.businessTransactionId
+          ? pcByBtId.get(Number(plain.businessTransactionId))
+          : null);
+
+      if (matchedPc?.business_reference && !plain.businessReference) {
+        plain.businessReference = matchedPc.business_reference;
+        if (!plain.businessTransaction) {
+          plain.businessTransaction = {
+            id: matchedPc.business_transaction_id,
+            businessReference: matchedPc.business_reference,
+          };
+        }
+      }
+
+      plain.purchaseContract = matchedPc
+        ? {
+            id: matchedPc.id,
+            status: matchedPc.status,
+            contractNumber: matchedPc.contract_number,
+            freightRequired: Boolean(matchedPc.freight_required),
+            quantity: matchedPc.quantity || null,
+            placeOfLoading: matchedPc.place_of_loading || null,
+            deliveryPlace: matchedPc.delivery_place || null,
+            shipmentTypeId: matchedPc.shipment_type_id || null,
+            shipmentTypeName: matchedPc.shipment_type_name || null,
+            businessReference: matchedPc.business_reference || null,
+            buyerId: matchedPc.buyer_id || null,
+            buyerName: matchedPc.buyer_name || null,
+            productName: matchedPc.product_name || null,
+            productId: matchedPc.pci_product_id || null,
+            purchaseDate: matchedPc.purchase_date || null,
+          }
+        : null;
+
+      if (typeof enquiry.setDataValue === 'function') {
+        enquiry.setDataValue('purchaseContract', plain.purchaseContract);
+      }
+
+      return plain;
+    });
   }
 
   async hideEnquiryFromTransport(
@@ -633,20 +797,130 @@ export class LogisticsService {
       subQuery: false,
     });
 
+    const rawQuotes = rows.map((row) => {
+      const data = row.toJSON() as any;
+      return {
+        ...data,
+        businessReference:
+          data.businessTransaction?.businessReference ?? null,
+      };
+    });
+
+    const data = await this.attachPurchaseContractsToQuotes(
+      rawQuotes,
+      companyId,
+    );
+
     return {
-      data: rows.map((row) => {
-        const data = row.toJSON() as any;
-        return {
-          ...data,
-          businessReference:
-            data.businessTransaction?.businessReference ?? null,
-        };
-      }),
+      data,
       total: count,
       page: Number(page),
       limit: Number(limit),
       totalPages: Math.ceil(count / Number(limit)),
     };
+  }
+
+  private async attachPurchaseContractsToQuotes(
+    quotes: any[],
+    companyId: number = 1,
+  ): Promise<any[]> {
+    if (!quotes || quotes.length === 0) return [];
+
+    const enquiryIds: string[] = [];
+    const btIds: number[] = [];
+
+    for (const q of quotes) {
+      const enqId = q.logistics?.enquiry?.id;
+      if (enqId && !enquiryIds.includes(enqId)) {
+        enquiryIds.push(enqId);
+      }
+      const btId =
+        q.businessTransactionId ||
+        q.businessTransaction?.id ||
+        q.logistics?.enquiry?.businessTransactionId;
+      if (typeof btId === 'number' && btId > 0 && !btIds.includes(btId)) {
+        btIds.push(btId);
+      }
+    }
+
+    if (enquiryIds.length === 0 && btIds.length === 0) {
+      return quotes;
+    }
+
+    const pcByEnquiryId = new Map<string, any>();
+    const pcByBtId = new Map<number, any>();
+
+    try {
+      const query = `
+        SELECT 
+          pc.id,
+          pc.contract_number,
+          pc.place_of_loading,
+          pc.delivery_place,
+          pc.sales_contract_id,
+          pc.business_transaction_id,
+          sc.enquiry_id as sc_enquiry_id
+        FROM purchase_contracts pc
+        LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
+        WHERE (
+          ${enquiryIds.length > 0 ? '(sc.enquiry_id IN (:enquiryIds))' : '1=0'}
+          ${btIds.length > 0 ? 'OR (pc.business_transaction_id IS NOT NULL AND pc.business_transaction_id IN (:btIds))' : ''}
+        )
+        AND (pc.company_id = :companyId OR pc.company_id IS NULL OR :companyId IS NULL)
+        ORDER BY pc.updated_at DESC, pc.id DESC
+      `;
+
+      const pcRows: any[] = await this.sequelize.query(query, {
+        replacements: {
+          ...(enquiryIds.length > 0 ? { enquiryIds } : {}),
+          ...(btIds.length > 0 ? { btIds } : {}),
+          companyId,
+        },
+        type: QueryTypes.SELECT,
+      });
+
+      for (const pc of pcRows) {
+        if (pc.sc_enquiry_id && !pcByEnquiryId.has(pc.sc_enquiry_id)) {
+          pcByEnquiryId.set(pc.sc_enquiry_id, pc);
+        }
+        if (
+          pc.business_transaction_id &&
+          !pcByBtId.has(Number(pc.business_transaction_id))
+        ) {
+          pcByBtId.set(Number(pc.business_transaction_id), pc);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to query purchase contracts for quotes:', err);
+    }
+
+    return quotes.map((quote) => {
+      const enqId = quote.logistics?.enquiry?.id;
+      const btId =
+        quote.businessTransactionId ||
+        quote.businessTransaction?.id ||
+        quote.logistics?.enquiry?.businessTransactionId;
+
+      const matchedPc =
+        (enqId ? pcByEnquiryId.get(enqId) : null) ||
+        (typeof btId === 'number' ? pcByBtId.get(btId) : null);
+
+      const purchaseContract = matchedPc
+        ? {
+            id: matchedPc.id,
+            contractNumber: matchedPc.contract_number,
+            placeOfLoading: matchedPc.place_of_loading || null,
+            deliveryPlace: matchedPc.delivery_place || null,
+          }
+        : null;
+
+      quote.purchaseContract = purchaseContract;
+      if (quote.logistics?.enquiry) {
+        quote.logistics.enquiry.purchaseContract = purchaseContract;
+      }
+
+      return quote;
+    });
   }
 
   /**
@@ -939,12 +1213,94 @@ export class LogisticsService {
       }
     }
 
+    // Look up if an associated PurchaseContract exists for this enquiry
+    let purchaseContract: any = null;
+    try {
+      const pcConditions: string[] = [];
+      const replacements: any = { companyId };
+      if (salesContract) {
+        pcConditions.push('sales_contract_id = :salesContractId');
+        replacements.salesContractId = salesContract.id;
+      }
+      if (enquiry.businessTransactionId) {
+        pcConditions.push('business_transaction_id = :businessTransactionId');
+        replacements.businessTransactionId = enquiry.businessTransactionId;
+      }
+      if (pcConditions.length > 0) {
+        const pcRows: any[] = await this.sequelize.query(
+          `SELECT 
+             pc.id,
+             pc.status,
+             pc.contract_number,
+             pc.freight_required,
+             pc.quantity,
+             pc.place_of_loading,
+             pc.delivery_place,
+             pc.purchase_date,
+             pc.sales_contract_id,
+             pc.business_transaction_id,
+             pc.shipment_type_id,
+             pc.buyer_id,
+             buyer.entity_name AS buyer_name,
+             st.name AS shipment_type_name,
+             bt.business_reference AS business_reference,
+             pci.product_id AS pci_product_id,
+             COALESCE(pci.product_name, prod.name) AS product_name
+           FROM purchase_contracts pc
+           LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
+           LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
+           LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
+           LEFT JOIN LATERAL (
+             SELECT product_id, product_name 
+             FROM purchase_contract_items 
+             WHERE purchase_contract_id = pc.id 
+             ORDER BY id ASC LIMIT 1
+           ) pci ON true
+           LEFT JOIN products prod ON pci.product_id = prod.id
+           WHERE (${pcConditions.join(' OR ')})
+             AND (pc.company_id = :companyId OR pc.company_id IS NULL OR :companyId IS NULL)
+           ORDER BY pc.updated_at DESC, pc.id DESC LIMIT 1`,
+          {
+            replacements,
+            type: QueryTypes.SELECT,
+          },
+        );
+        if (pcRows && pcRows.length > 0) {
+          const pc = pcRows[0];
+          purchaseContract = {
+            id: pc.id,
+            status: pc.status,
+            contractNumber: pc.contract_number,
+            freightRequired: Boolean(pc.freight_required),
+            quantity: pc.quantity || null,
+            placeOfLoading: pc.place_of_loading || null,
+            deliveryPlace: pc.delivery_place || null,
+            shipmentTypeId: pc.shipment_type_id || null,
+            shipmentTypeName: pc.shipment_type_name || null,
+            businessReference: pc.business_reference || null,
+            buyerId: pc.buyer_id || null,
+            buyerName: pc.buyer_name || null,
+            productName: pc.product_name || null,
+            productId: pc.pci_product_id || null,
+            purchaseDate: pc.purchase_date || null,
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Failed to look up purchase contract in getDetails:', err);
+    }
+
+    if (purchaseContract) {
+      enquiry.setDataValue('purchaseContract', purchaseContract);
+    }
+
     return {
       enquiry,
       logistics,
       salesContractId: salesContract ? salesContract.id : null,
       salesContractNumber: salesContract ? salesContract.contractNumber : null,
       shipmentId,
+      purchaseContract,
     };
   }
 

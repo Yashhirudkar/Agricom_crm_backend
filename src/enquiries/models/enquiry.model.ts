@@ -247,4 +247,6 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
 
   @HasMany(() => EnquiryDestination)
   declare destinations: EnquiryDestination[];
+
+  declare purchaseContract?: any;
 }

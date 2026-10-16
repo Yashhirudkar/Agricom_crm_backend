@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { PurchaseContract } from '../models/purchase-contract.model';
 import { PurchaseContractItem } from '../models/purchase-contract-item.model';
@@ -127,6 +127,15 @@ export class PurchaseContractService {
           'Payment Term not found or does not belong to company',
         );
     }
+    if (dto.shipmentTypeId) {
+      const shipmentType = await ShipmentType.findOne({
+        where: { id: dto.shipmentTypeId, companyId },
+      });
+      if (!shipmentType)
+        throw new BadRequestException(
+          'Shipment Type not found or does not belong to company',
+        );
+    }
   }
 
   /**
@@ -205,7 +214,7 @@ export class PurchaseContractService {
     dto: CreatePurchaseContractDto,
     user: any,
   ): Promise<PurchaseContract> {
-    return await this.sequelize.transaction(async (t) => {
+    const createdPc = await this.sequelize.transaction(async (t) => {
       let pc: PurchaseContract;
 
       if (dto.salesContractId) {
@@ -223,6 +232,7 @@ export class PurchaseContractService {
               dto.brokerId === undefined
                 ? salesContract.brokerId
                 : dto.brokerId,
+            shipmentTypeId: dto.shipmentTypeId,
           },
           salesContract.contractType || 'Import',
         );
@@ -254,6 +264,7 @@ export class PurchaseContractService {
           sellerContractNo: dto.sellerContractNo || null,
           purchaseDate: dto.purchaseDate || null,
           paymentTermId: dto.paymentTermId || null,
+          shipmentTypeId: dto.shipmentTypeId || null,
           paymentTermsText: dto.paymentTermsText || null,
           advancePercent:
             dto.advancePercent != null ? Number(dto.advancePercent) : null,
@@ -270,6 +281,7 @@ export class PurchaseContractService {
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
+          freightRequired: dto.freightRequired != null ? Boolean(dto.freightRequired) : false,
           productQuality: dto.productQuality || null,
           specificationNo: dto.specificationNo || null,
           specificationDate: dto.specificationDate || null,
@@ -287,6 +299,17 @@ export class PurchaseContractService {
           `Manual MTT Purchase Contract ${contractNumber} created`,
           user?.userId,
         );
+      }
+
+      const scUpdates: any = {};
+      if (dto.salesContractId && dto.shipmentTypeId !== undefined) {
+        scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
+      }
+      if (dto.freightRequired !== undefined) {
+        scUpdates.freightRequired = Boolean(dto.freightRequired);
+      }
+      if (Object.keys(scUpdates).length > 0) {
+        await pc.update(scUpdates, { transaction: t });
       }
 
       // Handle items if provided
@@ -373,6 +396,15 @@ export class PurchaseContractService {
       );
       return pc.reload();
     });
+
+    if (
+      createdPc.status !== 'Draft' &&
+      createdPc.status !== 'Cancelled' &&
+      createdPc.freightRequired
+    ) {
+      await this.syncTransportQueue(createdPc, user);
+    }
+    return createdPc;
   }
 
   async findOne(id: number, companyId?: number): Promise<PurchaseContract> {
@@ -385,6 +417,7 @@ export class PurchaseContractService {
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
         { model: PaymentTerm, as: 'paymentTerm' },
+        { model: ShipmentType, as: 'shipmentType' },
         {
           model: PurchaseContractItem,
           as: 'items',
@@ -465,6 +498,10 @@ export class PurchaseContractService {
     if (updateData.paymentTermId !== undefined)
       sanitizeData.paymentTermId = updateData.paymentTermId
         ? Number(updateData.paymentTermId)
+        : null;
+    if (updateData.shipmentTypeId !== undefined)
+      sanitizeData.shipmentTypeId = updateData.shipmentTypeId
+        ? Number(updateData.shipmentTypeId)
         : null;
     if (updateData.paymentTermsText !== undefined)
       sanitizeData.paymentTermsText = updateData.paymentTermsText
@@ -558,6 +595,9 @@ export class PurchaseContractService {
       sanitizeData.specificationDate = updateData.specificationDate
         ? String(updateData.specificationDate)
         : null;
+    if (updateData.freightRequired !== undefined) {
+      sanitizeData.freightRequired = Boolean(updateData.freightRequired);
+    }
     await pc.update({ ...sanitizeData, updatedBy: user?.userId });
 
     // Handle items update
@@ -681,7 +721,203 @@ export class PurchaseContractService {
       `Purchase Contract updated`,
       user?.userId,
     );
-    return pc.reload();
+    const updatedPc = await pc.reload();
+    if (
+      updatedPc.status !== 'Draft' &&
+      updatedPc.status !== 'Cancelled' &&
+      updatedPc.freightRequired
+    ) {
+      await this.syncTransportQueue(updatedPc, user);
+    }
+    return updatedPc;
+  }
+
+  private async syncTransportQueue(pc: PurchaseContract, user: any) {
+    try {
+      if (
+        !pc ||
+        pc.status === 'Draft' ||
+        pc.status === 'Cancelled' ||
+        !pc.freightRequired
+      ) {
+        return;
+      }
+
+      const LogisticsModel = this.sequelize.models.Logistics as any;
+      const EnquiryModel = this.sequelize.models.Enquiry as any;
+      const LogisticsRouteModel = this.sequelize.models.LogisticsRoute as any;
+
+      if (!LogisticsModel || !EnquiryModel) return;
+
+      let enquiryId: string | null = null;
+      let enquiry: any = null;
+
+      if (pc.salesContractId) {
+        const sc = await this.salesContractModel.findByPk(pc.salesContractId, {
+          attributes: ['id', 'enquiryId', 'businessTransactionId'],
+        });
+        if (sc?.enquiryId) {
+          enquiryId = sc.enquiryId;
+        }
+      }
+
+      if (!enquiryId && pc.businessTransactionId) {
+        const enq = await EnquiryModel.findOne({
+          where: {
+            businessTransactionId: pc.businessTransactionId,
+            ...(pc.companyId ? { companyId: pc.companyId } : {}),
+          },
+          attributes: [
+            'id',
+            'businessTransactionId',
+            'shipmentMode',
+            'originCountryId',
+            'destinationCountry',
+          ],
+        });
+        if (enq) {
+          enquiryId = enq.id;
+          enquiry = enq;
+        }
+      } else if (enquiryId) {
+        enquiry = await EnquiryModel.findByPk(enquiryId, {
+          attributes: [
+            'id',
+            'businessTransactionId',
+            'shipmentMode',
+            'originCountryId',
+            'destinationCountry',
+          ],
+        });
+      }
+
+      // If standalone MTT or no existing enquiry, ensure an enquiry record exists for Transport Management
+      if (!enquiryId) {
+        const count = await EnquiryModel.count({
+          where: { companyId: pc.companyId || 1 },
+        });
+        const enquiryNo = `ENQ-PC-${String(count + 1001).padStart(6, '0')}`;
+        const firstItem = await this.itemModel.findOne({
+          where: { purchaseContractId: pc.id },
+          order: [['id', 'ASC']],
+        });
+        const partner = await Partner.findByPk(pc.buyerId || pc.sellerId);
+        const newEnq = await EnquiryModel.create({
+          enquiryNo,
+          enquiryDate: pc.purchaseDate || new Date(),
+          companyId: pc.companyId || 1,
+          partnerRoleId: partner?.partnerRoleId || 11,
+          partnerId: pc.buyerId || pc.sellerId || 1,
+          productId: firstItem?.productId || 1,
+          quantity: pc.quantity
+            ? Number(pc.quantity)
+            : firstItem?.quantity
+              ? Number(firstItem.quantity)
+              : 1,
+          businessTransactionId: null,
+          status: 'CONFIRMED',
+          freightRequired: true,
+        });
+        enquiryId = newEnq.id;
+        enquiry = newEnq;
+      }
+
+      // Prevent duplicate records for the same Purchase Contract
+      let logistics = await LogisticsModel.findOne({
+        where: {
+          [Op.or]: [
+            { purchaseContractId: pc.id },
+            ...(enquiryId ? [{ enquiryId }] : []),
+          ],
+          ...(pc.companyId ? { companyId: pc.companyId } : {}),
+        },
+      });
+
+      if (logistics) {
+        // Update existing queue record with the latest Purchase Contract values
+        await logistics.update({
+          purchaseContractId: pc.id,
+          businessTransactionId:
+            pc.businessTransactionId ||
+            enquiry?.businessTransactionId ||
+            logistics.businessTransactionId,
+          updatedBy: user?.userId,
+        });
+
+        // Synchronize Route
+        if (LogisticsRouteModel) {
+          const routes = await LogisticsRouteModel.findAll({
+            where: { logisticsId: logistics.id },
+          });
+          if (routes && routes.length > 0) {
+            await LogisticsRouteModel.update(
+              {
+                origin: pc.placeOfLoading || undefined,
+                destination: pc.deliveryPlace || undefined,
+              },
+              { where: { logisticsId: logistics.id } },
+            );
+          } else if (pc.placeOfLoading || pc.deliveryPlace) {
+            await LogisticsRouteModel.create({
+              logisticsId: logistics.id,
+              origin: pc.placeOfLoading || '—',
+              destination: pc.deliveryPlace || '—',
+            });
+          }
+        }
+      } else {
+        // Automatically create a new Transport Management queue record on Save & Activate
+        await this.sequelize.query(
+          `CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`,
+        );
+        const [seqRes]: any = await this.sequelize.query(
+          `SELECT nextval('logistics_no_seq')`,
+          { type: QueryTypes.SELECT } as any,
+        );
+        const nextVal = parseInt(
+          seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+          10,
+        );
+        const currentYear = new Date().getFullYear();
+        const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
+
+        const mode =
+          enquiry?.shipmentMode === 'SHIP' ? 'International' : 'Domestic';
+        let transportMode = 'Road';
+        if (enquiry?.shipmentMode === 'SHIP') transportMode = 'Sea';
+        else if (enquiry?.shipmentMode === 'RAIL') transportMode = 'Rail';
+
+        logistics = await LogisticsModel.create({
+          logisticsNumber,
+          enquiryId,
+          purchaseContractId: pc.id,
+          businessTransactionId:
+            pc.businessTransactionId ||
+            enquiry?.businessTransactionId ||
+            null,
+          companyId: pc.companyId || user?.companyId,
+          mode,
+          transportMode,
+          status: 'Pending',
+          isViewed: false,
+          createdBy: user?.userId,
+          updatedBy: user?.userId,
+        });
+
+        if (LogisticsRouteModel) {
+          await LogisticsRouteModel.create({
+            logisticsId: logistics.id,
+            origin: pc.placeOfLoading || '—',
+            destination: pc.deliveryPlace || '—',
+          });
+        }
+      }
+    } catch (err) {
+      console.error(
+        'Failed to sync transport queue for purchase contract:',
+        err,
+      );
+    }
   }
 
   async updateStatus(
@@ -773,7 +1009,15 @@ export class PurchaseContractService {
       { from: currentStatus, to: nextStatus },
     );
 
-    return pc.reload();
+    const reloadedPc = await pc.reload();
+    if (
+      nextStatus !== 'Draft' &&
+      nextStatus !== 'Cancelled' &&
+      reloadedPc.freightRequired
+    ) {
+      await this.syncTransportQueue(reloadedPc, user);
+    }
+    return reloadedPc;
   }
 
   async clearDrafts(user: any): Promise<{ count: number }> {

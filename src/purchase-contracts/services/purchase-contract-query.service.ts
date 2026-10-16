@@ -97,6 +97,7 @@ export class PurchaseContractQueryService {
         },
         { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+        { model: ShipmentType, as: 'shipmentType' },
         {
           model: SalesContract,
           as: 'salesContract',
@@ -223,6 +224,7 @@ export class PurchaseContractQueryService {
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
         { model: PaymentTerm, as: 'paymentTerm' },
+        { model: ShipmentType, as: 'shipmentType' },
         {
           model: PurchaseContractItem,
           as: 'items',
@@ -326,6 +328,7 @@ export class PurchaseContractQueryService {
     const pc = await this.model.findOne({
       where,
       include: [
+        { model: ShipmentType, as: 'shipmentType' },
         {
           model: SalesContract,
           as: 'salesContract',
@@ -334,6 +337,7 @@ export class PurchaseContractQueryService {
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'broker', attributes: ['id', 'entityName'] },
+            { model: ShipmentType, as: 'shipmentType' },
             {
               model: PaymentTerm,
               as: 'paymentTerm',

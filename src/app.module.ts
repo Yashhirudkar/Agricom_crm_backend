@@ -191,7 +191,7 @@ import {
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 100, // global default limit: 100 requests per minute
+        limit: 300, // global default limit: 300 requests per minute
       },
     ]),
     ScheduleModule.forRoot(),

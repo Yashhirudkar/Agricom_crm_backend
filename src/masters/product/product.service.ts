@@ -71,8 +71,17 @@ export class ProductService implements OnModuleInit {
   }
 
   async findAll(query: QueryProductDto & { companyId?: number }) {
-    const { search, isActive, categoryId, country, hsCode, page, limit } =
-      query;
+    const {
+      search,
+      isActive,
+      categoryId,
+      country,
+      hsCode,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+    } = query;
     const { limit: finalLimit, offset } = buildPagination(page, limit);
 
     const whereClause: any = {
@@ -109,11 +118,20 @@ export class ProductService implements OnModuleInit {
       whereClause.hsCode = { [Op.iLike]: `%${hsCode}%` };
     }
 
+    let order: any = [['name', 'ASC']];
+    if (sortBy) {
+      const allowedFields = ['name', 'country', 'hsCode', 'createdAt', 'updatedAt'];
+      if (allowedFields.includes(sortBy)) {
+        const direction = sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+        order = [[sortBy, direction]];
+      }
+    }
+
     const { rows, count } = await this.productModel.findAndCountAll({
       where: whereClause,
       limit: finalLimit,
       offset,
-      order: [['createdAt', 'DESC']],
+      order,
       include: INCLUDE_RELATIONS,
     });
 

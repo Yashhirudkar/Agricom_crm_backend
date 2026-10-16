@@ -5,6 +5,7 @@ import {
   IsArray,
   ValidateNested,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -110,6 +111,15 @@ export class CreatePurchaseContractDto {
   @IsInt()
   @Type(() => Number)
   paymentTermId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  shipmentTypeId?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  freightRequired?: boolean;
 
   @IsOptional()
   @IsString()
