@@ -15,6 +15,7 @@ import {
 import { Response } from 'express';
 import { ShipmentService } from './shipment.service';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
+import { UpdateManualReadinessDto } from './dto/update-manual-readiness.dto';
 import { QueryShipmentDto } from './dto/query-shipment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
@@ -65,6 +66,12 @@ export class ShipmentController {
     res.send(buffer);
   }
 
+  @Get(':id')
+  @RequirePermission('shipments:view')
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return await this.service.findOne(id, req.user);
+  }
+
   @Patch(':id')
   @RequirePermission('shipments:update')
   @HttpCode(HttpStatus.OK)
@@ -74,5 +81,16 @@ export class ShipmentController {
     @Req() req: any,
   ) {
     return await this.service.update(id, dto, req.user);
+  }
+
+  @Patch(':id/manual-readiness')
+  @RequirePermission('shipments:update')
+  @HttpCode(HttpStatus.OK)
+  async updateManualReadiness(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateManualReadinessDto,
+    @Req() req: any,
+  ) {
+    return await this.service.updateManualReadiness(id, dto, req.user);
   }
 }

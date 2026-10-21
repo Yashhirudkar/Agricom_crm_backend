@@ -17,6 +17,7 @@ import { SalesContract } from './sales-contract.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import { User } from '../../users/models/user.model';
 
 @Table({
   tableName: 'sales_contract_shipments',
@@ -118,4 +119,24 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   @AllowNull(true)
   @Column({ field: 'shipment_sequence', type: DataType.INTEGER })
   declare shipmentSequence: number;
+
+  @AllowNull(true)
+  @Column({ field: 'manual_ready_override', type: DataType.BOOLEAN })
+  declare manualReadyOverride: boolean | null;
+
+  @ForeignKey(() => User)
+  @AllowNull(true)
+  @Column({ field: 'manual_ready_by', type: DataType.INTEGER })
+  declare manualReadyBy: number | null;
+
+  @BelongsTo(() => User, 'manualReadyBy')
+  declare manualReadyByUser: User;
+
+  @AllowNull(true)
+  @Column({ field: 'manual_ready_at', type: DataType.DATE })
+  declare manualReadyAt: Date | null;
+
+  @AllowNull(true)
+  @Column({ field: 'manual_ready_reason', type: DataType.TEXT })
+  declare manualReadyReason: string | null;
 }

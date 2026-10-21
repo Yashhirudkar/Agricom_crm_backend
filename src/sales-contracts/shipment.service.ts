@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { SalesContractDocument } from './models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './models/sales-contract-document-file.model';
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
+import { UpdateManualReadinessDto } from './dto/update-manual-readiness.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
 import { PurchaseContractService } from '../purchase-contracts/services/purchase-contract.service';
 import { BusinessTransaction } from '../system/models/business-transaction.model';
@@ -23,6 +25,9 @@ import {
   isBusinessReferenceSearch,
   resolveBusinessTransactionId,
 } from '../system/utils/business-reference-query.util';
+import { ShipmentReadinessService } from './services/shipment-readiness.service';
+import { AuditService } from '../audit/services/audit.service';
+import { User } from '../users/models/user.model';
 
 @Injectable()
 export class ShipmentService {
@@ -39,6 +44,8 @@ export class ShipmentService {
     private readonly docFileModel: typeof SalesContractDocumentFile,
     @Inject(forwardRef(() => PurchaseContractService))
     private readonly purchaseContractService: PurchaseContractService,
+    private readonly readinessService: ShipmentReadinessService,
+    private readonly auditService: AuditService,
   ) {}
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
@@ -259,6 +266,12 @@ export class ShipmentService {
         attributes: ['id', 'businessReference'],
         required: false,
       },
+      {
+        model: User,
+        as: 'manualReadyByUser',
+        attributes: ['id', 'name', 'email'],
+        required: false,
+      },
     ];
 
     return { whereClause, includes };
@@ -365,8 +378,40 @@ export class ShipmentService {
       }
     }
 
+    // Batch evaluate shipment readiness (Cargo Allocation + Freight Allocation)
+    const readinessMap = await this.readinessService.evaluateBatch(rows);
+
+    // Batch check executed status against purchase_contract_shipments
+    const currentShipmentIds = rows.map((r) => r.id);
+    const executedShipmentIdSet = new Set<number>();
+    if (currentShipmentIds.length > 0) {
+      try {
+        const [linkedRows]: any =
+          (await this.shipmentModel.sequelize?.query(
+            `SELECT DISTINCT shipment_id FROM purchase_contract_shipments WHERE shipment_id IN (:ids)`,
+            { replacements: { ids: currentShipmentIds } },
+          )) || [[]];
+        if (Array.isArray(linkedRows)) {
+          linkedRows.forEach((lr: any) =>
+            executedShipmentIdSet.add(Number(lr.shipment_id)),
+          );
+        }
+      } catch (e) {
+        // non-blocking
+      }
+    }
+
     const data = rows.map((shipment) => {
       const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
+      const isExecuted =
+        json.status === 'Executed' || executedShipmentIdSet.has(json.id);
+      if (isExecuted) {
+        json.status = 'Executed';
+        json.isExecuted = true;
+      } else {
+        json.isExecuted = false;
+      }
+
       json.businessReference =
         json.businessTransaction?.businessReference ?? null;
       const contractId = json.salesContractId || json.salesContract?.id;
@@ -415,6 +460,34 @@ export class ShipmentService {
           };
         }),
       };
+
+      // ── Shipment Readiness Gates (Cargo Allocation & Freight Allocation + Manual Override) ──
+      const readiness = readinessMap.get(json.id) || {
+        cargoReady: false,
+        freightReady: false,
+        systemReady: false,
+        manualReadyOverride: null,
+        manualReadyBy: null,
+        manualReadyByUser: null,
+        manualReadyAt: null,
+        manualReadyReason: null,
+        readyForShipment: false,
+        isManualOverride: false,
+        readySource: 'System' as const,
+        reasons: [],
+      };
+      json.cargoReady = readiness.cargoReady;
+      json.freightReady = readiness.freightReady;
+      json.systemReady = readiness.systemReady;
+      json.manualReadyOverride = readiness.manualReadyOverride;
+      json.manualReadyBy = readiness.manualReadyBy;
+      json.manualReadyByUser = readiness.manualReadyByUser;
+      json.manualReadyAt = readiness.manualReadyAt;
+      json.manualReadyReason = readiness.manualReadyReason;
+      json.readyForShipment = readiness.readyForShipment;
+      json.isManualOverride = readiness.isManualOverride;
+      json.readySource = readiness.readySource;
+      json.readinessReasons = readiness.reasons;
 
       return json;
     });
@@ -657,7 +730,7 @@ export class ShipmentService {
       });
 
     // Reload with associations
-    return await this.shipmentModel.findByPk(id, {
+    const reloaded = await this.shipmentModel.findByPk(id, {
       include: [
         {
           model: SalesContract,
@@ -674,7 +747,188 @@ export class ShipmentService {
             },
           ],
         },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
+        {
+          model: User,
+          as: 'manualReadyByUser',
+          attributes: ['id', 'name', 'email'],
+          required: false,
+        },
       ],
     });
+
+    if (!reloaded) return null;
+    const readiness = await this.readinessService.evaluate(reloaded);
+    const json: any = reloaded.toJSON ? reloaded.toJSON() : { ...reloaded };
+    json.businessReference = json.businessTransaction?.businessReference ?? null;
+    json.cargoReady = readiness.cargoReady;
+    json.freightReady = readiness.freightReady;
+    json.systemReady = readiness.systemReady;
+    json.manualReadyOverride = readiness.manualReadyOverride;
+    json.manualReadyBy = readiness.manualReadyBy;
+    json.manualReadyByUser = readiness.manualReadyByUser;
+    json.manualReadyAt = readiness.manualReadyAt;
+    json.manualReadyReason = readiness.manualReadyReason;
+    json.readyForShipment = readiness.readyForShipment;
+    json.isManualOverride = readiness.isManualOverride;
+    json.readySource = readiness.readySource;
+    json.readinessReasons = readiness.reasons;
+    return json;
+  }
+
+  async findOne(id: number, user?: any) {
+    const shipment = await this.shipmentModel.findByPk(id, {
+      include: [
+        {
+          model: SalesContract,
+          as: 'salesContract',
+          include: [
+            { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+            { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+          ],
+        },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
+        {
+          model: User,
+          as: 'manualReadyByUser',
+          attributes: ['id', 'name', 'email'],
+          required: false,
+        },
+      ],
+    });
+
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+
+    if (
+      user?.companyId &&
+      shipment.salesContract?.companyId !== user.companyId
+    ) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+
+    const readiness = await this.readinessService.evaluate(shipment);
+    const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
+    json.businessReference = json.businessTransaction?.businessReference ?? null;
+    json.timeline = this.calculateTimeline(json.shipmentDate, json.status);
+    json.cargoReady = readiness.cargoReady;
+    json.freightReady = readiness.freightReady;
+    json.systemReady = readiness.systemReady;
+    json.manualReadyOverride = readiness.manualReadyOverride;
+    json.manualReadyBy = readiness.manualReadyBy;
+    json.manualReadyByUser = readiness.manualReadyByUser;
+    json.manualReadyAt = readiness.manualReadyAt;
+    json.manualReadyReason = readiness.manualReadyReason;
+    json.readyForShipment = readiness.readyForShipment;
+    json.isManualOverride = readiness.isManualOverride;
+    json.readySource = readiness.readySource;
+    json.readinessReasons = readiness.reasons;
+    return json;
+  }
+
+  async updateManualReadiness(
+    id: number,
+    dto: UpdateManualReadinessDto,
+    user?: any,
+  ) {
+    const shipment = await this.shipmentModel.findByPk(id, {
+      include: [
+        { model: SalesContract, as: 'salesContract' },
+        {
+          model: User,
+          as: 'manualReadyByUser',
+          attributes: ['id', 'name', 'email'],
+          required: false,
+        },
+      ],
+    });
+
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+
+    if (
+      user?.companyId &&
+      shipment.salesContract?.companyId !== user.companyId
+    ) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+
+    // Reason is mandatory when selecting Yes or No
+    if (
+      dto.manualReadyOverride !== null &&
+      (!dto.reason || !dto.reason.trim())
+    ) {
+      throw new BadRequestException(
+        'Reason is required when selecting Yes or No for manual readiness override.',
+      );
+    }
+
+    const previousValue = {
+      manualReadyOverride: shipment.manualReadyOverride,
+      manualReadyBy: shipment.manualReadyBy,
+      manualReadyAt: shipment.manualReadyAt,
+      manualReadyReason: shipment.manualReadyReason,
+    };
+
+    const targetOverride =
+      dto.manualReadyOverride === null || dto.manualReadyOverride === undefined
+        ? null
+        : Boolean(dto.manualReadyOverride);
+
+    const now = new Date();
+    const userId = user?.userId ?? user?.id ?? null;
+
+    if (targetOverride === null) {
+      // Revert to Default (System Status)
+      shipment.manualReadyOverride = null;
+      shipment.manualReadyBy = null;
+      shipment.manualReadyAt = null;
+      shipment.manualReadyReason = null;
+    } else {
+      shipment.manualReadyOverride = targetOverride;
+      shipment.manualReadyBy = userId;
+      shipment.manualReadyAt = now;
+      shipment.manualReadyReason = dto.reason ? dto.reason.trim() : null;
+    }
+
+    await shipment.save();
+
+    const newValue = {
+      manualReadyOverride: shipment.manualReadyOverride,
+      manualReadyBy: shipment.manualReadyBy,
+      manualReadyAt: shipment.manualReadyAt,
+      manualReadyReason: shipment.manualReadyReason,
+    };
+
+    // Audit Log for every manual readiness change
+    await this.auditService.writeLog({
+      clientId: user?.clientId ?? null,
+      companyId: user?.companyId ?? null,
+      userId: userId,
+      entityType: 'SalesContractShipment',
+      entityId: shipment.id,
+      action: 'MANUAL_READINESS_OVERRIDE_CHANGED',
+      oldValue: previousValue,
+      newValue: {
+        ...newValue,
+        reason: shipment.manualReadyReason,
+        changedBy: user?.name || user?.email || `User #${userId}`,
+        changedAt: now,
+      },
+    });
+
+    return await this.findOne(id, user);
   }
 }

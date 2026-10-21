@@ -202,6 +202,22 @@ export class PurchaseContractService {
           defaults: { purchaseContractId: pc.id, shipmentId: sId } as any,
         });
       }
+    } else if (initialShipmentIds && initialShipmentIds.length > 0) {
+      // If PC already exists, link the new shipments being executed
+      for (const sId of initialShipmentIds) {
+        await this.shipmentLinkModel.findOrCreate({
+          where: { purchaseContractId: pc.id, shipmentId: sId },
+          defaults: { purchaseContractId: pc.id, shipmentId: sId } as any,
+        });
+      }
+    }
+
+    // Persist status = 'Executed' in sales_contract_shipments database table
+    if (initialShipmentIds && initialShipmentIds.length > 0) {
+      await this.salesShipmentModel.update(
+        { status: 'Executed' },
+        { where: { id: initialShipmentIds } },
+      );
     }
 
     return pc;

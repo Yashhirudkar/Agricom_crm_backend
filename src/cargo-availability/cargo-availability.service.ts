@@ -98,14 +98,20 @@ export class CargoAvailabilityService {
   async attachCalculatedMetrics(record: CargoAvailability): Promise<any> {
     const plain = record.get({ plain: true });
 
-    // a. Ready Qty
-    const readyRes = await this.cargoReadinessModel.sum('readyQty', {
-      where: {
-        cargoAvailabilityId: record.id,
-        status: 'Approved',
-      },
+    // a. Check Readiness status (Agricom Simplified Workflow: Ready / Not Ready)
+    const latestReadiness = await this.cargoReadinessModel.findOne({
+      where: { cargoAvailabilityId: record.id },
+      order: [['created_at', 'DESC']],
     });
-    const readyQty = Number(readyRes || 0);
+
+    const isReady =
+      latestReadiness &&
+      (latestReadiness.status === 'Ready' ||
+        latestReadiness.status === 'Approved');
+
+    // When Ready, Ready Qty equals the full Purchase Qty without manual re-entry.
+    // When Not Ready, Ready Qty is 0.
+    const readyQty = isReady ? Number(plain.purchaseQty || 0) : 0;
 
     // b. Allocated Qty
     const allocRes = await this.cargoAllocationModel.sum('allocatedQty', {
@@ -164,30 +170,46 @@ export class CargoAvailabilityService {
     const deliveredQty = Number(deliveredRes || 0);
 
     // Counts
-    const readinessCount = await this.cargoReadinessModel.count({
-      where: { cargoAvailabilityId: record.id },
-    });
+    const readinessCount = latestReadiness ? 1 : 0;
     const trucksCount = await this.cargoLoadingModel.count({
       where: { cargoAvailabilityId: record.id },
     });
 
-    // Computed Status
-    let computedStatus = 'Pending Readiness';
-    if (readyQty > 0) {
-      if (loadedQty >= plain.purchaseQty) {
+    // Computed Status based on Agricom Business Lifecycle:
+    // Not Ready -> Ready -> Partially Allocated -> Fully Allocated -> Loading -> Dispatched -> Completed
+    let computedStatus = 'Not Ready';
+    if (!isReady) {
+      computedStatus = 'Not Ready';
+    } else {
+      const isCompleted =
+        (loadedQty >= Number(plain.purchaseQty || 0) && loadedQty > 0) ||
+        plain.status === 'Completed';
+      const isAllDispatched =
+        dispatchedQty > 0 &&
+        (dispatchedQty >= Number(plain.purchaseQty || 0) ||
+          (allocatedQty > 0 && dispatchedQty >= allocatedQty));
+      const hasTrucks = trucksCount > 0;
+
+      if (isCompleted) {
         computedStatus = 'Completed';
-      } else if (dispatchedQty > 0) {
+      } else if (isAllDispatched) {
         computedStatus = 'Dispatched';
-      } else if (allocatedQty > 0) {
-        computedStatus = 'Allocated';
+      } else if (hasTrucks) {
+        computedStatus = 'Loading';
+      } else if (allocatedQty >= readyQty && readyQty > 0) {
+        computedStatus = 'Fully Allocated';
+      } else if (allocatedQty > 0 && allocatedQty < readyQty) {
+        computedStatus = 'Partially Allocated';
       } else {
-        computedStatus =
-          readyQty >= plain.purchaseQty ? 'Ready Pool' : 'Partially Ready';
+        computedStatus = 'Ready';
       }
     }
 
     return {
       ...plain,
+      isReady: Boolean(isReady),
+      readyDate: latestReadiness?.readyDate || null,
+      remarks: latestReadiness?.remarks || null,
       readyQty,
       allocatedQty,
       availableQty,
@@ -320,10 +342,22 @@ export class CargoAvailabilityService {
     );
     const totalPurchaseQty = Number(totalPurchaseRes || 0);
 
-    const readyWhere: any = { status: 'Approved' };
-    if (companyId) readyWhere.companyId = companyId;
-    const totalReadyRes = await this.cargoReadinessModel.sum('readyQty', {
-      where: readyWhere,
+    const readyReadinessEntries = await this.cargoReadinessModel.findAll({
+      where: {
+        status: { [Op.in]: ['Ready', 'Approved'] },
+        ...(companyId ? { companyId } : {}),
+      },
+      attributes: ['cargoAvailabilityId', 'readyQty'],
+    });
+    const readyCargoIds = readyReadinessEntries.map(
+      (e) => e.cargoAvailabilityId,
+    );
+
+    const totalReadyRes = await this.cargoAvailabilityModel.sum('purchaseQty', {
+      where: {
+        id: { [Op.in]: readyCargoIds.length > 0 ? readyCargoIds : [-1] },
+        ...whereCond,
+      },
     });
     const totalReadyQty = Number(totalReadyRes || 0);
 
@@ -372,10 +406,11 @@ export class CargoAvailabilityService {
     );
     const totalDeliveredQty = Number(totalDeliveredRes || 0);
 
-    const pendingReadWhere: any = { status: 'Pending Approval' };
-    if (companyId) pendingReadWhere.companyId = companyId;
-    const pendingReadinessCount = await this.cargoReadinessModel.count({
-      where: pendingReadWhere,
+    const pendingReadinessCount = await this.cargoAvailabilityModel.count({
+      where: {
+        id: { [Op.notIn]: readyCargoIds.length > 0 ? readyCargoIds : [-1] },
+        ...whereCond,
+      },
     });
 
     const pendTruckWhere: any = {
@@ -648,22 +683,53 @@ export class CargoAvailabilityService {
       );
     }
 
-    if (dto.warehouseId) {
-      const warehouse = await Partner.findOne({
-        where: { id: dto.warehouseId, companyId: record.companyId },
+    const isReady = dto.status === 'Ready';
+
+    // If changing to 'Not Ready', verify no active allocations exist
+    if (!isReady) {
+      const activeAllocations = await this.cargoAllocationModel.count({
+        where: {
+          cargoAvailabilityId: record.id,
+          status: 'Active',
+        },
       });
-      if (!warehouse)
+      if (activeAllocations > 0) {
         throw new BadRequestException(
-          'Warehouse not found or does not belong to company',
+          'Cannot mark cargo as Not Ready because active allocations exist. Please cancel allocations first.',
         );
+      }
     }
 
-    const entry = await this.cargoReadinessModel.create({
-      ...dto,
-      createdBy: userId,
-      status: dto.status || 'Pending Approval',
-      companyId: record.companyId,
+    const readyDate = dto.readyDate || new Date().toISOString().split('T')[0];
+    const readyQty = isReady ? Number(record.purchaseQty || 0) : 0;
+
+    let entry = await this.cargoReadinessModel.findOne({
+      where: { cargoAvailabilityId: record.id },
     });
+
+    if (entry) {
+      entry.status = dto.status || (isReady ? 'Ready' : 'Not Ready');
+      entry.readyDate = readyDate;
+      entry.readyQty = readyQty;
+      entry.remarks = dto.remarks || null;
+      entry.createdBy = userId || entry.createdBy;
+      await entry.save();
+    } else {
+      entry = await this.cargoReadinessModel.create({
+        cargoAvailabilityId: record.id,
+        companyId: record.companyId,
+        status: dto.status || (isReady ? 'Ready' : 'Not Ready'),
+        readyDate,
+        readyQty,
+        bagBulk: 'Bulk',
+        uom: 'MT',
+        remarks: dto.remarks || null,
+        createdBy: userId,
+      });
+    }
+
+    record.status = isReady ? 'Ready' : 'Not Ready';
+    await record.save();
 
     return entry;
   }

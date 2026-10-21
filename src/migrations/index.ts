@@ -41,6 +41,8 @@ import * as phase49 from './phase-49-business-transaction-root-ownership';
 import * as phase50 from './phase-50-ports-and-shipping-lines';
 import * as phase51 from './phase-51-add-shipment-type-to-purchase-contracts';
 import * as phase52 from './phase-52-add-freight-required-to-purchase-contracts';
+import * as phase53 from './phase-53-add-manual-ready-override-to-shipments';
+import * as phase54 from './phase-54-sync-executed-shipments';
 
 export interface MigrationPhase {
   phase: string;
@@ -97,4 +99,6 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase50,
   phase51,
   phase52,
+  phase53,
+  phase54,
 ];
