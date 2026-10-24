@@ -96,6 +96,7 @@ import { SalesContractItem } from './sales-contracts/models/sales-contract-item.
 import { SalesContractShipment } from './sales-contracts/models/sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
+import { ShipmentStuffing } from './sales-contracts/models/shipment-stuffing.model';
 import { Attachment } from './attachments/models/attachment.model';
 import { PurchaseContract } from './purchase-contracts/models/purchase-contract.model';
 import { PurchaseContractItem } from './purchase-contracts/models/purchase-contract-item.model';
@@ -282,6 +283,7 @@ import {
             SalesContractShipment,
             SalesContractDocument,
             SalesContractDocumentFile,
+            ShipmentStuffing,
             Attachment,
             PurchaseContract,
             PurchaseContractItem,

@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -46,21 +47,37 @@ import {
 const INCLUDE_RELATIONS = [
   {
     model: PartnerRole,
+    as: 'partnerRole',
     attributes: ['id', 'name'],
     required: false,
   },
   {
     model: Partner,
+    as: 'partner',
+    attributes: ['id', 'entityName'],
+    required: false,
+  },
+  {
+    model: PartnerRole,
+    as: 'brokerRole',
+    attributes: ['id', 'name'],
+    required: false,
+  },
+  {
+    model: Partner,
+    as: 'broker',
     attributes: ['id', 'entityName'],
     required: false,
   },
   {
     model: Product,
+    as: 'product',
     attributes: ['id', 'name'],
     required: false,
   },
   {
     model: PackingType,
+    as: 'packingType',
     attributes: ['id', 'name'],
     required: false,
   },
@@ -72,14 +89,27 @@ const INCLUDE_RELATIONS = [
   },
   {
     model: BusinessTransaction,
+    as: 'businessTransaction',
     attributes: ['id', 'businessReference'],
     required: false,
   },
 ];
 
 @Injectable()
-export class EnquiriesService {
+export class EnquiriesService implements OnModuleInit {
   private readonly logger = new Logger(EnquiriesService.name);
+
+  async onModuleInit() {
+    try {
+      await this.sequelize.query(`
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS broker_role_id INTEGER REFERENCES partner_roles(id) ON DELETE SET NULL;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS broker_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;
+      `);
+      this.logger.log('Enquiries broker columns verified/added successfully.');
+    } catch (err: any) {
+      this.logger.warn(`Could not verify/add broker columns to enquiries: ${err?.message}`);
+    }
+  }
 
   constructor(
     @InjectModel(Enquiry)
@@ -125,6 +155,8 @@ export class EnquiriesService {
     partnerId?: number,
     productId?: number,
     packingTypeId?: number,
+    brokerRoleId?: number,
+    brokerId?: number,
   ) {
     if (partnerRoleId) {
       const role = await this.partnerRoleModel.findOne({
@@ -153,6 +185,20 @@ export class EnquiriesService {
       });
       if (!packing)
         throw new BadRequestException('Packing Type not found or inactive');
+    }
+    if (brokerRoleId) {
+      const role = await this.partnerRoleModel.findOne({
+        where: { id: brokerRoleId, isActive: true, companyId },
+      });
+      if (!role)
+        throw new BadRequestException('Broker Partner Role not found or inactive');
+    }
+    if (brokerId) {
+      const broker = await this.partnerModel.findOne({
+        where: { id: brokerId, isActive: true, companyId },
+      });
+      if (!broker)
+        throw new BadRequestException('Broker Partner not found or inactive');
     }
   }
 
@@ -307,17 +353,29 @@ export class EnquiriesService {
       dto.partnerId,
       dto.productId,
       dto.packingTypeId,
+      dto.brokerRoleId,
+      dto.brokerId,
     );
 
     const normalized = this.normalizeLogisticsPayload(dto);
     // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Pre-fetch relation names outside the transaction to keep it short
-    const [partner, product, packingType, creator] = await Promise.all([
+    const [partner, broker, partnerRoleName, product, packingType, creator] = await Promise.all([
       normalized.partnerId
         ? this.partnerModel.findByPk(normalized.partnerId, {
             attributes: ['id', 'entityName'],
           })
+        : Promise.resolve(null),
+      normalized.brokerId
+        ? this.partnerModel.findByPk(normalized.brokerId, {
+            attributes: ['id', 'entityName'],
+          })
+        : Promise.resolve(null),
+      normalized.partnerRoleId
+        ? this.partnerRoleModel.findByPk(normalized.partnerRoleId, {
+            attributes: ['id', 'name'],
+          }).then((r: any) => r?.name || null)
         : Promise.resolve(null),
       normalized.productId
         ? this.productModel.findByPk(normalized.productId, {
@@ -396,6 +454,8 @@ export class EnquiriesService {
           bidCurrency: enquiry.bidCurrency || undefined,
           bidType: enquiry.bidType || undefined,
           note: enquiry.note || undefined,
+          partnerRoleName: partnerRoleName || undefined,
+          brokerName: broker?.entityName || undefined,
           createdByName: creator?.name || undefined,
           createdAt: new Date(),
         },
@@ -595,6 +655,10 @@ export class EnquiriesService {
       roleName: row.partnerRole?.name,
       partnerId: row.partnerId,
       partnerName: row.partner?.entityName,
+      brokerRoleId: row.brokerRoleId ?? null,
+      brokerRoleName: row.brokerRole?.name ?? null,
+      brokerId: row.brokerId ?? null,
+      brokerName: row.broker?.entityName ?? null,
       productName: row.product?.name,
       originCountryId: row.originCountryId,
       purity: row.purity,
@@ -659,7 +723,9 @@ export class EnquiriesService {
       dto.partnerRoleId ||
       dto.partnerId ||
       dto.productId ||
-      dto.packingTypeId
+      dto.packingTypeId ||
+      dto.brokerRoleId ||
+      dto.brokerId
     ) {
       await this.validateForeignKeys(
         companyId,
@@ -667,6 +733,8 @@ export class EnquiriesService {
         dto.partnerId,
         dto.productId,
         dto.packingTypeId,
+        dto.brokerRoleId,
+        dto.brokerId,
       );
     }
 

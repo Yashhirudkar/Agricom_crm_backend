@@ -11,6 +11,7 @@ import { PurchaseContractItem } from '../models/purchase-contract-item.model';
 import { PurchaseContractShipment } from '../models/purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from '../models/purchase-contract-required-document.model';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
+import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { PartnerRole } from '../../masters/partner-role/partner-role.model';
@@ -158,18 +159,34 @@ export class PurchaseContractService {
             'contractNumber',
             'companyId',
             'sellerId',
+            'brokerId',
+            'enquiryId',
             'businessTransactionId',
+          ],
+          include: [
+            {
+              model: Enquiry,
+              as: 'enquiry',
+              attributes: ['id', 'brokerId'],
+              required: false,
+            },
           ],
         },
       );
       if (!salesContract)
         throw new NotFoundException('Sales Contract not found');
 
+      const resolvedBrokerId =
+        salesContract.brokerId ||
+        (salesContract as any).enquiry?.brokerId ||
+        null;
+
       pc = await this.model.create({
         salesContractId,
         businessTransactionId: salesContract.businessTransactionId ?? null,
         purchaseType: 'SC',
         buyerId: salesContract.sellerId || null,
+        brokerId: resolvedBrokerId,
         status: 'Draft',
         createdBy: userId ?? null,
         updatedBy: userId ?? null,
@@ -446,6 +463,12 @@ export class PurchaseContractService {
             { model: Partner, as: 'buyer' },
             { model: Partner, as: 'seller' },
             { model: Partner, as: 'broker' },
+            {
+              model: Enquiry,
+              as: 'enquiry',
+              include: [{ model: Partner, as: 'broker' }],
+              required: false,
+            },
             { model: ShipmentType, as: 'shipmentType' },
             { model: PaymentTerm, as: 'paymentTerm' },
             {
@@ -458,6 +481,25 @@ export class PurchaseContractService {
       ],
     });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
+
+    if (!pc.brokerId && pc.salesContract) {
+      const scBrokerId =
+        pc.salesContract.brokerId ||
+        (pc.salesContract as any).enquiry?.brokerId ||
+        null;
+      const scBroker =
+        pc.salesContract.broker ||
+        (pc.salesContract as any).enquiry?.broker ||
+        null;
+
+      if (scBrokerId) {
+        pc.brokerId = scBrokerId;
+        if (scBroker) {
+          (pc as any).setDataValue('broker', scBroker);
+        }
+      }
+    }
+
     return pc;
   }
 

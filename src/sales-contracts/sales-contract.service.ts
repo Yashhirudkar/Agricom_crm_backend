@@ -18,6 +18,8 @@ import { Attachment } from '../attachments/models/attachment.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
+import { Enquiry } from '../enquiries/models/enquiry.model';
+import { PartnerRole } from '../masters/partner-role/partner-role.model';
 
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
@@ -199,6 +201,15 @@ export class SalesContractService implements OnModuleInit {
         throw new BadRequestException(
           `This order is already converted to Sales Contract "${alreadyConverted.contractNumber}".`,
         );
+      }
+    }
+
+    if (dto.enquiryId && !dto.brokerId) {
+      const eq = await Enquiry.findByPk(dto.enquiryId, {
+        attributes: ['id', 'brokerId'],
+      });
+      if (eq?.brokerId) {
+        dto.brokerId = eq.brokerId;
       }
     }
 
@@ -430,6 +441,15 @@ export class SalesContractService implements OnModuleInit {
         { model: Partner, as: 'seller' },
         { model: Partner, as: 'broker' },
         {
+          model: Enquiry,
+          as: 'enquiry',
+          include: [
+            { model: Partner, as: 'broker' },
+            { model: PartnerRole, as: 'brokerRole' },
+          ],
+          required: false,
+        },
+        {
           model: BusinessTransaction,
           as: 'businessTransaction',
           attributes: ['id', 'businessReference'],
@@ -452,6 +472,14 @@ export class SalesContractService implements OnModuleInit {
     if (!item) {
       throw new NotFoundException('Sales Contract not found');
     }
+
+    if (!item.brokerId && (item as any).enquiry?.brokerId) {
+      item.brokerId = (item as any).enquiry.brokerId;
+      if ((item as any).enquiry.broker) {
+        (item as any).setDataValue('broker', (item as any).enquiry.broker);
+      }
+    }
+
     return item;
   }
 

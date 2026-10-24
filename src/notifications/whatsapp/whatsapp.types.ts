@@ -34,6 +34,8 @@ export interface EnquiryNotificationData {
   bidCurrency?: string;
   bidType?: string;
   note?: string;
+  partnerRoleName?: string;
+  brokerName?: string;
   createdByName?: string;
   createdAt?: Date;
 }

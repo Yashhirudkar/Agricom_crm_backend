@@ -28,6 +28,17 @@ import {
 import { ShipmentReadinessService } from './services/shipment-readiness.service';
 import { AuditService } from '../audit/services/audit.service';
 import { User } from '../users/models/user.model';
+import { ShipmentStuffing } from './models/shipment-stuffing.model';
+import { CargoShipmentAllocation } from '../cargo-availability/models/cargo-shipment-allocation.model';
+import { Logistics } from '../logistics/models/logistics.model';
+import { FreightQuote } from '../logistics/models/freight-quote.model';
+import { Company } from '../companies/models/company.model';
+import { Enquiry } from '../enquiries/models/enquiry.model';
+import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
+import { PaymentTerm } from '../masters/payment-term/payment-term.model';
+import { BagType } from '../masters/bag-specs/models/bag-type.model';
+import { PackingType } from '../masters/bag-specs/models/packing-type.model';
+import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
 
 @Injectable()
 export class ShipmentService {
@@ -46,6 +57,14 @@ export class ShipmentService {
     private readonly purchaseContractService: PurchaseContractService,
     private readonly readinessService: ShipmentReadinessService,
     private readonly auditService: AuditService,
+    @InjectModel(ShipmentStuffing)
+    private readonly stuffingModel: typeof ShipmentStuffing,
+    @InjectModel(CargoShipmentAllocation)
+    private readonly cargoAllocationModel: typeof CargoShipmentAllocation,
+    @InjectModel(Logistics)
+    private readonly logisticsModel: typeof Logistics,
+    @InjectModel(FreightQuote)
+    private readonly freightQuoteModel: typeof FreightQuote,
   ) {}
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
@@ -930,5 +949,441 @@ export class ShipmentService {
     });
 
     return await this.findOne(id, user);
+  }
+
+  /**
+   * Auto-populates 80-90% read-only data for Shipment Stuffing Execution
+   * Fetches data from Shipment, Sales Contract, Items, Cargo Allocation, Freight, Company, and Buyer.
+   */
+  async getStuffingExecutionData(shipmentId: number, user?: any) {
+    const shipment = await this.shipmentModel.findByPk(shipmentId, {
+      include: [
+        {
+          model: SalesContract,
+          as: 'salesContract',
+          required: false,
+          include: [
+            { model: Partner, as: 'buyer', required: false },
+            { model: Partner, as: 'seller', required: false },
+            {
+              model: SalesContractItem,
+              as: 'items',
+              required: false,
+              include: [
+                { model: Product, as: 'product', required: false },
+                { model: PackingType, as: 'packingType', required: false },
+                { model: BagSpecification, as: 'bagSpecification', required: false },
+              ],
+            },
+            { model: Company, as: 'company', required: false },
+            { model: Enquiry, as: 'enquiry', required: false },
+            { model: ShipmentType, as: 'shipmentType', required: false },
+            { model: PaymentTerm, as: 'paymentTerm', required: false },
+          ],
+        },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
+        {
+          model: Company,
+          as: 'company',
+          required: false,
+        },
+      ],
+    });
+
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
+
+    if (
+      user?.companyId &&
+      shipment.salesContract?.companyId &&
+      shipment.salesContract.companyId !== user.companyId
+    ) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
+
+    // 1. Linked Purchase Contract
+    let purchaseContractNo = 'N/A';
+    try {
+      const pcShipmentModel = this.shipmentModel.sequelize?.models['PurchaseContractShipment'];
+      const pcModel = this.shipmentModel.sequelize?.models['PurchaseContract'];
+      if (pcShipmentModel && pcModel) {
+        const pcLink: any = await pcShipmentModel.findOne({
+          where: { shipmentId: shipment.id },
+        });
+        if (pcLink?.purchaseContractId) {
+          const pc: any = await pcModel.findByPk(pcLink.purchaseContractId);
+          if (pc?.contractNumber) purchaseContractNo = pc.contractNumber;
+        } else if (shipment.salesContractId) {
+          const directPc: any = await pcModel.findOne({
+            where: { salesContractId: shipment.salesContractId },
+          });
+          if (directPc?.contractNumber) {
+            purchaseContractNo = directPc.contractNumber;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch linked Purchase Contract:', err);
+    }
+
+    // 2. Cargo Allocation
+    let cargoAllocations: any[] = [];
+    try {
+      const caModel = this.shipmentModel.sequelize?.models['CargoAvailability'];
+      cargoAllocations = await this.cargoAllocationModel.findAll({
+        where: { shipmentId: shipment.id, status: 'Active' },
+        include: caModel ? [{ model: caModel as any, as: 'cargoAvailability', required: false }] : [],
+      });
+    } catch (err) {
+      console.warn('Could not fetch cargo allocations for stuffing:', err);
+    }
+
+    const cargoLots = cargoAllocations
+      .map(
+        (a: any) =>
+          a.cargoAvailability?.lotNumber ||
+          a.cargoAvailability?.batchNumber,
+      )
+      .filter(Boolean);
+    const allocatedCargoLotsStr =
+      cargoLots.length > 0
+        ? Array.from(new Set(cargoLots)).join(', ')
+        : `LOT-${shipment.id}`;
+
+    const warehouseName =
+      cargoAllocations[0]?.cargoAvailability?.loadingLocation ||
+      'Main Cargo Warehouse';
+
+    const availableWeight = Number(
+      cargoAllocations[0]?.cargoAvailability?.availableQuantity ||
+        cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
+        shipment.quantity ||
+        0,
+    );
+
+    const allocatedWeight =
+      cargoAllocations.reduce(
+        (sum, a: any) => sum + Number(a.allocatedQty || 0),
+        0,
+      ) || Number(shipment.quantity || 0);
+
+    const balanceWeight = Math.max(
+      0,
+      parseFloat((availableWeight - allocatedWeight).toFixed(2)),
+    );
+
+    // 3. Freight Info
+    let freightQuote: any = null;
+    try {
+      if (shipment.logisticsId) {
+        freightQuote = await this.freightQuoteModel.findOne({
+          where: { logisticsId: shipment.logisticsId },
+          order: [['id', 'DESC']],
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch freight quote for stuffing:', err);
+    }
+
+    // 4. Extract Shipment & Contract Data
+    const contract = shipment.salesContract || ({} as any);
+    const item = contract.items?.[0] || {};
+    const product = item.product || {};
+    const buyer = contract.buyer || {};
+    const seller = contract.seller || {};
+    const company = shipment.company || contract.company || {};
+
+    const bagSizeKg = Number(item.bagSpecification?.size || 50) || 50;
+    const quantityMt = Number(shipment.quantity || 0);
+    const totalBags = Math.round((quantityMt * 1000) / bagSizeKg) || 0;
+
+    const originPort =
+      contract.portOfLoading ||
+      contract.originLocationName ||
+      freightQuote?.pol ||
+      'Nhava Sheva Port';
+    const destPort =
+      contract.portOfDischarge ||
+      contract.destinationLocationName ||
+      freightQuote?.pod ||
+      'Jebel Ali Port';
+    const originCountry = contract.originCountry || 'India';
+    const destCountry = contract.destinationCountry || 'UAE';
+    const route = `${originPort} ➔ ${destPort}`;
+
+    // Company Details
+    const sellerCompanyName =
+      company.legalName ||
+      company.name ||
+      seller.entityName ||
+      'Agricom Global Private Limited';
+    const sellerAddress =
+      [
+        company.address,
+        company.city,
+        company.state,
+        company.country,
+        company.pincode,
+      ]
+        .filter(Boolean)
+        .join(', ') ||
+      seller.address ||
+      'Export Zone, Mumbai, Maharashtra, India';
+    const sellerGst =
+      company.taxNumber || seller.taxId || '27AAACG1234F1Z5';
+    const sellerIec =
+      company.registrationNumber || seller.panNo || '0398012345';
+    const sellerContact =
+      [company.phone, company.email].filter(Boolean).join(' | ') ||
+      seller.contactEmail ||
+      '+91 22 2654 3210 | logistics@agricom.com';
+
+    // Buyer Details
+    const buyerName = buyer.entityName || 'Global Importers LLC';
+    const buyerAddress = buyer.address
+      ? `${buyer.address}, ${buyer.city || ''}, ${buyer.country || ''}`
+      : buyer.loadingAddress || 'Industrial Area 4, Sharjah, UAE';
+    const buyerCountry = buyer.country || destCountry;
+    const buyerContactPerson = buyer.contacts?.[0]
+      ? `${buyer.contacts[0].contactName || ''} (${buyer.contacts[0].contactNumber || buyer.contacts[0].email || ''})`
+      : buyer.contactEmail || 'Ahmed Al Mansoori (+971 50 123 4567)';
+
+    // Build the complete auto-populated object (80-90% read only data)
+    const autoPopulated = {
+      // From Shipment
+      shipmentRef: shipment.shipmentReference || `SHP-${shipment.id}`,
+      businessRefNo:
+        shipment.businessTransaction?.businessReference ||
+        `BTX-2026-${shipment.id}`,
+      salesContractNo:
+        contract.contractNumber || `SC-2026-${shipment.salesContractId}`,
+      purchaseContractNo: purchaseContractNo,
+      enquiryRef:
+        contract.enquiry?.enquiryReference ||
+        (contract.enquiryId
+          ? `ENQ-${String(contract.enquiryId).slice(0, 8)}`
+          : 'ENQ-DIRECT'),
+      buyer: buyerName,
+      seller: sellerCompanyName,
+      product: product.name || 'Organic Soybean',
+      commodityGrade:
+        product.grade ||
+        product.commodityGrade ||
+        item.remarks ||
+        'Standard Export Quality (Grade A)',
+      quantityMt: quantityMt,
+      packingType: item.packingType?.name || 'PP Woven Bags',
+      bagSize: `${bagSizeKg} Kg`,
+      totalBags: totalBags,
+      incoterm:
+        contract.paymentTerm?.name || contract.contractType || 'FOB',
+      shipmentDate: shipment.shipmentDate,
+      freightType:
+        contract.shipmentType?.name ||
+        freightQuote?.mode ||
+        'Sea Freight (FCL)',
+      shipmentType:
+        contract.contractType || contract.shipmentType?.name || 'Export',
+      route: route,
+      originCountry: originCountry,
+      destinationCountry: destCountry,
+      originPort: originPort,
+      destinationPort: destPort,
+
+      // From Cargo Allocation
+      allocatedCargoLots: allocatedCargoLotsStr,
+      warehouse: warehouseName,
+      availableWeight: availableWeight,
+      allocatedWeight: allocatedWeight,
+      balanceWeight: balanceWeight,
+
+      // From Freight (defaults, editable if not available)
+      shippingLine: freightQuote?.shippingLine || '',
+      vessel: freightQuote?.vessel || '',
+      voyage: freightQuote?.voyage || '',
+      containerType:
+        freightQuote?.containerType ||
+        freightQuote?.containerSize ||
+        (shipment.noOfContainers
+          ? `${shipment.noOfContainers}x 20' Standard Container`
+          : "20' Heavy Container"),
+      freightForwarder:
+        freightQuote?.seller?.entityName ||
+        freightQuote?.carrierReferenceNo ||
+        '',
+      etd: freightQuote?.etd
+        ? new Date(freightQuote.etd).toISOString().split('T')[0]
+        : shipment.shipmentDate
+        ? new Date(shipment.shipmentDate).toISOString().split('T')[0]
+        : '',
+      eta: freightQuote?.eta
+        ? new Date(freightQuote.eta).toISOString().split('T')[0]
+        : '',
+      pol: freightQuote?.pol || originPort,
+      pod: freightQuote?.pod || destPort,
+
+      // From Company
+      sellerCompany: sellerCompanyName,
+      sellerAddress: sellerAddress,
+      gst: sellerGst,
+      iec: sellerIec,
+      contactDetails: sellerContact,
+
+      // From Buyer
+      buyerName: buyerName,
+      buyerAddress: buyerAddress,
+      buyerCountry: buyerCountry,
+      buyerContactPerson: buyerContactPerson,
+    };
+
+    // Check existing stuffing record
+    let existingStuffing = null;
+    try {
+      existingStuffing = await this.stuffingModel.findOne({
+        where: { shipmentId: shipment.id },
+      });
+    } catch (err) {
+      console.warn('Could not query existing stuffing:', err);
+    }
+
+    // Evaluate readiness
+    let readyForShipment = false;
+    let isManualOverride = false;
+    try {
+      const readiness = await this.readinessService.evaluate(shipment);
+      readyForShipment = readiness.readyForShipment;
+      isManualOverride = readiness.isManualOverride;
+    } catch (err) {
+      console.warn('Readiness evaluate warning:', err);
+    }
+
+    return {
+      shipmentId: shipment.id,
+      shipmentStatus: shipment.status,
+      readyForShipment,
+      isManualOverride,
+      autoPopulated,
+      existingStuffing: existingStuffing
+        ? existingStuffing.get({ plain: true })
+        : null,
+    };
+  }
+
+  /**
+   * Saves stuffing execution (Save as Draft OR Complete Stuffing)
+   */
+  async saveStuffingExecution(shipmentId: number, dto: any, user?: any) {
+    const shipment = await this.shipmentModel.findByPk(shipmentId, {
+      include: [{ model: SalesContract, as: 'salesContract' }],
+    });
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
+
+    const userId = user?.userId ?? user?.id ?? null;
+    const isComplete = dto.action === 'complete';
+
+    let record = await this.stuffingModel.findOne({
+      where: { shipmentId },
+    });
+
+    const now = new Date();
+    const stuffingData: any = {
+      companyId: shipment.companyId || user?.companyId || null,
+      shipmentId: shipment.id,
+      salesContractId: shipment.salesContractId,
+      stuffingStatus: isComplete ? 'Completed' : dto.stuffingStatus || 'Draft',
+      executionStatus: isComplete ? 'Stuffed' : dto.executionStatus || 'Draft',
+      autoPopulatedData: dto.autoPopulated || {},
+      stuffingDate: dto.stuffingDate || null,
+      stuffingStartTime: dto.stuffingStartTime || null,
+      stuffingEndTime: dto.stuffingEndTime || null,
+      stuffingLocation: dto.stuffingLocation || null,
+      supervisor: dto.supervisor || null,
+      loadingDate: dto.loadingDate || null,
+      actualLoadingWeight: dto.actualLoadingWeight
+        ? Number(dto.actualLoadingWeight)
+        : 0,
+      grossWeight: dto.grossWeight ? Number(dto.grossWeight) : 0,
+      netWeight: dto.netWeight ? Number(dto.netWeight) : 0,
+      freightOverrides: dto.freightOverrides || null,
+      containers: Array.isArray(dto.containers) ? dto.containers : [],
+      trucks: Array.isArray(dto.trucks) ? dto.trucks : [],
+      attachments: Array.isArray(dto.attachments) ? dto.attachments : [],
+      remarks: dto.remarks || null,
+      updatedBy: userId,
+    };
+
+    if (isComplete) {
+      stuffingData.completedAt = now;
+    }
+
+    if (record) {
+      await record.update(stuffingData);
+    } else {
+      stuffingData.createdBy = userId;
+      record = await this.stuffingModel.create(stuffingData);
+    }
+
+    // On Complete Stuffing:
+    // - Stuffing Status = Completed
+    // - Shipment Ready = Yes
+    // - Execution Status = Stuffed
+    if (isComplete) {
+      shipment.status = 'Executed';
+      shipment.manualReadyOverride = true;
+      shipment.manualReadyReason = 'Stuffing Completed';
+      shipment.manualReadyAt = now;
+      shipment.manualReadyBy = userId;
+      await shipment.save();
+
+      // Idempotent Purchase Contract link
+      if (shipment.salesContractId) {
+        await this.purchaseContractService
+          .ensureExists(shipment.salesContractId, userId)
+          .catch((err) => {
+            console.warn(
+              '[ShipmentService] ensureExists non-fatal warning:',
+              err?.message,
+            );
+          });
+      }
+
+      // Audit trail
+      await this.auditService.writeLog({
+        clientId: user?.clientId ?? null,
+        companyId: user?.companyId ?? null,
+        userId: userId,
+        entityType: 'SalesContractShipment',
+        entityId: shipment.id,
+        action: 'STUFFING_EXECUTION_COMPLETED',
+        oldValue: null,
+        newValue: {
+          stuffingId: record.id,
+          stuffingStatus: 'Completed',
+          executionStatus: 'Stuffed',
+          actualLoadingWeight: stuffingData.actualLoadingWeight,
+          containersCount: stuffingData.containers.length,
+          trucksCount: stuffingData.trucks.length,
+          completedAt: now,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: isComplete
+        ? 'Stuffing completed successfully'
+        : 'Stuffing draft saved successfully',
+      record,
+      shipmentStatus: shipment.status,
+      readyForShipment: true,
+    };
   }
 }

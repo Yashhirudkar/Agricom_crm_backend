@@ -104,6 +104,12 @@ export class WhatsAppTemplates {
     const lines: string[] = title ? [title] : [];
 
     lines.push(WhatsAppTemplates.line('Customer', data.customerName));
+    if (data.partnerRoleName) {
+      lines.push(WhatsAppTemplates.line('Partner Role', data.partnerRoleName));
+    }
+    if (data.brokerName) {
+      lines.push(WhatsAppTemplates.line('Broker', data.brokerName));
+    }
     lines.push(WhatsAppTemplates.line('Product', data.product));
     lines.push(WhatsAppTemplates.line('Purity', data.purity));
 
@@ -186,6 +192,8 @@ export class WhatsAppTemplates {
 
     // basic comparison
     diff('Customer', oldData.partner?.entityName, newData.partner?.entityName);
+    diff('Partner Role', oldData.partnerRole?.name, newData.partnerRole?.name);
+    diff('Broker', oldData.broker?.entityName, newData.broker?.entityName);
     diff('Product', oldData.product?.name, newData.product?.name);
     diff('Packing Type', oldData.packingType?.name, newData.packingType?.name);
     diff('Purity', oldData.purity, newData.purity);
@@ -249,6 +257,8 @@ export class WhatsAppTemplates {
       bidCurrency: newData.bidCurrency,
       bidType: newData.bidType,
       note: newData.note,
+      partnerRoleName: newData.partnerRole?.name || undefined,
+      brokerName: newData.broker?.entityName || undefined,
       // Map Updated By to Created By temporarily to reuse the template
       createdByName: updatedByName || 'System',
       createdAt: new Date(),

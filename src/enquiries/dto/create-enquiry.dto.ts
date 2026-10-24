@@ -26,6 +26,14 @@ export class CreateEnquiryDto {
   @IsInt()
   productId: number;
 
+  @IsOptional()
+  @IsInt()
+  brokerRoleId?: number;
+
+  @IsOptional()
+  @IsInt()
+  brokerId?: number;
+
   @Type(() => Date)
   @IsDate()
   enquiryDate: Date;

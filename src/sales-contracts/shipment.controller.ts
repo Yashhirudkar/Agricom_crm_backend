@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -11,7 +12,10 @@ import {
   HttpCode,
   Req,
   Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ShipmentService } from './shipment.service';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
@@ -20,11 +24,16 @@ import { QueryShipmentDto } from './dto/query-shipment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { AttachmentsService } from '../attachments/services/attachments.service';
+import { getAttachmentMulterConfig } from '../attachments/config/multer.config';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('sales-contracts/shipments')
 export class ShipmentController {
-  constructor(private readonly service: ShipmentService) {}
+  constructor(
+    private readonly service: ShipmentService,
+    private readonly attachmentsService: AttachmentsService,
+  ) {}
 
   @Get()
   @RequirePermission('shipments:view')
@@ -92,5 +101,48 @@ export class ShipmentController {
     @Req() req: any,
   ) {
     return await this.service.updateManualReadiness(id, dto, req.user);
+  }
+
+  @Get(':id/stuffing-execution')
+  @RequirePermission('shipments:view')
+  async getStuffingExecution(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: any,
+  ) {
+    return await this.service.getStuffingExecutionData(id, req.user);
+  }
+
+  @Post(':id/stuffing-execution')
+  @RequirePermission('shipments:update')
+  @HttpCode(HttpStatus.OK)
+  async saveStuffingExecution(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    return await this.service.saveStuffingExecution(id, dto, req.user);
+  }
+
+  @Post(':id/stuffing-execution/attachments')
+  @RequirePermission('shipments:update')
+  @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
+  async uploadStuffingAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    const attachment = await this.attachmentsService.createAttachment(
+      file,
+      req.user?.id || req.user?.userId,
+      req.user?.companyId,
+    );
+    return {
+      id: attachment.id,
+      originalName: attachment.originalName,
+      fileName: attachment.storedName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+      storagePath: attachment.storagePath,
+    };
   }
 }

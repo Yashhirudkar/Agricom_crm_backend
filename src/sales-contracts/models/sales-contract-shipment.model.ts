@@ -12,12 +12,14 @@ import {
   UpdatedAt,
   ForeignKey,
   BelongsTo,
+  HasOne,
 } from 'sequelize-typescript';
 import { SalesContract } from './sales-contract.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 import { User } from '../../users/models/user.model';
+import { ShipmentStuffing } from './shipment-stuffing.model';
 
 @Table({
   tableName: 'sales_contract_shipments',
@@ -139,4 +141,7 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   @AllowNull(true)
   @Column({ field: 'manual_ready_reason', type: DataType.TEXT })
   declare manualReadyReason: string | null;
+
+  @HasOne(() => ShipmentStuffing)
+  declare stuffingExecution: ShipmentStuffing;
 }

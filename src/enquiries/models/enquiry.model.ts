@@ -36,6 +36,8 @@ import { BusinessTransaction } from '../../system/models/business-transaction.mo
     { fields: ['partner_role_id'] },
     { fields: ['partner_id'] },
     { fields: ['product_id'] },
+    { fields: ['broker_role_id'] },
+    { fields: ['broker_id'] },
     { fields: ['status'] },
   ],
 })
@@ -74,7 +76,7 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'partner_role_id', type: DataType.INTEGER })
   declare partnerRoleId: number;
 
-  @BelongsTo(() => PartnerRole)
+  @BelongsTo(() => PartnerRole, { foreignKey: 'partnerRoleId', as: 'partnerRole' })
   declare partnerRole: PartnerRole;
 
   @ForeignKey(() => Partner)
@@ -82,7 +84,7 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'partner_id', type: DataType.INTEGER })
   declare partnerId: number;
 
-  @BelongsTo(() => Partner)
+  @BelongsTo(() => Partner, { foreignKey: 'partnerId', as: 'partner' })
   declare partner: Partner;
 
   @ForeignKey(() => Product)
@@ -92,6 +94,22 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
 
   @BelongsTo(() => Product)
   declare product: Product;
+
+  @ForeignKey(() => PartnerRole)
+  @AllowNull(true)
+  @Column({ field: 'broker_role_id', type: DataType.INTEGER })
+  declare brokerRoleId: number | null;
+
+  @BelongsTo(() => PartnerRole, { foreignKey: 'brokerRoleId', as: 'brokerRole' })
+  declare brokerRole: PartnerRole;
+
+  @ForeignKey(() => Partner)
+  @AllowNull(true)
+  @Column({ field: 'broker_id', type: DataType.INTEGER })
+  declare brokerId: number | null;
+
+  @BelongsTo(() => Partner, { foreignKey: 'brokerId', as: 'broker' })
+  declare broker: Partner;
 
   @AllowNull(true)
   @Column({ field: 'origin_country_id', type: DataType.STRING })

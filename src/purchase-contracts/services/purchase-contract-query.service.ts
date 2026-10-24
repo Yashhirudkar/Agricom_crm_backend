@@ -8,6 +8,7 @@ import { PurchaseContractShipment } from '../models/purchase-contract-shipment.m
 import { PurchaseContractRequiredDocument } from '../models/purchase-contract-required-document.model';
 import { PurchaseContractAttachment } from '../models/purchase-contract-attachment.model';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
+import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { Partner } from '../../masters/partner/partner.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
@@ -332,11 +333,30 @@ export class PurchaseContractQueryService {
         {
           model: SalesContract,
           as: 'salesContract',
-          attributes: ['id', 'contractNumber', 'currencyCode', 'financialYear'],
+          attributes: [
+            'id',
+            'contractNumber',
+            'currencyCode',
+            'financialYear',
+            'brokerId',
+            'enquiryId',
+          ],
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'broker', attributes: ['id', 'entityName'] },
+            {
+              model: Enquiry,
+              as: 'enquiry',
+              include: [
+                {
+                  model: Partner,
+                  as: 'broker',
+                  attributes: ['id', 'entityName'],
+                },
+              ],
+              required: false,
+            },
             { model: ShipmentType, as: 'shipmentType' },
             {
               model: PaymentTerm,
@@ -404,7 +424,10 @@ export class PurchaseContractQueryService {
       commercialInfo: {
         buyer: pc.salesContract?.buyer,
         seller: pc.salesContract?.seller,
-        broker: pc.salesContract?.broker,
+        broker:
+          pc.salesContract?.broker ||
+          (pc.salesContract as any)?.enquiry?.broker ||
+          null,
         paymentTerm: pc.salesContract?.paymentTerm,
       },
       productSummary:
