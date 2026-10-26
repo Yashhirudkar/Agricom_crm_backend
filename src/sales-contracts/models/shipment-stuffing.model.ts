@@ -60,7 +60,17 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @Default('Draft')
   @AllowNull(false)
   @Column({ field: 'execution_status', type: DataType.STRING(50) })
-  declare executionStatus: string; // 'Draft' | 'Stuffed'
+  declare executionStatus: string;
+
+  @Default('Pending')
+  @AllowNull(false)
+  @Column({ field: 'warehouse_status', type: DataType.STRING(50) })
+  declare warehouseStatus: string;
+
+  @Default('Pending')
+  @AllowNull(false)
+  @Column({ field: 'loading_status', type: DataType.STRING(50) })
+  declare loadingStatus: string;
 
   // Snapshot of 80-90% auto-populated data from all modules
   @AllowNull(true)
@@ -88,10 +98,22 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @Column({ type: DataType.STRING(255) })
   declare supervisor: string;
 
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare operator: string;
+
   // Loading Information
   @AllowNull(true)
   @Column({ field: 'loading_date', type: DataType.DATEONLY })
   declare loadingDate: string;
+
+  @AllowNull(true)
+  @Column({ field: 'loading_start_time', type: DataType.STRING(50) })
+  declare loadingStartTime: string | null;
+
+  @AllowNull(true)
+  @Column({ field: 'loading_end_time', type: DataType.STRING(50) })
+  declare loadingEndTime: string | null;
 
   @Default(0)
   @AllowNull(true)
@@ -119,7 +141,13 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @Column({ type: DataType.JSONB })
   declare containers: Array<{
     containerNo: string;
+    containerSize?: '20 FT' | '40 FT' | '40 HC';
+    vehicleNumber?: string;
     sealNo: string;
+    stuffingDate?: string;
+    warehouse?: string;
+    status?: string;
+    remarks?: string;
     tareWeight?: number;
     grossWeight?: number;
     netWeight?: number;

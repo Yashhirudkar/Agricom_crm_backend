@@ -212,6 +212,10 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   declare placeOfLoading: string;
 
   @AllowNull(true)
+  @Column({ field: 'loading_country', type: DataType.STRING(100) })
+  declare loadingCountry: string;
+
+  @AllowNull(true)
   @Column({ field: 'specification_no', type: DataType.STRING(100) })
   declare specificationNo: string;
 

@@ -15,6 +15,76 @@ export class TaskEmployeeController {
     private readonly userModel: typeof User,
   ) {}
 
+  @Get('filter-users')
+  async getTaskFilterUsers(@Req() req: any) {
+    const headerCompanyId = req.headers['x-company-id'];
+    const rawCompanyId = headerCompanyId
+      ? parseInt(headerCompanyId, 10)
+      : req.user?.companyId || req.user?.clientId || req.user?.lastCompanyId;
+
+    const companyId =
+      rawCompanyId && !isNaN(rawCompanyId) ? rawCompanyId : undefined;
+
+    const replacements: any = { companyId: companyId || null };
+
+    const ownersQuery = `
+      SELECT DISTINCT
+        u.id as "userId",
+        e.id as id,
+        COALESCE(e."firstName", SPLIT_PART(u.name, ' ', 1), u.name) as "firstName",
+        COALESCE(e."lastName", SUBSTRING(u.name FROM POSITION(' ' IN u.name) + 1), '') as "lastName",
+        u.name,
+        u.email
+      FROM (
+        SELECT DISTINCT "ownerId" as uid FROM tasks 
+        WHERE "deletedAt" IS NULL AND "ownerId" IS NOT NULL
+          AND (:companyId::int IS NULL OR company_id = :companyId OR "clientId" = :companyId)
+        UNION
+        SELECT DISTINCT "createdById" as uid FROM tasks 
+        WHERE "deletedAt" IS NULL AND "createdById" IS NOT NULL
+          AND (:companyId::int IS NULL OR company_id = :companyId OR "clientId" = :companyId)
+      ) AS task_owners
+      JOIN users u ON u.id = task_owners.uid
+      LEFT JOIN employees e ON (e."userId" = u.id OR LOWER(TRIM(e.email)) = LOWER(TRIM(u.email)))
+      ORDER BY u.name ASC;
+    `;
+
+    const assigneesQuery = `
+      SELECT DISTINCT
+        u.id as "userId",
+        e.id as id,
+        COALESCE(e."firstName", SPLIT_PART(u.name, ' ', 1), u.name) as "firstName",
+        COALESCE(e."lastName", SUBSTRING(u.name FROM POSITION(' ' IN u.name) + 1), '') as "lastName",
+        u.name,
+        u.email
+      FROM task_assignees ta
+      JOIN tasks t ON t.id = ta."taskId" AND t."deletedAt" IS NULL
+        AND (:companyId::int IS NULL OR t.company_id = :companyId OR t."clientId" = :companyId)
+      JOIN users u ON u.id = ta."userId"
+      LEFT JOIN employees e ON (e."userId" = u.id OR LOWER(TRIM(e.email)) = LOWER(TRIM(u.email)))
+      ORDER BY u.name ASC;
+    `;
+
+    const [owners]: any = await this.userModel.sequelize.query(ownersQuery, {
+      replacements,
+    });
+
+    const [associates]: any = await this.userModel.sequelize.query(
+      assigneesQuery,
+      {
+        replacements,
+      },
+    );
+
+    return {
+      success: true,
+      data: {
+        owners: owners || [],
+        associates: associates || [],
+      },
+    };
+  }
+
   @Get('assignable')
   async getAssignableEmployees(
     @Req() req: any,

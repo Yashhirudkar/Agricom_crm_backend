@@ -49,6 +49,7 @@ export class TaskQueryRepository {
       statusIds,
       priorityIds,
       assigneeIds,
+      ownerIds,
       createdByIds,
       isArchived,
       isCompleted,
@@ -156,6 +157,15 @@ export class TaskQueryRepository {
       where.priorityId = { [Op.in]: priorityIds };
     if (createdByIds && createdByIds.length > 0)
       where.createdById = { [Op.in]: createdByIds };
+    if (ownerIds && ownerIds.length > 0) {
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push({
+        [Op.or]: [
+          { ownerId: { [Op.in]: ownerIds } },
+          { ownerId: null, createdById: { [Op.in]: ownerIds } },
+        ],
+      });
+    }
 
     // Search (Full-Text friendly setup, fallback to iLike)
     if (search) {

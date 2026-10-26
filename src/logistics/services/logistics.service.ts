@@ -158,10 +158,14 @@ export class LogisticsService {
     ];
 
     if (businessReference) {
+      const transactionId =
+        (await resolveBusinessTransactionId(businessReference, companyId)) ??
+        -1;
       whereConditions.push({
-        businessTransactionId:
-          (await resolveBusinessTransactionId(businessReference, companyId)) ??
-          -1,
+        [Op.or]: [
+          { businessTransactionId: transactionId },
+          { '$logistics.business_transaction_id$': transactionId },
+        ],
       });
     }
 
@@ -368,6 +372,7 @@ export class LogisticsService {
             pc.freight_required,
             pc.quantity,
             pc.place_of_loading,
+            pc.loading_country,
             pc.delivery_place,
             pc.purchase_date,
             pc.sales_contract_id,
@@ -463,6 +468,7 @@ export class LogisticsService {
             freightRequired: Boolean(matchedPc.freight_required),
             quantity: matchedPc.quantity || null,
             placeOfLoading: matchedPc.place_of_loading || null,
+            loadingCountry: matchedPc.loading_country || null,
             deliveryPlace: matchedPc.delivery_place || null,
             shipmentTypeId: matchedPc.shipment_type_id || null,
             shipmentTypeName: matchedPc.shipment_type_name || null,
@@ -910,6 +916,7 @@ export class LogisticsService {
             id: matchedPc.id,
             contractNumber: matchedPc.contract_number,
             placeOfLoading: matchedPc.place_of_loading || null,
+            loadingCountry: matchedPc.loading_country || null,
             deliveryPlace: matchedPc.delivery_place || null,
           }
         : null;
@@ -2139,6 +2146,21 @@ export class LogisticsService {
       const updates: any = { ...dto, updatedBy: user?.userId };
 
       await logistics.update(updates, { transaction });
+
+      if (dto.transportMode && logistics.enquiryId) {
+        const modeMap: Record<string, string> = {
+          Sea: 'SHIP',
+          Road: 'ROAD',
+          Rail: 'RAIL',
+        };
+        const mappedMode = modeMap[dto.transportMode];
+        if (mappedMode) {
+          await this.enquiryModel.update(
+            { shipmentMode: mappedMode as any },
+            { where: { id: logistics.enquiryId }, transaction },
+          );
+        }
+      }
 
       if (dto.status && oldStatus !== dto.status) {
         await this.auditService.writeLog({

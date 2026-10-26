@@ -96,12 +96,24 @@ export class CargoLoading extends Model<CargoLoading> {
   declare loadingDate: string;
 
   @AllowNull(true)
+  @Column({ field: 'loading_start_time', type: DataType.STRING(50) })
+  declare loadingStartTime: string | null;
+
+  @AllowNull(true)
+  @Column({ field: 'loading_end_time', type: DataType.STRING(50) })
+  declare loadingEndTime: string | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare operator: string | null;
+
+  @AllowNull(true)
   @Column({ field: 'arrival_time', type: DataType.STRING(50) })
   declare arrivalTime: string;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'truck_no', type: DataType.STRING(100) })
-  declare truckNo: string;
+  declare truckNo: string | null;
 
   @AllowNull(true)
   @Column({ field: 'trailer_no', type: DataType.STRING(100) })
@@ -261,10 +273,15 @@ export class CargoLoading extends Model<CargoLoading> {
   @Column({ type: DataType.JSONB })
   declare timeline: any[];
 
-  @Default('Draft')
+  @Default('Pending')
   @AllowNull(false)
   @Column({ type: DataType.STRING(50) })
   declare status: string;
+
+  @Default('Pending')
+  @AllowNull(false)
+  @Column({ field: 'warehouse_status', type: DataType.STRING(50) })
+  declare warehouseStatus: string;
 
   @ForeignKey(() => User)
   @AllowNull(true)

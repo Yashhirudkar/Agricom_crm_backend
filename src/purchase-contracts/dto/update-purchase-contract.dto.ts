@@ -122,6 +122,9 @@ export class UpdatePurchaseContractDto {
   placeOfLoading?: any;
 
   @IsOptional()
+  loadingCountry?: any;
+
+  @IsOptional()
   status?: any;
 
   @IsOptional()

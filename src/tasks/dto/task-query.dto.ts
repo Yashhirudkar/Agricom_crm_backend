@@ -117,6 +117,16 @@ export class TaskQueryDto {
   assigneeIds?: number[];
 
   @ApiPropertyOptional({
+    description: 'Filter by Owner User IDs',
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    (Array.isArray(value) ? value : [value]).map((v) => parseInt(v, 10)),
+  )
+  ownerIds?: number[];
+
+  @ApiPropertyOptional({
     description: 'Filter by Creator User IDs',
     type: [Number],
   })

@@ -62,6 +62,12 @@ export class CargoAvailabilityController {
     return this.service.findAllLoading(req.user?.companyId, query);
   }
 
+  @Get('loading/metrics')
+  @RequirePermission('cargo_availability:view')
+  async getLoadingMetrics(@Req() req: any) {
+    return this.service.getLoadingMetrics(req.user?.companyId);
+  }
+
   @Get(':id')
   @RequirePermission('cargo_availability:view')
   async findOne(@Param('id') id: number, @Req() req: any) {

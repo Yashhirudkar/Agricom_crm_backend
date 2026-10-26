@@ -42,7 +42,22 @@ export class PortService {
     // 2. Country Filter
     const countryParam = query.countryId || query.country_id;
     if (countryParam && countryParam !== 'all') {
-      where.countryId = parseInt(countryParam);
+      const parsed = parseInt(String(countryParam), 10);
+      if (!isNaN(parsed)) {
+        where.countryId = parsed;
+      } else {
+        const found = await this.countryModel.findOne({
+          where: {
+            [Op.or]: [
+              { name: { [Op.iLike]: String(countryParam).trim() } },
+              { iso2Code: { [Op.iLike]: String(countryParam).trim() } },
+              { iso3Code: { [Op.iLike]: String(countryParam).trim() } },
+            ],
+          },
+          attributes: ['id'],
+        });
+        where.countryId = found ? found.id : -1;
+      }
     }
 
     // 3. Port Type Filter
@@ -287,7 +302,25 @@ export class PortService {
     }
 
     // 1. Resolve country if changed
-    const targetCountryId = dto.country_id || dto.countryId || port.countryId;
+    let targetCountryId = dto.country_id || dto.countryId;
+    const countryName = (dto.country_name || dto.countryName || '').trim();
+    if (!targetCountryId && countryName) {
+      let country = await this.countryModel.findOne({
+        where: { name: { [Op.iLike]: countryName } },
+      });
+      if (!country) {
+        country = await this.countryModel.create({
+          name: countryName,
+          iso2Code: countryName.slice(0, 2).toUpperCase(),
+          iso3Code: countryName.slice(0, 3).toUpperCase(),
+          isActive: true,
+        } as any);
+      }
+      targetCountryId = country.id;
+    }
+    if (!targetCountryId) {
+      targetCountryId = port.countryId;
+    }
     const rawPortName = (dto.port_name || dto.portName || port.portName).trim();
 
     // Check duplicate if name or country changed

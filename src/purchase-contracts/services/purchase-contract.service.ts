@@ -2,7 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
+import { ShipmentService } from '../../sales-contracts/shipment.service';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, QueryTypes } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -69,6 +72,8 @@ export class PurchaseContractService {
     private readonly activityService: PurchaseContractActivityService,
     private readonly sequelize: Sequelize,
     private readonly businessTransactionService: BusinessTransactionService,
+    @Inject(forwardRef(() => ShipmentService))
+    private readonly shipmentService: ShipmentService,
   ) {}
 
   private async validateForeignKeys(
@@ -232,9 +237,19 @@ export class PurchaseContractService {
     // Persist status = 'Executed' in sales_contract_shipments database table
     if (initialShipmentIds && initialShipmentIds.length > 0) {
       await this.salesShipmentModel.update(
-        { status: 'Executed' },
+        { status: 'Executed', executionStatus: 'Pending' },
         { where: { id: initialShipmentIds } },
       );
+      for (const sId of initialShipmentIds) {
+        await this.shipmentService
+          .ensureExecutionRecordsForShipmentId(sId, userId)
+          .catch((err) => {
+            console.warn(
+              '[PurchaseContractService] ensureExecutionRecords failed:',
+              err?.message,
+            );
+          });
+      }
     }
 
     return pc;
@@ -311,6 +326,7 @@ export class PurchaseContractService {
           brokerCommission: dto.brokerCommission || null,
           deliveryPlace: dto.deliveryPlace || null,
           placeOfLoading: dto.placeOfLoading || null,
+          loadingCountry: dto.loadingCountry || null,
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
@@ -644,6 +660,10 @@ export class PurchaseContractService {
     if (updateData.placeOfLoading !== undefined)
       sanitizeData.placeOfLoading = updateData.placeOfLoading
         ? String(updateData.placeOfLoading)
+        : null;
+    if (updateData.loadingCountry !== undefined)
+      sanitizeData.loadingCountry = updateData.loadingCountry
+        ? String(updateData.loadingCountry)
         : null;
     if (updateData.specificationNo !== undefined)
       sanitizeData.specificationNo = updateData.specificationNo

@@ -4,8 +4,12 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { InjectModel as InjectSequelizeModel } from '@nestjs/sequelize';
-import { Op, Sequelize } from 'sequelize';
+import {
+  InjectConnection,
+  InjectModel as InjectSequelizeModel,
+} from '@nestjs/sequelize';
+import { Op } from 'sequelize';
+import { Sequelize as SequelizeConnection } from 'sequelize-typescript';
 import { CargoAvailability } from './models/cargo-availability.model';
 import { CargoReadiness } from './models/cargo-readiness.model';
 import { CargoShipmentAllocation } from './models/cargo-shipment-allocation.model';
@@ -17,6 +21,8 @@ import { Product } from '../masters/product/product.model';
 import { Partner } from '../masters/partner/partner.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { SalesContract } from '../sales-contracts/models/sales-contract.model';
+import { SalesContractItem } from '../sales-contracts/models/sales-contract-item.model';
+import { ShipmentStuffing } from '../sales-contracts/models/shipment-stuffing.model';
 import { User } from '../users/models/user.model';
 import { BusinessTransaction } from '../system/models/business-transaction.model';
 import {
@@ -45,6 +51,10 @@ export class CargoAvailabilityService {
     private readonly purchaseContractItemModel: typeof PurchaseContractItem,
     @InjectSequelizeModel(SalesContractShipment)
     private readonly shipmentModel: typeof SalesContractShipment,
+    @InjectSequelizeModel(ShipmentStuffing)
+    private readonly stuffingModel: typeof ShipmentStuffing,
+    @InjectConnection()
+    private readonly sequelize: SequelizeConnection,
   ) {}
 
   // ─── 1. AUTO-SYNC FROM PURCHASE CONTRACT ITEM ─────────────────────────────
@@ -62,22 +72,39 @@ export class CargoAvailabilityService {
     });
 
     if (!record) {
+      const contractItemCount = await this.purchaseContractItemModel.count({
+        where: { purchaseContractId: item.purchaseContractId },
+      });
+      if (contractItemCount === 1) {
+        record = await this.cargoAvailabilityModel.findOne({
+          where: {
+            purchaseContractId: item.purchaseContractId,
+            purchaseContractItemId: null,
+          },
+        });
+      }
+    }
+
+    const syncedFields = {
+      purchaseContractId: item.purchaseContractId,
+      businessTransactionId:
+        item.purchaseContract?.businessTransactionId ?? null,
+      purchaseContractItemId: item.id,
+      productId: item.productId || 0,
+      purchaseQty: item.quantity || 0,
+      companyId: item.purchaseContract?.companyId ?? item.companyId,
+    };
+
+    if (!record) {
       record = await this.cargoAvailabilityModel.create({
-        purchaseContractId: item.purchaseContractId,
-        businessTransactionId:
-          item.purchaseContract?.businessTransactionId ?? null,
-        purchaseContractItemId: item.id,
-        productId: item.productId || 0,
-        purchaseQty: item.quantity || 0,
+        ...syncedFields,
         status: 'Pending Readiness',
-        companyId: item.purchaseContract?.companyId,
       });
       this.logger.log(
         `Created CargoAvailability #${record.id} for PurchaseContractItem #${item.id}`,
       );
     } else {
-      record.purchaseQty = item.quantity || 0;
-      record.productId = item.productId || record.productId;
+      Object.assign(record, syncedFields);
       await record.save();
     }
 
@@ -132,6 +159,7 @@ export class CargoAvailabilityService {
         status: {
           [Op.in]: [
             'Loaded',
+            'Loading Completed',
             'Dispatched',
             'Reached Destination',
             'Unloaded',
@@ -223,14 +251,18 @@ export class CargoAvailabilityService {
   }
 
   // ─── 3. MAIN GRID FIND ALL ───────────────────────────────────────────────
-  async autoSyncAllPurchaseContractItems(): Promise<void> {
-    try {
-      const items = await this.purchaseContractItemModel.findAll();
-      for (const item of items) {
-        await this.syncFromPurchaseContractItem(item.id);
-      }
-    } catch (err) {
-      this.logger.error('Failed to auto-sync purchase contract items', err);
+  async autoSyncAllPurchaseContractItems(companyId?: number): Promise<void> {
+    const items = await this.purchaseContractItemModel.findAll({
+      include: [
+        {
+          model: PurchaseContract,
+          ...(companyId ? { where: { companyId } } : {}),
+          required: Boolean(companyId),
+        },
+      ],
+    });
+    for (const item of items) {
+      await this.syncFromPurchaseContractItem(item.id);
     }
   }
 
@@ -249,11 +281,7 @@ export class CargoAvailabilityService {
       sortOrder = 'DESC',
     } = query;
 
-    // Auto-sync if grid is currently empty
-    const totalCount = await this.cargoAvailabilityModel.count();
-    if (totalCount === 0) {
-      await this.autoSyncAllPurchaseContractItems();
-    }
+    await this.autoSyncAllPurchaseContractItems(companyId);
 
     const where: any = {};
     if (companyId) where.companyId = companyId;
@@ -286,6 +314,7 @@ export class CargoAvailabilityService {
       pcWhere[Op.or] = searchConditions;
     }
 
+    const offset = (Number(page) - 1) * Number(limit);
     const { rows, count } = await this.cargoAvailabilityModel.findAndCountAll({
       where,
       include: [
@@ -316,22 +345,31 @@ export class CargoAvailabilityService {
               ],
             ]
           : [[sortBy, String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC']],
-      limit: Number(limit),
-      offset: (Number(page) - 1) * Number(limit),
+      limit: status ? undefined : Number(limit),
+      offset: status ? undefined : offset,
     });
 
     const enriched = await Promise.all(
       rows.map((row) => this.attachCalculatedMetrics(row)),
     );
-    return { data: enriched, total: count };
+    const filtered = status
+      ? enriched.filter(
+          (record: unknown) =>
+            typeof record === 'object' &&
+            record !== null &&
+            'status' in record &&
+            record.status === status,
+        )
+      : enriched;
+    return {
+      data: status ? filtered.slice(offset, offset + Number(limit)) : filtered,
+      total: status ? filtered.length : count,
+    };
   }
 
   // ─── 4. DASHBOARD KPIS STATS ─────────────────────────────────────────────
   async getStats(companyId?: number): Promise<any> {
-    const count = await this.cargoAvailabilityModel.count();
-    if (count === 0) {
-      await this.autoSyncAllPurchaseContractItems();
-    }
+    await this.autoSyncAllPurchaseContractItems(companyId);
 
     const whereCond: any = {};
     if (companyId) whereCond.companyId = companyId;
@@ -517,11 +555,8 @@ export class CargoAvailabilityService {
       throw new BadRequestException(`Invalid Shipment ID: ${shipmentId}`);
     }
 
-    const shipmentWhere: any = { id: shipmentId };
-    if (companyId) shipmentWhere.companyId = companyId;
-
     const shipment = await this.shipmentModel.findOne({
-      where: shipmentWhere,
+      where: { id: shipmentId },
       include: [
         {
           model: SalesContract,
@@ -534,6 +569,15 @@ export class CargoAvailabilityService {
     });
 
     if (!shipment) {
+      throw new NotFoundException(`Shipment #${shipmentId} not found`);
+    }
+
+    if (
+      companyId &&
+      shipment.companyId &&
+      shipment.companyId !== companyId &&
+      shipment.salesContract?.companyId !== companyId
+    ) {
       throw new NotFoundException(`Shipment #${shipmentId} not found`);
     }
 
@@ -623,16 +667,54 @@ export class CargoAvailabilityService {
       .map((a) => a.cargoAvailability)
       .filter(Boolean);
 
-    if (
-      cargoAvailabilityRecords.length === 0 &&
-      shipmentInfo.shipment?.salesContractId
-    ) {
-      const pcList = await this.purchaseContractModel.findAll({
-        where: { salesContractId: shipmentInfo.shipment.salesContractId },
-      });
-      const pcIds = pcList.map((pc) => pc.id);
+    if (cargoAvailabilityRecords.length === 0) {
+      const pcIdSet = new Set<number>();
+      if (shipmentInfo.shipment?.salesContractId) {
+        const pcList = await this.purchaseContractModel.findAll({
+          where: { salesContractId: shipmentInfo.shipment.salesContractId },
+          attributes: ['id'],
+        });
+        pcList.forEach((pc) => pcIdSet.add(pc.id));
+      }
+
+      // Check linked PurchaseContractShipment
+      try {
+        const pcShipmentModel =
+          this.shipmentModel.sequelize?.models['PurchaseContractShipment'];
+        if (pcShipmentModel) {
+          const pcShipments: any[] = await pcShipmentModel.findAll({
+            where: { shipmentId },
+            attributes: ['purchaseContractId'],
+          });
+          pcShipments.forEach((pcs) => {
+            if (pcs.purchaseContractId) pcIdSet.add(pcs.purchaseContractId);
+          });
+        }
+      } catch (err) {
+        // Non-fatal
+      }
+
+      // Check matching businessTransactionId
+      const bTxId =
+        shipmentInfo.shipment?.businessTransactionId ||
+        shipmentInfo.shipment?.salesContract?.businessTransactionId;
+      if (bTxId) {
+        const pcWithBtx = await this.purchaseContractModel.findAll({
+          where: { businessTransactionId: bTxId },
+          attributes: ['id'],
+        });
+        pcWithBtx.forEach((pc) => pcIdSet.add(pc.id));
+      }
+
+      const pcIds = Array.from(pcIdSet);
+      const rawRecordsWhere: any = {};
       if (pcIds.length > 0) {
-        const rawRecordsWhere: any = { purchaseContractId: { [Op.in]: pcIds } };
+        rawRecordsWhere.purchaseContractId = { [Op.in]: pcIds };
+      } else if (bTxId) {
+        rawRecordsWhere.businessTransactionId = bTxId;
+      }
+
+      if (Object.keys(rawRecordsWhere).length > 0) {
         if (companyId) rawRecordsWhere.companyId = companyId;
         const rawRecords = await this.cargoAvailabilityModel.findAll({
           where: rawRecordsWhere,
@@ -672,31 +754,111 @@ export class CargoAvailabilityService {
     userId?: number,
     companyId?: number,
   ): Promise<CargoReadiness> {
-    const recordWhere: any = { id: dto.cargoAvailabilityId };
-    if (companyId) recordWhere.companyId = companyId;
-    const record = await this.cargoAvailabilityModel.findOne({
-      where: recordWhere,
-    });
+    let record: any = null;
+    if (dto.cargoAvailabilityId && !isNaN(Number(dto.cargoAvailabilityId))) {
+      const recordWhere: any = { id: Number(dto.cargoAvailabilityId) };
+      if (companyId) recordWhere.companyId = companyId;
+      record = await this.cargoAvailabilityModel.findOne({
+        where: recordWhere,
+      });
+    }
+
+    if (!record && dto.shipmentId) {
+      const shipment = await this.shipmentModel.findByPk(Number(dto.shipmentId), {
+        include: [{ model: SalesContract }],
+      });
+      if (shipment) {
+        const pc = await this.purchaseContractModel.findOne({
+          where: shipment.salesContractId
+            ? { salesContractId: shipment.salesContractId }
+            : { businessTransactionId: shipment.businessTransactionId },
+        });
+        if (pc) {
+          record = await this.cargoAvailabilityModel.findOne({
+            where: { purchaseContractId: pc.id },
+          });
+          if (!record) {
+            record = await this.cargoAvailabilityModel.create({
+              purchaseContractId: pc.id,
+              purchaseQty: shipment.quantity || 0,
+              status: 'Pending Readiness',
+              companyId: shipment.companyId || companyId || 1,
+              businessTransactionId: shipment.businessTransactionId,
+            });
+          }
+        } else {
+          record = await this.cargoAvailabilityModel.create({
+            purchaseContractId: null,
+            purchaseQty: shipment.quantity || 0,
+            status: 'Pending Readiness',
+            companyId: shipment.companyId || companyId || 1,
+            businessTransactionId: shipment.businessTransactionId,
+          });
+        }
+      }
+    }
+
     if (!record) {
       throw new NotFoundException(
-        `CargoAvailability #${dto.cargoAvailabilityId} not found`,
+        `CargoAvailability record could not be resolved for ID #${dto.cargoAvailabilityId || 'null'} / Shipment #${dto.shipmentId}`,
       );
     }
 
     const isReady = dto.status === 'Ready';
 
-    // If changing to 'Not Ready', verify no active allocations exist
+    // If changing to 'Not Ready', deactivate allocation for this shipment if provided
     if (!isReady) {
+      if (dto.shipmentId) {
+        await this.cargoAllocationModel.update(
+          { status: 'Cancelled' },
+          {
+            where: {
+              cargoAvailabilityId: record.id,
+              shipmentId: Number(dto.shipmentId),
+              status: 'Active',
+            },
+          },
+        );
+      }
       const activeAllocations = await this.cargoAllocationModel.count({
         where: {
           cargoAvailabilityId: record.id,
           status: 'Active',
         },
       });
-      if (activeAllocations > 0) {
+      if (activeAllocations > 0 && !dto.shipmentId) {
         throw new BadRequestException(
           'Cannot mark cargo as Not Ready because active allocations exist. Please cancel allocations first.',
         );
+      }
+    } else if (isReady && dto.shipmentId) {
+      // If marked Ready with shipmentId, ensure active allocation is created/reactivated
+      const existingAlloc = await this.cargoAllocationModel.findOne({
+        where: {
+          cargoAvailabilityId: record.id,
+          shipmentId: Number(dto.shipmentId),
+        },
+      });
+      if (!existingAlloc) {
+        const shipment = await this.shipmentModel.findByPk(Number(dto.shipmentId));
+        const allocQty = Math.min(
+          Number(shipment?.quantity || record.purchaseQty || 0),
+          Number(record.purchaseQty || 0),
+        );
+        if (allocQty > 0) {
+          await this.cargoAllocationModel.create({
+            cargoAvailabilityId: record.id,
+            shipmentId: Number(dto.shipmentId),
+            allocatedQty: allocQty,
+            status: 'Active',
+            allocatedBy: userId,
+            allocatedAt: new Date(),
+            companyId: record.companyId,
+          });
+        }
+      } else if (existingAlloc.status !== 'Active') {
+        existingAlloc.status = 'Active';
+        await existingAlloc.save();
       }
     }
 
@@ -806,12 +968,185 @@ export class CargoAvailabilityService {
     return allocation;
   }
 
+  public async syncExecutedShipmentLoadings(companyId?: number): Promise<void> {
+    try {
+      const shipmentWhere: any = {
+        status: { [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] },
+      };
+      const shipments = await this.shipmentModel.findAll({
+        where: shipmentWhere,
+        include: [
+          {
+            model: SalesContract,
+            as: 'salesContract',
+            attributes: [
+              'id',
+              'companyId',
+              'businessTransactionId',
+              'contractNumber',
+            ],
+            include: [
+              { model: Partner, as: 'buyer' },
+              { model: Partner, as: 'seller' },
+              {
+                model: SalesContractItem,
+                as: 'items',
+                include: [{ model: Product, as: 'product' }],
+              },
+            ],
+            required: false,
+          },
+          {
+            model: BusinessTransaction,
+            as: 'businessTransaction',
+            attributes: ['id', 'businessReference'],
+            required: false,
+          },
+        ],
+      });
+
+      for (const shipment of shipments) {
+        const resolvedCompanyId =
+          shipment.companyId ?? shipment.salesContract?.companyId ?? null;
+        if (companyId && resolvedCompanyId && resolvedCompanyId !== companyId) {
+          continue;
+        }
+
+        const resolvedBusinessTxId =
+          shipment.businessTransactionId ??
+          shipment.salesContract?.businessTransactionId ??
+          null;
+
+        const allocation = await this.cargoAllocationModel.findOne({
+          where: { shipmentId: shipment.id, status: 'Active' },
+          order: [['createdAt', 'ASC']],
+        });
+
+        // 1. Check or create CargoLoading
+        let existingLoading = await this.cargoLoadingModel.findOne({
+          where: { shipmentId: shipment.id },
+        });
+
+        if (!existingLoading) {
+          existingLoading = await this.cargoLoadingModel.create({
+            companyId: resolvedCompanyId,
+            businessTransactionId: resolvedBusinessTxId,
+            cargoAvailabilityId: allocation?.cargoAvailabilityId ?? null,
+            shipmentAllocationId: allocation?.id ?? null,
+            shipmentId: shipment.id,
+            truckNo: null,
+            warehouseName: 'Main Warehouse',
+            loadedQty: 0,
+            loadedWeight: 0,
+            status: shipment.executionStatus || 'Pending',
+            warehouseStatus: 'Pending',
+            timeline: [
+              {
+                stage: shipment.executionStatus || 'Pending',
+                timestamp: new Date().toISOString(),
+                user: 'System',
+                remarks: 'Auto-created Stuffing Job from Shipment Execution',
+              },
+            ],
+            remarks: 'Initialized from Shipment Execution.',
+          });
+        } else {
+          let updated = false;
+          if (!existingLoading.companyId && resolvedCompanyId) {
+            existingLoading.companyId = resolvedCompanyId;
+            updated = true;
+          }
+          if (!existingLoading.businessTransactionId && resolvedBusinessTxId) {
+            existingLoading.businessTransactionId = resolvedBusinessTxId;
+            updated = true;
+          }
+          if (!existingLoading.shipmentAllocationId && allocation?.id) {
+            existingLoading.shipmentAllocationId = allocation.id;
+            existingLoading.cargoAvailabilityId = allocation.cargoAvailabilityId;
+            updated = true;
+          }
+          if (updated) {
+            await existingLoading.save();
+          }
+        }
+
+        // 2. Check or create ShipmentStuffing
+        let existingStuffing = await this.stuffingModel.findOne({
+          where: { shipmentId: shipment.id },
+        });
+
+        if (!existingStuffing) {
+          const firstItem = shipment.salesContract?.items?.[0];
+          await this.stuffingModel.create({
+            companyId: resolvedCompanyId,
+            shipmentId: shipment.id,
+            salesContractId: shipment.salesContractId,
+            stuffingStatus: 'Pending',
+            executionStatus: shipment.executionStatus || 'Pending',
+            warehouseStatus: 'Pending',
+            loadingStatus: 'Pending',
+            autoPopulatedData: {
+              shipmentRef:
+                shipment.shipmentReference || `Shipment #${shipment.id}`,
+              shipmentNo: shipment.shipmentNo,
+              shipmentDate: shipment.shipmentDate,
+              quantityMt: Number(shipment.quantity || 0),
+              noOfContainers: shipment.noOfContainers || 1,
+              businessRefNo:
+                shipment.businessTransaction?.businessReference ||
+                'N/A',
+              salesContractNo:
+                shipment.salesContract?.contractNumber || 'N/A',
+              buyerName: shipment.salesContract?.buyer?.entityName || 'N/A',
+              sellerCompany:
+                shipment.salesContract?.seller?.entityName || 'N/A',
+              product: firstItem?.product?.name || 'Agri Commodity',
+              allocatedWeight: allocation
+                ? Number(allocation.allocatedQty || 0)
+                : Number(shipment.quantity || 0),
+              warehouse: 'Main Warehouse',
+            },
+            remarks: 'Initialized automatically from Shipment Execution.',
+          });
+        } else {
+          let stuffingUpdated = false;
+          if (!existingStuffing.companyId && resolvedCompanyId) {
+            existingStuffing.companyId = resolvedCompanyId;
+            stuffingUpdated = true;
+          }
+          if (
+            existingStuffing.stuffingStatus === 'Draft' ||
+            existingStuffing.executionStatus === 'Draft'
+          ) {
+            existingStuffing.stuffingStatus = 'Pending';
+            existingStuffing.executionStatus = 'Pending';
+            stuffingUpdated = true;
+          }
+          if (stuffingUpdated) {
+            await existingStuffing.save();
+          }
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `[syncExecutedShipmentLoadings] Sync warning: ${err?.message}`,
+      );
+    }
+  }
+
   async findAllLoading(
     companyId?: number,
     query: any = {},
   ): Promise<CargoLoading[]> {
+    await this.syncExecutedShipmentLoadings(companyId);
+
     const loadingWhere: any = {};
-    if (companyId) loadingWhere.companyId = companyId;
+    if (companyId) {
+      loadingWhere[Op.or] = [
+        { companyId },
+        { '$shipment.salesContract.company_id$': companyId },
+      ];
+    }
     if (query.businessReference) {
       loadingWhere.businessTransactionId =
         (await resolveBusinessTransactionId(
@@ -822,8 +1157,46 @@ export class CargoAvailabilityService {
     if (query.search && isBusinessReferenceSearch(query.search)) {
       loadingWhere.businessTransactionId =
         (await resolveBusinessTransactionId(query.search, companyId)) ?? -1;
+    } else if (query.search) {
+      const search = `%${String(query.search).trim()}%`;
+      loadingWhere[Op.or] = [
+        { truckNo: { [Op.iLike]: search } },
+        { containerNumber: { [Op.iLike]: search } },
+        { businessTransactionId: Number(query.search) || -1 },
+        { '$shipment.shipmentReference$': { [Op.iLike]: search } },
+        { '$shipment.salesContract.contractNumber$': { [Op.iLike]: search } },
+        { '$shipment.salesContract.buyer.entityName$': { [Op.iLike]: search } },
+        { '$shipment.salesContract.seller.entityName$': { [Op.iLike]: search } },
+        { '$shipment.salesContract.items.product.name$': { [Op.iLike]: search } },
+      ];
     }
-    return this.cargoLoadingModel.findAll({
+    if (query.status) loadingWhere.status = query.status;
+    if (query.dateFrom || query.dateTo) {
+      loadingWhere.loadingDate = {};
+      if (query.dateFrom) loadingWhere.loadingDate[Op.gte] = query.dateFrom;
+      if (query.dateTo) loadingWhere.loadingDate[Op.lte] = query.dateTo;
+    }
+    if (query.shipmentReference) {
+      loadingWhere['$shipment.shipmentReference$'] = {
+        [Op.iLike]: `%${String(query.shipmentReference).trim()}%`,
+      };
+    }
+    if (query.buyer) {
+      loadingWhere['$shipment.salesContract.buyer.entityName$'] = {
+        [Op.iLike]: `%${String(query.buyer).trim()}%`,
+      };
+    }
+    if (query.seller) {
+      loadingWhere['$shipment.salesContract.seller.entityName$'] = {
+        [Op.iLike]: `%${String(query.seller).trim()}%`,
+      };
+    }
+    if (query.product) {
+      loadingWhere['$shipment.salesContract.items.product.name$'] = {
+        [Op.iLike]: `%${String(query.product).trim()}%`,
+      };
+    }
+    const entries = await this.cargoLoadingModel.findAll({
       where: loadingWhere,
       include: [
         {
@@ -834,13 +1207,32 @@ export class CargoAvailabilityService {
         },
         { model: CargoDocument, as: 'documents' },
         {
+          model: CargoShipmentAllocation,
+          as: 'shipmentAllocation',
+          attributes: ['id', 'allocatedQty', 'cargoAvailabilityId'],
+          required: false,
+        },
+        {
           model: SalesContractShipment,
+          as: 'shipment',
+          attributes: ['id', 'shipmentReference', 'quantity', 'status', 'executionStatus', 'salesContractId'],
           include: [
             {
               model: SalesContract,
+              as: 'salesContract',
               include: [
                 { model: Partner, as: 'buyer' },
                 { model: Partner, as: 'seller' },
+                {
+                  model: SalesContractItem,
+                  as: 'items',
+                  include: [{ model: Product, as: 'product' }],
+                },
+                {
+                  model: PurchaseContract,
+                  as: 'purchaseContracts',
+                  attributes: ['id', 'contractNumber', 'status'],
+                },
               ],
             },
           ],
@@ -859,6 +1251,102 @@ export class CargoAvailabilityService {
             ]
           : [['created_at', 'DESC']],
     });
+    const shipmentIds = [
+      ...new Set(entries.map((entry) => entry.shipmentId).filter(Boolean)),
+    ];
+    const allShipmentLoading = shipmentIds.length
+      ? await this.cargoLoadingModel.findAll({
+          where: { shipmentId: { [Op.in]: shipmentIds } },
+          attributes: ['shipmentId', 'loadedQty'],
+        })
+      : [];
+    const loadedByShipment = new Map<number, number>();
+    for (const entry of allShipmentLoading) {
+      loadedByShipment.set(
+        entry.shipmentId,
+        (loadedByShipment.get(entry.shipmentId) || 0) +
+          Number(entry.loadedQty || 0),
+      );
+    }
+    return entries.map((entry) => {
+      const plain = entry.get({ plain: true }) as any;
+      const shipmentQuantity = Number(plain.shipment?.quantity || 0);
+      const remainingQty = Math.max(
+        0,
+        shipmentQuantity - (loadedByShipment.get(entry.shipmentId) || 0),
+      );
+      Object.assign(entry, { remainingQty });
+      return entry;
+    });
+  }
+
+  async getLoadingMetrics(companyId?: number) {
+    await this.syncExecutedShipmentLoadings(companyId);
+
+    const where: any = {};
+    if (companyId) {
+      where[Op.or] = [
+        { companyId },
+        { '$shipment.salesContract.company_id$': companyId },
+      ];
+    }
+    const rows = await this.cargoLoadingModel.findAll({
+      where,
+      attributes: ['shipmentId', 'status', 'loadedQty', 'loadingDate'],
+      include: [
+        {
+          model: SalesContractShipment,
+          as: 'shipment',
+          attributes: ['id', 'quantity'],
+          required: false,
+          include: [
+            {
+              model: SalesContract,
+              as: 'salesContract',
+              attributes: ['id', 'companyId'],
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+    const byShipment = new Map<number, { quantity: number; loaded: number }>();
+    let totalLoadedQuantity = 0;
+    let todaysLoading = 0;
+    const today = new Date().toISOString().slice(0, 10);
+    let pending = 0;
+    let inProgress = 0;
+    let completed = 0;
+    for (const row of rows) {
+      const plain = row.get({ plain: true }) as any;
+      const loadedQty = Number(plain.loadedQty || 0);
+      totalLoadedQuantity += loadedQty;
+      if (plain.loadingDate === today) todaysLoading += loadedQty;
+      if (['Pending', 'Draft', 'Ready'].includes(plain.status)) pending += 1;
+      else if (['Completed', 'Verified'].includes(plain.status)) completed += 1;
+      else inProgress += 1;
+      if (plain.shipmentId) {
+        const aggregate = byShipment.get(plain.shipmentId) || {
+          quantity: Number(plain.shipment?.quantity || 0),
+          loaded: 0,
+        };
+        aggregate.loaded += loadedQty;
+        byShipment.set(plain.shipmentId, aggregate);
+      }
+    }
+    const remainingQuantity = [...byShipment.values()].reduce(
+      (sum, shipment) => sum + Math.max(0, shipment.quantity - shipment.loaded),
+      0,
+    );
+    return {
+      totalStuffingJobs: byShipment.size,
+      pending,
+      inProgress,
+      completed,
+      todaysLoading,
+      totalLoadedQuantity,
+      remainingQuantity,
+    };
   }
 
   // ─── 9. EXPORTER LOADING OPERATIONS ──────────────────────────────────────
@@ -892,14 +1380,36 @@ export class CargoAvailabilityService {
         'Selecting a Shipment is mandatory for truck loading execution.',
       );
     }
+    if (!dto.truckNo) {
+      throw new BadRequestException(
+        'A truck number is required to start warehouse loading.',
+      );
+    }
 
     const shipmentInfo = await this.getShipmentInfo(dto.shipmentId, companyId);
+    const loadedQty = Number(dto.loadedQty || dto.loadedWeight || 0);
+    if (!Number.isFinite(loadedQty) || loadedQty < 0) {
+      throw new BadRequestException('Loaded quantity cannot be negative.');
+    }
     if (
-      Number(dto.loadedQty || 0) > Number(shipmentInfo.remainingShipmentQty)
+      loadedQty > Number(shipmentInfo.remainingShipmentQty)
     ) {
       throw new BadRequestException(
-        `Loaded Quantity (${dto.loadedQty} MT) exceeds Remaining Shipment Quantity (${shipmentInfo.remainingShipmentQty} MT).`,
+        `Loaded Quantity (${loadedQty} MT) exceeds Remaining Shipment Quantity (${shipmentInfo.remainingShipmentQty} MT).`,
       );
+    }
+    if (dto.containerNumber) {
+      const existingContainer = await this.cargoLoadingModel.findOne({
+        where: {
+          containerNumber: String(dto.containerNumber).trim().toUpperCase(),
+          status: { [Op.notIn]: ['Cancelled'] },
+        },
+      });
+      if (existingContainer) {
+        throw new BadRequestException(
+          `Container ${dto.containerNumber} is already assigned to loading record #${existingContainer.id}.`,
+        );
+      }
     }
 
     // c. Validate Available Ready Stock (only if a cargo availability record is linked)
@@ -916,9 +1426,9 @@ export class CargoAvailabilityService {
       }
 
       const metrics = await this.attachCalculatedMetrics(cargo);
-      if (Number(dto.loadedQty || 0) > Number(metrics.availableQty)) {
+      if (loadedQty > Number(metrics.availableQty)) {
         throw new BadRequestException(
-          `Loaded Quantity (${dto.loadedQty} MT) exceeds Available Ready Stock (${metrics.availableQty} MT).`,
+          `Loaded Quantity (${loadedQty} MT) exceeds Available Ready Stock (${metrics.availableQty} MT).`,
         );
       }
     }
@@ -932,13 +1442,65 @@ export class CargoAvailabilityService {
       },
     ];
 
-    const loading = await this.cargoLoadingModel.create({
-      ...dto,
-      timeline: initialTimeline,
-      status: dto.status || 'Truck Arrived',
-      businessTransactionId:
-        shipmentInfo.shipment?.businessTransactionId ?? null,
-      companyId: companyId || shipmentInfo.shipment?.salesContract?.companyId,
+    const loading = await this.sequelize.transaction(async (transaction) => {
+      const shipment = await this.shipmentModel.findByPk(dto.shipmentId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!shipment) {
+        throw new NotFoundException(`Shipment #${dto.shipmentId} not found`);
+      }
+      if (shipment.status !== 'Executed') {
+        throw new BadRequestException(
+          'Warehouse loading can only start after shipment execution.',
+        );
+      }
+
+      const defaults = {
+        ...dto,
+        timeline: initialTimeline,
+        status: 'Truck Arrived',
+        warehouseStatus: 'Ready',
+        businessTransactionId: shipment.businessTransactionId ?? null,
+        companyId: companyId || shipment.companyId,
+      };
+      const pendingEntry = await this.cargoLoadingModel.findOne({
+        where: {
+          shipmentId: shipment.id,
+          truckNo: null,
+          status: { [Op.in]: ['Draft', 'Pending', 'Ready'] },
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      let loading: CargoLoading;
+      if (pendingEntry) {
+        loading = pendingEntry;
+        Object.assign(loading, defaults);
+        loading.timeline = [
+          ...(pendingEntry.timeline || []),
+          ...initialTimeline,
+        ];
+        await loading.save({ transaction });
+      } else {
+        loading = await this.cargoLoadingModel.create(defaults, {
+          transaction,
+        });
+      }
+      shipment.executionStatus = loading.status;
+      await shipment.save({ transaction });
+      const stuffing = await this.stuffingModel.findOne({
+        where: { shipmentId: shipment.id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (stuffing) {
+        stuffing.warehouseStatus = 'Ready';
+        stuffing.loadingStatus = loading.status;
+        stuffing.executionStatus = loading.status;
+        await stuffing.save({ transaction });
+      }
+      return loading;
     });
 
     return loading;
@@ -952,25 +1514,128 @@ export class CargoAvailabilityService {
   ): Promise<CargoLoading> {
     const loadingWhere: any = { id };
     if (companyId) loadingWhere.companyId = companyId;
-    const loading = await this.cargoLoadingModel.findOne({
-      where: loadingWhere,
-    });
-    if (!loading) {
-      throw new NotFoundException(`CargoLoading #${id} not found`);
-    }
+    return this.sequelize.transaction(async (transaction) => {
+      const loading = await this.cargoLoadingModel.findOne({
+        where: loadingWhere,
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!loading) {
+        throw new NotFoundException(`CargoLoading #${id} not found`);
+      }
 
-    if (dto.status) loading.status = dto.status;
-    if (dto.loadedQty !== undefined) loading.loadedQty = dto.loadedQty;
-    if (dto.loadedWeight !== undefined) loading.loadedWeight = dto.loadedWeight;
+      const shipment = await this.shipmentModel.findByPk(loading.shipmentId, {
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!shipment) {
+        throw new NotFoundException(
+          `Shipment #${loading.shipmentId} linked to loading record was not found`,
+        );
+      }
+
+    if (dto.warehouseName !== undefined) {
+      loading.warehouseName = dto.warehouseName;
+    }
+    if (dto.loadingDate !== undefined) loading.loadingDate = dto.loadingDate;
+    if (dto.loadingStartTime !== undefined)
+      loading.loadingStartTime = dto.loadingStartTime;
+    if (dto.loadingEndTime !== undefined)
+      loading.loadingEndTime = dto.loadingEndTime;
+    if (dto.operator !== undefined) loading.operator = dto.operator;
+    if (dto.arrivalTime !== undefined) loading.arrivalTime = dto.arrivalTime;
+    if (dto.truckNo !== undefined) loading.truckNo = dto.truckNo || null;
+    if (dto.trailerNo !== undefined) loading.trailerNo = dto.trailerNo;
+    if (dto.driverName !== undefined) loading.driverName = dto.driverName;
+    if (dto.driverMobile !== undefined) loading.driverMobile = dto.driverMobile;
+    if (dto.transporter !== undefined) loading.transporter = dto.transporter;
+    if (dto.licenseNumber !== undefined)
+      loading.licenseNumber = dto.licenseNumber;
+    if (dto.vehicleType !== undefined) loading.vehicleType = dto.vehicleType;
+    if (dto.bagBulk !== undefined) loading.bagBulk = dto.bagBulk;
+    if (dto.bagsCount !== undefined) loading.bagsCount = dto.bagsCount;
+    if (dto.avgBagWeight !== undefined)
+      loading.avgBagWeight = dto.avgBagWeight;
+    if (dto.sealNumber !== undefined) loading.sealNumber = dto.sealNumber;
+    if (dto.containerNumber !== undefined)
+      loading.containerNumber = dto.containerNumber;
+    if (dto.loadingLocation !== undefined)
+      loading.loadingLocation = dto.loadingLocation;
+    if (dto.stackNumber !== undefined) loading.stackNumber = dto.stackNumber;
+    if (dto.lotNumber !== undefined) loading.lotNumber = dto.lotNumber;
+    if (dto.batchNumber !== undefined) loading.batchNumber = dto.batchNumber;
+    if (dto.unloadLocation !== undefined)
+      loading.unloadLocation = dto.unloadLocation;
+    if (dto.ewayBillNo !== undefined) loading.ewayBillNo = dto.ewayBillNo;
+    if (dto.lrNumber !== undefined) loading.lrNumber = dto.lrNumber;
+    if (dto.invoiceNumber !== undefined)
+      loading.invoiceNumber = dto.invoiceNumber;
+    if (dto.gatePassNumber !== undefined)
+      loading.gatePassNumber = dto.gatePassNumber;
+    if (dto.status) {
+      const currentRank = this.getLoadingStatusRank(loading.status);
+      const nextRank = this.getLoadingStatusRank(dto.status);
+      if (nextRank < 0) {
+        throw new BadRequestException(`Unsupported loading status: ${dto.status}`);
+      }
+      if (currentRank >= 0 && nextRank < currentRank) {
+        throw new BadRequestException(
+          'Loading execution status cannot move backwards.',
+        );
+      }
+      loading.status = dto.status;
+    }
+    if (dto.loadedQty !== undefined || dto.loadedWeight !== undefined) {
+      const loadedQty = Number(dto.loadedQty ?? dto.loadedWeight);
+      if (!Number.isFinite(loadedQty) || loadedQty < 0) {
+        throw new BadRequestException('Loaded quantity cannot be negative.');
+      }
+      const otherLoadedQty = Number(
+        (await this.cargoLoadingModel.sum('loadedQty', {
+          where: { shipmentId: shipment.id, id: { [Op.ne]: loading.id } },
+          transaction,
+        })) || 0,
+      );
+      if (otherLoadedQty + loadedQty > Number(shipment.quantity || 0)) {
+        throw new BadRequestException(
+          `Total loaded quantity cannot exceed shipment quantity (${shipment.quantity} MT).`,
+        );
+      }
+      if (loading.shipmentAllocationId) {
+        const allocation = await this.cargoAllocationModel.findByPk(
+          loading.shipmentAllocationId,
+          { transaction },
+        );
+        if (
+          allocation &&
+          otherLoadedQty + loadedQty > Number(allocation.allocatedQty || 0)
+        ) {
+          throw new BadRequestException(
+            `Total loaded quantity cannot exceed cargo allocation (${allocation.allocatedQty} MT).`,
+          );
+        }
+      }
+      if (dto.loadedQty !== undefined) loading.loadedQty = loadedQty;
+      if (dto.loadedWeight !== undefined) loading.loadedWeight = loadedQty;
+    }
     if (dto.weighmentInWeight !== undefined)
       loading.weighmentInWeight = dto.weighmentInWeight;
     if (dto.weighmentOutWeight !== undefined)
       loading.weighmentOutWeight = dto.weighmentOutWeight;
 
     if (dto.unloadedWeight !== undefined) {
+      const unloadedWeight = Number(dto.unloadedWeight);
+      if (!Number.isFinite(unloadedWeight) || unloadedWeight < 0) {
+        throw new BadRequestException('Unloaded quantity cannot be negative.');
+      }
       loading.unloadedWeight = dto.unloadedWeight;
       const loadedW = Number(loading.loadedWeight || loading.loadedQty || 0);
-      const diff = Math.max(0, loadedW - Number(dto.unloadedWeight));
+      if (unloadedWeight > loadedW) {
+        throw new BadRequestException(
+          'Unloaded quantity cannot exceed the loaded quantity.',
+        );
+      }
+      const diff = Math.max(0, loadedW - unloadedWeight);
       loading.weightDifference = diff;
 
       if (loadedW > 0) {
@@ -998,18 +1663,150 @@ export class CargoAvailabilityService {
 
     // Timeline update
     const timeline = loading.timeline || [];
-    timeline.push({
-      stage: dto.status || loading.status,
-      timestamp: new Date().toISOString(),
-      user: userId || 'System',
-      remarks:
-        dto.stageRemarks ||
-        dto.remarks ||
-        `Stage updated to ${dto.status || loading.status}`,
-    });
+    const statusChanged =
+      Boolean(dto.status) && timeline[timeline.length - 1]?.stage !== loading.status;
+    if (statusChanged) {
+      timeline.push({
+        stage: loading.status,
+        timestamp: new Date().toISOString(),
+        user: userId || 'System',
+        remarks:
+          dto.stageRemarks ||
+          dto.remarks ||
+          `Stage updated to ${loading.status}`,
+      });
+    }
     loading.timeline = timeline;
 
-    await loading.save();
+    const status = loading.status;
+    if (
+      this.getLoadingStatusRank(status) >=
+        this.getLoadingStatusRank('Loading Completed') &&
+      Number(loading.loadedQty || loading.loadedWeight || 0) <= 0
+    ) {
+      throw new BadRequestException(
+        'Enter a positive loaded quantity before completing loading.',
+      );
+    }
+    loading.warehouseStatus =
+      [
+        'Loading Completed',
+        'Stuffing Completed',
+        'Completed',
+        'Verified',
+        'Unloaded',
+        'Reached Destination',
+        'Dispatched',
+      ].includes(status)
+        ? 'Completed'
+        : [
+            'Stuffing Started',
+            'Stuffing In Progress',
+            'Loading Started',
+            'Weighment Out',
+            'Ready For Dispatch',
+          ].includes(status)
+          ? 'In Progress'
+          : status === 'Ready' || status === 'Truck Arrived'
+            ? 'Ready'
+            : 'Pending';
+    await loading.save({ transaction });
+
+    const stuffing = await this.stuffingModel.findOne({
+      where: { shipmentId: shipment.id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (stuffing) {
+      stuffing.warehouseStatus = loading.warehouseStatus;
+      stuffing.loadingStatus = status;
+      stuffing.executionStatus = status;
+      const statusRank = this.getLoadingStatusRank(status);
+      stuffing.stuffingStatus =
+        statusRank >= this.getLoadingStatusRank('Stuffing Completed')
+          ? 'Completed'
+          : statusRank >= this.getLoadingStatusRank('Stuffing Started')
+            ? 'In Progress'
+            : 'Pending';
+      if (dto.warehouseName !== undefined) {
+        stuffing.stuffingLocation = dto.warehouseName;
+      }
+      if (dto.operator) {
+        stuffing.operator = dto.operator;
+      }
+      if (loading.containerNumber) {
+        const containers = Array.isArray(stuffing.containers)
+          ? [...stuffing.containers]
+          : [];
+        const matchIdx = containers.findIndex(
+          (c: any) => c.containerNo === loading.containerNumber,
+        );
+        if (matchIdx >= 0) {
+          containers[matchIdx] = {
+            ...containers[matchIdx],
+            status,
+            vehicleNumber: loading.truckNo || containers[matchIdx].vehicleNumber,
+            sealNo: loading.sealNumber || containers[matchIdx].sealNo,
+            warehouse: loading.warehouseName || containers[matchIdx].warehouse,
+            netWeight: Number(
+              loading.loadedWeight ||
+                loading.loadedQty ||
+                containers[matchIdx].netWeight ||
+                0,
+            ),
+          };
+          stuffing.containers = containers;
+        } else if (containers.length === 0) {
+          stuffing.containers = [
+            {
+              containerNo: loading.containerNumber,
+              containerSize: '40 FT',
+              vehicleNumber: loading.truckNo || '',
+              sealNo: loading.sealNumber || '',
+              stuffingDate: loading.loadingDate || '',
+              warehouse: loading.warehouseName || '',
+              status,
+              remarks: loading.remarks || '',
+              tareWeight: 0,
+              grossWeight: Number(
+                loading.loadedWeight || loading.loadedQty || 0,
+              ),
+              netWeight: Number(loading.loadedWeight || loading.loadedQty || 0),
+            },
+          ];
+        }
+      }
+      await stuffing.save({ transaction });
+    }
+    shipment.executionStatus = status;
+    if (status === 'Completed') shipment.status = 'Completed';
+    else if (status === 'Dispatched') shipment.status = 'Dispatched';
+    else if (shipment.status !== 'Completed') shipment.status = 'Executed';
+    await shipment.save({ transaction });
+
     return loading;
+    });
+  }
+
+  private getLoadingStatusRank(status: string): number {
+    return [
+      'Draft',
+      'Pending',
+      'Ready',
+      'Truck Arrived',
+      'Weighment In',
+      'Stuffing Started',
+      'Loading Started',
+      'Stuffing In Progress',
+      'Stuffing Completed',
+      'Loading Completed',
+      'Weighment Out',
+      'Ready For Dispatch',
+      'Dispatched',
+      'Reached Destination',
+      'Unloaded',
+      'Verified',
+      'Completed',
+    ].indexOf(status);
   }
 }

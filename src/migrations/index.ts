@@ -44,6 +44,9 @@ import * as phase52 from './phase-52-add-freight-required-to-purchase-contracts'
 import * as phase53 from './phase-53-add-manual-ready-override-to-shipments';
 import * as phase54 from './phase-54-sync-executed-shipments';
 import * as phase55 from './phase-55-add-broker-to-enquiries';
+import * as phase56 from './phase-56-add-loading-country-to-purchase-contracts';
+import * as phase57 from './phase-57-shipment-execution-loading';
+import * as phase58 from './phase-58-stuffing-execution-lifecycle';
 
 export interface MigrationPhase {
   phase: string;
@@ -103,4 +106,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase53,
   phase54,
   phase55,
+  phase56,
+  phase57,
+  phase58,
 ];

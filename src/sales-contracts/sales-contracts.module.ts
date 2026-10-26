@@ -66,15 +66,20 @@ export class SalesContractsModule implements OnModuleInit {
           company_id INTEGER NULL,
           shipment_id INTEGER NOT NULL UNIQUE,
           sales_contract_id INTEGER NULL,
-          stuffing_status VARCHAR(50) NOT NULL DEFAULT 'Draft',
-          execution_status VARCHAR(50) NOT NULL DEFAULT 'Draft',
+          stuffing_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+          execution_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+          warehouse_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+          loading_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
           auto_populated_data JSONB NULL,
           stuffing_date DATE NULL,
           stuffing_start_time VARCHAR(50) NULL,
           stuffing_end_time VARCHAR(50) NULL,
           stuffing_location VARCHAR(255) NULL,
           supervisor VARCHAR(255) NULL,
+          operator VARCHAR(255) NULL,
           loading_date DATE NULL,
+          loading_start_time VARCHAR(50) NULL,
+          loading_end_time VARCHAR(50) NULL,
           actual_loading_weight DECIMAL(12, 2) DEFAULT 0,
           gross_weight DECIMAL(12, 2) DEFAULT 0,
           net_weight DECIMAL(12, 2) DEFAULT 0,
@@ -91,16 +96,32 @@ export class SalesContractsModule implements OnModuleInit {
         );
       `);
       await this.sequelize.query(`
-        UPDATE sales_contract_shipments
-        SET status = 'Executed'
-        WHERE (
-          id IN (SELECT shipment_id FROM purchase_contract_shipments)
-          OR shipment_reference ILIKE '%00125/2%'
-        )
-        AND status != 'Executed';
+        ALTER TABLE sales_contract_shipments
+        ADD COLUMN IF NOT EXISTS execution_status VARCHAR(50) NULL;
+        ALTER TABLE shipment_stuffings
+        ADD COLUMN IF NOT EXISTS warehouse_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+        ADD COLUMN IF NOT EXISTS loading_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+        ADD COLUMN IF NOT EXISTS operator VARCHAR(255) NULL,
+        ADD COLUMN IF NOT EXISTS loading_start_time VARCHAR(50) NULL,
+        ADD COLUMN IF NOT EXISTS loading_end_time VARCHAR(50) NULL;
+        ALTER TABLE cargo_loading
+        ADD COLUMN IF NOT EXISTS warehouse_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+        ADD COLUMN IF NOT EXISTS loading_start_time VARCHAR(50) NULL,
+        ADD COLUMN IF NOT EXISTS loading_end_time VARCHAR(50) NULL,
+        ADD COLUMN IF NOT EXISTS operator VARCHAR(255) NULL;
+      `);
+      await this.sequelize.query(`
+        ALTER TABLE cargo_loading
+        ALTER COLUMN truck_no DROP NOT NULL;
+      `);
+      await this.sequelize.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_cargo_loading_pending_shipment
+        ON cargo_loading (shipment_id)
+        WHERE truck_no IS NULL;
       `);
     } catch (err) {
       console.error('Auto-migration sales_contracts error:', err);
+      throw err;
     }
   }
 }
