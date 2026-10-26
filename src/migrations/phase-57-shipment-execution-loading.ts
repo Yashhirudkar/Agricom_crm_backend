@@ -94,7 +94,7 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       `INSERT INTO cargo_loading (
          company_id, business_transaction_id, cargo_availability_id,
          shipment_allocation_id, shipment_id, loading_date, truck_no,
-         loaded_qty, status, timeline, remarks
+         loaded_qty, status, timeline, remarks, created_at, updated_at
        )
        SELECT COALESCE(s.company_id, sc.company_id), s.business_transaction_id,
               allocation.cargo_availability_id, allocation.id, s.id,
@@ -105,7 +105,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
                 'user', 'System',
                 'remarks', 'Created from a legacy Executed shipment; verify before loading.'
               )),
-              'Legacy Executed shipment; verify execution details.'
+              'Legacy Executed shipment; verify execution details.',
+              NOW(), NOW()
        FROM sales_contract_shipments s
        LEFT JOIN sales_contracts sc ON sc.id = s.sales_contract_id
        LEFT JOIN LATERAL (

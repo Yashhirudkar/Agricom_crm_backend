@@ -71,7 +71,7 @@ export class ShipmentService {
     private readonly freightQuoteModel: typeof FreightQuote,
     @InjectConnection()
     private readonly sequelize: SequelizeConnection,
-  ) {}
+  ) { }
 
   public async ensureExecutionRecordsForShipmentId(
     shipmentId: number,
@@ -218,7 +218,7 @@ export class ShipmentService {
       balanceWeight: Math.max(
         0,
         Number(shipment.quantity || 0) -
-          (allocation ? Number(allocation.allocatedQty || 0) : 0),
+        (allocation ? Number(allocation.allocatedQty || 0) : 0),
       ),
       warehouse: 'Main Warehouse',
       ratePerMt: Number(shipment.ratePerMt || 0),
@@ -588,6 +588,13 @@ export class ShipmentService {
         attributes: ['id', 'name', 'email'],
         required: false,
       },
+      {
+        // Include stuffing record so we can check if stuffing is actually completed
+        model: ShipmentStuffing,
+        as: 'stuffingExecution',
+        attributes: ['id', 'stuffingStatus', 'executionStatus', 'completedAt'],
+        required: false,
+      },
     ];
 
     return { whereClause, includes };
@@ -699,13 +706,16 @@ export class ShipmentService {
 
     const data = rows.map((shipment) => {
       const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
-      const isExecuted = json.status === 'Executed';
-      if (isExecuted) {
-        json.status = 'Executed';
-        json.isExecuted = true;
-      } else {
-        json.isExecuted = false;
-      }
+
+      // stuffingCompleted = true ONLY when stuffing record exists AND stuffingStatus === 'Completed'
+      // This is the source of truth for showing 'Stuffed / Executed' button on the frontend
+      const stuffing = json.stuffingExecution;
+      const stuffingCompleted = stuffing?.stuffingStatus === 'Completed';
+      json.stuffingCompleted = stuffingCompleted;
+
+      // isExecuted = shipment has gone through execution (status is a terminal execution state)
+      const isExecuted = ['Executed', 'Dispatched', 'Completed'].includes(json.status);
+      json.isExecuted = isExecuted;
 
       json.businessReference =
         json.businessTransaction?.businessReference ?? null;
@@ -1013,12 +1023,12 @@ export class ShipmentService {
 
     if (shipment.status === 'Executed') {
       if (isExecutionTransition) {
-      const readiness = await this.readinessService.evaluate(shipment);
-      if (!readiness.readyForShipment) {
-        throw new BadRequestException(
-          'Shipment cannot be executed until cargo and freight allocation are ready.',
-        );
-      }
+        const readiness = await this.readinessService.evaluate(shipment);
+        if (!readiness.readyForShipment) {
+          throw new BadRequestException(
+            'Shipment cannot be executed until cargo and freight allocation are ready.',
+          );
+        }
       }
       shipment.executionStatus = shipment.executionStatus || 'Pending';
       await this.sequelize.transaction(async (transaction) => {
@@ -1360,9 +1370,9 @@ export class ShipmentService {
 
     const availableWeight = Number(
       cargoAllocations[0]?.cargoAvailability?.availableQuantity ||
-        cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
-        shipment.quantity ||
-        0,
+      cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
+      shipment.quantity ||
+      0,
     );
 
     const allocatedWeight =
@@ -1540,8 +1550,8 @@ export class ShipmentService {
       etd: freightQuote?.etd
         ? new Date(freightQuote.etd).toISOString().split('T')[0]
         : shipment.shipmentDate
-        ? new Date(shipment.shipmentDate).toISOString().split('T')[0]
-        : '',
+          ? new Date(shipment.shipmentDate).toISOString().split('T')[0]
+          : '',
       eta: freightQuote?.eta
         ? new Date(freightQuote.eta).toISOString().split('T')[0]
         : '',
