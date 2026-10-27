@@ -143,6 +143,19 @@ export class WhatsAppTemplates {
         : null;
     lines.push(WhatsAppTemplates.line(amountLabel, amountVal));
 
+    const offerValNum = WhatsAppTemplates.formatNumber(
+      data.offer !== undefined ? data.offer : data.offerAmount,
+    );
+    const offerVal =
+      offerValNum !== null
+        ? data.bidCurrency
+          ? `${offerValNum} ${data.bidCurrency}`
+          : offerValNum
+        : null;
+    if (offerVal) {
+      lines.push(WhatsAppTemplates.line('Offer', offerVal));
+    }
+
     lines.push(WhatsAppTemplates.line('Note', data.note));
 
     const createdByFirstName = data.createdByName
@@ -234,6 +247,11 @@ export class WhatsAppTemplates {
       bidFormatter(oldData.buyingInterest, oldData.bidCurrency),
       bidFormatter(newData.buyingInterest, newData.bidCurrency),
     );
+    diff(
+      'Offer',
+      bidFormatter(oldData.offerAmount, oldData.bidCurrency),
+      bidFormatter(newData.offerAmount, newData.bidCurrency),
+    );
     diff('Note', oldData.note, newData.note);
 
     if (changes.length === 0) {
@@ -256,6 +274,8 @@ export class WhatsAppTemplates {
       bid: newData.buyingInterest,
       bidCurrency: newData.bidCurrency,
       bidType: newData.bidType,
+      offer: newData.offerAmount,
+      offerAmount: newData.offerAmount,
       note: newData.note,
       partnerRoleName: newData.partnerRole?.name || undefined,
       brokerName: newData.broker?.entityName || undefined,

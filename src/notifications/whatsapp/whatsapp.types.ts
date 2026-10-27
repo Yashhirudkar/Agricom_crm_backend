@@ -33,6 +33,8 @@ export interface EnquiryNotificationData {
   bid?: number | string;
   bidCurrency?: string;
   bidType?: string;
+  offer?: number | string;
+  offerAmount?: number;
   note?: string;
   partnerRoleName?: string;
   brokerName?: string;

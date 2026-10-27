@@ -164,34 +164,20 @@ export class PurchaseContractService {
             'contractNumber',
             'companyId',
             'sellerId',
-            'brokerId',
             'enquiryId',
             'businessTransactionId',
-          ],
-          include: [
-            {
-              model: Enquiry,
-              as: 'enquiry',
-              attributes: ['id', 'brokerId'],
-              required: false,
-            },
           ],
         },
       );
       if (!salesContract)
         throw new NotFoundException('Sales Contract not found');
 
-      const resolvedBrokerId =
-        salesContract.brokerId ||
-        (salesContract as any).enquiry?.brokerId ||
-        null;
-
       pc = await this.model.create({
         salesContractId,
         businessTransactionId: salesContract.businessTransactionId ?? null,
         purchaseType: 'SC',
         buyerId: salesContract.sellerId || null,
-        brokerId: resolvedBrokerId,
+        brokerId: null,
         status: 'Draft',
         createdBy: userId ?? null,
         updatedBy: userId ?? null,
@@ -276,10 +262,7 @@ export class PurchaseContractService {
         await this.validateForeignKeys(
           user?.companyId,
           {
-            brokerId:
-              dto.brokerId === undefined
-                ? salesContract.brokerId
-                : dto.brokerId,
+            brokerId: dto.brokerId || null,
             shipmentTypeId: dto.shipmentTypeId,
           },
           salesContract.contractType || 'Import',
@@ -356,6 +339,12 @@ export class PurchaseContractService {
       }
       if (dto.freightRequired !== undefined) {
         scUpdates.freightRequired = Boolean(dto.freightRequired);
+      }
+      if (dto.salesContractId && dto.brokerId !== undefined) {
+        scUpdates.brokerId = dto.brokerId ? Number(dto.brokerId) : null;
+      }
+      if (dto.salesContractId && dto.brokerCommission !== undefined) {
+        scUpdates.brokerCommission = dto.brokerCommission ? String(dto.brokerCommission) : null;
       }
       if (Object.keys(scUpdates).length > 0) {
         await pc.update(scUpdates, { transaction: t });
@@ -479,12 +468,6 @@ export class PurchaseContractService {
             { model: Partner, as: 'buyer' },
             { model: Partner, as: 'seller' },
             { model: Partner, as: 'broker' },
-            {
-              model: Enquiry,
-              as: 'enquiry',
-              include: [{ model: Partner, as: 'broker' }],
-              required: false,
-            },
             { model: ShipmentType, as: 'shipmentType' },
             { model: PaymentTerm, as: 'paymentTerm' },
             {
@@ -497,24 +480,6 @@ export class PurchaseContractService {
       ],
     });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
-
-    if (!pc.brokerId && pc.salesContract) {
-      const scBrokerId =
-        pc.salesContract.brokerId ||
-        (pc.salesContract as any).enquiry?.brokerId ||
-        null;
-      const scBroker =
-        pc.salesContract.broker ||
-        (pc.salesContract as any).enquiry?.broker ||
-        null;
-
-      if (scBrokerId) {
-        pc.brokerId = scBrokerId;
-        if (scBroker) {
-          (pc as any).setDataValue('broker', scBroker);
-        }
-      }
-    }
 
     return pc;
   }
@@ -959,11 +924,50 @@ export class PurchaseContractService {
         const currentYear = new Date().getFullYear();
         const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
-        const mode =
-          enquiry?.shipmentMode === 'SHIP' ? 'International' : 'Domestic';
+        // Determine Mode: Domestic ONLY if BOTH Origin AND Destination are India/domestic
+        const originStr = (pc.loadingCountry || pc.placeOfLoading || enquiry?.originCountryId || '').trim().toLowerCase();
+        const destStr = (pc.deliveryPlace || enquiry?.destinationCountry || '').trim().toLowerCase();
+
+        let mode = 'International';
+        const isOriginIndia = originStr.includes('india');
+        const isDestIndia = destStr.includes('india');
+
+        if (originStr && destStr) {
+          if (isOriginIndia && isDestIndia) {
+            mode = 'Domestic';
+          } else if (isOriginIndia && !isDestIndia) {
+            mode = 'Export';
+          } else if (!isOriginIndia && isDestIndia) {
+            mode = 'Import';
+          } else {
+            mode = 'Merchant Export';
+          }
+        }
+
         let transportMode = 'Road';
         if (enquiry?.shipmentMode === 'SHIP') transportMode = 'Sea';
         else if (enquiry?.shipmentMode === 'RAIL') transportMode = 'Rail';
+
+        if (pc.salesContractId && this.sequelize.models.SalesContract) {
+          const linkedSc: any = await this.sequelize.models.SalesContract.findByPk(pc.salesContractId, {
+            attributes: ['contractType', 'originTransportMode', 'originCountry', 'destinationCountry'],
+          });
+          if (linkedSc) {
+            if (linkedSc.contractType === 'Export') mode = 'Export';
+            else if (linkedSc.contractType === 'MTT') mode = 'Merchant Export';
+            else if (linkedSc.contractType === 'Domestic') mode = 'Domestic';
+            else if (linkedSc.originCountry && linkedSc.destinationCountry && linkedSc.originCountry !== linkedSc.destinationCountry) {
+              mode = 'International';
+            }
+            if (linkedSc.originTransportMode) {
+              const ot = linkedSc.originTransportMode.toLowerCase();
+              if (ot === 'sea') transportMode = 'Sea';
+              else if (ot === 'rail') transportMode = 'Rail';
+              else if (ot === 'air') transportMode = 'Air';
+              else if (ot === 'road') transportMode = 'Road';
+            }
+          }
+        }
 
         logistics = await LogisticsModel.create({
           logisticsNumber,

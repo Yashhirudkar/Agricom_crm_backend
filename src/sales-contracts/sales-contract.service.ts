@@ -34,6 +34,7 @@ import {
 } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
+import { distributeShipmentQuantities } from './utils/shipment-distribution.util';
 import { BusinessTransactionService } from '../system/services/business-transaction.service';
 import {
   isBusinessReferenceSearch,
@@ -281,20 +282,43 @@ export class SalesContractService implements OnModuleInit {
         const contractNo = (
           contract.contractNumber || dto.contractNumber
         )?.trim();
+
+        // Enforce shipment quantity & container integrity
+        const totalShipmentQty = dto.shipments.reduce(
+          (sum, s) => sum + (Number(s.quantity) || 0),
+          0,
+        );
+        const shouldDistribute =
+          calculatedTotalQty > 0 &&
+          Math.abs(totalShipmentQty - calculatedTotalQty) > 0.01;
+        const autoQuantities = shouldDistribute
+          ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
+          : [];
+
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
+          const finalQty = shouldDistribute
+            ? autoQuantities[index]
+            : (shipment.quantity != null ? Number(shipment.quantity) : 0);
+          const finalContainers =
+            shipment.noOfContainers != null && shipment.noOfContainers >= 1
+              ? shipment.noOfContainers
+              : 1;
+
           return {
             ...shipment,
             shipmentNo: sNo,
+            quantity: finalQty,
+            noOfContainers: finalContainers,
             status: shipment.status || 'Scheduled',
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
             shipmentReference: generateShipmentReference(
               contractNo,
               sNo,
-              shipment.noOfContainers,
+              finalContainers,
               shipment.shipmentDate,
-              shipment.quantity,
+              finalQty,
             ),
           };
         }) as any[];
@@ -591,9 +615,28 @@ export class SalesContractService implements OnModuleInit {
         )?.trim();
         const updatedShipmentIds: number[] = [];
 
+        // Enforce shipment quantity & container integrity
+        const totalShipmentQty = dto.shipments.reduce(
+          (sum, s) => sum + (Number(s.quantity) || 0),
+          0,
+        );
+        const shouldDistribute =
+          calculatedTotalQty > 0 &&
+          Math.abs(totalShipmentQty - calculatedTotalQty) > 0.01;
+        const autoQuantities = shouldDistribute
+          ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
+          : [];
+
         for (let index = 0; index < dto.shipments.length; index++) {
           const shipment = dto.shipments[index] as any;
           const sNo = shipment.shipmentNo || index + 1;
+          const finalQty = shouldDistribute
+            ? autoQuantities[index]
+            : (shipment.quantity != null ? Number(shipment.quantity) : 0);
+          const finalContainers =
+            shipment.noOfContainers != null && shipment.noOfContainers >= 1
+              ? shipment.noOfContainers
+              : 1;
 
           let existing = existingShipments.find(
             (s) =>
@@ -606,9 +649,9 @@ export class SalesContractService implements OnModuleInit {
           const shipmentRef = generateShipmentReference(
             contractNo,
             sNo,
-            shipment.noOfContainers,
+            finalContainers,
             shipment.shipmentDate,
-            shipment.quantity,
+            finalQty,
           );
 
           if (existing) {
@@ -616,6 +659,8 @@ export class SalesContractService implements OnModuleInit {
               {
                 ...shipment,
                 shipmentNo: sNo,
+                quantity: finalQty,
+                noOfContainers: finalContainers,
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || existing.status || 'Scheduled',
@@ -629,6 +674,8 @@ export class SalesContractService implements OnModuleInit {
                 ...shipment,
                 salesContractId: contract.id,
                 shipmentNo: sNo,
+                quantity: finalQty,
+                noOfContainers: finalContainers,
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || 'Scheduled',

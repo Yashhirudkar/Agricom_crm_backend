@@ -72,7 +72,7 @@ export class Logistics extends BusinessReferenceEntity<Logistics> {
   declare purchaseContract: PurchaseContract;
 
   @AllowNull(false)
-  @Default('Domestic')
+  @Default('International')
   @Column({ type: DataType.STRING(50) })
   declare mode: string;
 

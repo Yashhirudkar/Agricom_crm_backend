@@ -246,7 +246,67 @@ export class EnquiriesService implements OnModuleInit {
       payload.bidCurrency = payload.bidCurrency.trim().toUpperCase();
     }
 
+    if (payload.offer_amount !== undefined && payload.offerAmount === undefined) {
+      payload.offerAmount = payload.offer_amount;
+    }
+    if (payload.bid_amount !== undefined && payload.buyingInterest === undefined) {
+      payload.buyingInterest = payload.bid_amount;
+    }
+    if (payload.bidAmount !== undefined && payload.buyingInterest === undefined) {
+      payload.buyingInterest = payload.bidAmount;
+    }
+
     return payload;
+  }
+
+  private validateCommercials(data: any): void {
+    // Bid validation
+    const bidAmount =
+      data.buyingInterest !== undefined ? data.buyingInterest : data.bidAmount;
+    if (bidAmount !== undefined && bidAmount !== null && bidAmount !== '') {
+      if (Number(bidAmount) < 0) {
+        throw new BadRequestException(
+          'Bid Amount must be greater than or equal to 0',
+        );
+      }
+      if (!data.bidCurrency || !data.bidCurrency.trim()) {
+        throw new BadRequestException(
+          'Currency is required when Bid Amount is entered',
+        );
+      }
+    }
+
+    // Offer validation
+    const offerAmount =
+      data.offerAmount !== undefined ? data.offerAmount : data.offer_amount;
+    if (
+      offerAmount !== undefined &&
+      offerAmount !== null &&
+      offerAmount !== ''
+    ) {
+      const num = Number(offerAmount);
+      const str = String(offerAmount).trim();
+      if (
+        isNaN(num) ||
+        !Number.isInteger(num) ||
+        str.includes('.') ||
+        !/^\d+$/.test(str.replace(/^0+/, '') || '0')
+      ) {
+        throw new BadRequestException(
+          'Offer must be a whole number (integer) without decimals',
+        );
+      }
+      if (num < 0) {
+        throw new BadRequestException(
+          'Offer must be greater than or equal to 0',
+        );
+      }
+      if (!data.bidCurrency || !data.bidCurrency.trim()) {
+        throw new BadRequestException(
+          'Currency is required when Offer is entered',
+        );
+      }
+    }
   }
 
   private validateLogistics(data: any): void {
@@ -358,6 +418,7 @@ export class EnquiriesService implements OnModuleInit {
     );
 
     const normalized = this.normalizeLogisticsPayload(dto);
+    this.validateCommercials(normalized);
     // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Pre-fetch relation names outside the transaction to keep it short
@@ -452,6 +513,12 @@ export class EnquiriesService implements OnModuleInit {
               ? String(enquiry.buyingInterest)
               : undefined,
           bidCurrency: enquiry.bidCurrency || undefined,
+          offer:
+            enquiry.offerAmount != null
+              ? String(enquiry.offerAmount)
+              : undefined,
+          offerAmount:
+            enquiry.offerAmount != null ? enquiry.offerAmount : undefined,
           bidType: enquiry.bidType || undefined,
           note: enquiry.note || undefined,
           partnerRoleName: partnerRoleName || undefined,
@@ -668,6 +735,8 @@ export class EnquiriesService implements OnModuleInit {
       quantity: row.quantity != null ? +row.quantity : null,
       shipmentDate: row.shipmentDate,
       buyingInterest: row.buyingInterest != null ? +row.buyingInterest : null,
+      bidAmount: row.buyingInterest != null ? +row.buyingInterest : null,
+      offerAmount: row.offerAmount != null ? +row.offerAmount : null,
       potentialEnquiry: row.potentialEnquiry,
       status: row.status,
       shipmentMode: row.shipmentMode,
@@ -741,6 +810,7 @@ export class EnquiriesService implements OnModuleInit {
     // Merge current values with incoming update payload for complete state validation
     const merged = { ...enquiry.toJSON(), ...dto };
     const normalizedMerged = this.normalizeLogisticsPayload(merged);
+    this.validateCommercials(normalizedMerged);
     // this.validateLogistics(normalizedMerged); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Apply normalization to actual delta properties for DB update

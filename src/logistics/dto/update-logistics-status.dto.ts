@@ -32,5 +32,9 @@ export class UpdateLogisticsStatusDto {
 
   @IsOptional()
   @IsString()
+  mode?: string;
+
+  @IsOptional()
+  @IsString()
   remarks?: string;
 }

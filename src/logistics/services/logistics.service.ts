@@ -1067,12 +1067,56 @@ export class LogisticsService {
         const currentYear = new Date().getFullYear();
         const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
-        // Infer Mode & Transport Mode
-        const mode =
-          enquiry.shipmentMode === 'SHIP' ? 'International' : 'Domestic';
+        // Infer Mode: Domestic ONLY if BOTH Origin AND Destination are India/domestic
+        const originStr = (enquiry.originCountryId || enquiry.originPort || enquiry.originCity || '').trim().toLowerCase();
+        const destStr = (enquiry.destinationCountry || enquiry.destinationPort || enquiry.destinationCity || '').trim().toLowerCase();
+
+        let mode = 'International';
+        const isOriginIndia = originStr.includes('india');
+        const isDestIndia = destStr.includes('india');
+
+        if (originStr && destStr) {
+          if (isOriginIndia && isDestIndia) {
+            mode = 'Domestic';
+          } else if (isOriginIndia && !isDestIndia) {
+            mode = 'Export';
+          } else if (!isOriginIndia && isDestIndia) {
+            mode = 'Import';
+          } else {
+            mode = 'Merchant Export';
+          }
+        }
+
         let transportMode = 'Road';
         if (enquiry.shipmentMode === 'SHIP') transportMode = 'Sea';
         else if (enquiry.shipmentMode === 'RAIL') transportMode = 'Rail';
+
+        // Check Sales Contract if available for accurate trade type
+        const scForMode = await this.salesContractModel.findOne({
+          where: { enquiryId },
+          attributes: ['contractType', 'originTransportMode', 'originCountry', 'destinationCountry'],
+          transaction,
+        });
+        if (scForMode) {
+          if (scForMode.contractType === 'Export') mode = 'Export';
+          else if (scForMode.contractType === 'MTT') mode = 'Merchant Export';
+          else if (scForMode.contractType === 'Domestic') mode = 'Domestic';
+          else if (
+            scForMode.originCountry &&
+            scForMode.destinationCountry &&
+            scForMode.originCountry !== scForMode.destinationCountry
+          ) {
+            mode = 'International';
+          }
+
+          if (scForMode.originTransportMode) {
+            const ot = scForMode.originTransportMode.toLowerCase();
+            if (ot === 'sea') transportMode = 'Sea';
+            else if (ot === 'rail') transportMode = 'Rail';
+            else if (ot === 'air') transportMode = 'Air';
+            else if (ot === 'road') transportMode = 'Road';
+          }
+        }
 
         const createdLogistics = await this.logisticsModel.create(
           {
@@ -1200,7 +1244,15 @@ export class LogisticsService {
     // Look up if a SalesContract exists for this enquiry
     const salesContract = await this.salesContractModel.findOne({
       where: { enquiryId },
-      attributes: ['id', 'contractNumber'],
+      attributes: [
+        'id',
+        'contractNumber',
+        'contractType',
+        'originCountry',
+        'destinationCountry',
+        'originTransportMode',
+        'currencyCode',
+      ],
     });
 
     // Mark as viewed if it hasn't been viewed yet
@@ -1304,6 +1356,7 @@ export class LogisticsService {
     return {
       enquiry,
       logistics,
+      salesContract: salesContract ? salesContract.toJSON() : null,
       salesContractId: salesContract ? salesContract.id : null,
       salesContractNumber: salesContract ? salesContract.contractNumber : null,
       shipmentId,

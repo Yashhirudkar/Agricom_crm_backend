@@ -205,6 +205,10 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'buying_interest', type: DataType.DECIMAL(15, 4) })
   declare buyingInterest: number;
 
+  @AllowNull(true)
+  @Column({ field: 'offer_amount', type: DataType.INTEGER })
+  declare offerAmount: number | null;
+
   @AllowNull(false)
   @Default(true)
   @Column({ field: 'potential_enquiry', type: DataType.BOOLEAN })

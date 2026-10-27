@@ -329,6 +329,7 @@ export class PurchaseContractQueryService {
     const pc = await this.model.findOne({
       where,
       include: [
+        { model: Partner, as: 'broker', attributes: ['id', 'entityName'] },
         { model: ShipmentType, as: 'shipmentType' },
         {
           model: SalesContract,
@@ -338,25 +339,11 @@ export class PurchaseContractQueryService {
             'contractNumber',
             'currencyCode',
             'financialYear',
-            'brokerId',
             'enquiryId',
           ],
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
-            { model: Partner, as: 'broker', attributes: ['id', 'entityName'] },
-            {
-              model: Enquiry,
-              as: 'enquiry',
-              include: [
-                {
-                  model: Partner,
-                  as: 'broker',
-                  attributes: ['id', 'entityName'],
-                },
-              ],
-              required: false,
-            },
             { model: ShipmentType, as: 'shipmentType' },
             {
               model: PaymentTerm,
@@ -424,10 +411,7 @@ export class PurchaseContractQueryService {
       commercialInfo: {
         buyer: pc.salesContract?.buyer,
         seller: pc.salesContract?.seller,
-        broker:
-          pc.salesContract?.broker ||
-          (pc.salesContract as any)?.enquiry?.broker ||
-          null,
+        broker: pc.broker || null,
         paymentTerm: pc.salesContract?.paymentTerm,
       },
       productSummary:

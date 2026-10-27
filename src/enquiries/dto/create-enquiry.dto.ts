@@ -127,6 +127,12 @@ export class CreateEnquiryDto {
   buyingInterest?: number;
 
   @IsOptional()
+  @IsInt({ message: 'Offer must be an integer' })
+  @Min(0, { message: 'Offer must be greater than or equal to 0' })
+  @Type(() => Number)
+  offerAmount?: number;
+
+  @IsOptional()
   @IsBoolean()
   potentialEnquiry?: boolean;
 
