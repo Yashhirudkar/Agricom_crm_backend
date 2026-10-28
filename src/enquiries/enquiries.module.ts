@@ -5,6 +5,8 @@ import { EnquiriesController } from './enquiries.controller';
 import { Enquiry } from './models/enquiry.model';
 import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
 import { EnquiryDestination } from './models/enquiry-destination.model';
+import { EnquiryActivityLog } from './models/enquiry-activity-log.model';
+import { EnquiryActivityService } from './services/enquiry-activity.service';
 import { MastersModule } from '../masters/masters.module';
 import { AuditModule } from '../audit/modules/audit.module';
 import { RbacModule } from '../rbac/modules/rbac.module';
@@ -21,6 +23,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Enquiry,
       EnquiryLoadingPoint,
       EnquiryDestination,
+      EnquiryActivityLog,
       PartnerRole,
       Partner,
       Product,
@@ -33,7 +36,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [EnquiriesController],
-  providers: [EnquiriesService],
-  exports: [EnquiriesService],
+  providers: [EnquiriesService, EnquiryActivityService],
+  exports: [EnquiriesService, EnquiryActivityService],
 })
 export class EnquiriesModule {}

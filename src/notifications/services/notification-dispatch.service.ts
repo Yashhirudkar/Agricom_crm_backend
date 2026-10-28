@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { NotificationLog } from '../models/notification-log.model';
@@ -49,6 +50,7 @@ export class NotificationDispatchService {
     @InjectModel(Company)
     private readonly companyModel: typeof Company,
     private readonly whatsAppService: WhatsAppService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -115,6 +117,21 @@ export class NotificationDispatchService {
 
     // 4. Single send attempt
     await this.attemptSend(log, channel, resolvedRecipient, message);
+
+    if (
+      channel === NotificationChannel.WHATSAPP &&
+      entityType?.toLowerCase() === 'enquiry' &&
+      entityId
+    ) {
+      this.eventEmitter.emit('enquiry.whatsapp.sent', {
+        enquiryId: String(entityId),
+        message,
+        whatsappMessageId: log?.id ? String(log.id) : null,
+        recipient: resolvedRecipient,
+        template,
+        payload,
+      });
+    }
   }
 
   // ─── Called by NotificationRetryWorker ───────────────────────────────────────

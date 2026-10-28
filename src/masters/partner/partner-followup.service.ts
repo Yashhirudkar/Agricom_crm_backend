@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -24,6 +25,7 @@ export class PartnerFollowUpService {
     private readonly sequelize: Sequelize,
     private readonly followUpNotificationService: FollowUpNotificationService,
     private readonly businessTransactionService: BusinessTransactionService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(
@@ -71,6 +73,16 @@ export class PartnerFollowUpService {
           },
           { transaction },
         );
+
+        
+        if (enquiryId) {
+          this.eventEmitter.emit('enquiry.followup.created', {
+            enquiryId: String(enquiryId),
+            dto,
+            followUp,
+            user,
+          });
+        }
 
         return followUp;
       })

@@ -108,6 +108,7 @@ import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts
 import { Enquiry } from './enquiries/models/enquiry.model';
 import { EnquiryLoadingPoint } from './enquiries/models/enquiry-loading-point.model';
 import { EnquiryDestination } from './enquiries/models/enquiry-destination.model';
+import { EnquiryActivityLog } from './enquiries/models/enquiry-activity-log.model';
 import { Logistics } from './logistics/models/logistics.model';
 import { FreightQuote } from './logistics/models/freight-quote.model';
 import { FreightRoute } from './logistics/models/freight-route.model';
@@ -294,6 +295,7 @@ import {
             Enquiry,
             EnquiryLoadingPoint,
             EnquiryDestination,
+            EnquiryActivityLog,
             Task,
             TaskSequence,
             TaskStatus,

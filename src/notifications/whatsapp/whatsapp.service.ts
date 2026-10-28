@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -54,7 +55,10 @@ export class WhatsAppService
   private reconnectAttempt = 0;
   private readonly MAX_RECONNECT_DELAY_MS = 30_000;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {
     this.config = {
       enabled: this.configService.get<string>('WHATSAPP_ENABLED') === 'true',
       sessionPath:
@@ -187,6 +191,40 @@ export class WhatsAppService
       });
 
       this.sock.ev.on('creds.update', saveCreds);
+
+      this.sock.ev.on('messages.upsert', async (m: any) => {
+        try {
+          if (m.type !== 'notify') return;
+          for (const msg of m.messages || []) {
+            if (!msg.message || msg.key?.fromMe) continue;
+            const text =
+              msg.message?.conversation ||
+              msg.message?.extendedTextMessage?.text ||
+              msg.message?.imageMessage?.caption ||
+              '';
+            if (!text?.trim()) continue;
+
+            const senderJid = msg.key?.remoteJid;
+            const messageId = msg.key?.id;
+            const stanzaId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
+            const quotedText =
+              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation ||
+              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text ||
+              '';
+
+            this.eventEmitter.emit('whatsapp.message.received', {
+              text: text.trim(),
+              senderJid,
+              messageId,
+              stanzaId,
+              quotedText,
+              timestamp: msg.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000) : new Date(),
+            });
+          }
+        } catch (err: any) {
+          this.logger.error('[WhatsApp] Incoming message error: ' + err?.message);
+        }
+      });
 
       this.sock.ev.on('connection.update', async (update: any) => {
         const { connection, lastDisconnect, qr } = update;

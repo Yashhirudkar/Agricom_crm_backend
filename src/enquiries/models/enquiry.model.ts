@@ -25,6 +25,7 @@ import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
 import { EnquiryLoadingPoint } from './enquiry-loading-point.model';
 import { EnquiryDestination } from './enquiry-destination.model';
+import { EnquiryActivityLog } from './enquiry-activity-log.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
 @Table({
@@ -269,6 +270,9 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
 
   @HasMany(() => EnquiryDestination)
   declare destinations: EnquiryDestination[];
+
+  @HasMany(() => EnquiryActivityLog)
+  declare activityLogs: EnquiryActivityLog[];
 
   declare purchaseContract?: any;
 }

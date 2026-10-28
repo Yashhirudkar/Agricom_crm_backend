@@ -704,6 +704,61 @@ export class ShipmentService {
     // Batch evaluate shipment readiness (Cargo Allocation + Freight Allocation)
     const readinessMap = await this.readinessService.evaluateBatch(rows);
 
+    const shipmentIds = rows.map((s) => s.id).filter(Boolean);
+    const pcByShipment = new Map<number, Set<string>>();
+    const pcBySc = new Map<number, Set<string>>();
+
+    if (shipmentIds.length > 0) {
+      try {
+        const [directPcRows]: any = await this.sequelize.query(
+          `SELECT pcs.shipment_id, pc.contract_number
+           FROM purchase_contract_shipments pcs
+           JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+           WHERE pcs.shipment_id IN (:shipmentIds)`,
+          {
+            replacements: { shipmentIds },
+          },
+        );
+
+        const rowsList = Array.isArray(directPcRows) ? directPcRows : [];
+        for (const row of rowsList) {
+          const sId = Number(row.shipment_id || row.shipmentId);
+          const cNum = row.contract_number || row.contractNumber;
+          if (sId && cNum) {
+            if (!pcByShipment.has(sId)) pcByShipment.set(sId, new Set());
+            pcByShipment.get(sId).add(cNum);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not batch fetch purchase_contract_shipments:', err);
+      }
+    }
+
+    if (contractIds.length > 0) {
+      try {
+        const [scPcRows]: any = await this.sequelize.query(
+          `SELECT pc.sales_contract_id, pc.contract_number
+           FROM purchase_contracts pc
+           WHERE pc.sales_contract_id IN (:contractIds)`,
+          {
+            replacements: { contractIds },
+          },
+        );
+
+        const rowsList = Array.isArray(scPcRows) ? scPcRows : [];
+        for (const row of rowsList) {
+          const scId = Number(row.sales_contract_id || row.salesContractId);
+          const cNum = row.contract_number || row.contractNumber;
+          if (scId && cNum) {
+            if (!pcBySc.has(scId)) pcBySc.set(scId, new Set());
+            pcBySc.get(scId).add(cNum);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not batch fetch purchase_contracts for sales contracts:', err);
+      }
+    }
+
     const data = rows.map((shipment) => {
       const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
 
@@ -793,6 +848,40 @@ export class ShipmentService {
       json.isManualOverride = readiness.isManualOverride;
       json.readySource = readiness.readySource;
       json.readinessReasons = readiness.reasons;
+
+      // Format Sales Contract No, Purchase Contract No, and Shipment Ref No
+      const rawSc = json.salesContract?.contractNumber;
+      const salesContractNo = rawSc
+        ? String(rawSc).trim().toUpperCase().startsWith('SC-')
+          ? String(rawSc).trim()
+          : `SC-${String(rawSc).trim()}`
+        : '-';
+
+      let purchaseContractNo = '-';
+      const linkedPcs = pcByShipment.get(json.id);
+      if (linkedPcs && linkedPcs.size > 0) {
+        purchaseContractNo = Array.from(linkedPcs)
+          .map((num) => {
+            const s = String(num).trim();
+            return s.toUpperCase().startsWith('PC-') ? s : `PC-${s}`;
+          })
+          .join(', ');
+      } else if (contractId && pcBySc.has(contractId) && pcBySc.get(contractId).size > 0) {
+        purchaseContractNo = Array.from(pcBySc.get(contractId))
+          .map((num) => {
+            const s = String(num).trim();
+            return s.toUpperCase().startsWith('PC-') ? s : `PC-${s}`;
+          })
+          .join(', ');
+      }
+
+      const shipmentRefNo =
+        json.shipmentReference ||
+        (json.shipmentNo ? `SH-${String(json.shipmentNo).padStart(6, '0')}` : '-');
+
+      json.shipmentRefNo = shipmentRefNo;
+      json.salesContractNo = salesContractNo;
+      json.purchaseContractNo = purchaseContractNo;
 
       return json;
     });
@@ -1105,6 +1194,59 @@ export class ShipmentService {
     json.isManualOverride = readiness.isManualOverride;
     json.readySource = readiness.readySource;
     json.readinessReasons = readiness.reasons;
+
+    const rawSc = json.salesContract?.contractNumber;
+    json.salesContractNo = rawSc
+      ? String(rawSc).trim().toUpperCase().startsWith('SC-')
+        ? String(rawSc).trim()
+        : `SC-${String(rawSc).trim()}`
+      : '-';
+
+    let purchaseContractNo = '-';
+    try {
+      const [directPcRows]: any = await this.sequelize.query(
+        `SELECT pc.contract_number
+         FROM purchase_contract_shipments pcs
+         JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+         WHERE pcs.shipment_id = :shipmentId`,
+        { replacements: { shipmentId: json.id } },
+      );
+      const rowsList = Array.isArray(directPcRows) ? directPcRows : [];
+      if (rowsList.length > 0) {
+        purchaseContractNo = rowsList
+          .map((r: any) => {
+            const num = String(r.contract_number || r.contractNumber || '').trim();
+            return num.toUpperCase().startsWith('PC-') ? num : `PC-${num}`;
+          })
+          .filter(Boolean)
+          .join(', ');
+      } else if (json.salesContractId) {
+        const [scPcRows]: any = await this.sequelize.query(
+          `SELECT pc.contract_number
+           FROM purchase_contracts pc
+           WHERE pc.sales_contract_id = :salesContractId`,
+          { replacements: { salesContractId: json.salesContractId } },
+        );
+        const scList = Array.isArray(scPcRows) ? scPcRows : [];
+        if (scList.length > 0) {
+          purchaseContractNo = scList
+            .map((r: any) => {
+              const num = String(r.contract_number || r.contractNumber || '').trim();
+              return num.toUpperCase().startsWith('PC-') ? num : `PC-${num}`;
+            })
+            .filter(Boolean)
+            .join(', ');
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch linked purchase contract for findOne:', err);
+    }
+
+    json.purchaseContractNo = purchaseContractNo || '-';
+    json.shipmentRefNo =
+      json.shipmentReference ||
+      (json.shipmentNo ? `SH-${String(json.shipmentNo).padStart(6, '0')}` : '-');
+
     return json;
   }
 

@@ -39,6 +39,7 @@ import { RbacService } from '../rbac/services/rbac.service';
 import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
 import { BusinessTransaction } from '../system/models/business-transaction.model';
 import { BusinessTransactionService } from '../system/services/business-transaction.service';
+import { EnquiryActivityService } from './services/enquiry-activity.service';
 import {
   isBusinessReferenceSearch,
   resolveBusinessTransactionId,
@@ -133,6 +134,7 @@ export class EnquiriesService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly rbacService: RbacService,
     private readonly businessTransactionService: BusinessTransactionService,
+    private readonly enquiryActivityService: EnquiryActivityService,
   ) {}
 
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
@@ -466,6 +468,19 @@ export class EnquiriesService implements OnModuleInit {
         { transaction },
       );
     });
+
+    // ── Log First Timeline Event (ENQUIRY_CREATED) ──
+    await this.enquiryActivityService
+      .logEnquiryCreated(enquiry, {
+        productName: product?.name,
+        partnerName: partner?.entityName,
+        creatorName: creator?.name || user?.name,
+        quantity: enquiry.quantity,
+        user,
+      })
+      .catch((err) =>
+        this.logger.error(`[Activity] Failed to log ENQUIRY_CREATED for ${enquiry.enquiryNo}: ${err?.message}`),
+      );
 
     // ── Fire-and-forget notification ──────────────────────────────────────────
     // Runs AFTER transaction commits.
@@ -835,6 +850,31 @@ export class EnquiriesService implements OnModuleInit {
 
     const updatedEnquiry = await enquiry.reload({ include: INCLUDE_RELATIONS });
 
+    // ── Log Bid & Offer / Price Changes ──
+    await this.enquiryActivityService
+      .logPriceChange(id, oldEnquiryData, normalizedDto, user)
+      .catch((err) =>
+        this.logger.error(`[Activity] Failed to log price change for ${id}: ${err?.message}`),
+      );
+
+    // ── Log Status Changes ──
+    if (normalizedDto.status && normalizedDto.status !== oldEnquiryData.status) {
+      await this.enquiryActivityService
+        .createActivity({
+          enquiryId: id,
+          activityType: 'STATUS_CHANGED',
+          changedByUserId: user?.userId || null,
+          metadata: {
+            oldStatus: oldEnquiryData.status,
+            newStatus: normalizedDto.status,
+            updatedByName: user?.name,
+          },
+        })
+        .catch((err) =>
+          this.logger.error(`[Activity] Failed to log status change for ${id}: ${err?.message}`),
+        );
+    }
+
     // ── Transport Management Real-Time Notifications ──────────────────────────
     this.notifyTransportTeam(
       updatedEnquiry,
@@ -1062,4 +1102,31 @@ export class EnquiriesService implements OnModuleInit {
       );
     }
   }
+
+  async getActivity(
+    id: string,
+    options?: { limit?: number; offset?: number; before?: number },
+  ) {
+    await this.findOne(id);
+    return this.enquiryActivityService.getActivityTimeline(id, options);
+  }
+
+  async createActivity(id: string, body: any, user?: any) {
+    await this.findOne(id);
+    return this.enquiryActivityService.createActivity({
+      enquiryId: id,
+      activityType: body.activityType || body.type || 'FOLLOW_UP',
+      message: body.message,
+      bidAmount: body.bidAmount,
+      offerAmount: body.offerAmount,
+      currency: body.currency,
+      changedByUserId: user?.userId || body.changedByUserId,
+      metadata: body.metadata || {},
+    });
+  }
+
+  async getPriceHistory(id: string) {
+    return this.enquiryActivityService.getPriceHistory(id);
+  }
+
 }

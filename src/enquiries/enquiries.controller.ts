@@ -113,4 +113,45 @@ export class EnquiriesController {
       destinations ?? [],
     );
   }
+
+  @Get(':id/activity')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  getActivity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+    @Query('before') before?: number,
+  ) {
+    return this.enquiriesService.getActivity(id, { limit, offset, before });
+  }
+
+  @Post(':id/activity')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  createActivity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.enquiriesService.createActivity(id, body, req.user);
+  }
+
+  @Post(':id/activity/incoming-whatsapp')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  createIncomingWhatsApp(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { message: string; sender?: string },
+  ) {
+    return this.enquiriesService.createActivity(id, {
+      activityType: 'WHATSAPP_RECEIVED',
+      message: body.message,
+      metadata: { sender: body.sender },
+    });
+  }
+
+  @Get(':id/price-history')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  getPriceHistory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.enquiriesService.getPriceHistory(id);
+  }
+
 }
