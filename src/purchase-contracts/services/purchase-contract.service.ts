@@ -148,6 +148,48 @@ export class PurchaseContractService {
    * Auto-create flow: Called by ShipmentService after first shipment save.
    * Idempotent — if PC already exists for this sales contract, returns it.
    */
+  calculatePaymentDueDate(
+    contractDate: string | Date,
+    days = 7,
+  ): string | null {
+    if (!contractDate) return null;
+    let year: number;
+    let month: number;
+    let day: number;
+
+    if (typeof contractDate === 'string') {
+      const trimmed = contractDate.trim().split('T')[0];
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+      if (match) {
+        year = Number(match[1]);
+        month = Number(match[2]) - 1;
+        day = Number(match[3]);
+      } else {
+        const d = new Date(contractDate);
+        if (isNaN(d.getTime())) return null;
+        year = d.getUTCFullYear();
+        month = d.getUTCMonth();
+        day = d.getUTCDate();
+      }
+    } else if (contractDate instanceof Date) {
+      if (isNaN(contractDate.getTime())) return null;
+      year = contractDate.getUTCFullYear();
+      month = contractDate.getUTCMonth();
+      day = contractDate.getUTCDate();
+    } else {
+      return null;
+    }
+
+    const utcDate = new Date(Date.UTC(year, month, day));
+    utcDate.setUTCDate(utcDate.getUTCDate() + days);
+
+    const resYear = utcDate.getUTCFullYear();
+    const resMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+    const resDay = String(utcDate.getUTCDate()).padStart(2, '0');
+
+    return `${resYear}-${resMonth}-${resDay}`;
+  }
+
   async ensureExists(
     salesContractId: number,
     userId?: number,
@@ -164,8 +206,10 @@ export class PurchaseContractService {
             'contractNumber',
             'companyId',
             'sellerId',
+            'contractDate',
             'enquiryId',
             'businessTransactionId',
+
           ],
         },
       );
@@ -178,6 +222,9 @@ export class PurchaseContractService {
         purchaseType: 'SC',
         buyerId: salesContract.sellerId || null,
         brokerId: null,
+        paymentDueDate: salesContract.contractDate
+          ? this.calculatePaymentDueDate(salesContract.contractDate)
+          : null,
         status: 'Draft',
         createdBy: userId ?? null,
         updatedBy: userId ?? null,
@@ -293,7 +340,7 @@ export class PurchaseContractService {
           buyerId: dto.buyerId || null,
           sellerId: dto.sellerId || null,
           sellerContractNo: dto.sellerContractNo || null,
-          purchaseDate: dto.purchaseDate || null,
+          purchaseDate: dto.purchaseDate || dto.contractDate || null,
           paymentTermId: dto.paymentTermId || null,
           shipmentTypeId: dto.shipmentTypeId || null,
           paymentTermsText: dto.paymentTermsText || null,
@@ -303,7 +350,7 @@ export class PurchaseContractService {
             dto.balancePercent != null ? Number(dto.balancePercent) : null,
           penaltyPercent:
             dto.penaltyPercent != null ? Number(dto.penaltyPercent) : null,
-          paymentDueDate: dto.paymentDueDate || null,
+          paymentDueDate: dto.paymentDueDate || (dto.contractDate ? this.calculatePaymentDueDate(dto.contractDate) : (dto.purchaseDate ? this.calculatePaymentDueDate(dto.purchaseDate) : null)),
           unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
@@ -561,10 +608,27 @@ export class PurchaseContractService {
         updateData.penaltyPercent != null
           ? Number(updateData.penaltyPercent)
           : null;
+    if (updateData.contractDate !== undefined) {
+      if (pc.salesContractId) {
+        await this.salesContractModel.update(
+          { contractDate: updateData.contractDate ? new Date(updateData.contractDate) : null },
+          { where: { id: pc.salesContractId } },
+        );
+      }
+      if (updateData.purchaseDate === undefined && !pc.purchaseDate) {
+        sanitizeData.purchaseDate = updateData.contractDate
+          ? String(updateData.contractDate)
+          : null;
+      }
+    }
     if (updateData.paymentDueDate !== undefined)
       sanitizeData.paymentDueDate = updateData.paymentDueDate
         ? String(updateData.paymentDueDate)
         : null;
+    else if (updateData.contractDate)
+      sanitizeData.paymentDueDate = this.calculatePaymentDueDate(
+        updateData.contractDate,
+      );
     if (updateData.unloadingDate !== undefined)
       sanitizeData.unloadingDate = updateData.unloadingDate
         ? String(updateData.unloadingDate)
@@ -813,6 +877,7 @@ export class PurchaseContractService {
           attributes: [
             'id',
             'businessTransactionId',
+
             'shipmentMode',
             'originCountryId',
             'destinationCountry',
@@ -827,6 +892,7 @@ export class PurchaseContractService {
           attributes: [
             'id',
             'businessTransactionId',
+
             'shipmentMode',
             'originCountryId',
             'destinationCountry',

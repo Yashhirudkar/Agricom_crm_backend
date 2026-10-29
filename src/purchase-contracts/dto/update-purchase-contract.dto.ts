@@ -39,6 +39,10 @@ export class UpdatePurchaseContractDto {
 
   @IsOptional()
   @IsDateString()
+  contractDate?: string;
+
+  @IsOptional()
+  @IsDateString()
   purchaseDate?: string;
 
   @IsOptional()

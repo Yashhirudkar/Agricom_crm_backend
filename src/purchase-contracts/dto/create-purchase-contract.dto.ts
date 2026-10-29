@@ -97,6 +97,10 @@ export class CreatePurchaseContractDto {
 
   @IsOptional()
   @IsDateString()
+  contractDate?: string;
+
+  @IsOptional()
+  @IsDateString()
   purchaseDate?: string;
 
   @IsOptional()
