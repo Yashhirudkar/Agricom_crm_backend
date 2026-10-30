@@ -96,6 +96,14 @@ export class PartnerFollowUp extends Model<PartnerFollowUp> {
   @Column({ type: DataType.STRING(50) })
   declare status: string;
 
+  @AllowNull(true)
+  @Column({ field: 'closure_reason', type: DataType.STRING(255) })
+  declare closureReason: string | null;
+
+  @AllowNull(true)
+  @Column({ field: 'closure_remark', type: DataType.TEXT })
+  declare closureRemark: string | null;
+
   @Default(true)
   @AllowNull(false)
   @Column({ field: 'is_active', type: DataType.BOOLEAN })

@@ -410,6 +410,12 @@ export class FollowUpManagementService {
 
     // Update status and response dynamically based on DTO values
     followUp.status = dto.status;
+    if (dto.closureReason) {
+      followUp.closureReason = dto.closureReason;
+    }
+    if (dto.closureRemark) {
+      followUp.closureRemark = dto.closureRemark;
+    }
     if (dto.ourResponse) {
       followUp.ourResponse = dto.ourResponse;
     }
@@ -424,6 +430,10 @@ export class FollowUpManagementService {
         String(enquiryId),
         dto.status,
         userId,
+        {
+          closureReason: dto.closureReason,
+          closureRemark: dto.closureRemark,
+        },
       );
     }
 

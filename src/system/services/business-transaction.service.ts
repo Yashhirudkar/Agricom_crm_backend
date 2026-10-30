@@ -263,6 +263,7 @@ export class BusinessTransactionService {
   async ensureForEnquiry(
     enquiryId: string,
     userId?: number,
+
     transaction?: Transaction,
   ): Promise<BusinessTransaction> {
     const run = async (tx: Transaction) => {
@@ -295,6 +296,7 @@ export class BusinessTransactionService {
   async ensureForSalesContract(
     salesContractId: number,
     userId?: number,
+
     transaction?: Transaction,
   ): Promise<BusinessTransaction | null> {
     const run = async (tx: Transaction) => {
@@ -342,6 +344,7 @@ export class BusinessTransactionService {
   async ensureForPurchaseContract(
     purchaseContractId: number,
     userId?: number,
+
     transaction?: Transaction,
   ): Promise<BusinessTransaction | null> {
     const run = async (tx: Transaction) => {
@@ -401,6 +404,7 @@ export class BusinessTransactionService {
     enquiryId: string,
     followUpStatus: string,
     userId?: number,
+    closureDetails?: { closureReason?: string; closureRemark?: string },
   ): Promise<void> {
     const newStatus =
       followUpStatus === 'Waiting Response'
@@ -417,7 +421,19 @@ export class BusinessTransactionService {
         lock: transaction.LOCK.UPDATE,
       });
       if (!enquiry) return;
-      await enquiry.update({ status: newStatus }, { transaction });
+      const updatePayload: any = { status: newStatus };
+      if (newStatus === 'CLOSED') {
+        updatePayload.closureReason = closureDetails?.closureReason || null;
+        updatePayload.closureRemark = closureDetails?.closureRemark || null;
+        updatePayload.closedBy = userId || null;
+        updatePayload.closedAt = new Date();
+      } else {
+        updatePayload.closureReason = null;
+        updatePayload.closureRemark = null;
+        updatePayload.closedBy = null;
+        updatePayload.closedAt = null;
+      }
+      await enquiry.update(updatePayload, { transaction });
       if (newStatus === 'CONFIRMED') {
         await this.ensureForEnquiry(enquiryId, userId, transaction);
       }

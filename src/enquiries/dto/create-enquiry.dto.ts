@@ -144,4 +144,19 @@ export class CreateEnquiryDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  closureReason?: string;
+
+  @IsOptional()
+  @IsString()
+  closureRemark?: string;
+
+  @IsOptional()
+  @IsInt()
+  closedBy?: number;
+
+  @IsOptional()
+  closedAt?: any;
 }

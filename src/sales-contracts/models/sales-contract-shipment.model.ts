@@ -13,9 +13,11 @@ import {
   ForeignKey,
   BelongsTo,
   HasOne,
+  HasMany,
 } from 'sequelize-typescript';
 import { SalesContract } from './sales-contract.model';
 import { Logistics } from '../../logistics/models/logistics.model';
+import { FreightQuote } from '../../logistics/models/freight-quote.model';
 import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 import { User } from '../../users/models/user.model';
@@ -148,4 +150,7 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
 
   @HasOne(() => ShipmentStuffing)
   declare stuffingExecution: ShipmentStuffing;
+
+  @HasMany(() => FreightQuote, { foreignKey: 'shipmentId', constraints: false })
+  declare freightQuotes: FreightQuote[];
 }

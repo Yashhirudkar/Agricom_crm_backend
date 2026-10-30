@@ -74,7 +74,6 @@ export class PartnerFollowUpService {
           { transaction },
         );
 
-        
         if (enquiryId) {
           this.eventEmitter.emit('enquiry.followup.created', {
             enquiryId: String(enquiryId),
@@ -95,6 +94,10 @@ export class PartnerFollowUpService {
             enquiryId.toString(),
             dto.status,
             user?.userId,
+            {
+              closureReason: dto.closureReason,
+              closureRemark: dto.closureRemark,
+            },
           );
         }
 
@@ -254,6 +257,10 @@ export class PartnerFollowUpService {
         enquiryId,
         dto.status,
         user?.userId,
+        {
+          closureReason: dto.closureReason,
+          closureRemark: dto.closureRemark,
+        },
       );
     }
 

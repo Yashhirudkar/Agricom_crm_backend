@@ -229,6 +229,26 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ type: DataType.STRING(50) })
   declare status: string;
 
+  @AllowNull(true)
+  @Column({ field: 'closure_reason', type: DataType.STRING(255) })
+  declare closureReason: string | null;
+
+  @AllowNull(true)
+  @Column({ field: 'closure_remark', type: DataType.TEXT })
+  declare closureRemark: string | null;
+
+  @ForeignKey(() => User)
+  @AllowNull(true)
+  @Column({ field: 'closed_by', type: DataType.INTEGER })
+  declare closedBy: number | null;
+
+  @BelongsTo(() => User, { foreignKey: 'closedBy', as: 'closedByUser', onDelete: 'SET NULL' })
+  declare closedByUser: User;
+
+  @AllowNull(true)
+  @Column({ field: 'closed_at', type: DataType.DATE })
+  declare closedAt: Date | null;
+
   @AllowNull(false)
   @Default(false)
   @Column({ field: 'freight_required', type: DataType.BOOLEAN })

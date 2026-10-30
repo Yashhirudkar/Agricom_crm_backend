@@ -84,6 +84,12 @@ const INCLUDE_RELATIONS = [
   },
   {
     model: User,
+    as: 'closedByUser',
+    attributes: ['id', 'name', 'email'],
+    required: false,
+  },
+  {
+    model: User,
     as: 'creator',
     attributes: ['id', 'name', 'email'],
     required: false,
@@ -754,6 +760,11 @@ export class EnquiriesService implements OnModuleInit {
       offerAmount: row.offerAmount != null ? +row.offerAmount : null,
       potentialEnquiry: row.potentialEnquiry,
       status: row.status,
+      closureReason: row.closureReason ?? null,
+      closureRemark: row.closureRemark ?? null,
+      closedBy: row.closedBy ?? null,
+      closedByName: row.closedByUser?.name ?? null,
+      closedAt: row.closedAt ?? null,
       shipmentMode: row.shipmentMode,
       originPort: row.originPort,
       destinationPort: row.destinationPort,
@@ -830,6 +841,17 @@ export class EnquiriesService implements OnModuleInit {
 
     // Apply normalization to actual delta properties for DB update
     const normalizedDto = this.normalizeLogisticsPayload(dto);
+    if (normalizedDto.status === EnquiryStatus.CLOSED) {
+      normalizedDto.closureReason = normalizedDto.closureReason || (dto as any).closureReason || null;
+      normalizedDto.closureRemark = normalizedDto.closureRemark || (dto as any).closureRemark || null;
+      normalizedDto.closedBy = user?.userId || null;
+      normalizedDto.closedAt = new Date();
+    } else if (normalizedDto.status && normalizedDto.status !== EnquiryStatus.CLOSED) {
+      normalizedDto.closureReason = null;
+      normalizedDto.closureRemark = null;
+      normalizedDto.closedBy = null;
+      normalizedDto.closedAt = null;
+    }
 
     await this.sequelize.transaction(async (transaction) => {
       await enquiry.update(

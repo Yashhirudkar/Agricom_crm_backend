@@ -25,6 +25,8 @@ import { FreightQuoteContainerRate } from './freight-quote-container-rate.model'
 import { Product } from '../../masters/product/product.model';
 import { FreightRoute } from './freight-route.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
+import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
+import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -64,6 +66,22 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
 
   @BelongsTo(() => Logistics, { foreignKey: 'logisticsId', constraints: false })
   declare logistics: Logistics;
+
+  @ForeignKey(() => SalesContractShipment)
+  @AllowNull(true)
+  @Column({ field: 'shipment_id', type: DataType.INTEGER })
+  declare shipmentId: number | null;
+
+  @BelongsTo(() => SalesContractShipment, { foreignKey: 'shipmentId', constraints: false })
+  declare shipment: SalesContractShipment;
+
+  @ForeignKey(() => PurchaseContract)
+  @AllowNull(true)
+  @Column({ field: 'purchase_contract_id', type: DataType.INTEGER })
+  declare purchaseContractId: number | null;
+
+  @BelongsTo(() => PurchaseContract, { foreignKey: 'purchaseContractId', constraints: false })
+  declare purchaseContract: PurchaseContract;
 
   @AllowNull(false)
   @Default(false)

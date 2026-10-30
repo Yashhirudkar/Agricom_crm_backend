@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { SalesContractsModule } from '../sales-contracts/sales-contracts.module';
 import { SequelizeModule } from '@nestjs/sequelize';
 
 import { Logistics } from './models/logistics.model';
@@ -61,6 +62,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
     AttachmentsModule,
     AuditModule,
     RbacModule,
+    forwardRef(() => SalesContractsModule),
   ],
   providers: [LogisticsService, MonthlyStockSummaryService],
   controllers: [LogisticsController, MonthlyStockSummaryController],

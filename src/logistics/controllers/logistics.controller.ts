@@ -247,6 +247,17 @@ export class LogisticsController {
     return this.service.updateStatus(id, dto, req.user, companyId);
   }
 
+  // ─── Execute Single Shipment ────────────────────────────────────────────────
+  @Post('shipments/:shipmentId/execute')
+  @RequirePermission('logistics:update')
+  async executeShipment(
+    @Param('shipmentId', ParseIntPipe) shipmentId: number,
+    @Req() req: any,
+  ) {
+    const companyId = req.user?.companyId;
+    return this.service.executeShipment(shipmentId, req.user, companyId);
+  }
+
   // ─── Generate Shipment ───────────────────────────────────────────────────────
   @Post(':id/generate-shipment')
   @RequirePermission('logistics:update')

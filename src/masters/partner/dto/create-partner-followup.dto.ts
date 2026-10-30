@@ -40,6 +40,14 @@ export class CreatePartnerFollowUpDto {
 
   @IsOptional()
   @IsString()
+  closureReason?: string;
+
+  @IsOptional()
+  @IsString()
+  closureRemark?: string;
+
+  @IsOptional()
+  @IsString()
   enquiryId?: string;
 
   @IsOptional()

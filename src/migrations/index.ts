@@ -49,6 +49,8 @@ import * as phase57 from './phase-57-shipment-execution-loading';
 import * as phase58 from './phase-58-stuffing-execution-lifecycle';
 import * as phase59 from './phase-59-add-offer-amount-to-enquiries';
 import * as phase60 from './phase-60-enquiry-activity-logs';
+import * as phase61 from './phase-61-shipment-freight-quotes';
+import * as phase62 from './phase-62-add-closure-details-to-enquiries';
 
 export interface MigrationPhase {
   phase: string;
@@ -113,4 +115,6 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase58,
   phase59,
   phase60,
+  phase61,
+  phase62,
 ];

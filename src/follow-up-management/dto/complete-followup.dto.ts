@@ -8,4 +8,12 @@ export class CompleteFollowUpDto {
   @IsOptional()
   @IsString()
   ourResponse?: string;
+
+  @IsOptional()
+  @IsString()
+  closureReason?: string;
+
+  @IsOptional()
+  @IsString()
+  closureRemark?: string;
 }

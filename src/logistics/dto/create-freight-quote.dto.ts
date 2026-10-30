@@ -209,6 +209,14 @@ export class CreateFreightQuoteDto {
   @ValidateNested({ each: true })
   @Type(() => FreightRouteDto)
   freightRoutes?: FreightRouteDto[];
+
+  @IsOptional()
+  @IsInt()
+  shipmentId?: number;
+
+  @IsOptional()
+  @IsInt()
+  purchaseContractId?: number;
 }
 
 export class FreightRateDto {

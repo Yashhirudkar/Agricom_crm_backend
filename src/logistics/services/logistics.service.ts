@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -25,6 +27,8 @@ import { Attachment } from '../../attachments/models/attachment.model';
 import { AttachmentsService } from '../../attachments/services/attachments.service';
 import { AuditService } from '../../audit/services/audit.service';
 import { User } from '../../users/models/user.model';
+import { ShipmentService } from '../../sales-contracts/shipment.service';
+import { ShipmentReadinessService } from '../../sales-contracts/services/shipment-readiness.service';
 
 import { QueryLogisticsDto } from '../dto/query-logistics.dto';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
@@ -72,6 +76,10 @@ export class LogisticsService {
     private readonly attachmentsService: AttachmentsService,
     private readonly auditService: AuditService,
     private readonly sequelize: Sequelize,
+    @Inject(forwardRef(() => ShipmentService))
+    private readonly shipmentService: ShipmentService,
+    @Inject(forwardRef(() => ShipmentReadinessService))
+    private readonly readinessService: ShipmentReadinessService,
   ) { }
 
   async fixDb() {
@@ -1353,6 +1361,164 @@ export class LogisticsService {
       enquiry.setDataValue('purchaseContract', purchaseContract);
     }
 
+    // ── Load All Shipments for this Purchase Contract / Sales Contract Deal ──
+    const shipmentIdSet = new Set<number>();
+    if (shipmentId) shipmentIdSet.add(shipmentId);
+
+    if (purchaseContract?.id) {
+      try {
+        const pcLinks: any[] = await this.sequelize.query(
+          `SELECT shipment_id FROM purchase_contract_shipments WHERE purchase_contract_id = :pcId`,
+          {
+            replacements: { pcId: purchaseContract.id },
+            type: QueryTypes.SELECT,
+          },
+        );
+        for (const row of pcLinks) {
+          const sId = Number(row.shipment_id || row.shipmentId);
+          if (sId) shipmentIdSet.add(sId);
+        }
+      } catch (err) {
+        console.warn('Could not query purchase_contract_shipments:', err);
+      }
+    }
+
+    if (salesContract?.id) {
+      try {
+        const scShipmentRows = await this.shipmentModel.findAll({
+          where: { salesContractId: salesContract.id },
+          attributes: ['id'],
+        });
+        for (const s of scShipmentRows) {
+          shipmentIdSet.add(s.id);
+        }
+      } catch (err) {
+        console.warn('Could not query salesContract shipments:', err);
+      }
+    }
+
+    if (purchaseContract?.salesContractId) {
+      try {
+        const pcScShipmentRows = await this.shipmentModel.findAll({
+          where: { salesContractId: purchaseContract.salesContractId },
+          attributes: ['id'],
+        });
+        for (const s of pcScShipmentRows) {
+          shipmentIdSet.add(s.id);
+        }
+      } catch (err) {
+        console.warn('Could not query purchaseContract.salesContractId shipments:', err);
+      }
+    }
+
+    if (logistics?.id) {
+      try {
+        const logShipments = await this.shipmentModel.findAll({
+          where: { logisticsId: logistics.id },
+          attributes: ['id'],
+        });
+        for (const s of logShipments) {
+          shipmentIdSet.add(s.id);
+        }
+      } catch (err) {
+        console.warn('Could not query logisticsId shipments:', err);
+      }
+    }
+
+    const allShipmentIds = Array.from(shipmentIdSet);
+    let shipmentsList: any[] = [];
+
+    if (allShipmentIds.length > 0) {
+      const dbShipments = await this.shipmentModel.findAll({
+        where: { id: { [Op.in]: allShipmentIds } },
+        order: [
+          ['shipmentNo', 'ASC'],
+          ['id', 'ASC'],
+        ],
+      });
+
+      // Batch evaluate readiness
+      const readinessMap = await this.readinessService.evaluateBatch(dbShipments);
+
+      // Batch load quotes linked to these shipments
+      const quotesForShipments = await this.quoteModel.findAll({
+        where: {
+          shipmentId: { [Op.in]: allShipmentIds },
+        },
+        include: [
+          { model: this.partnerModel, as: 'seller' },
+          { model: this.quoteChargeModel, as: 'charges' },
+          {
+            model: this.containerRateModel,
+            as: 'containerRates',
+            include: ['charges'],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      });
+
+      const quotesByShipment = new Map<number, any[]>();
+      for (const q of quotesForShipments) {
+        if (!q.shipmentId) continue;
+        if (!quotesByShipment.has(q.shipmentId)) {
+          quotesByShipment.set(q.shipmentId, []);
+        }
+        quotesByShipment.get(q.shipmentId).push(q.toJSON ? q.toJSON() : q);
+      }
+
+      // Default Origin and Destination
+      const defaultOrigin =
+        purchaseContract?.placeOfLoading ||
+        enquiry?.loadingPoints?.[0]?.loadingPoint ||
+        enquiry?.originPort ||
+        enquiry?.originCity ||
+        '—';
+      const defaultDestination =
+        purchaseContract?.deliveryPlace ||
+        enquiry?.destinations?.[0]?.destination ||
+        enquiry?.destinationPort ||
+        enquiry?.destinationCity ||
+        '—';
+
+      shipmentsList = dbShipments.map((s) => {
+        const sQuotes = quotesByShipment.get(s.id) || [];
+        const preferredQuote = sQuotes.find((q) => q.isPreferred) || null;
+        const readiness = readinessMap.get(s.id);
+
+        return {
+          id: s.id,
+          shipmentNo: s.shipmentNo,
+          shipmentReference:
+            s.shipmentReference || `REF-${String(s.id).padStart(5, '0')}`,
+          shipmentDate: s.shipmentDate,
+          quantity: Number(s.quantity || 0),
+          noOfContainers: s.noOfContainers || 0,
+          origin: defaultOrigin,
+          destination: defaultDestination,
+          status: s.status,
+          executionStatus: s.executionStatus || 'Pending',
+          freight: preferredQuote
+            ? preferredQuote.totalAmount || preferredQuote.freightAmount
+            : s.freight || null,
+          transitDays: preferredQuote ? preferredQuote.transitDays : null,
+          transportPartner: preferredQuote?.seller
+            ? {
+                id: preferredQuote.seller.id,
+                name: preferredQuote.seller.entityName,
+              }
+            : null,
+          preferredQuote,
+          quotes: sQuotes,
+          cargoReady: readiness?.cargoReady ?? false,
+          freightReady:
+            Boolean(preferredQuote) || (readiness?.freightReady ?? false),
+          readyForShipment: readiness?.readyForShipment ?? false,
+          reasons: readiness?.reasons ?? [],
+          isExecuted: ['Executed', 'Dispatched', 'Completed'].includes(s.status),
+        };
+      });
+    }
+
     return {
       enquiry,
       logistics,
@@ -1361,6 +1527,7 @@ export class LogisticsService {
       salesContractNumber: salesContract ? salesContract.contractNumber : null,
       shipmentId,
       purchaseContract,
+      shipments: shipmentsList,
     };
   }
 
@@ -1431,6 +1598,8 @@ export class LogisticsService {
           freightAmount: calculatedFreightAmount,
           quoteNumber,
           logisticsId,
+          shipmentId: dto.shipmentId || null,
+          purchaseContractId: dto.purchaseContractId || logistics.purchaseContractId || null,
           businessTransactionId: logistics.businessTransactionId ?? null,
           createdBy: user?.userId,
           routeId: dto.routeId || null,
@@ -2123,29 +2292,66 @@ export class LogisticsService {
     }
 
     await this.sequelize.transaction(async (transaction) => {
-      // 1. Mark this quote as preferred, others on the same route as rejected
-      const routeCondition = quote.routeId ? { routeId: quote.routeId } : {};
-
-      await this.quoteModel.update(
-        { isPreferred: false, isRejected: true },
-        { where: { logisticsId, ...routeCondition }, transaction },
-      );
-
-      await quote.update(
-        { isPreferred: true, isRejected: false },
-        { transaction },
-      );
-
-      // 2. Link selected quote and update Logistics status to Preferred Quote Selected
       const oldStatus = logistics.status;
-      await logistics.update(
-        {
-          selectedFreightId: quote.id,
-          status: 'Preferred Quote Selected',
-          updatedBy: user?.userId,
-        },
-        { transaction },
-      );
+      if (quote.shipmentId) {
+        // 1. Unmark other quotes for THIS specific shipment
+        await this.quoteModel.update(
+          { isPreferred: false, isRejected: true },
+          { where: { shipmentId: quote.shipmentId }, transaction },
+        );
+
+        // 2. Mark this quote as preferred
+        await quote.update(
+          { isPreferred: true, isRejected: false },
+          { transaction },
+        );
+
+        // 3. Update the specific shipment with selected freight amount & logistics link
+        const shipment = await this.shipmentModel.findByPk(quote.shipmentId, {
+          transaction,
+        });
+        if (shipment) {
+          await shipment.update(
+            {
+              freight: quote.totalAmount || quote.freightAmount,
+              logisticsId,
+            },
+            { transaction },
+          );
+        }
+
+        // 4. Update logistics header
+        await logistics.update(
+          {
+            selectedFreightId: quote.id,
+            status: 'Preferred Quote Selected',
+            updatedBy: user?.userId,
+          },
+          { transaction },
+        );
+      } else {
+        // Fallback for legacy quotes without shipmentId
+        const routeCondition = quote.routeId ? { routeId: quote.routeId } : {};
+
+        await this.quoteModel.update(
+          { isPreferred: false, isRejected: true },
+          { where: { logisticsId, ...routeCondition }, transaction },
+        );
+
+        await quote.update(
+          { isPreferred: true, isRejected: false },
+          { transaction },
+        );
+
+        await logistics.update(
+          {
+            selectedFreightId: quote.id,
+            status: 'Preferred Quote Selected',
+            updatedBy: user?.userId,
+          },
+          { transaction },
+        );
+      }
 
       // 3. Log actions
       await this.auditService.writeLog({
@@ -2512,5 +2718,35 @@ export class LogisticsService {
       default:
         return log.action;
     }
+  }
+
+  /**
+   * Execute an individual shipment independently.
+   * Executing one shipment does NOT affect any other shipment under the same Purchase Contract.
+   */
+  async executeShipment(
+    shipmentId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
+    const shipment = await this.shipmentModel.findByPk(shipmentId);
+    if (!shipment) {
+      throw new NotFoundException('Shipment not found');
+    }
+
+    const readiness = await this.readinessService.evaluate(shipment);
+    if (!readiness.readyForShipment) {
+      throw new BadRequestException(
+        readiness.reasons && readiness.reasons.length > 0
+          ? readiness.reasons.join(' ')
+          : 'Shipment cannot be executed until cargo and freight allocations are ready.',
+      );
+    }
+
+    return await this.shipmentService.update(
+      shipmentId,
+      { status: 'Executed' },
+      user,
+    );
   }
 }

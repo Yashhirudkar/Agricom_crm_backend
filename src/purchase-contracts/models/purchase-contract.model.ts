@@ -23,6 +23,7 @@ import { PurchaseContractShipment } from './purchase-contract-shipment.model';
 import { PurchaseContractRequiredDocument } from './purchase-contract-required-document.model';
 import { PurchaseContractActivity } from './purchase-contract-activity.model';
 import { PurchaseContractAttachment } from './purchase-contract-attachment.model';
+import { FreightQuote } from '../../logistics/models/freight-quote.model';
 import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 
@@ -266,6 +267,9 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
 
   @HasMany(() => PurchaseContractAttachment)
   declare attachments: PurchaseContractAttachment[];
+
+  @HasMany(() => FreightQuote, { foreignKey: 'purchaseContractId', constraints: false })
+  declare freightQuotes: FreightQuote[];
 
   @AllowNull(true)
   @Column({ field: 'shipment_sequence', type: DataType.INTEGER })

@@ -67,7 +67,7 @@ export class ShipmentReadinessService {
     );
 
     // 1. Batch fetch Cargo Allocations and Loadings
-    const [allocations, loadings, logisticsRecords, preferredQuotes] =
+    const [allocations, loadings, logisticsRecords, preferredQuotes, shipmentPreferredQuotes] =
       await Promise.all([
         this.cargoAllocationModel.findAll({
           where: {
@@ -112,6 +112,15 @@ export class ShipmentReadinessService {
               attributes: ['id', 'logisticsId', 'freightAmount', 'isPreferred'],
             })
           : Promise.resolve([]),
+        shipmentIds.length > 0
+          ? this.freightQuoteModel.findAll({
+              where: {
+                shipmentId: { [Op.in]: shipmentIds },
+                isPreferred: true,
+              },
+              attributes: ['id', 'shipmentId', 'freightAmount', 'isPreferred'],
+            })
+          : Promise.resolve([]),
       ]);
 
     // Index allocations by shipmentId
@@ -144,10 +153,14 @@ export class ShipmentReadinessService {
       }
     }
 
-    // Preferred quotes index by logisticsId
+    // Preferred quotes index by logisticsId and shipmentId
     const preferredQuotesByLogistics = new Set<number>();
     for (const q of preferredQuotes) {
       preferredQuotesByLogistics.add(q.logisticsId);
+    }
+    const preferredQuotesByShipment = new Set<number>();
+    for (const q of shipmentPreferredQuotes) {
+      if (q.shipmentId) preferredQuotesByShipment.add(q.shipmentId);
     }
 
     // 2. Evaluate each shipment
@@ -159,10 +172,13 @@ export class ShipmentReadinessService {
       const cargoReady = allocatedQty > 0 || loadedQty > 0;
 
       // Freight is Ready if:
-      // - Direct freight rate/charge is entered on shipment (> 0)
+      // - Preferred Freight Quote exists for this shipment (Primary Source of Truth)
+      // - OR direct freight rate/charge is entered on shipment (> 0)
       // - OR linked logistics has a selected freight quote / preferred quote / ready status
       let freightReady = false;
-      if (s.freight !== null && s.freight !== undefined && Number(s.freight) > 0) {
+      if (preferredQuotesByShipment.has(s.id)) {
+        freightReady = true;
+      } else if (s.freight !== null && s.freight !== undefined && Number(s.freight) > 0) {
         freightReady = true;
       } else if (s.logisticsId && logisticsById.has(s.logisticsId)) {
         const log = logisticsById.get(s.logisticsId);
