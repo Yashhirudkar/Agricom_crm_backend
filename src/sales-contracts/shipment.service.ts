@@ -71,7 +71,7 @@ export class ShipmentService {
     private readonly freightQuoteModel: typeof FreightQuote,
     @InjectConnection()
     private readonly sequelize: SequelizeConnection,
-  ) { }
+  ) {}
 
   public async ensureExecutionRecordsForShipmentId(
     shipmentId: number,
@@ -218,7 +218,7 @@ export class ShipmentService {
       balanceWeight: Math.max(
         0,
         Number(shipment.quantity || 0) -
-        (allocation ? Number(allocation.allocatedQty || 0) : 0),
+          (allocation ? Number(allocation.allocatedQty || 0) : 0),
       ),
       warehouse: 'Main Warehouse',
       ratePerMt: Number(shipment.ratePerMt || 0),
@@ -755,7 +755,10 @@ export class ShipmentService {
           }
         }
       } catch (err) {
-        console.warn('Could not batch fetch purchase_contracts for sales contracts:', err);
+        console.warn(
+          'Could not batch fetch purchase_contracts for sales contracts:',
+          err,
+        );
       }
     }
 
@@ -769,7 +772,9 @@ export class ShipmentService {
       json.stuffingCompleted = stuffingCompleted;
 
       // isExecuted = shipment has gone through execution (status is a terminal execution state)
-      const isExecuted = ['Executed', 'Dispatched', 'Completed'].includes(json.status);
+      const isExecuted = ['Executed', 'Dispatched', 'Completed'].includes(
+        json.status,
+      );
       json.isExecuted = isExecuted;
 
       json.businessReference =
@@ -866,7 +871,11 @@ export class ShipmentService {
             return s.toUpperCase().startsWith('PC-') ? s : `PC-${s}`;
           })
           .join(', ');
-      } else if (contractId && pcBySc.has(contractId) && pcBySc.get(contractId).size > 0) {
+      } else if (
+        contractId &&
+        pcBySc.has(contractId) &&
+        pcBySc.get(contractId).size > 0
+      ) {
         purchaseContractNo = Array.from(pcBySc.get(contractId))
           .map((num) => {
             const s = String(num).trim();
@@ -877,7 +886,9 @@ export class ShipmentService {
 
       const shipmentRefNo =
         json.shipmentReference ||
-        (json.shipmentNo ? `SH-${String(json.shipmentNo).padStart(6, '0')}` : '-');
+        (json.shipmentNo
+          ? `SH-${String(json.shipmentNo).padStart(6, '0')}`
+          : '-');
 
       json.shipmentRefNo = shipmentRefNo;
       json.salesContractNo = salesContractNo;
@@ -1181,7 +1192,8 @@ export class ShipmentService {
     if (!reloaded) return null;
     const readiness = await this.readinessService.evaluate(reloaded);
     const json: any = reloaded.toJSON ? reloaded.toJSON() : { ...reloaded };
-    json.businessReference = json.businessTransaction?.businessReference ?? null;
+    json.businessReference =
+      json.businessTransaction?.businessReference ?? null;
     json.cargoReady = readiness.cargoReady;
     json.freightReady = readiness.freightReady;
     json.systemReady = readiness.systemReady;
@@ -1215,7 +1227,9 @@ export class ShipmentService {
       if (rowsList.length > 0) {
         purchaseContractNo = rowsList
           .map((r: any) => {
-            const num = String(r.contract_number || r.contractNumber || '').trim();
+            const num = String(
+              r.contract_number || r.contractNumber || '',
+            ).trim();
             return num.toUpperCase().startsWith('PC-') ? num : `PC-${num}`;
           })
           .filter(Boolean)
@@ -1231,7 +1245,9 @@ export class ShipmentService {
         if (scList.length > 0) {
           purchaseContractNo = scList
             .map((r: any) => {
-              const num = String(r.contract_number || r.contractNumber || '').trim();
+              const num = String(
+                r.contract_number || r.contractNumber || '',
+              ).trim();
               return num.toUpperCase().startsWith('PC-') ? num : `PC-${num}`;
             })
             .filter(Boolean)
@@ -1239,13 +1255,18 @@ export class ShipmentService {
         }
       }
     } catch (err) {
-      console.warn('Could not fetch linked purchase contract for findOne:', err);
+      console.warn(
+        'Could not fetch linked purchase contract for findOne:',
+        err,
+      );
     }
 
     json.purchaseContractNo = purchaseContractNo || '-';
     json.shipmentRefNo =
       json.shipmentReference ||
-      (json.shipmentNo ? `SH-${String(json.shipmentNo).padStart(6, '0')}` : '-');
+      (json.shipmentNo
+        ? `SH-${String(json.shipmentNo).padStart(6, '0')}`
+        : '-');
 
     return json;
   }
@@ -1289,7 +1310,8 @@ export class ShipmentService {
 
     const readiness = await this.readinessService.evaluate(shipment);
     const json: any = shipment.toJSON ? shipment.toJSON() : { ...shipment };
-    json.businessReference = json.businessTransaction?.businessReference ?? null;
+    json.businessReference =
+      json.businessTransaction?.businessReference ?? null;
     json.timeline = this.calculateTimeline(json.shipmentDate, json.status);
     json.cargoReady = readiness.cargoReady;
     json.freightReady = readiness.freightReady;
@@ -1422,7 +1444,11 @@ export class ShipmentService {
               include: [
                 { model: Product, as: 'product', required: false },
                 { model: PackingType, as: 'packingType', required: false },
-                { model: BagSpecification, as: 'bagSpecification', required: false },
+                {
+                  model: BagSpecification,
+                  as: 'bagSpecification',
+                  required: false,
+                },
               ],
             },
             { model: Company, as: 'company', required: false },
@@ -1459,22 +1485,34 @@ export class ShipmentService {
 
     // 1. Linked Purchase Contract
     let purchaseContractNo = 'N/A';
+    let purchaseContractQuantity = 0;
+    let allocatedQuantity = Number(shipment.quantity || 0);
     try {
-      const pcShipmentModel = this.shipmentModel.sequelize?.models['PurchaseContractShipment'];
+      const pcShipmentModel =
+        this.shipmentModel.sequelize?.models['PurchaseContractShipment'];
       const pcModel = this.shipmentModel.sequelize?.models['PurchaseContract'];
       if (pcShipmentModel && pcModel) {
         const pcLink: any = await pcShipmentModel.findOne({
           where: { shipmentId: shipment.id },
         });
         if (pcLink?.purchaseContractId) {
+          if (pcLink.allocatedQuantity != null) {
+            allocatedQuantity = Number(pcLink.allocatedQuantity) || 0;
+          }
           const pc: any = await pcModel.findByPk(pcLink.purchaseContractId);
-          if (pc?.contractNumber) purchaseContractNo = pc.contractNumber;
+          if (pc) {
+            if (pc.contractNumber) purchaseContractNo = pc.contractNumber;
+            purchaseContractQuantity = Number(pc.quantity) || 0;
+          }
         } else if (shipment.salesContractId) {
           const directPc: any = await pcModel.findOne({
             where: { salesContractId: shipment.salesContractId },
           });
-          if (directPc?.contractNumber) {
-            purchaseContractNo = directPc.contractNumber;
+          if (directPc) {
+            if (directPc.contractNumber) {
+              purchaseContractNo = directPc.contractNumber;
+            }
+            purchaseContractQuantity = Number(directPc.quantity) || 0;
           }
         }
       }
@@ -1488,7 +1526,15 @@ export class ShipmentService {
       const caModel = this.shipmentModel.sequelize?.models['CargoAvailability'];
       cargoAllocations = await this.cargoAllocationModel.findAll({
         where: { shipmentId: shipment.id, status: 'Active' },
-        include: caModel ? [{ model: caModel as any, as: 'cargoAvailability', required: false }] : [],
+        include: caModel
+          ? [
+              {
+                model: caModel as any,
+                as: 'cargoAvailability',
+                required: false,
+              },
+            ]
+          : [],
       });
     } catch (err) {
       console.warn('Could not fetch cargo allocations for stuffing:', err);
@@ -1497,8 +1543,7 @@ export class ShipmentService {
     const cargoLots = cargoAllocations
       .map(
         (a: any) =>
-          a.cargoAvailability?.lotNumber ||
-          a.cargoAvailability?.batchNumber,
+          a.cargoAvailability?.lotNumber || a.cargoAvailability?.batchNumber,
       )
       .filter(Boolean);
     const allocatedCargoLotsStr =
@@ -1512,9 +1557,9 @@ export class ShipmentService {
 
     const availableWeight = Number(
       cargoAllocations[0]?.cargoAvailability?.availableQuantity ||
-      cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
-      shipment.quantity ||
-      0,
+        cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
+        shipment.quantity ||
+        0,
     );
 
     const allocatedWeight =
@@ -1547,7 +1592,7 @@ export class ShipmentService {
 
     const balanceWeight = Math.max(
       0,
-      parseFloat((availableWeight - allocatedWeight).toFixed(2)),
+      parseFloat((purchaseContractQuantity - allocatedQuantity).toFixed(2)),
     );
 
     // 3. Freight Info
@@ -1593,10 +1638,7 @@ export class ShipmentService {
 
     // Company Details
     const sellerCompanyName =
-      company.legalName ||
-      company.name ||
-      seller.entityName ||
-      '—';
+      company.legalName || company.name || seller.entityName || '—';
     const sellerAddress =
       [
         company.address,
@@ -1630,8 +1672,7 @@ export class ShipmentService {
     const autoPopulated = {
       // From Shipment
       shipmentRef: shipment.shipmentReference || '—',
-      businessRefNo:
-        shipment.businessTransaction?.businessReference || '—',
+      businessRefNo: shipment.businessTransaction?.businessReference || '—',
       salesContractNo: contract.contractNumber || '—',
       purchaseContractNo: purchaseContractNo,
       enquiryRef:
@@ -1643,21 +1684,14 @@ export class ShipmentService {
       seller: sellerCompanyName,
       product: product.name || '—',
       commodityGrade:
-        product.grade ||
-        product.commodityGrade ||
-        item.remarks ||
-        '—',
+        product.grade || product.commodityGrade || item.remarks || '—',
       quantityMt: quantityMt,
       packingType: item.packingType?.name || '—',
       bagSize: bagSizeKg ? `${bagSizeKg} Kg` : '—',
       totalBags: totalBags,
-      incoterm:
-        contract.paymentTerm?.name || contract.contractType || '—',
+      incoterm: contract.paymentTerm?.name || contract.contractType || '—',
       shipmentDate: shipment.shipmentDate,
-      freightType:
-        contract.shipmentType?.name ||
-        freightQuote?.mode ||
-        '—',
+      freightType: contract.shipmentType?.name || freightQuote?.mode || '—',
       shipmentType: contract.contractType || contract.shipmentType?.name || '—',
       route: route,
       originCountry: originCountry,
@@ -1768,8 +1802,8 @@ export class ShipmentService {
     const userId = user?.userId ?? user?.id ?? null;
     const isComplete = dto.action === 'complete';
     const now = new Date();
-    const { shipment, record, stuffingData } =
-      await this.sequelize.transaction(async (transaction) => {
+    const { shipment, record, stuffingData } = await this.sequelize.transaction(
+      async (transaction) => {
         const shipment = await this.shipmentModel.findByPk(shipmentId, {
           transaction,
           lock: transaction.LOCK.UPDATE,
@@ -1874,13 +1908,15 @@ export class ShipmentService {
             otherStuffings.flatMap((stuffing) =>
               (stuffing.containers || [])
                 .map((container: any) =>
-                  String(container.containerNo || '').trim().toUpperCase(),
+                  String(container.containerNo || '')
+                    .trim()
+                    .toUpperCase(),
                 )
                 .filter(Boolean),
             ),
           );
-          const duplicateContainer = containerNumbers.find((containerNo: string) =>
-            existingContainerNumbers.has(containerNo),
+          const duplicateContainer = containerNumbers.find(
+            (containerNo: string) => existingContainerNumbers.has(containerNo),
           );
           if (duplicateContainer) {
             throw new BadRequestException(
@@ -1907,7 +1943,9 @@ export class ShipmentService {
               (await this.cargoLoadingModel.sum('loadedQty', {
                 where: {
                   shipmentId: shipment.id,
-                  ...(pendingLoading ? { id: { [Op.ne]: pendingLoading.id } } : {}),
+                  ...(pendingLoading
+                    ? { id: { [Op.ne]: pendingLoading.id } }
+                    : {}),
                 },
                 transaction,
               })) || 0,
@@ -1934,7 +1972,10 @@ export class ShipmentService {
           ? 'Loading Completed'
           : dto.executionStatus || stuffingData.executionStatus || 'Pending';
 
-        if (effectiveExecutionStatus === 'Dispatched' || dto.action === 'dispatch') {
+        if (
+          effectiveExecutionStatus === 'Dispatched' ||
+          dto.action === 'dispatch'
+        ) {
           shipment.status = 'Dispatched';
           shipment.executionStatus = 'Dispatched';
           shipment.manualReadyOverride = true;
@@ -1963,16 +2004,11 @@ export class ShipmentService {
           await shipment.save({ transaction });
         }
 
-        await this.ensureExecutionRecords(
-          shipment,
-          transaction,
-          userId,
-          {
-            loadingDate: stuffingData.loadingDate,
-            loadedQty: stuffingData.actualLoadingWeight,
-            status: effectiveExecutionStatus,
-          },
-        );
+        await this.ensureExecutionRecords(shipment, transaction, userId, {
+          loadingDate: stuffingData.loadingDate,
+          loadedQty: stuffingData.actualLoadingWeight,
+          status: effectiveExecutionStatus,
+        });
 
         // Also sync primary container / seal to cargo_loading if containers provided
         if (stuffingData.containers && stuffingData.containers.length > 0) {
@@ -1982,7 +2018,8 @@ export class ShipmentService {
           });
           if (loading) {
             const firstC = stuffingData.containers[0];
-            if (firstC.containerNo) loading.containerNumber = firstC.containerNo;
+            if (firstC.containerNo)
+              loading.containerNumber = firstC.containerNo;
             if (firstC.sealNo) loading.sealNumber = firstC.sealNo;
             if (firstC.vehicleNumber) loading.truckNo = firstC.vehicleNumber;
             if (firstC.warehouse) loading.warehouseName = firstC.warehouse;
@@ -1997,7 +2034,8 @@ export class ShipmentService {
         }
 
         return { shipment, record, stuffingData };
-      });
+      },
+    );
 
     if (isComplete) {
       if (shipment.salesContractId) {

@@ -579,9 +579,10 @@ export class EnquiriesService implements OnModuleInit {
     } = query;
 
     const { limit: finalLimit, offset } = buildPagination(page, limit);
+    const normalizedSearch = search?.trim();
 
     const whereClause: any = {
-      ...buildSearchQuery(search, ['enquiryNo']), // Search on enquiryNo directly
+      ...buildSearchQuery(normalizedSearch, ['enquiryNo']), // Search on enquiryNo directly
     };
 
     if (businessReference) {
@@ -592,29 +593,17 @@ export class EnquiriesService implements OnModuleInit {
         )) ?? -1;
     }
 
-    if (search) {
-      // Use EXISTS subqueries to prevent forcing INNER JOINs on optional relations
+    if (normalizedSearch) {
+      const searchPattern = `%${normalizedSearch}%`;
       const searchConditions: any[] = [
-        { enquiryNo: { [Op.iLike]: `%${search}%` } },
-        {
-          [Op.and]: Sequelize.literal(
-            `EXISTS (SELECT 1 FROM partners WHERE partners.id = "Enquiry"."partner_id" AND partners.entity_name ILIKE '%${search}%')`
-          ),
-        },
-        {
-          [Op.and]: Sequelize.literal(
-            `EXISTS (SELECT 1 FROM products WHERE products.id = "Enquiry"."product_id" AND products.name ILIKE '%${search}%')`
-          ),
-        },
-        {
-          [Op.and]: Sequelize.literal(
-            `EXISTS (SELECT 1 FROM users WHERE users.id = "Enquiry"."created_by" AND users.name ILIKE '%${search}%')`
-          ),
-        },
+        { enquiryNo: { [Op.iLike]: searchPattern } },
+        { '$partner.entity_name$': { [Op.iLike]: searchPattern } },
+        { '$product.name$': { [Op.iLike]: searchPattern } },
+        { '$creator.name$': { [Op.iLike]: searchPattern } },
       ];
-      if (isBusinessReferenceSearch(search)) {
+      if (isBusinessReferenceSearch(normalizedSearch)) {
         const transactionId = await resolveBusinessTransactionId(
-          search,
+          normalizedSearch,
           (query as any).companyId,
         );
         if (transactionId !== null) {
@@ -731,6 +720,7 @@ export class EnquiriesService implements OnModuleInit {
       order,
       include: INCLUDE_RELATIONS,
       distinct: true,
+      subQuery: false,
     });
 
     const mappedRows = rows.map((row: any) => ({

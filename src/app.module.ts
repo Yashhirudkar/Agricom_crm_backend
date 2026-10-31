@@ -142,6 +142,7 @@ import { NotificationLog } from './notifications/models/notification-log.model';
 import { FollowUpManagementModule } from './follow-up-management/follow-up-management.module';
 import { QuotationsModule } from './quotations/quotations.module';
 import { ReportsModule } from './reports/reports.module';
+import { StockModule } from './stock/stock.module';
 import { Quotation } from './quotations/models/quotation.model';
 import { QuotationItem } from './quotations/models/quotation-item.model';
 import { QuotationSequence } from './quotations/models/quotation-sequence.model';
@@ -388,6 +389,7 @@ import {
     LogisticsModule,
     CargoAvailabilityModule,
     ReportsModule,
+    StockModule,
   ],
   providers: [
     {
