@@ -295,6 +295,19 @@ export class SalesContractService implements OnModuleInit {
           ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
           : [];
 
+        // Auto Route Source Mapping: Origin from Purchase Contract, Destination from Sales Contract
+        let pcOrigin: string | null = null;
+        if (contract.businessTransactionId) {
+          try {
+            const pcRows: any = await this.sequelize.query(
+              `SELECT place_of_loading FROM purchase_contracts WHERE business_transaction_id = :btId AND place_of_loading IS NOT NULL LIMIT 1`,
+              { replacements: { btId: contract.businessTransactionId }, type: QueryTypes.SELECT, transaction: t }
+            );
+            if (pcRows && pcRows.length > 0) pcOrigin = pcRows[0].place_of_loading;
+          } catch (e) {}
+        }
+        const scDest = contract.destinationLocationName || contract.portOfDischarge || null;
+
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
           const finalQty = shouldDistribute
@@ -310,6 +323,8 @@ export class SalesContractService implements OnModuleInit {
             shipmentNo: sNo,
             quantity: finalQty,
             noOfContainers: finalContainers,
+            origin: pcOrigin,
+            destination: scDest,
             status: shipment.status || 'Scheduled',
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
@@ -627,6 +642,16 @@ export class SalesContractService implements OnModuleInit {
           ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
           : [];
 
+        const scDest = contract.destinationLocationName || contract.portOfDischarge || null;
+        let pcOrigin: string | null = null;
+        try {
+          const pcRows: any = await this.sequelize.query(
+            `SELECT place_of_loading FROM purchase_contracts WHERE (sales_contract_id = :scId OR (business_transaction_id IS NOT NULL AND business_transaction_id = :btId)) AND place_of_loading IS NOT NULL ORDER BY updated_at DESC LIMIT 1`,
+            { replacements: { scId: contract.id, btId: contract.businessTransactionId || -1 }, type: QueryTypes.SELECT, transaction: t }
+          );
+          if (pcRows && pcRows.length > 0) pcOrigin = pcRows[0].place_of_loading;
+        } catch (e) {}
+
         for (let index = 0; index < dto.shipments.length; index++) {
           const shipment = dto.shipments[index] as any;
           const sNo = shipment.shipmentNo || index + 1;
@@ -661,6 +686,8 @@ export class SalesContractService implements OnModuleInit {
                 shipmentNo: sNo,
                 quantity: finalQty,
                 noOfContainers: finalContainers,
+                origin: pcOrigin || existing.origin,
+                destination: scDest || existing.destination,
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || existing.status || 'Scheduled',
@@ -676,6 +703,8 @@ export class SalesContractService implements OnModuleInit {
                 shipmentNo: sNo,
                 quantity: finalQty,
                 noOfContainers: finalContainers,
+                origin: pcOrigin,
+                destination: scDest,
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || 'Scheduled',
@@ -684,6 +713,14 @@ export class SalesContractService implements OnModuleInit {
             );
             updatedShipmentIds.push(created.id);
           }
+        }
+
+        // Sync destination across all contract shipments if destination was updated
+        if (scDest) {
+          await this.shipmentModel.update(
+            { destination: scDest },
+            { where: { salesContractId: contract.id }, transaction: t },
+          );
         }
 
         const shipmentsToDelete = existingShipments.filter(

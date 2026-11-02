@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import { EnquiriesService } from './enquiries.service';
+import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
 
 describe('EnquiriesService.findAll contract filters', () => {
   const makeService = () => {
@@ -131,6 +132,43 @@ describe('EnquiriesService.findAll contract filters', () => {
           offerAmount: 50,
         }),
       ).toThrow('Currency is required when Offer is entered');
+    });
+  });
+
+  describe('WhatsAppTemplates Annual Sales (Turnover)', () => {
+    it('includes Indian currency formatted turnover in enquiryCreated message', () => {
+      const msg = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-001',
+        customerName: 'ALBERT E JAMES & SON LTD',
+        partnerAnnualTurnover: 5303520,
+        product: 'BLACK MILLET',
+      });
+      expect(msg).toContain('*Customer:* ALBERT E JAMES & SON LTD');
+      expect(msg).toContain('*Annual Sales (Turnover):* ₹ 53,03,520');
+      expect(msg).toContain('*Product:* BLACK MILLET');
+    });
+
+    it('shows N/A when turnover is null or undefined', () => {
+      const msg = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-002',
+        customerName: 'ALBERT E JAMES & SON LTD',
+        partnerAnnualTurnover: null,
+        product: 'BLACK MILLET',
+      });
+      expect(msg).toContain('*Annual Sales (Turnover):* N/A');
+    });
+
+    it('includes updated Annual Sales (Turnover) in enquiryUpdated message when changed', () => {
+      const msg = WhatsAppTemplates.enquiryUpdated({
+        oldEnquiry: {
+          partnerAnnualTurnover: 5303520,
+        },
+        newEnquiry: {
+          enquiryNo: 'ENQ-001',
+          partnerAnnualTurnover: 10000000,
+        },
+      });
+      expect(msg).toContain('*Annual Sales (Turnover):* ₹ 1,00,00,000');
     });
   });
 });

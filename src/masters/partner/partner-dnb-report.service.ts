@@ -40,7 +40,7 @@ export class PartnerDnbReportService {
       include: [
         {
           model: Partner,
-          attributes: ['id', 'yearOfEstablishment', 'entityName'],
+          attributes: ['id', 'yearOfEstablishment', 'entityName', 'annualTurnover'],
         },
       ],
       order: [['createdAt', 'DESC']],
@@ -92,6 +92,13 @@ export class PartnerDnbReportService {
         );
 
         // Create new report with isLatest = true
+        if (dto.annualTurnover !== undefined) {
+          await partner.update(
+            { annualTurnover: Number(dto.annualTurnover) },
+            { transaction },
+          );
+        }
+
         const newReport = await this.dnbReportModel.create(
           {
             partnerId,

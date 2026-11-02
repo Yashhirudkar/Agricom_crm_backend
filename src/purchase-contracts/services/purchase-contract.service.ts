@@ -858,10 +858,22 @@ export class PurchaseContractService {
 
       let enquiryId: string | null = null;
       let enquiry: any = null;
+      let sc: any = null;
 
       if (pc.salesContractId) {
-        const sc = await this.salesContractModel.findByPk(pc.salesContractId, {
-          attributes: ['id', 'enquiryId', 'businessTransactionId'],
+        sc = await this.salesContractModel.findByPk(pc.salesContractId, {
+          attributes: [
+            'id',
+            'enquiryId',
+            'businessTransactionId',
+            'destinationLocationName',
+            'portOfDischarge',
+            'deliveryPlace',
+            'contractType',
+            'originTransportMode',
+            'originCountry',
+            'destinationCountry',
+          ],
         });
         if (sc?.enquiryId) {
           enquiryId = sc.enquiryId;
@@ -953,7 +965,8 @@ export class PurchaseContractService {
           updatedBy: user?.userId,
         });
 
-        // Synchronize Route
+        // Synchronize Route (Origin: PC Place of Loading, Destination: Linked SC Delivery Place)
+        const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || pc.deliveryPlace || '—';
         if (LogisticsRouteModel) {
           const routes = await LogisticsRouteModel.findAll({
             where: { logisticsId: logistics.id },
@@ -962,15 +975,15 @@ export class PurchaseContractService {
             await LogisticsRouteModel.update(
               {
                 origin: pc.placeOfLoading || undefined,
-                destination: pc.deliveryPlace || undefined,
+                destination: scDest !== '—' ? scDest : undefined,
               },
               { where: { logisticsId: logistics.id } },
             );
-          } else if (pc.placeOfLoading || pc.deliveryPlace) {
+          } else if (pc.placeOfLoading || scDest !== '—') {
             await LogisticsRouteModel.create({
               logisticsId: logistics.id,
               origin: pc.placeOfLoading || '—',
-              destination: pc.deliveryPlace || '—',
+              destination: scDest,
             });
           }
         }
@@ -1053,11 +1066,43 @@ export class PurchaseContractService {
         });
 
         if (LogisticsRouteModel) {
+          const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || pc.deliveryPlace || '—';
           await LogisticsRouteModel.create({
             logisticsId: logistics.id,
             origin: pc.placeOfLoading || '—',
-            destination: pc.deliveryPlace || '—',
+            destination: scDest,
           });
+        }
+
+        // Auto Route Source Mapping: update child shipments origin & destination
+        if (pc.placeOfLoading) {
+          try {
+            const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || null;
+            const links = await this.shipmentLinkModel.findAll({
+              where: { purchaseContractId: pc.id },
+              attributes: ['shipmentId'],
+            });
+            const linkedShipmentIds = links.map(l => l.shipmentId);
+            if (linkedShipmentIds.length > 0) {
+              await this.salesShipmentModel.update(
+                {
+                  origin: pc.placeOfLoading,
+                  ...(scDest ? { destination: scDest } : {}),
+                },
+                { where: { id: { [Op.in]: linkedShipmentIds } } },
+              );
+            } else if (pc.salesContractId) {
+              await this.salesShipmentModel.update(
+                {
+                  origin: pc.placeOfLoading,
+                  ...(scDest ? { destination: scDest } : {}),
+                },
+                { where: { salesContractId: pc.salesContractId } },
+              );
+            }
+          } catch (syncErr) {
+            console.warn('Could not sync shipment route fields for PC:', syncErr);
+          }
         }
       }
     } catch (err) {

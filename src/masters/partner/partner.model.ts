@@ -130,6 +130,10 @@ export class Partner extends Model<Partner> {
   @Column({ field: 'financial_status', type: DataType.STRING(100) })
   declare financialStatus: string;
 
+  @AllowNull(true)
+  @Column({ field: 'annual_turnover', type: DataType.DECIMAL(18, 2) })
+  declare annualTurnover: number | null;
+
   @Default(true)
   @AllowNull(false)
   @Column({ field: 'is_active', type: DataType.BOOLEAN })

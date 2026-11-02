@@ -450,7 +450,7 @@ export class PartnerService {
 
     const { rows, count } = await this.partnerModel.findAndCountAll({
       where,
-      attributes: ['id', 'entityName'],
+      attributes: ['id', 'entityName', 'annualTurnover'],
       order: [['entityName', 'ASC']],
       limit,
       offset,
@@ -462,6 +462,8 @@ export class PartnerService {
       data: rows.map((r) => ({
         id: r.id,
         entityName: r.entityName,
+        annualTurnover:
+          r.annualTurnover != null ? Number(r.annualTurnover) : null,
         ...(params.includeContacts && { contacts: r.contacts || [] }),
       })),
       total: count,
@@ -541,6 +543,17 @@ export class PartnerService {
       await this.validateForeignKeys(dto.partnerRoleId, dto.productIds);
     }
 
+    const oldTurnover =
+      partner.annualTurnover != null ? Number(partner.annualTurnover) : null;
+    const newTurnover =
+      dto.annualTurnover !== undefined
+        ? dto.annualTurnover != null
+          ? Number(dto.annualTurnover)
+          : null
+        : undefined;
+    const turnoverChanged =
+      newTurnover !== undefined && newTurnover !== oldTurnover;
+
     await this.sequelize.transaction(async (transaction) => {
       const { contacts, productIds, ...updateData } = dto;
       await partner.update(updateData, { transaction });
@@ -578,6 +591,19 @@ export class PartnerService {
         }
       }
     });
+
+    if (turnoverChanged) {
+      await this.auditService.writeLog({
+        clientId: user?.clientId || null,
+        companyId: user?.companyId || null,
+        userId: user?.userId || null,
+        entityType: 'Partner',
+        entityId: partner.id,
+        action: 'UPDATE',
+        oldValue: { annualTurnover: oldTurnover },
+        newValue: { annualTurnover: newTurnover },
+      });
+    }
 
     return partner.reload({ include: INCLUDE_RELATIONS });
   }

@@ -210,6 +210,10 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'offer_amount', type: DataType.INTEGER })
   declare offerAmount: number | null;
 
+  @AllowNull(true)
+  @Column({ field: 'partner_annual_turnover', type: DataType.DECIMAL(18, 2) })
+  declare partnerAnnualTurnover: number | null;
+
   @AllowNull(false)
   @Default(true)
   @Column({ field: 'potential_enquiry', type: DataType.BOOLEAN })

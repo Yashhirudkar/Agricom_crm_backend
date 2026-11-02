@@ -707,13 +707,31 @@ export class ShipmentService {
     const shipmentIds = rows.map((s) => s.id).filter(Boolean);
     const pcByShipment = new Map<number, Set<string>>();
     const pcBySc = new Map<number, Set<string>>();
+    const pcDataByShipment = new Map<number, any>();
+    const pcDataBySc = new Map<number, any>();
 
     if (shipmentIds.length > 0) {
       try {
         const [directPcRows]: any = await this.sequelize.query(
-          `SELECT pcs.shipment_id, pc.contract_number
+          `SELECT 
+             pcs.shipment_id,
+             pc.id AS pc_id,
+             pc.contract_number,
+             pc.place_of_loading,
+             pc.delivery_place,
+             pc.seller_id,
+             seller.entity_name AS seller_name,
+             COALESCE(pci.product_name, prod.name) AS product_name
            FROM purchase_contract_shipments pcs
            JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+           LEFT JOIN partners seller ON pc.seller_id = seller.id
+           LEFT JOIN LATERAL (
+             SELECT product_id, product_name 
+             FROM purchase_contract_items 
+             WHERE purchase_contract_id = pc.id 
+             ORDER BY id ASC LIMIT 1
+           ) pci ON true
+           LEFT JOIN products prod ON pci.product_id = prod.id
            WHERE pcs.shipment_id IN (:shipmentIds)`,
           {
             replacements: { shipmentIds },
@@ -728,6 +746,9 @@ export class ShipmentService {
             if (!pcByShipment.has(sId)) pcByShipment.set(sId, new Set());
             pcByShipment.get(sId).add(cNum);
           }
+          if (sId && !pcDataByShipment.has(sId)) {
+            pcDataByShipment.set(sId, row);
+          }
         }
       } catch (err) {
         console.warn('Could not batch fetch purchase_contract_shipments:', err);
@@ -737,9 +758,26 @@ export class ShipmentService {
     if (contractIds.length > 0) {
       try {
         const [scPcRows]: any = await this.sequelize.query(
-          `SELECT pc.sales_contract_id, pc.contract_number
+          `SELECT 
+             pc.sales_contract_id,
+             pc.id AS pc_id,
+             pc.contract_number,
+             pc.place_of_loading,
+             pc.delivery_place,
+             pc.seller_id,
+             seller.entity_name AS seller_name,
+             COALESCE(pci.product_name, prod.name) AS product_name
            FROM purchase_contracts pc
-           WHERE pc.sales_contract_id IN (:contractIds)`,
+           LEFT JOIN partners seller ON pc.seller_id = seller.id
+           LEFT JOIN LATERAL (
+             SELECT product_id, product_name 
+             FROM purchase_contract_items 
+             WHERE purchase_contract_id = pc.id 
+             ORDER BY id ASC LIMIT 1
+           ) pci ON true
+           LEFT JOIN products prod ON pci.product_id = prod.id
+           WHERE pc.sales_contract_id IN (:contractIds)
+           ORDER BY pc.updated_at DESC, pc.id DESC`,
           {
             replacements: { contractIds },
           },
@@ -752,6 +790,9 @@ export class ShipmentService {
           if (scId && cNum) {
             if (!pcBySc.has(scId)) pcBySc.set(scId, new Set());
             pcBySc.get(scId).add(cNum);
+          }
+          if (scId && !pcDataBySc.has(scId)) {
+            pcDataBySc.set(scId, row);
           }
         }
       } catch (err) {
@@ -893,6 +934,60 @@ export class ShipmentService {
       json.shipmentRefNo = shipmentRefNo;
       json.salesContractNo = salesContractNo;
       json.purchaseContractNo = purchaseContractNo;
+
+      // Auto Route Source Mapping (Purchase Contract → Sales Contract)
+      const pcData =
+        pcDataByShipment.get(json.id) ||
+        (contractId ? pcDataBySc.get(contractId) : null);
+      const sc = json.salesContract || {};
+
+      // Origin: ALWAYS Purchase Contract → Place of Loading
+      const origin =
+        pcData?.place_of_loading ||
+        json.origin ||
+        sc.originLocationName ||
+        sc.portOfLoading ||
+        '—';
+
+      // Destination: ALWAYS Linked Sales Contract → Delivery Place
+      const destination =
+        sc.destinationLocationName ||
+        sc.portOfDischarge ||
+        sc.deliveryPlace ||
+        pcData?.delivery_place ||
+        json.destination ||
+        '—';
+
+      // Commodity: Purchase Contract
+      const commodity =
+        pcData?.product_name ||
+        contractItems[0]?.product?.name ||
+        '—';
+
+      // Buyer: Sales Contract
+      const buyer = sc.buyer?.entityName || '—';
+
+      // Supplier: Purchase Contract
+      const supplier = pcData?.seller_name || '—';
+
+      json.origin = origin;
+      json.destination = destination;
+      json.commodity = commodity;
+      json.buyer = buyer;
+      json.supplier = supplier;
+      json.route = `${origin} ➔ ${destination}`;
+
+      if (pcData) {
+        json.purchaseContract = {
+          id: pcData.pc_id,
+          contractNumber: pcData.contract_number,
+          placeOfLoading: pcData.place_of_loading,
+          deliveryPlace: pcData.delivery_place,
+          sellerId: pcData.seller_id,
+          sellerName: pcData.seller_name,
+          productName: pcData.product_name,
+        };
+      }
 
       return json;
     });
@@ -1325,6 +1420,89 @@ export class ShipmentService {
     json.isManualOverride = readiness.isManualOverride;
     json.readySource = readiness.readySource;
     json.readinessReasons = readiness.reasons;
+
+    // Auto Route Source Mapping (Purchase Contract → Sales Contract)
+    let pcData: any = null;
+    try {
+      const [pcRows]: any = await this.sequelize.query(
+        `SELECT 
+           pc.id AS pc_id,
+           pc.contract_number,
+           pc.place_of_loading,
+           pc.delivery_place,
+           pc.seller_id,
+           seller.entity_name AS seller_name,
+           COALESCE(pci.product_name, prod.name) AS product_name
+         FROM purchase_contracts pc
+         LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
+         LEFT JOIN partners seller ON pc.seller_id = seller.id
+         LEFT JOIN LATERAL (
+           SELECT product_id, product_name 
+           FROM purchase_contract_items 
+           WHERE purchase_contract_id = pc.id 
+           ORDER BY id ASC LIMIT 1
+         ) pci ON true
+         LEFT JOIN products prod ON pci.product_id = prod.id
+         WHERE pcs.shipment_id = :id
+            OR (pc.sales_contract_id IS NOT NULL AND pc.sales_contract_id = :salesContractId)
+            OR (pc.business_transaction_id IS NOT NULL AND pc.business_transaction_id = :btId)
+         ORDER BY 
+           CASE WHEN pcs.shipment_id = :id THEN 1 ELSE 2 END,
+           pc.updated_at DESC
+         LIMIT 1`,
+        {
+          replacements: {
+            id,
+            salesContractId: shipment.salesContractId || -1,
+            btId: shipment.businessTransactionId || -1,
+          },
+        },
+      );
+      if (pcRows && pcRows.length > 0) {
+        pcData = pcRows[0];
+      }
+    } catch (err) {
+      console.warn('Could not lookup purchase contract for shipment #', id, err);
+    }
+
+    const sc = json.salesContract || {};
+    const origin =
+      pcData?.place_of_loading ||
+      json.origin ||
+      sc.originLocationName ||
+      sc.portOfLoading ||
+      '—';
+    const destination =
+      sc.destinationLocationName ||
+      sc.portOfDischarge ||
+      sc.deliveryPlace ||
+      pcData?.delivery_place ||
+      json.destination ||
+      '—';
+    const commodity =
+      pcData?.product_name ||
+      '—';
+    const buyer = sc.buyer?.entityName || '—';
+    const supplier = pcData?.seller_name || '—';
+
+    json.origin = origin;
+    json.destination = destination;
+    json.commodity = commodity;
+    json.buyer = buyer;
+    json.supplier = supplier;
+    json.route = `${origin} ➔ ${destination}`;
+    if (pcData) {
+      json.purchaseContract = {
+        id: pcData.pc_id,
+        contractNumber: pcData.contract_number,
+        placeOfLoading: pcData.place_of_loading,
+        deliveryPlace: pcData.delivery_place,
+        sellerId: pcData.seller_id,
+        sellerName: pcData.seller_name,
+        productName: pcData.product_name,
+      };
+    }
+
     return json;
   }
 
@@ -1622,14 +1800,42 @@ export class ShipmentService {
       ? Math.round((quantityMt * 1000) / bagSizeKg)
       : 0;
 
+    let pcLoadingPlace: string | null = null;
+    try {
+      const [pcLoadingRows]: any = await this.sequelize.query(
+        `SELECT pc.place_of_loading
+         FROM purchase_contracts pc
+         LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
+         WHERE pcs.shipment_id = :shipmentId
+            OR pc.sales_contract_id = :salesContractId
+         ORDER BY CASE WHEN pcs.shipment_id = :shipmentId THEN 1 ELSE 2 END, pc.updated_at DESC
+         LIMIT 1`,
+        {
+          replacements: {
+            shipmentId,
+            salesContractId: contract.id || -1,
+          },
+        },
+      );
+      if (pcLoadingRows?.[0]?.place_of_loading) {
+        pcLoadingPlace = pcLoadingRows[0].place_of_loading;
+      }
+    } catch (e) {
+      // ignore
+    }
+
     const originPort =
+      pcLoadingPlace ||
+      shipment.origin ||
       contract.portOfLoading ||
       contract.originLocationName ||
       freightQuote?.pol ||
       '—';
     const destPort =
-      contract.portOfDischarge ||
       contract.destinationLocationName ||
+      contract.portOfDischarge ||
+      (contract as any).deliveryPlace ||
+      shipment.destination ||
       freightQuote?.pod ||
       '—';
     const originCountry = contract.originCountry || '—';

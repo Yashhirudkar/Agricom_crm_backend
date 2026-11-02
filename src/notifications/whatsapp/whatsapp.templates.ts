@@ -76,6 +76,26 @@ export class WhatsAppTemplates {
     return !isNaN(num) ? String(num) : String(value);
   }
 
+  private static formatIndianCurrency(
+    value: string | number | null | undefined,
+  ): string {
+    if (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      isNaN(Number(value))
+    ) {
+      return 'N/A';
+    }
+    const num = Number(value);
+    const hasDecimals = num % 1 !== 0;
+    const formatted = num.toLocaleString('en-IN', {
+      minimumFractionDigits: hasDecimals ? 2 : 0,
+      maximumFractionDigits: 2,
+    });
+    return `₹ ${formatted}`;
+  }
+
   // ─── Templates ──────────────────────────────────────────────────────────────
 
   /**
@@ -110,6 +130,12 @@ export class WhatsAppTemplates {
     if (data.brokerName) {
       lines.push(WhatsAppTemplates.line('Broker', data.brokerName));
     }
+    lines.push(
+      WhatsAppTemplates.line(
+        'Annual Sales (Turnover)',
+        WhatsAppTemplates.formatIndianCurrency(data.partnerAnnualTurnover),
+      ),
+    );
     lines.push(WhatsAppTemplates.line('Product', data.product));
     lines.push(WhatsAppTemplates.line('Purity', data.purity));
 
@@ -207,6 +233,12 @@ export class WhatsAppTemplates {
     diff('Customer', oldData.partner?.entityName, newData.partner?.entityName);
     diff('Partner Role', oldData.partnerRole?.name, newData.partnerRole?.name);
     diff('Broker', oldData.broker?.entityName, newData.broker?.entityName);
+    diff(
+      'Annual Sales (Turnover)',
+      oldData.partnerAnnualTurnover,
+      newData.partnerAnnualTurnover,
+      WhatsAppTemplates.formatIndianCurrency,
+    );
     diff('Product', oldData.product?.name, newData.product?.name);
     diff('Packing Type', oldData.packingType?.name, newData.packingType?.name);
     diff('Purity', oldData.purity, newData.purity);
@@ -262,6 +294,7 @@ export class WhatsAppTemplates {
     const mappedNewData: EnquiryNotificationData = {
       enquiryNo: newData.enquiryNo,
       customerName: newData.partner?.entityName,
+      partnerAnnualTurnover: newData.partnerAnnualTurnover,
       product: newData.product?.name,
       purity: newData.purity,
       quantity: newData.quantity,

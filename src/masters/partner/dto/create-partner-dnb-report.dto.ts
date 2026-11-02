@@ -47,4 +47,10 @@ export class CreatePartnerDnbReportDto {
   @IsString()
   @IsIn(['MANUAL', 'DNB_API', 'IMPORT'])
   source?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  annualTurnover?: number;
 }

@@ -55,6 +55,8 @@ export class SalesContractsModule implements OnModuleInit {
       `);
       await this.sequelize.query(`
         ALTER TABLE sales_contract_shipments
+        ADD COLUMN IF NOT EXISTS origin VARCHAR(255) NULL,
+        ADD COLUMN IF NOT EXISTS destination VARCHAR(255) NULL,
         ADD COLUMN IF NOT EXISTS manual_ready_override BOOLEAN NULL,
         ADD COLUMN IF NOT EXISTS manual_ready_by INTEGER NULL,
         ADD COLUMN IF NOT EXISTS manual_ready_at TIMESTAMP WITH TIME ZONE NULL,

@@ -7,6 +7,7 @@ import {
   IsEmail,
   ValidateNested,
   IsArray,
+  IsNumber,
   IsInt,
   ArrayMaxSize,
   Min,
@@ -207,6 +208,16 @@ export class CreatePartnerDto {
   @IsString()
   @MaxLength(100)
   financialStatus?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? null
+      : Number(value),
+  )
+  @IsNumber()
+  @Min(0)
+  annualTurnover?: number | null;
 
   @IsOptional()
   @IsBoolean()

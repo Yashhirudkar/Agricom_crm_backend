@@ -433,7 +433,7 @@ export class EnquiriesService implements OnModuleInit {
     const [partner, broker, partnerRoleName, product, packingType, creator] = await Promise.all([
       normalized.partnerId
         ? this.partnerModel.findByPk(normalized.partnerId, {
-            attributes: ['id', 'entityName'],
+            attributes: ['id', 'entityName', 'annualTurnover'],
           })
         : Promise.resolve(null),
       normalized.brokerId
@@ -466,13 +466,46 @@ export class EnquiriesService implements OnModuleInit {
         : Promise.resolve(null),
     ]);
 
+    // Snapshot Partner Annual Sales (Turnover) at enquiry creation time
     // ── DB transaction ────────────────────────────────────────────────────────
     const enquiry = await this.sequelize.transaction(async (transaction) => {
+      const lockedPartner = normalized.partnerId
+        ? await this.partnerModel.findByPk(normalized.partnerId, {
+            attributes: ['id', 'annualTurnover'],
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+          })
+        : null;
+      const masterTurnover =
+        lockedPartner?.annualTurnover != null &&
+        Number(lockedPartner.annualTurnover) > 0
+          ? Number(lockedPartner.annualTurnover)
+          : null;
+      const submittedTurnover =
+        normalized.partnerAnnualTurnover != null
+          ? Number(normalized.partnerAnnualTurnover)
+          : null;
+      const snapshotTurnover = masterTurnover ?? submittedTurnover;
+
+      if (masterTurnover === null && submittedTurnover !== null) {
+        await lockedPartner?.update(
+          { annualTurnover: submittedTurnover },
+          { transaction },
+        );
+      }
+
       const enquiryNo = await this.generateEnquiryNumber(transaction);
-      return this.enquiryModel.create(
-        { ...normalized, enquiryNo, createdBy: user?.userId, companyId },
+      const enquiry = await this.enquiryModel.create(
+        {
+          ...normalized,
+          partnerAnnualTurnover: snapshotTurnover,
+          enquiryNo,
+          createdBy: user?.userId,
+          companyId,
+        },
         { transaction },
       );
+      return enquiry;
     });
 
     // ── Log First Timeline Event (ENQUIRY_CREATED) ──
@@ -519,6 +552,7 @@ export class EnquiriesService implements OnModuleInit {
         payload: {
           enquiryNo: enquiry.enquiryNo,
           customerName: partner?.entityName || undefined,
+          partnerAnnualTurnover: enquiry.partnerAnnualTurnover,
           product: product?.name || undefined,
           purity: enquiry.purity || undefined,
           quantity:
@@ -733,6 +767,8 @@ export class EnquiriesService implements OnModuleInit {
       roleName: row.partnerRole?.name,
       partnerId: row.partnerId,
       partnerName: row.partner?.entityName,
+      partnerAnnualTurnover:
+        row.partnerAnnualTurnover != null ? +row.partnerAnnualTurnover : null,
       brokerRoleId: row.brokerRoleId ?? null,
       brokerRoleName: row.brokerRole?.name ?? null,
       brokerId: row.brokerId ?? null,
@@ -842,6 +878,9 @@ export class EnquiriesService implements OnModuleInit {
       normalizedDto.closedBy = null;
       normalizedDto.closedAt = null;
     }
+
+    // Preserve partner turnover snapshot — already saved enquiries must never be altered automatically
+    delete (normalizedDto as any).partnerAnnualTurnover;
 
     await this.sequelize.transaction(async (transaction) => {
       await enquiry.update(

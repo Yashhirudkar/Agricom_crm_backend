@@ -387,15 +387,23 @@ export class LogisticsService {
             pc.business_transaction_id,
             pc.shipment_type_id,
             pc.buyer_id,
+            pc.seller_id,
+            seller.entity_name AS seller_name,
             buyer.entity_name AS buyer_name,
             st.name AS shipment_type_name,
             bt.business_reference AS business_reference,
             sc.enquiry_id AS sc_enquiry_id,
+            sc.destination_location_name AS sc_destination_location_name,
+            sc.port_of_discharge AS sc_port_of_discharge,
+            sc.destination_country AS sc_destination_country,
+            sc_buyer.entity_name AS sc_buyer_name,
             pci.product_id AS pci_product_id,
             COALESCE(pci.product_name, prod.name) AS product_name
           FROM purchase_contracts pc
+          LEFT JOIN partners seller ON pc.seller_id = seller.id
           LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
           LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
+          LEFT JOIN partners sc_buyer ON sc.buyer_id = sc_buyer.id
           LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
           LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
           LEFT JOIN LATERAL (
@@ -468,6 +476,16 @@ export class LogisticsService {
         }
       }
 
+      const scDest = matchedPc?.sc_destination_location_name || matchedPc?.sc_port_of_discharge || null;
+      plain.salesContract = matchedPc
+        ? {
+            destinationLocationName: scDest,
+            deliveryPlace: scDest,
+            destinationCountry: matchedPc.sc_destination_country || null,
+            buyerName: matchedPc.sc_buyer_name || null,
+          }
+        : null;
+
       plain.purchaseContract = matchedPc
         ? {
             id: matchedPc.id,
@@ -483,6 +501,8 @@ export class LogisticsService {
             businessReference: matchedPc.business_reference || null,
             buyerId: matchedPc.buyer_id || null,
             buyerName: matchedPc.buyer_name || null,
+            sellerId: matchedPc.seller_id || null,
+            sellerName: matchedPc.seller_name || null,
             productName: matchedPc.product_name || null,
             productId: matchedPc.pci_product_id || null,
             purchaseDate: matchedPc.purchase_date || null,
@@ -873,7 +893,9 @@ export class LogisticsService {
           pc.delivery_place,
           pc.sales_contract_id,
           pc.business_transaction_id,
-          sc.enquiry_id as sc_enquiry_id
+          sc.enquiry_id as sc_enquiry_id,
+          sc.destination_location_name as sc_destination_location_name,
+          sc.port_of_discharge as sc_port_of_discharge
         FROM purchase_contracts pc
         LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
         WHERE (
@@ -926,6 +948,10 @@ export class LogisticsService {
             placeOfLoading: matchedPc.place_of_loading || null,
             loadingCountry: matchedPc.loading_country || null,
             deliveryPlace: matchedPc.delivery_place || null,
+            salesContractDestination:
+              matchedPc.sc_destination_location_name ||
+              matchedPc.sc_port_of_discharge ||
+              null,
           }
         : null;
 
@@ -997,7 +1023,7 @@ export class LogisticsService {
    * Get detail logistics workspace of an enquiry.
    * Auto-creates the Logistics record if missing.
    */
-  async getDetails(enquiryId: string, companyId: number = 1) {
+  async getDetails(enquiryId: string, companyId: number = 1, targetShipmentId?: number) {
     const enquiry = await this.enquiryModel.findOne({
       where: { id: enquiryId, companyId },
       include: [
@@ -1250,7 +1276,7 @@ export class LogisticsService {
     logistics.setDataValue('routes', finalRoutes);
 
     // Look up if a SalesContract exists for this enquiry
-    const salesContract = await this.salesContractModel.findOne({
+    let salesContract = await this.salesContractModel.findOne({
       where: { enquiryId },
       attributes: [
         'id',
@@ -1259,7 +1285,18 @@ export class LogisticsService {
         'originCountry',
         'destinationCountry',
         'originTransportMode',
+        'destinationTransportMode',
+        'originLocationName',
+        'destinationLocationName',
+        'portOfLoading',
+        'portOfDischarge',
         'currencyCode',
+        'buyerId',
+        'sellerId',
+      ],
+      include: [
+        { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+        { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
       ],
     });
 
@@ -1308,12 +1345,15 @@ export class LogisticsService {
              pc.business_transaction_id,
              pc.shipment_type_id,
              pc.buyer_id,
+             pc.seller_id,
+             seller.entity_name AS seller_name,
              buyer.entity_name AS buyer_name,
              st.name AS shipment_type_name,
              bt.business_reference AS business_reference,
              pci.product_id AS pci_product_id,
              COALESCE(pci.product_name, prod.name) AS product_name
            FROM purchase_contracts pc
+           LEFT JOIN partners seller ON pc.seller_id = seller.id
            LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
            LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
            LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
@@ -1350,7 +1390,17 @@ export class LogisticsService {
             productName: pc.product_name || null,
             productId: pc.pci_product_id || null,
             purchaseDate: pc.purchase_date || null,
+            sellerId: pc.seller_id || null,
+            sellerName: pc.seller_name || null,
           };
+          if (!salesContract && pc.sales_contract_id) {
+            salesContract = await this.salesContractModel.findByPk(pc.sales_contract_id, {
+              include: [
+                { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
+                { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+              ],
+            });
+          }
         }
       }
     } catch (err) {
@@ -1363,65 +1413,68 @@ export class LogisticsService {
 
     // ── Load All Shipments for this Purchase Contract / Sales Contract Deal ──
     const shipmentIdSet = new Set<number>();
-    if (shipmentId) shipmentIdSet.add(shipmentId);
-
-    if (purchaseContract?.id) {
-      try {
-        const pcLinks: any[] = await this.sequelize.query(
-          `SELECT shipment_id FROM purchase_contract_shipments WHERE purchase_contract_id = :pcId`,
-          {
-            replacements: { pcId: purchaseContract.id },
-            type: QueryTypes.SELECT,
-          },
-        );
-        for (const row of pcLinks) {
-          const sId = Number(row.shipment_id || row.shipmentId);
-          if (sId) shipmentIdSet.add(sId);
+    if (targetShipmentId) {
+      // When opened for a single shipment execution, scope strictly to that target shipment
+      shipmentIdSet.add(targetShipmentId);
+    } else {
+      if (purchaseContract?.id) {
+        try {
+          const pcLinks: any[] = await this.sequelize.query(
+            `SELECT shipment_id FROM purchase_contract_shipments WHERE purchase_contract_id = :pcId`,
+            {
+              replacements: { pcId: purchaseContract.id },
+              type: QueryTypes.SELECT,
+            },
+          );
+          for (const row of pcLinks) {
+            const sId = Number(row.shipment_id || row.shipmentId);
+            if (sId) shipmentIdSet.add(sId);
+          }
+        } catch (err) {
+          console.warn('Could not query purchase_contract_shipments:', err);
         }
-      } catch (err) {
-        console.warn('Could not query purchase_contract_shipments:', err);
       }
-    }
 
-    if (salesContract?.id) {
-      try {
-        const scShipmentRows = await this.shipmentModel.findAll({
-          where: { salesContractId: salesContract.id },
-          attributes: ['id'],
-        });
-        for (const s of scShipmentRows) {
-          shipmentIdSet.add(s.id);
+      if (salesContract?.id) {
+        try {
+          const scShipmentRows = await this.shipmentModel.findAll({
+            where: { salesContractId: salesContract.id },
+            attributes: ['id'],
+          });
+          for (const s of scShipmentRows) {
+            shipmentIdSet.add(s.id);
+          }
+        } catch (err) {
+          console.warn('Could not query salesContract shipments:', err);
         }
-      } catch (err) {
-        console.warn('Could not query salesContract shipments:', err);
       }
-    }
 
-    if (purchaseContract?.salesContractId) {
-      try {
-        const pcScShipmentRows = await this.shipmentModel.findAll({
-          where: { salesContractId: purchaseContract.salesContractId },
-          attributes: ['id'],
-        });
-        for (const s of pcScShipmentRows) {
-          shipmentIdSet.add(s.id);
+      if (purchaseContract?.salesContractId) {
+        try {
+          const pcScShipmentRows = await this.shipmentModel.findAll({
+            where: { salesContractId: purchaseContract.salesContractId },
+            attributes: ['id'],
+          });
+          for (const s of pcScShipmentRows) {
+            shipmentIdSet.add(s.id);
+          }
+        } catch (err) {
+          console.warn('Could not query purchaseContract.salesContractId shipments:', err);
         }
-      } catch (err) {
-        console.warn('Could not query purchaseContract.salesContractId shipments:', err);
       }
-    }
 
-    if (logistics?.id) {
-      try {
-        const logShipments = await this.shipmentModel.findAll({
-          where: { logisticsId: logistics.id },
-          attributes: ['id'],
-        });
-        for (const s of logShipments) {
-          shipmentIdSet.add(s.id);
+      if (logistics?.id) {
+        try {
+          const logShipments = await this.shipmentModel.findAll({
+            where: { logisticsId: logistics.id },
+            attributes: ['id'],
+          });
+          for (const s of logShipments) {
+            shipmentIdSet.add(s.id);
+          }
+        } catch (err) {
+          console.warn('Could not query logisticsId shipments:', err);
         }
-      } catch (err) {
-        console.warn('Could not query logisticsId shipments:', err);
       }
     }
 
@@ -1436,6 +1489,16 @@ export class LogisticsService {
           ['id', 'ASC'],
         ],
       });
+
+      if (targetShipmentId) {
+        const target = dbShipments.find((s) => s.id === targetShipmentId);
+        if (!target) {
+          throw new NotFoundException(`Selected shipment #${targetShipmentId} not found`);
+        }
+        if (salesContract?.id && target.salesContractId && target.salesContractId !== salesContract.id) {
+          throw new NotFoundException(`Selected shipment #${targetShipmentId} not found in this contract`);
+        }
+      }
 
       // Batch evaluate readiness
       const readinessMap = await this.readinessService.evaluateBatch(dbShipments);
@@ -1466,15 +1529,19 @@ export class LogisticsService {
         quotesByShipment.get(q.shipmentId).push(q.toJSON ? q.toJSON() : q);
       }
 
-      // Default Origin and Destination
+      // Auto Route Source Mapping (Purchase Contract → Sales Contract)
+      // Origin: ALWAYS Purchase Contract → Place of Loading
       const defaultOrigin =
         purchaseContract?.placeOfLoading ||
         enquiry?.loadingPoints?.[0]?.loadingPoint ||
         enquiry?.originPort ||
         enquiry?.originCity ||
         '—';
+      // Destination: ALWAYS Linked Sales Contract → Delivery Place
       const defaultDestination =
-        purchaseContract?.deliveryPlace ||
+        salesContract?.destinationLocationName ||
+        salesContract?.portOfDischarge ||
+        salesContract?.deliveryPlace ||
         enquiry?.destinations?.[0]?.destination ||
         enquiry?.destinationPort ||
         enquiry?.destinationCity ||
@@ -1495,6 +1562,10 @@ export class LogisticsService {
           noOfContainers: s.noOfContainers || 0,
           origin: defaultOrigin,
           destination: defaultDestination,
+          route: `${defaultOrigin} → ${defaultDestination}`,
+          commodity: purchaseContract?.productName || enquiry?.product?.name || '—',
+          buyer: salesContract?.buyer?.entityName || '—',
+          supplier: purchaseContract?.sellerName || '—',
           status: s.status,
           executionStatus: s.executionStatus || 'Pending',
           freight: preferredQuote
@@ -1525,7 +1596,7 @@ export class LogisticsService {
       salesContract: salesContract ? salesContract.toJSON() : null,
       salesContractId: salesContract ? salesContract.id : null,
       salesContractNumber: salesContract ? salesContract.contractNumber : null,
-      shipmentId,
+      shipmentId: targetShipmentId || shipmentId,
       purchaseContract,
       shipments: shipmentsList,
     };

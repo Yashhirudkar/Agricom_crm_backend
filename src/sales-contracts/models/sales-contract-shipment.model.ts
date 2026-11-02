@@ -113,6 +113,14 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   declare status: string;
 
   @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare origin: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare destination: string;
+
+  @AllowNull(true)
   @Column({ field: 'execution_status', type: DataType.STRING(50) })
   declare executionStatus: string | null;
 

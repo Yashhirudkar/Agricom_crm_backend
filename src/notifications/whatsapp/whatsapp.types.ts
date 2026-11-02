@@ -21,6 +21,7 @@ export interface WhatsAppConfig {
 export interface EnquiryNotificationData {
   enquiryNo?: string;
   customerName?: string;
+  partnerAnnualTurnover?: number | string | null;
   product?: string;
   purity?: string;
   quantity?: number | string;

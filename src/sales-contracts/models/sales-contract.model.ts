@@ -169,6 +169,18 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   @Column({ field: 'destination_location_name', type: DataType.STRING(255) })
   declare destinationLocationName: string;
 
+  @Column({
+    type: DataType.VIRTUAL,
+    get() {
+      return (
+        this.getDataValue('destinationLocationName') ||
+        this.getDataValue('portOfDischarge') ||
+        null
+      );
+    },
+  })
+  declare deliveryPlace: string;
+
   @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare remarks: string;

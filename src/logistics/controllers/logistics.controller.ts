@@ -134,9 +134,14 @@ export class LogisticsController {
   // ─── Details Lookup & Auto-Initialization ────────────────────────────────────
   @Get('enquiry/:enquiryId')
   @RequireAnyPermission('logistics:view', 'enquiry:read') // Enquiry users can view logistics in read-only mode
-  async getDetails(@Param('enquiryId') enquiryId: string, @Req() req: any) {
+  async getDetails(
+    @Param('enquiryId') enquiryId: string,
+    @Req() req: any,
+    @Query('shipmentId') shipmentIdQuery?: string,
+  ) {
     const companyId = req.user?.companyId;
-    return this.service.getDetails(enquiryId, companyId);
+    const shipmentId = shipmentIdQuery ? Number(shipmentIdQuery) : undefined;
+    return this.service.getDetails(enquiryId, companyId, shipmentId);
   }
 
   // ─── Add Direct Freight Quote ────────────────────────────────────────────────

@@ -52,12 +52,18 @@ export class PurchaseContractShipmentService {
       },
     });
 
-    // Create links for selected shipmentIds
+    // Create links for selected shipmentIds & sync origin
     for (const sId of ids) {
       await this.linkModel.findOrCreate({
         where: { purchaseContractId, shipmentId: sId },
         defaults: { purchaseContractId, shipmentId: sId } as any,
       });
+      if (contract.placeOfLoading) {
+        await this.shipmentModel.update(
+          { origin: contract.placeOfLoading },
+          { where: { id: sId } },
+        );
+      }
     }
 
     await this.activityService.log(
@@ -120,6 +126,24 @@ export class PurchaseContractShipmentService {
 
     return links.map((link) => {
       const s = link.shipment;
+      const sc: any = s.salesContract || {};
+
+      // Auto Route Source Mapping
+      const origin = contract.placeOfLoading || s.origin || '—';
+      const destination =
+        sc.destinationLocationName ||
+        sc.portOfDischarge ||
+        sc.deliveryPlace ||
+        s.destination ||
+        '—';
+      const commodity =
+        (contract as any).items?.[0]?.productName ||
+        (contract as any).items?.[0]?.product?.name ||
+        sc.items?.[0]?.product?.name ||
+        '—';
+      const supplier = (contract as any).seller?.entityName || '—';
+      const buyer = sc.buyer?.entityName || '—';
+
       const json: any = {
         linkId: link.id,
         shipmentId: s.id,
@@ -134,6 +158,12 @@ export class PurchaseContractShipmentService {
         forex: s.forex,
         status: s.status,
         remarks: s.remarks,
+        origin,
+        destination,
+        route: `${origin} → ${destination}`,
+        commodity,
+        supplier,
+        buyer,
         salesContract: s.salesContract,
         timeline: this.computeTimeline(s.shipmentDate, s.status),
         linkedAt: link.createdAt,
@@ -214,6 +244,13 @@ export class PurchaseContractShipmentService {
       purchaseContractId,
       shipmentId: dto.shipmentId,
     });
+
+    if (contract.placeOfLoading) {
+      await this.shipmentModel.update(
+        { origin: contract.placeOfLoading },
+        { where: { id: dto.shipmentId } },
+      );
+    }
 
     await this.activityService.log(
       purchaseContractId,

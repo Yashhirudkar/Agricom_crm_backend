@@ -133,6 +133,16 @@ export class CreateEnquiryDto {
   offerAmount?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  partnerAnnualTurnover?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  notifyGroup?: boolean;
+
+  @IsOptional()
   @IsBoolean()
   potentialEnquiry?: boolean;
 
