@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsNumber, IsBoolean, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+} from 'class-validator';
 
 export class UpdatePortDto {
   @IsOptional()

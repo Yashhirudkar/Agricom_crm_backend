@@ -78,7 +78,11 @@ export class EnquiryActivityLog extends Model<EnquiryActivityLog> {
   @Column({ field: 'changed_by_user_id', type: DataType.INTEGER })
   declare changedByUserId: number | null;
 
-  @BelongsTo(() => User, { foreignKey: 'changedByUserId', as: 'changedBy', onDelete: 'SET NULL' })
+  @BelongsTo(() => User, {
+    foreignKey: 'changedByUserId',
+    as: 'changedBy',
+    onDelete: 'SET NULL',
+  })
   declare changedBy: User;
 
   @AllowNull(true)
@@ -94,4 +98,3 @@ export class EnquiryActivityLog extends Model<EnquiryActivityLog> {
   @Column({ field: 'created_at' })
   declare createdAt: Date;
 }
-

@@ -77,7 +77,10 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'partner_role_id', type: DataType.INTEGER })
   declare partnerRoleId: number;
 
-  @BelongsTo(() => PartnerRole, { foreignKey: 'partnerRoleId', as: 'partnerRole' })
+  @BelongsTo(() => PartnerRole, {
+    foreignKey: 'partnerRoleId',
+    as: 'partnerRole',
+  })
   declare partnerRole: PartnerRole;
 
   @ForeignKey(() => Partner)
@@ -101,7 +104,10 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'broker_role_id', type: DataType.INTEGER })
   declare brokerRoleId: number | null;
 
-  @BelongsTo(() => PartnerRole, { foreignKey: 'brokerRoleId', as: 'brokerRole' })
+  @BelongsTo(() => PartnerRole, {
+    foreignKey: 'brokerRoleId',
+    as: 'brokerRole',
+  })
   declare brokerRole: PartnerRole;
 
   @ForeignKey(() => Partner)
@@ -246,7 +252,11 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @Column({ field: 'closed_by', type: DataType.INTEGER })
   declare closedBy: number | null;
 
-  @BelongsTo(() => User, { foreignKey: 'closedBy', as: 'closedByUser', onDelete: 'SET NULL' })
+  @BelongsTo(() => User, {
+    foreignKey: 'closedBy',
+    as: 'closedByUser',
+    onDelete: 'SET NULL',
+  })
   declare closedByUser: User;
 
   @AllowNull(true)

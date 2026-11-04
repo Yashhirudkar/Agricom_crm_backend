@@ -23,6 +23,7 @@ import {
   ApproveLeaveDto,
   RejectLeaveDto,
   CancelLeaveDto,
+  CancelApprovedLeaveDto,
 } from '../dto/leave-requests.dto';
 import {
   AttendanceRecord,
@@ -35,6 +36,8 @@ import {
   NotificationType,
 } from '../../notifications/services/notifications.service';
 import { Employee } from '../models/employee.model';
+import { LeaveRequestHandoverUser } from '../models/leave-request-handover-user.model';
+import { Notification } from '../../notifications/models/notification.model';
 import { LeaveCalculationService } from './leave-calculation.service';
 
 /** Safely convert a Sequelize DATEONLY value (string "YYYY-MM-DD" or Date) to "YYYY-MM-DD" string. */
@@ -64,11 +67,63 @@ export class LeaveRequestsWorkflowService {
     private readonly attendanceRecordModel: typeof AttendanceRecord,
     @InjectModel(Employee)
     private readonly employeeModel: typeof Employee,
+    @InjectModel(LeaveRequestHandoverUser)
+    private readonly leaveRequestHandoverUserModel: typeof LeaveRequestHandoverUser,
+    @InjectModel(Notification)
+    private readonly notificationModel: typeof Notification,
     private readonly attendanceGateway: AttendanceGateway,
     private readonly conflictService: AttendanceConflictService,
     private readonly notificationsService: NotificationsService,
     private readonly leaveCalculationService: LeaveCalculationService,
   ) {}
+
+  private async handleHandoverOnLeaveCancelledOrRejected(
+    leaveRequest: LeaveRequest,
+    status: 'rejected' | 'cancelled',
+  ) {
+    try {
+      await this.notificationModel.destroy({
+        where: {
+          referenceType: 'leave_handover',
+          referenceId: leaveRequest.id,
+        },
+      });
+
+      const handoverRecords = await this.leaveRequestHandoverUserModel.findAll({
+        where: { leaveRequestId: leaveRequest.id },
+        attributes: ['userId'],
+      });
+      const recipientIds = handoverRecords.map((h) => h.userId).filter(Boolean);
+
+      if (recipientIds.length > 0) {
+        const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+        const empName = emp
+          ? `${emp.firstName} ${emp.lastName}`.trim()
+          : 'Employee';
+        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
+        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
+
+        await this.notificationsService.createNotification({
+          recipients: recipientIds,
+          type: NotificationType.HR,
+          referenceType: `leave_handover_${status}`,
+          referenceId: leaveRequest.id,
+          title: '🤝 Work Handover Update',
+          payload: {
+            message: `Work handover update: The leave request for ${empName} (${fromDateStr} to ${toDateStr}) has been ${status}. Your handover coverage is no longer required.`,
+            url: `/my-leaves?requestId=${leaveRequest.id}`,
+            entityType: 'LEAVE_REQUEST',
+          },
+          category: 'LEAVE',
+        });
+      }
+    } catch (err) {
+      console.error(
+        `[LeaveRequestsWorkflowService] Failed to update handover on leave ${status}:`,
+        err,
+      );
+    }
+  }
 
   async approveLeave(
     requestId: number,
@@ -439,6 +494,11 @@ export class LeaveRequestsWorkflowService {
 
       await t.commit();
 
+      await this.handleHandoverOnLeaveCancelledOrRejected(
+        leaveRequest,
+        'rejected',
+      );
+
       // Trigger notification to employee on rejection
       try {
         const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
@@ -470,6 +530,187 @@ export class LeaveRequestsWorkflowService {
     }
   }
 
+  async cancelApprovedLeave(
+    requestId: number,
+    companyId: number,
+    dto: CancelApprovedLeaveDto,
+    actor?: any,
+  ): Promise<{ message: string }> {
+    const hasApprovePerm =
+      actor?.hasApprovePermission ||
+      (Array.isArray(actor?.permissions) &&
+        (actor.permissions.includes('leave:approve') ||
+          actor.permissions.includes('leave:approve_leave'))) ||
+      actor?.type === 'super_admin' ||
+      actor?.type === 'client_admin';
+
+    if (!hasApprovePerm) {
+      throw new ForbiddenException(
+        'You do not have permission to cancel an approved leave',
+      );
+    }
+
+    if (!dto.reason || !dto.reason.trim()) {
+      throw new BadRequestException('Cancellation reason is mandatory');
+    }
+
+    const t = await this.leaveRequestModel.sequelize.transaction();
+    let affectedRecords: AttendanceRecord[] = [];
+    try {
+      const leaveRequest = await this.leaveRequestModel.findOne({
+        where: { id: requestId, companyId },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!leaveRequest) throw new NotFoundException('Leave request not found');
+
+      if (leaveRequest.status !== LeaveRequestStatus.APPROVED) {
+        throw new BadRequestException(
+          `Cannot cancel leave with status ${leaveRequest.status}. Only APPROVED leaves can be cancelled using this action.`,
+        );
+      }
+
+      const year = getYearFromDateOnly(leaveRequest.fromDate);
+      const balance = await this.employeeLeaveBalanceModel.findOne({
+        where: {
+          employeeId: leaveRequest.employeeId,
+          leaveTypeId: leaveRequest.leaveTypeId,
+          year,
+        },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      const oldStatus = leaveRequest.status;
+      const now = new Date();
+
+      await leaveRequest.update(
+        {
+          status: LeaveRequestStatus.CANCELLED_AFTER_APPROVAL,
+          cancelledAfterApproval: true,
+          cancelledById: actor?.userId || null,
+          cancelledAt: now,
+          cancellationReason: dto.reason.trim(),
+          previousStatus: oldStatus,
+        },
+        { transaction: t },
+      );
+
+      // Rollback attendance records that were set to ON_LEAVE during approval
+      const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
+      const toDateStr = toDateOnlyStr(leaveRequest.toDate);
+      affectedRecords = await this.attendanceRecordModel.findAll({
+        where: {
+          employeeId: leaveRequest.employeeId,
+          companyId,
+          date: { [Op.between]: [fromDateStr, toDateStr] },
+        },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      for (const record of affectedRecords) {
+        if (record.isPayrollLocked) {
+          throw new ForbiddenException(
+            `Cannot cancel leave: attendance for ${record.date} is already payroll-locked.`,
+          );
+        }
+
+        if (!record.checkInTime) {
+          await record.destroy({ transaction: t });
+        } else {
+          await record.update({ attendanceStatus: null }, { transaction: t });
+        }
+      }
+
+      if (balance) {
+        await balance.update(
+          {
+            usedDays: Number(balance.usedDays) - Number(leaveRequest.totalDays),
+            remainingDays:
+              Number(balance.remainingDays) + Number(leaveRequest.totalDays),
+          },
+          { transaction: t },
+        );
+      }
+
+      await this.leaveApprovalLogModel.create(
+        {
+          leaveRequestId: leaveRequest.id,
+          action: LeaveAction.CANCELLED_AFTER_APPROVAL,
+          performedBy: actor?.userId || null,
+          remarks: dto.reason.trim(),
+        },
+        { transaction: t },
+      );
+
+      await t.commit();
+
+      await this.handleHandoverOnLeaveCancelledOrRejected(
+        leaveRequest,
+        'cancelled',
+      );
+
+      try {
+        const emp = await this.employeeModel.findByPk(leaveRequest.employeeId);
+        if (emp) {
+          const recipients = new Set<number>();
+          if (emp.userId) recipients.add(emp.userId);
+          if (emp.managerId) {
+            const manager = await this.employeeModel.findByPk(emp.managerId);
+            if (manager && manager.userId) {
+              recipients.add(manager.userId);
+            }
+          }
+
+          await this.notificationsService.createNotification({
+            recipients: Array.from(recipients).filter(Boolean),
+            type: NotificationType.HR,
+            referenceType: 'leave_cancelled_after_approval',
+            referenceId: leaveRequest.id,
+            title: '⚠️ Approved Leave Cancelled',
+            payload: {
+              message: `Leave request for ${emp.firstName} ${emp.lastName} from ${toDateOnlyStr(leaveRequest.fromDate)} to ${toDateOnlyStr(leaveRequest.toDate)} has been cancelled after approval. Reason: ${dto.reason.trim()}`,
+              url: '/attendance/leave-approvals',
+            },
+            category: 'LEAVE',
+          });
+        }
+      } catch (notifErr) {
+        console.error(
+          '[LeaveRequestsWorkflowService] Failed to send cancel approved leave notification:',
+          notifErr,
+        );
+      }
+
+      // Dispatch real-time socket event for manager approvals and employee views
+      this.attendanceGateway.server.emit('leave:cancelled_after_approval', {
+        leaveRequestId: leaveRequest.id,
+        cancelledAt: now,
+        cancelledByName: actor?.name || 'HR Manager',
+        cancellationReason: dto.reason.trim(),
+      });
+
+      if (affectedRecords && affectedRecords.length > 0) {
+        for (const record of affectedRecords) {
+          try {
+            this.attendanceGateway.emitAttendanceUpdate(
+              'leave_cancelled',
+              record,
+            );
+          } catch (err) {
+            console.error('Socket emit error in cancelApprovedLeave:', err);
+          }
+        }
+      }
+
+      return { message: 'Approved leave request cancelled successfully' };
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+  }
+
   async cancelLeave(
     requestId: number,
     companyId: number,
@@ -478,7 +719,7 @@ export class LeaveRequestsWorkflowService {
     actor?: any,
   ): Promise<{ message: string }> {
     const t = await this.leaveRequestModel.sequelize.transaction();
-    let affectedRecords: AttendanceRecord[] = [];
+    const affectedRecords: AttendanceRecord[] = [];
     try {
       const leaveRequest = await this.leaveRequestModel.findOne({
         where: { id: requestId, companyId, employeeId },
@@ -489,10 +730,38 @@ export class LeaveRequestsWorkflowService {
 
       if (
         leaveRequest.status === LeaveRequestStatus.REJECTED ||
-        leaveRequest.status === LeaveRequestStatus.CANCELLED
+        leaveRequest.status === LeaveRequestStatus.CANCELLED ||
+        leaveRequest.status === LeaveRequestStatus.CANCELLED_AFTER_APPROVAL
       ) {
         throw new BadRequestException(
           `Leave request is already ${leaveRequest.status}`,
+        );
+      }
+
+      if (leaveRequest.status === LeaveRequestStatus.APPROVED) {
+        const hasApprovePerm =
+          actor?.hasApprovePermission ||
+          (Array.isArray(actor?.permissions) &&
+            (actor.permissions.includes('leave:approve') ||
+              actor.permissions.includes('leave:approve_leave'))) ||
+          actor?.type === 'super_admin' ||
+          actor?.type === 'client_admin';
+
+        if (!hasApprovePerm) {
+          await t.rollback();
+          throw new ForbiddenException(
+            'Only users with leave approve permission can cancel an approved leave',
+          );
+        }
+        await t.rollback();
+        if (!dto.reason || !dto.reason.trim()) {
+          throw new BadRequestException('Cancellation reason is mandatory');
+        }
+        return this.cancelApprovedLeave(
+          requestId,
+          companyId,
+          { reason: dto.reason.trim() },
+          actor,
         );
       }
 
@@ -514,64 +783,16 @@ export class LeaveRequestsWorkflowService {
         { transaction: t },
       );
 
-      // Rollback attendance records that were set to ON_LEAVE during approval
-      if (oldStatus === LeaveRequestStatus.APPROVED) {
-        const fromDateStr = toDateOnlyStr(leaveRequest.fromDate);
-        const toDateStr = toDateOnlyStr(leaveRequest.toDate);
-        affectedRecords = await this.attendanceRecordModel.findAll({
-          where: {
-            employeeId: leaveRequest.employeeId,
-            companyId,
-            date: { [Op.between]: [fromDateStr, toDateStr] },
-          },
-          transaction: t,
-          lock: t.LOCK.UPDATE,
-        });
-
-        for (const record of affectedRecords) {
-          // Hard payroll lock: cannot mutate finalized records
-          if (record.isPayrollLocked) {
-            throw new ForbiddenException(
-              `Cannot cancel leave: attendance for ${record.date} is already payroll-locked.`,
-            );
-          }
-
-          if (!record.checkInTime) {
-            // Case 1: Employee never checked in — DELETE placeholder entirely.
-            // The dynamic engine (cron / monthly report) will re-evaluate as
-            // HOLIDAY, WEEK_OFF, or ABSENT when the day ends.
-            await record.destroy({ transaction: t });
-          } else {
-            // Case 2: Employee already checked in (or is actively WORKING).
-            // Reset status to null so checkout calculates the real final status.
-            // Do NOT force ABSENT — they may still check out later today.
-            await record.update({ attendanceStatus: null }, { transaction: t });
-          }
-        }
-      }
-
       if (balance) {
-        if (oldStatus === LeaveRequestStatus.PENDING) {
-          await balance.update(
-            {
-              pendingDays:
-                Number(balance.pendingDays) - Number(leaveRequest.totalDays),
-              remainingDays:
-                Number(balance.remainingDays) + Number(leaveRequest.totalDays),
-            },
-            { transaction: t },
-          );
-        } else if (oldStatus === LeaveRequestStatus.APPROVED) {
-          await balance.update(
-            {
-              usedDays:
-                Number(balance.usedDays) - Number(leaveRequest.totalDays),
-              remainingDays:
-                Number(balance.remainingDays) + Number(leaveRequest.totalDays),
-            },
-            { transaction: t },
-          );
-        }
+        await balance.update(
+          {
+            pendingDays:
+              Number(balance.pendingDays) - Number(leaveRequest.totalDays),
+            remainingDays:
+              Number(balance.remainingDays) + Number(leaveRequest.totalDays),
+          },
+          { transaction: t },
+        );
       }
 
       await this.leaveApprovalLogModel.create(
@@ -585,6 +806,11 @@ export class LeaveRequestsWorkflowService {
       );
 
       await t.commit();
+
+      await this.handleHandoverOnLeaveCancelledOrRejected(
+        leaveRequest,
+        'cancelled',
+      );
 
       // Trigger notification on cancellation
       try {
@@ -727,7 +953,14 @@ export class LeaveRequestsWorkflowService {
         );
       }
 
-      // Emit updates
+      // Dispatch real-time socket event for manager approvals and employee views
+      this.attendanceGateway.server.emit('leave:cancelled', {
+        leaveRequestId: leaveRequest.id,
+        cancelledAt: new Date(),
+        cancelledByName: actor?.name || 'Employee',
+        cancellationReason: dto.reason || 'Cancelled by employee',
+      });
+
       if (affectedRecords && affectedRecords.length > 0) {
         for (const record of affectedRecords) {
           try {

@@ -24,6 +24,7 @@ import {
   ApproveLeaveDto,
   RejectLeaveDto,
   CancelLeaveDto,
+  CancelApprovedLeaveDto,
   GetLeaveRequestsFilterDto,
   GetPaginatedLeaveRequestsDto,
 } from '../dto/leave-requests.dto';
@@ -124,6 +125,22 @@ export class LeaveRequestsController {
       ...query,
       employeeId,
     });
+  }
+
+  @Get('handover-employees')
+  @RequirePermission('leave:create')
+  async getHandoverEmployees(@Request() req, @Query('search') search?: string) {
+    const companyId = req.user.companyId;
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
+    const currentUserId = req.user.userId || req.user.sub || null;
+    const currentEmployeeId = req.user.employeeId || null;
+    return this.leaveRequestsService.getHandoverEmployees(
+      companyId,
+      currentUserId,
+      currentEmployeeId,
+      search,
+    );
   }
 
   @Get('dashboard/summary')
@@ -280,6 +297,25 @@ export class LeaveRequestsController {
       id,
       companyId,
       approverId,
+      dto,
+      actor,
+    );
+  }
+
+  @Put(':id/cancel-approved')
+  @RequirePermission('leave:approve')
+  async cancelApprovedLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelApprovedLeaveDto,
+    @Request() req,
+  ) {
+    const companyId = req.user.companyId;
+    if (!companyId)
+      throw new BadRequestException('Company context is required');
+    const actor = this.getActor(req);
+    return this.leaveRequestsService.cancelApprovedLeave(
+      id,
+      companyId,
       dto,
       actor,
     );

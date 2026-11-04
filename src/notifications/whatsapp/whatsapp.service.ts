@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { WhatsAppConfig } from './whatsapp.types';
 import { Company } from '../../companies/models/company.model';
 import { NotificationLog } from '../models/notification-log.model';
+import type { GroupMetadata } from '@whiskeysockets/baileys';
 
 // Baileys is ESM-only — always imported dynamically at runtime
 type WASocket = any;
@@ -206,10 +207,13 @@ export class WhatsAppService
 
             const senderJid = msg.key?.remoteJid;
             const messageId = msg.key?.id;
-            const stanzaId = msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
+            const stanzaId =
+              msg.message?.extendedTextMessage?.contextInfo?.stanzaId;
             const quotedText =
-              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation ||
-              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text ||
+              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
+                ?.conversation ||
+              msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
+                ?.extendedTextMessage?.text ||
               '';
 
             this.eventEmitter.emit('whatsapp.message.received', {
@@ -218,11 +222,15 @@ export class WhatsAppService
               messageId,
               stanzaId,
               quotedText,
-              timestamp: msg.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000) : new Date(),
+              timestamp: msg.messageTimestamp
+                ? new Date(Number(msg.messageTimestamp) * 1000)
+                : new Date(),
             });
           }
         } catch (err: any) {
-          this.logger.error('[WhatsApp] Incoming message error: ' + err?.message);
+          this.logger.error(
+            '[WhatsApp] Incoming message error: ' + err?.message,
+          );
         }
       });
 
@@ -418,7 +426,7 @@ export class WhatsAppService
 
     try {
       const groups = await this.sock.groupFetchAllParticipating();
-      const entries = Object.values(groups) as any[];
+      const entries = Object.values(groups) as GroupMetadata[];
       const match = entries.find(
         (g) =>
           g.subject?.toLowerCase().trim() === groupName.toLowerCase().trim(),

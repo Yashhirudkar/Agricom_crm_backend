@@ -114,7 +114,9 @@ export class EnquiriesService implements OnModuleInit {
       `);
       this.logger.log('Enquiries broker columns verified/added successfully.');
     } catch (err: any) {
-      this.logger.warn(`Could not verify/add broker columns to enquiries: ${err?.message}`);
+      this.logger.warn(
+        `Could not verify/add broker columns to enquiries: ${err?.message}`,
+      );
     }
   }
 
@@ -199,7 +201,9 @@ export class EnquiriesService implements OnModuleInit {
         where: { id: brokerRoleId, isActive: true, companyId },
       });
       if (!role)
-        throw new BadRequestException('Broker Partner Role not found or inactive');
+        throw new BadRequestException(
+          'Broker Partner Role not found or inactive',
+        );
     }
     if (brokerId) {
       const broker = await this.partnerModel.findOne({
@@ -254,13 +258,22 @@ export class EnquiriesService implements OnModuleInit {
       payload.bidCurrency = payload.bidCurrency.trim().toUpperCase();
     }
 
-    if (payload.offer_amount !== undefined && payload.offerAmount === undefined) {
+    if (
+      payload.offer_amount !== undefined &&
+      payload.offerAmount === undefined
+    ) {
       payload.offerAmount = payload.offer_amount;
     }
-    if (payload.bid_amount !== undefined && payload.buyingInterest === undefined) {
+    if (
+      payload.bid_amount !== undefined &&
+      payload.buyingInterest === undefined
+    ) {
       payload.buyingInterest = payload.bid_amount;
     }
-    if (payload.bidAmount !== undefined && payload.buyingInterest === undefined) {
+    if (
+      payload.bidAmount !== undefined &&
+      payload.buyingInterest === undefined
+    ) {
       payload.buyingInterest = payload.bidAmount;
     }
 
@@ -430,41 +443,44 @@ export class EnquiriesService implements OnModuleInit {
     // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
     // Pre-fetch relation names outside the transaction to keep it short
-    const [partner, broker, partnerRoleName, product, packingType, creator] = await Promise.all([
-      normalized.partnerId
-        ? this.partnerModel.findByPk(normalized.partnerId, {
-            attributes: ['id', 'entityName', 'annualTurnover'],
-          })
-        : Promise.resolve(null),
-      normalized.brokerId
-        ? this.partnerModel.findByPk(normalized.brokerId, {
-            attributes: ['id', 'entityName'],
-          })
-        : Promise.resolve(null),
-      normalized.partnerRoleId
-        ? this.partnerRoleModel.findByPk(normalized.partnerRoleId, {
-            attributes: ['id', 'name'],
-          }).then((r: any) => r?.name || null)
-        : Promise.resolve(null),
-      normalized.productId
-        ? this.productModel.findByPk(normalized.productId, {
-            attributes: ['id', 'name'],
-          })
-        : Promise.resolve(null),
-      normalized.packingTypeId
-        ? this.packingTypeModel.findByPk(normalized.packingTypeId, {
-            attributes: ['id', 'name'],
-          })
-        : Promise.resolve(null),
-      user?.userId
-        ? this.sequelize
-            .query('SELECT name FROM users WHERE id = ?', {
-              replacements: [user.userId],
-              type: QueryTypes.SELECT,
+    const [partner, broker, partnerRoleName, product, packingType, creator] =
+      await Promise.all([
+        normalized.partnerId
+          ? this.partnerModel.findByPk(normalized.partnerId, {
+              attributes: ['id', 'entityName', 'annualTurnover'],
             })
-            .then((res: any) => res[0])
-        : Promise.resolve(null),
-    ]);
+          : Promise.resolve(null),
+        normalized.brokerId
+          ? this.partnerModel.findByPk(normalized.brokerId, {
+              attributes: ['id', 'entityName'],
+            })
+          : Promise.resolve(null),
+        normalized.partnerRoleId
+          ? this.partnerRoleModel
+              .findByPk(normalized.partnerRoleId, {
+                attributes: ['id', 'name'],
+              })
+              .then((r: any) => r?.name || null)
+          : Promise.resolve(null),
+        normalized.productId
+          ? this.productModel.findByPk(normalized.productId, {
+              attributes: ['id', 'name'],
+            })
+          : Promise.resolve(null),
+        normalized.packingTypeId
+          ? this.packingTypeModel.findByPk(normalized.packingTypeId, {
+              attributes: ['id', 'name'],
+            })
+          : Promise.resolve(null),
+        user?.userId
+          ? this.sequelize
+              .query('SELECT name FROM users WHERE id = ?', {
+                replacements: [user.userId],
+                type: QueryTypes.SELECT,
+              })
+              .then((res: any) => res[0])
+          : Promise.resolve(null),
+      ]);
 
     // Snapshot Partner Annual Sales (Turnover) at enquiry creation time
     // ── DB transaction ────────────────────────────────────────────────────────
@@ -518,7 +534,9 @@ export class EnquiriesService implements OnModuleInit {
         user,
       })
       .catch((err) =>
-        this.logger.error(`[Activity] Failed to log ENQUIRY_CREATED for ${enquiry.enquiryNo}: ${err?.message}`),
+        this.logger.error(
+          `[Activity] Failed to log ENQUIRY_CREATED for ${enquiry.enquiryNo}: ${err?.message}`,
+        ),
       );
 
     // ── Fire-and-forget notification ──────────────────────────────────────────
@@ -868,11 +886,16 @@ export class EnquiriesService implements OnModuleInit {
     // Apply normalization to actual delta properties for DB update
     const normalizedDto = this.normalizeLogisticsPayload(dto);
     if (normalizedDto.status === EnquiryStatus.CLOSED) {
-      normalizedDto.closureReason = normalizedDto.closureReason || (dto as any).closureReason || null;
-      normalizedDto.closureRemark = normalizedDto.closureRemark || (dto as any).closureRemark || null;
+      normalizedDto.closureReason =
+        normalizedDto.closureReason || (dto as any).closureReason || null;
+      normalizedDto.closureRemark =
+        normalizedDto.closureRemark || (dto as any).closureRemark || null;
       normalizedDto.closedBy = user?.userId || null;
       normalizedDto.closedAt = new Date();
-    } else if (normalizedDto.status && normalizedDto.status !== EnquiryStatus.CLOSED) {
+    } else if (
+      normalizedDto.status &&
+      normalizedDto.status !== EnquiryStatus.CLOSED
+    ) {
       normalizedDto.closureReason = null;
       normalizedDto.closureRemark = null;
       normalizedDto.closedBy = null;
@@ -880,7 +903,7 @@ export class EnquiriesService implements OnModuleInit {
     }
 
     // Preserve partner turnover snapshot — already saved enquiries must never be altered automatically
-    delete (normalizedDto as any).partnerAnnualTurnover;
+    delete normalizedDto.partnerAnnualTurnover;
 
     await this.sequelize.transaction(async (transaction) => {
       await enquiry.update(
@@ -905,11 +928,16 @@ export class EnquiriesService implements OnModuleInit {
     await this.enquiryActivityService
       .logPriceChange(id, oldEnquiryData, normalizedDto, user)
       .catch((err) =>
-        this.logger.error(`[Activity] Failed to log price change for ${id}: ${err?.message}`),
+        this.logger.error(
+          `[Activity] Failed to log price change for ${id}: ${err?.message}`,
+        ),
       );
 
     // ── Log Status Changes ──
-    if (normalizedDto.status && normalizedDto.status !== oldEnquiryData.status) {
+    if (
+      normalizedDto.status &&
+      normalizedDto.status !== oldEnquiryData.status
+    ) {
       await this.enquiryActivityService
         .createActivity({
           enquiryId: id,
@@ -922,7 +950,9 @@ export class EnquiriesService implements OnModuleInit {
           },
         })
         .catch((err) =>
-          this.logger.error(`[Activity] Failed to log status change for ${id}: ${err?.message}`),
+          this.logger.error(
+            `[Activity] Failed to log status change for ${id}: ${err?.message}`,
+          ),
         );
     }
 
@@ -1179,5 +1209,4 @@ export class EnquiriesService implements OnModuleInit {
   async getPriceHistory(id: string) {
     return this.enquiryActivityService.getPriceHistory(id);
   }
-
 }

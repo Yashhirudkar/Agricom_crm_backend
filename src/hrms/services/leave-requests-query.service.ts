@@ -20,6 +20,7 @@ import { Employee } from '../models/employee.model';
 import { Department } from '../../companies/models/department.model';
 import { Designation } from '../models/designation.model';
 import { User } from '../../users/models/user.model';
+import { LeaveRequestHandoverUser } from '../models/leave-request-handover-user.model';
 import { GetLeaveRequestsFilterDto } from '../dto/leave-requests.dto';
 
 /** ------------------------------------------------------------------ *
@@ -95,7 +96,18 @@ export class LeaveRequestsQueryService {
   ): Promise<{ data: any[]; meta: any }> {
     const where: any = { companyId };
     if (query.employeeId) where.employeeId = query.employeeId;
-    if (query.status) where.status = query.status;
+    if (query.status) {
+      if (query.status === 'CANCELLED') {
+        where.status = {
+          [Op.in]: [
+            LeaveRequestStatus.CANCELLED,
+            LeaveRequestStatus.CANCELLED_AFTER_APPROVAL,
+          ],
+        };
+      } else {
+        where.status = query.status;
+      }
+    }
     if (query.leaveTypeId) where.leaveTypeId = query.leaveTypeId;
 
     // Date range filter
@@ -198,6 +210,32 @@ export class LeaveRequestsQueryService {
             },
           ],
         },
+        {
+          model: User,
+          as: 'cancelledByUser',
+          attributes: ['id', 'name', 'email'],
+          required: false,
+        },
+        {
+          model: LeaveRequestHandoverUser,
+          as: 'handoverUsers',
+          required: false,
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email'],
+              include: [
+                {
+                  model: Employee,
+                  as: 'employee',
+                  attributes: ['id', 'firstName', 'lastName'],
+                  required: false,
+                },
+              ],
+            },
+          ],
+        },
       ],
       order: [['createdAt', 'DESC']],
       distinct: true,
@@ -210,32 +248,66 @@ export class LeaveRequestsQueryService {
       let approverId = null;
       let approvedAt = null;
 
-      if (
-        plainRow.status === LeaveRequestStatus.APPROVED ||
-        plainRow.status === LeaveRequestStatus.REJECTED
-      ) {
-        // Source of truth for WHO actually performed the action is the Audit Log
-        // because Super Admins might override a step assigned to an Employee.
-        const actionLog = plainRow.approvalLogs?.find(
-          (log: any) => log.action === 'APPROVED' || log.action === 'REJECTED',
+      // Extract approval log
+      const approvalLog = plainRow.approvalLogs?.find(
+        (log: any) => log.action === 'APPROVED',
+      );
+      if (approvalLog) {
+        approverId = approvalLog.performedBy;
+        approvedAt = approvalLog.createdAt;
+        approverName = approvalLog.performer?.name || 'Former User';
+      } else if (plainRow.status === LeaveRequestStatus.REJECTED) {
+        const rejectLog = plainRow.approvalLogs?.find(
+          (log: any) => log.action === 'REJECTED',
         );
-
-        if (actionLog) {
-          approverId = actionLog.performedBy;
-          approvedAt = actionLog.createdAt; // The time the log was created is the exact approval time
-          if (actionLog.performer) {
-            approverName = actionLog.performer.name;
-          } else {
-            approverName = 'Former User';
-          }
+        if (rejectLog) {
+          approverId = rejectLog.performedBy;
+          approvedAt = rejectLog.createdAt;
+          approverName = rejectLog.performer?.name || 'Former User';
         }
       }
 
+      let cancelledByName = plainRow.cancelledByUser?.name || null;
+      let cancelledAt = plainRow.cancelledAt || null;
+      let cancellationReason = plainRow.cancellationReason || null;
+
+      if (
+        !cancelledByName &&
+        (plainRow.status === LeaveRequestStatus.CANCELLED_AFTER_APPROVAL ||
+          plainRow.status === LeaveRequestStatus.CANCELLED)
+      ) {
+        const cancelLog = plainRow.approvalLogs?.find(
+          (log: any) =>
+            log.action === 'CANCELLED_AFTER_APPROVAL' ||
+            log.action === 'CANCELLED',
+        );
+        if (cancelLog) {
+          if (cancelLog.performer?.name)
+            cancelledByName = cancelLog.performer.name;
+          if (!cancelledAt) cancelledAt = cancelLog.createdAt;
+          if (!cancellationReason) cancellationReason = cancelLog.remarks;
+        }
+      }
+
+      const handoverUsers = (plainRow.handoverUsers || []).map((hu: any) => ({
+        id: hu.id,
+        userId: hu.userId,
+        name: hu.user?.employee?.firstName
+          ? `${hu.user.employee.firstName} ${hu.user.employee.lastName || ''}`.trim()
+          : hu.user?.name || `User #${hu.userId}`,
+        email: hu.user?.email || null,
+      }));
+
       return {
         ...plainRow,
+        handoverUsers,
         approverId,
         approverName,
         approvedAt,
+        cancelledByName,
+        cancelledBy: cancelledByName || plainRow.cancelledById,
+        cancelledAt,
+        cancellationReason,
       };
     });
 
@@ -273,6 +345,32 @@ export class LeaveRequestsQueryService {
           ],
         },
         { model: LeaveApprovalLog, as: 'logs' },
+        {
+          model: User,
+          as: 'cancelledByUser',
+          attributes: ['id', 'name', 'email'],
+          required: false,
+        },
+        {
+          model: LeaveRequestHandoverUser,
+          as: 'handoverUsers',
+          required: false,
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email'],
+              include: [
+                {
+                  model: Employee,
+                  as: 'employee',
+                  attributes: ['id', 'firstName', 'lastName'],
+                  required: false,
+                },
+              ],
+            },
+          ],
+        },
       ],
       order: [
         [{ model: LeaveApprovalLog, as: 'logs' } as any, 'createdAt', 'DESC'],
@@ -610,7 +708,7 @@ export class LeaveRequestsQueryService {
    * Returns a page of leave requests using keyset / cursor pagination.
    *
    * - PENDING tab  → status = 'PENDING'
-   * - HISTORY tab  → status IN ('APPROVED', 'REJECTED', 'CANCELLED')
+   * - HISTORY tab  → status IN ('APPROVED', 'REJECTED', 'CANCELLED', 'CANCELLED_AFTER_APPROVAL')
    *
    * Ordering is always:  createdAt DESC, id DESC
    * Max page size:       50   (server-enforced)
@@ -641,6 +739,7 @@ export class LeaveRequestsQueryService {
           LeaveRequestStatus.APPROVED,
           LeaveRequestStatus.REJECTED,
           LeaveRequestStatus.CANCELLED,
+          LeaveRequestStatus.CANCELLED_AFTER_APPROVAL,
         ],
       };
     }
@@ -689,6 +788,11 @@ export class LeaveRequestsQueryService {
         'attachmentPath',
         'mimeType',
         'rejectedReason',
+        'cancelledAfterApproval',
+        'cancelledById',
+        'cancelledAt',
+        'cancellationReason',
+        'previousStatus',
         'createdAt',
         'updatedAt',
       ],
@@ -721,6 +825,32 @@ export class LeaveRequestsQueryService {
             },
           ],
         },
+        {
+          model: User,
+          as: 'cancelledByUser',
+          attributes: ['id', 'name'],
+          required: false,
+        },
+        {
+          model: LeaveRequestHandoverUser,
+          as: 'handoverUsers',
+          required: false,
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email'],
+              include: [
+                {
+                  model: Employee,
+                  as: 'employee',
+                  attributes: ['id', 'firstName', 'lastName'],
+                  required: false,
+                },
+              ],
+            },
+          ],
+        },
       ],
       // Stable deterministic order — matches partial index columns
       order: [
@@ -740,24 +870,82 @@ export class LeaveRequestsQueryService {
       let approverId: number | null = null;
       let approvedAt: string | null = null;
 
-      if (
-        plain.status === LeaveRequestStatus.APPROVED ||
-        plain.status === LeaveRequestStatus.REJECTED
-      ) {
-        const actionLog = plain.approvalLogs?.find(
-          (log: any) => log.action === 'APPROVED' || log.action === 'REJECTED',
+      // Extract approval log
+      const approvalLog = plain.approvalLogs?.find(
+        (log: any) => log.action === 'APPROVED',
+      );
+      if (approvalLog) {
+        approverId = approvalLog.performedBy;
+        approvedAt =
+          approvalLog.createdAt instanceof Date
+            ? approvalLog.createdAt.toISOString()
+            : String(approvalLog.createdAt);
+        approverName = approvalLog.performer?.name ?? 'Former User';
+      } else if (plain.status === LeaveRequestStatus.REJECTED) {
+        const rejectLog = plain.approvalLogs?.find(
+          (log: any) => log.action === 'REJECTED',
         );
-        if (actionLog) {
-          approverId = actionLog.performedBy;
+        if (rejectLog) {
+          approverId = rejectLog.performedBy;
           approvedAt =
-            actionLog.createdAt instanceof Date
-              ? actionLog.createdAt.toISOString()
-              : String(actionLog.createdAt);
-          approverName = actionLog.performer?.name ?? 'Former User';
+            rejectLog.createdAt instanceof Date
+              ? rejectLog.createdAt.toISOString()
+              : String(rejectLog.createdAt);
+          approverName = rejectLog.performer?.name ?? 'Former User';
         }
       }
 
-      return { ...plain, approverId, approverName, approvedAt };
+      let cancelledByName: string | null = plain.cancelledByUser?.name || null;
+      let cancelledAt: string | null = plain.cancelledAt
+        ? plain.cancelledAt instanceof Date
+          ? plain.cancelledAt.toISOString()
+          : String(plain.cancelledAt)
+        : null;
+      let cancellationReason: string | null = plain.cancellationReason || null;
+
+      if (
+        !cancelledByName &&
+        (plain.status === LeaveRequestStatus.CANCELLED_AFTER_APPROVAL ||
+          plain.status === LeaveRequestStatus.CANCELLED)
+      ) {
+        const cancelLog = plain.approvalLogs?.find(
+          (log: any) =>
+            log.action === 'CANCELLED_AFTER_APPROVAL' ||
+            log.action === 'CANCELLED',
+        );
+        if (cancelLog) {
+          if (cancelLog.performer?.name)
+            cancelledByName = cancelLog.performer.name;
+          if (!cancelledAt && cancelLog.createdAt) {
+            cancelledAt =
+              cancelLog.createdAt instanceof Date
+                ? cancelLog.createdAt.toISOString()
+                : String(cancelLog.createdAt);
+          }
+          if (!cancellationReason) cancellationReason = cancelLog.remarks;
+        }
+      }
+
+      const handoverUsers = (plain.handoverUsers || []).map((hu: any) => ({
+        id: hu.id,
+        userId: hu.userId,
+        name: hu.user?.employee?.firstName
+          ? `${hu.user.employee.firstName} ${hu.user.employee.lastName || ''}`.trim()
+          : hu.user?.name || `User #${hu.userId}`,
+        email: hu.user?.email || null,
+      }));
+
+      return {
+        ...plain,
+        handoverUsers,
+        approverId,
+        approverName,
+        approvedAt,
+        cancelledByName,
+        cancelledBy: cancelledByName || plain.cancelledById,
+        cancelledAt,
+        cancellationReason,
+      };
     });
 
     // Build next cursor from the last returned item
@@ -820,6 +1008,7 @@ export class LeaveRequestsQueryService {
             [Op.in]: [
               LeaveRequestStatus.REJECTED,
               LeaveRequestStatus.CANCELLED,
+              LeaveRequestStatus.CANCELLED_AFTER_APPROVAL,
             ],
           },
         },

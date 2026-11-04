@@ -1,7 +1,8 @@
 import { DataTypes, QueryInterface } from 'sequelize';
 
 export const phase = '53';
-export const name = 'Add manual ready override fields to sales_contract_shipments';
+export const name =
+  'Add manual ready override fields to sales_contract_shipments';
 
 export async function up(queryInterface: QueryInterface): Promise<void> {
   const table = 'sales_contract_shipments';
@@ -40,8 +41,12 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
 export async function down(queryInterface: QueryInterface): Promise<void> {
   const table = 'sales_contract_shipments';
-  await queryInterface.removeColumn(table, 'manual_ready_override').catch(() => {});
+  await queryInterface
+    .removeColumn(table, 'manual_ready_override')
+    .catch(() => {});
   await queryInterface.removeColumn(table, 'manual_ready_by').catch(() => {});
   await queryInterface.removeColumn(table, 'manual_ready_at').catch(() => {});
-  await queryInterface.removeColumn(table, 'manual_ready_reason').catch(() => {});
+  await queryInterface
+    .removeColumn(table, 'manual_ready_reason')
+    .catch(() => {});
 }

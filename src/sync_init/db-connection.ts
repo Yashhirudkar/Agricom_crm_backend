@@ -24,6 +24,7 @@ import { LeaveBalanceHistory } from '../hrms/models/leave-balance-history.model'
 import { LeaveRequest } from '../hrms/models/leave-request.model';
 import { LeaveApprovalStep } from '../hrms/models/leave-approval-step.model';
 import { LeaveApprovalLog } from '../hrms/models/leave-approval-log.model';
+import { LeaveRequestHandoverUser } from '../hrms/models/leave-request-handover-user.model';
 import { UserPreference } from '../users/models/user-preference.model';
 import { UserPasswordHistory } from '../users/models/user-password-history.model';
 import { ProfileActivityLog } from '../profile/models/profile-activity-log.model';
@@ -105,6 +106,7 @@ export const sequelize = new Sequelize(
       LeaveRequest,
       LeaveApprovalStep,
       LeaveApprovalLog,
+      LeaveRequestHandoverUser,
       UserPreference,
       UserPasswordHistory,
       ProfileActivityLog,

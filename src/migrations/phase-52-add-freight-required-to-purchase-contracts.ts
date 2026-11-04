@@ -6,7 +6,8 @@ export const name = 'add-freight-required-to-purchase-contracts';
 export async function up(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    const pcTableInfo: any = await queryInterface.describeTable('purchase_contracts');
+    const pcTableInfo: any =
+      await queryInterface.describeTable('purchase_contracts');
     if (!pcTableInfo.freight_required) {
       await queryInterface.addColumn(
         'purchase_contracts',
@@ -49,9 +50,13 @@ export async function down(queryInterface: QueryInterface) {
     await queryInterface.removeColumn('logistics', 'purchase_contract_id', {
       transaction,
     });
-    await queryInterface.removeColumn('purchase_contracts', 'freight_required', {
-      transaction,
-    });
+    await queryInterface.removeColumn(
+      'purchase_contracts',
+      'freight_required',
+      {
+        transaction,
+      },
+    );
     await transaction.commit();
   } catch (error) {
     await transaction.rollback();

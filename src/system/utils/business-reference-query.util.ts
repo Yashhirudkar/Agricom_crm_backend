@@ -3,7 +3,9 @@ import { BusinessTransaction } from '../models/business-transaction.model';
 const BUSINESS_REFERENCE_PATTERN = /^REF-\d{6,}$/i;
 
 export function isBusinessReferenceSearch(value?: string): boolean {
-  return typeof value === 'string' && BUSINESS_REFERENCE_PATTERN.test(value.trim());
+  return (
+    typeof value === 'string' && BUSINESS_REFERENCE_PATTERN.test(value.trim())
+  );
 }
 
 export async function resolveBusinessTransactionId(
@@ -30,9 +32,7 @@ export function mapBusinessReference<T extends Record<string, any>>(
   record: T,
 ): T & { businessReference: string | null } {
   const businessTransaction =
-    record.businessTransaction ??
-    record.get?.('businessTransaction') ??
-    null;
+    record.businessTransaction ?? record.get?.('businessTransaction') ?? null;
   return {
     ...record,
     businessReference: businessTransaction?.businessReference ?? null,

@@ -208,16 +208,66 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
     // ─── 4. Seed Standard Shipping Lines & Ports ──────────────────────────────
     const initialLines = [
-      { name: 'MSC', code: 'MSCU', website: 'https://www.msc.com', email: 'info@msc.com' },
-      { name: 'Maersk', code: 'MAEU', website: 'https://www.maersk.com', email: 'contact@maersk.com' },
-      { name: 'CMA CGM', code: 'CMDU', website: 'https://www.cma-cgm.com', email: 'support@cma-cgm.com' },
-      { name: 'ONE', code: 'ONEY', website: 'https://www.one-line.com', email: 'service@one-line.com' },
-      { name: 'Hapag Lloyd', code: 'HLCU', website: 'https://www.hapag-lloyd.com', email: 'sales@hlag.com' },
-      { name: 'COSCO', code: 'COSU', website: 'https://lines.coscoshipping.com', email: 'cs@coscon.com' },
-      { name: 'EMC', code: 'EGLV', website: 'https://www.evergreen-marine.com', email: 'custserv@evergreen-marine.com' },
-      { name: 'Yang Ming', code: 'YMLU', website: 'https://www.yangming.com', email: 'service@yangming.com' },
-      { name: 'HMM', code: 'HDMU', website: 'https://www.hmm21.com', email: 'cs@hmm21.com' },
-      { name: 'ZIM', code: 'ZIMU', website: 'https://www.zim.com', email: 'support@zim.com' },
+      {
+        name: 'MSC',
+        code: 'MSCU',
+        website: 'https://www.msc.com',
+        email: 'info@msc.com',
+      },
+      {
+        name: 'Maersk',
+        code: 'MAEU',
+        website: 'https://www.maersk.com',
+        email: 'contact@maersk.com',
+      },
+      {
+        name: 'CMA CGM',
+        code: 'CMDU',
+        website: 'https://www.cma-cgm.com',
+        email: 'support@cma-cgm.com',
+      },
+      {
+        name: 'ONE',
+        code: 'ONEY',
+        website: 'https://www.one-line.com',
+        email: 'service@one-line.com',
+      },
+      {
+        name: 'Hapag Lloyd',
+        code: 'HLCU',
+        website: 'https://www.hapag-lloyd.com',
+        email: 'sales@hlag.com',
+      },
+      {
+        name: 'COSCO',
+        code: 'COSU',
+        website: 'https://lines.coscoshipping.com',
+        email: 'cs@coscon.com',
+      },
+      {
+        name: 'EMC',
+        code: 'EGLV',
+        website: 'https://www.evergreen-marine.com',
+        email: 'custserv@evergreen-marine.com',
+      },
+      {
+        name: 'Yang Ming',
+        code: 'YMLU',
+        website: 'https://www.yangming.com',
+        email: 'service@yangming.com',
+      },
+      {
+        name: 'HMM',
+        code: 'HDMU',
+        website: 'https://www.hmm21.com',
+        email: 'cs@hmm21.com',
+      },
+      {
+        name: 'ZIM',
+        code: 'ZIMU',
+        website: 'https://www.zim.com',
+        email: 'support@zim.com',
+      },
     ];
 
     for (const l of initialLines) {
@@ -353,8 +403,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
       );
 
       // Grant client item access to existing clients
-      await sequelize.query(
-        `INSERT INTO client_item_access (client_id, item_id, is_active, "createdAt", "updatedAt")
+      await sequelize
+        .query(
+          `INSERT INTO client_item_access (client_id, item_id, is_active, "createdAt", "updatedAt")
          SELECT c.id, si.id, true, NOW(), NOW()
          FROM clients c
          CROSS JOIN sidebar_items si
@@ -362,8 +413,9 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
            AND NOT EXISTS (
              SELECT 1 FROM client_item_access cia WHERE cia.client_id = c.id AND cia.item_id = si.id
            );`,
-        { transaction },
-      ).catch(() => {});
+          { transaction },
+        )
+        .catch(() => {});
     }
 
     await transaction.commit();

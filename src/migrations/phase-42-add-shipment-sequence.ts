@@ -11,11 +11,13 @@ export async function up(queryInterface: QueryInterface) {
       'purchase_contract_shipments',
       'purchase_contracts',
       'freight_quotes',
-      'logistics'
+      'logistics',
     ];
 
     for (const table of tables) {
-      const tableInfo = await queryInterface.describeTable(table).catch(() => null);
+      const tableInfo = await queryInterface
+        .describeTable(table)
+        .catch(() => null);
       if (tableInfo && !tableInfo.shipment_sequence) {
         await queryInterface.addColumn(
           table,
@@ -24,7 +26,7 @@ export async function up(queryInterface: QueryInterface) {
             type: DataTypes.INTEGER,
             allowNull: true,
           },
-          { transaction }
+          { transaction },
         );
       }
     }
@@ -44,13 +46,17 @@ export async function down(queryInterface: QueryInterface) {
       'purchase_contract_shipments',
       'purchase_contracts',
       'freight_quotes',
-      'logistics'
+      'logistics',
     ];
 
     for (const table of tables) {
-      const tableInfo = await queryInterface.describeTable(table).catch(() => null);
+      const tableInfo = await queryInterface
+        .describeTable(table)
+        .catch(() => null);
       if (tableInfo && tableInfo.shipment_sequence) {
-        await queryInterface.removeColumn(table, 'shipment_sequence', { transaction });
+        await queryInterface.removeColumn(table, 'shipment_sequence', {
+          transaction,
+        });
       }
     }
 

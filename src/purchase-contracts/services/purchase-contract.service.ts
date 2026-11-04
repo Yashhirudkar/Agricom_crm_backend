@@ -51,7 +51,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   'Ready for Dispatch': ['Completed', 'Cancelled'],
   Completed: ['Closed'],
   Closed: [],
-  Cancelled: [],
+  Cancelled: ['Draft'],
 };
 
 @Injectable()
@@ -190,38 +190,435 @@ export class PurchaseContractService {
     return `${resYear}-${resMonth}-${resDay}`;
   }
 
+  public getPcQuantity(pc: any): number {
+    if (
+      pc.quantity !== undefined &&
+      pc.quantity !== null &&
+      pc.quantity !== ''
+    ) {
+      const q = Number(pc.quantity);
+      if (!isNaN(q)) return q;
+    }
+    if (Array.isArray(pc.items) && pc.items.length > 0) {
+      const itemTotal = pc.items.reduce(
+        (s: number, it: any) => s + (Number(it.quantity) || 0),
+        0,
+      );
+      if (!isNaN(itemTotal)) return itemTotal;
+    }
+    return 0;
+  }
+
+  private async getFreshShipmentSchedule(purchaseContractId: number) {
+    const links = await this.shipmentLinkModel.findAll({
+      where: { purchaseContractId },
+      include: [
+        {
+          model: SalesContractShipment,
+          as: 'shipment',
+          attributes: ['id', 'shipmentNo', 'quantity', 'shipmentSequence'],
+        },
+      ],
+      order: [['createdAt', 'ASC']],
+    });
+    return links.map((link: any) => ({
+      shipmentId: link.shipmentId,
+      shipmentNo: link.shipment?.shipmentNo ?? null,
+      quantity: Number(link.shipment?.quantity) || 0,
+      shipmentSequence: link.shipment?.shipmentSequence ?? null,
+    }));
+  }
+
+  /**
+   * CANONICAL shipment reallocation engine across all active Purchase Contracts
+   * linked to a Sales Contract.
+   *
+   * 1. Fetches Sales Contract and all its existing shipments (in sequence).
+   * 2. Fetches all active Purchase Contracts linked to the Sales Contract.
+   * 3. Validates Total Purchase Contract Quantity <= Sales Contract Quantity.
+   * 4. Recalculates shipment allocation based on the updated quantities.
+   * 5. Reassigns available shipments in order.
+   * 6. Updates ONLY the PurchaseContract ↔ Shipment mapping (never touches shipments).
+   */
+  public async reallocateSalesContractShipments(
+    salesContractId: number,
+    transaction?: any,
+  ): Promise<void> {
+    const execute = async (tx?: any) => {
+      // 1. Fetch Sales Contract
+      const salesContract = await this.salesContractModel.findByPk(
+        salesContractId,
+        {
+          attributes: ['id', 'totalQuantity'],
+          include: [
+            {
+              model: SalesContractItem,
+              attributes: ['quantity', 'qtyPerCount'],
+            },
+          ],
+          transaction: tx,
+        },
+      );
+      if (!salesContract) return;
+
+      const scTotalQty =
+        Number(salesContract.totalQuantity) ||
+        (salesContract.items || []).reduce(
+          (sum, item) => sum + (Number(item.quantity) || 0),
+          0,
+        );
+
+      // 2. Fetch all existing Sales Contract Shipments in sequence order
+      // Shipments are NEVER deleted or recreated
+      const salesShipments = await this.salesShipmentModel.findAll({
+        where: { salesContractId },
+        attributes: ['id', 'quantity', 'shipmentSequence', 'shipmentNo'],
+        order: [
+          ['shipmentSequence', 'ASC'],
+          ['shipmentNo', 'ASC'],
+          ['id', 'ASC'],
+        ],
+        transaction: tx,
+      });
+
+      // 3. Fetch all active Purchase Contracts linked to this Sales Contract
+      const activePcs = await this.model.findAll({
+        where: {
+          salesContractId,
+          status: { [Op.notIn]: ['Cancelled', 'Rejected'] },
+        },
+        include: [
+          {
+            model: PurchaseContractItem,
+            as: 'items',
+            attributes: ['id', 'quantity'],
+          },
+        ],
+        order: [['id', 'ASC']],
+        transaction: tx,
+      });
+
+      const allScPcs = await this.model.findAll({
+        where: { salesContractId },
+        attributes: ['id'],
+        transaction: tx,
+      });
+      const allScPcIds = allScPcs.map((p) => p.id);
+
+      if (activePcs.length === 0) {
+        if (allScPcIds.length > 0) {
+          await this.shipmentLinkModel.destroy({
+            where: {
+              purchaseContractId: { [Op.in]: allScPcIds },
+            },
+            transaction: tx,
+          });
+        }
+        return;
+      }
+
+      // 4. Validate total PC quantity <= Sales Contract quantity
+      let totalPcQty = 0;
+      for (const p of activePcs) {
+        totalPcQty += this.getPcQuantity(p);
+      }
+      totalPcQty = Math.round(totalPcQty * 100) / 100;
+
+      if (totalPcQty > scTotalQty + 0.0001) {
+        throw new BadRequestException(
+          `Total Purchase Contract Quantity (${totalPcQty} MT) exceeds Sales Contract Quantity (${scTotalQty} MT).`,
+        );
+      }
+
+      // 5. Recalculate shipment allocation across active PCs
+      let shipmentIndex = 0;
+      const pcShipmentMap = new Map<number, number[]>();
+
+      for (const currentPc of activePcs) {
+        const pcQty = this.getPcQuantity(currentPc);
+        let remainingNeeded = Math.round(pcQty * 100) / 100;
+        const assignedShipmentIds: number[] = [];
+
+        while (
+          remainingNeeded > 0.0001 &&
+          shipmentIndex < salesShipments.length
+        ) {
+          const shipment = salesShipments[shipmentIndex];
+          const shipQty =
+            Math.round((Number(shipment.quantity) || 0) * 100) / 100;
+
+          if (shipQty <= 0) {
+            shipmentIndex++;
+            continue;
+          }
+
+          assignedShipmentIds.push(shipment.id);
+          remainingNeeded = Math.round((remainingNeeded - shipQty) * 100) / 100;
+          shipmentIndex++;
+        }
+
+        pcShipmentMap.set(currentPc.id, assignedShipmentIds);
+      }
+
+      // 6. Save the updated Purchase Contract <-> Shipment mapping only
+      if (allScPcIds.length > 0) {
+        await this.shipmentLinkModel.destroy({
+          where: {
+            purchaseContractId: { [Op.in]: allScPcIds },
+          },
+          transaction: tx,
+        });
+      }
+
+      const newLinks: any[] = [];
+      for (const [pcId, shipmentIds] of pcShipmentMap.entries()) {
+        for (const shipmentId of shipmentIds) {
+          newLinks.push({
+            purchaseContractId: pcId,
+            shipmentId,
+          });
+        }
+      }
+
+      if (newLinks.length > 0) {
+        if (typeof (this.shipmentLinkModel as any).bulkCreate === 'function') {
+          await this.shipmentLinkModel.bulkCreate(newLinks, {
+            transaction: tx,
+          });
+        } else {
+          for (const link of newLinks) {
+            await this.shipmentLinkModel.create(link, { transaction: tx });
+          }
+        }
+      }
+    };
+
+    if (transaction) {
+      await execute(transaction);
+    } else if (this.sequelize?.transaction) {
+      await this.sequelize.transaction(async (tx) => {
+        await execute(tx);
+      });
+    } else {
+      await execute();
+    }
+  }
+
+  private async validateQuantityAgainstSalesContract(
+    salesContractId: number,
+    excludePurchaseContractId: number | null,
+    requestedQty: number,
+  ): Promise<void> {
+    if (requestedQty < 0 || !Number.isFinite(requestedQty)) {
+      throw new BadRequestException(
+        'Purchase Quantity must be a valid positive number.',
+      );
+    }
+
+    const salesContract = await this.salesContractModel.findByPk(
+      salesContractId,
+      {
+        attributes: ['id', 'totalQuantity'],
+        include: [
+          {
+            model: SalesContractItem,
+            attributes: ['quantity', 'qtyPerCount'],
+          },
+        ],
+      },
+    );
+    if (!salesContract) throw new NotFoundException('Sales Contract not found');
+
+    const scTotalQty =
+      Number(salesContract.totalQuantity) ||
+      (salesContract.items || []).reduce(
+        (sum, item) => sum + (Number(item.quantity) || 0),
+        0,
+      );
+
+    let qtyPerCount = Number(
+      (salesContract.items || []).find((item) => Number(item.qtyPerCount) > 0)
+        ?.qtyPerCount || 0,
+    );
+
+    if (qtyPerCount <= 0) {
+      const firstShipment = await this.salesShipmentModel.findOne({
+        where: { salesContractId },
+        attributes: ['quantity'],
+        order: [
+          ['shipmentSequence', 'ASC'],
+          ['shipmentNo', 'ASC'],
+          ['id', 'ASC'],
+        ],
+      });
+      if (firstShipment && Number(firstShipment.quantity) > 0) {
+        qtyPerCount = Number(firstShipment.quantity);
+      }
+    }
+
+    if (qtyPerCount > 0 && requestedQty > 0) {
+      const remainder = requestedQty % qtyPerCount;
+      const isMultiple =
+        Math.abs(remainder) < 0.0001 ||
+        Math.abs(remainder - qtyPerCount) < 0.0001;
+
+      if (!isMultiple) {
+        const allowedValues: number[] = [];
+        for (let q = qtyPerCount; q <= scTotalQty + 0.0001; q += qtyPerCount) {
+          allowedValues.push(Math.round(q * 100) / 100);
+        }
+        throw new BadRequestException(
+          `Invalid Purchase Quantity.\n\n` +
+            `Purchase Contract quantity must be in multiples of the Sales Contract shipment size (${qtyPerCount} MT).\n\n` +
+            `Allowed values:\n${allowedValues.join(', ')}`,
+        );
+      }
+    }
+
+    const otherWhere: any = {
+      salesContractId,
+      status: { [Op.notIn]: ['Cancelled', 'Rejected'] },
+    };
+    if (excludePurchaseContractId != null) {
+      otherWhere.id = { [Op.ne]: excludePurchaseContractId };
+    }
+
+    const otherPcs = await this.model.findAll({
+      where: otherWhere,
+      include: [
+        {
+          model: PurchaseContractItem,
+          as: 'items',
+          attributes: ['id', 'quantity'],
+        },
+      ],
+    });
+
+    let otherAllocated = 0;
+    for (const other of otherPcs) {
+      otherAllocated += this.getPcQuantity(other);
+    }
+    otherAllocated = Math.round(otherAllocated * 100) / 100;
+
+    const totalQty = Math.round((otherAllocated + requestedQty) * 100) / 100;
+    if (scTotalQty < totalQty - 0.0001) {
+      const availableForThisPc = Math.max(
+        0,
+        Math.round((scTotalQty - otherAllocated) * 100) / 100,
+      );
+      throw new BadRequestException(
+        `Total Purchase Contract Quantity (${totalQty} MT) exceeds Sales Contract Quantity (${scTotalQty} MT). ` +
+          `Available: ${availableForThisPc} MT ` +
+          `(SC Total: ${scTotalQty} MT − Other Purchase Contracts: ${otherAllocated} MT).`,
+      );
+    }
+  }
+
   async ensureExists(
     salesContractId: number,
     userId?: number,
     initialShipmentIds?: number[],
+    forceNew: boolean = false,
+    requestedQuantity?: number,
   ): Promise<PurchaseContract> {
-    let pc = await this.model.findOne({ where: { salesContractId } });
+    const salesContract = await this.salesContractModel.findByPk(
+      salesContractId,
+      {
+        attributes: [
+          'id',
+          'contractNumber',
+          'companyId',
+          'sellerId',
+          'contractDate',
+          'enquiryId',
+          'businessTransactionId',
+          'totalQuantity',
+          'brokerId',
+          'shipmentTypeId',
+          'paymentTermId',
+        ],
+        include: [
+          {
+            model: SalesContractItem,
+            attributes: ['productId', 'quantity', 'unitPrice', 'remarks'],
+            include: [{ model: Product, attributes: ['name'] }],
+          },
+        ],
+      },
+    );
+    if (!salesContract) throw new NotFoundException('Sales Contract not found');
+
+    const existingPcs = await this.model.findAll({
+      where: {
+        salesContractId,
+        status: { [Op.notIn]: ['Cancelled', 'Rejected'] },
+      },
+      include: [
+        { model: PurchaseContractItem, as: 'items', attributes: ['quantity'] },
+      ],
+      order: [['id', 'ASC']],
+    });
+
+    let salesQty = Number(salesContract.totalQuantity) || 0;
+    if (salesQty === 0 && salesContract.items?.length) {
+      salesQty = salesContract.items.reduce(
+        (s, it) => s + (Number(it.quantity) || 0),
+        0,
+      );
+    }
+    let allocatedQty = 0;
+    for (const p of existingPcs) {
+      allocatedQty += this.getPcQuantity(p);
+    }
+    allocatedQty = Math.round(allocatedQty * 100) / 100;
+    const remainingQty = Math.max(
+      0,
+      Math.round((salesQty - allocatedQty) * 100) / 100,
+    );
+    const purchaseQty =
+      requestedQuantity != null ? Number(requestedQuantity) : remainingQty;
+
+    if (requestedQuantity != null) {
+      await this.validateQuantityAgainstSalesContract(
+        salesContractId,
+        null,
+        purchaseQty,
+      );
+    }
+
+    let pc: PurchaseContract | null = null;
+
+    if (!forceNew && existingPcs.length > 0) {
+      const emptyDraft = existingPcs.find(
+        (p) => p.status === 'Draft' && this.getPcQuantity(p) === 0,
+      );
+      if (emptyDraft) {
+        if (remainingQty > 0) {
+          await emptyDraft.update({ quantity: String(remainingQty) });
+        }
+        pc = emptyDraft;
+      } else {
+        pc = existingPcs[0];
+      }
+    }
 
     if (!pc) {
-      const salesContract = await this.salesContractModel.findByPk(
-        salesContractId,
-        {
-          attributes: [
-            'id',
-            'contractNumber',
-            'companyId',
-            'sellerId',
-            'contractDate',
-            'enquiryId',
-            'businessTransactionId',
-
-          ],
-        },
-      );
-      if (!salesContract)
-        throw new NotFoundException('Sales Contract not found');
+      const pcCount = await this.model.count({ where: { salesContractId } });
+      const contractNumber =
+        pcCount > 0
+          ? `PC-${salesContract.contractNumber}-${pcCount + 1}`
+          : `PC-${salesContract.contractNumber}`;
 
       pc = await this.model.create({
         salesContractId,
         businessTransactionId: salesContract.businessTransactionId ?? null,
         purchaseType: 'SC',
+        contractNumber,
         buyerId: salesContract.sellerId || null,
-        brokerId: null,
+        brokerId: salesContract.brokerId || null,
+        shipmentTypeId: salesContract.shipmentTypeId || null,
+        paymentTermId: salesContract.paymentTermId || null,
+        quantity: purchaseQty > 0 ? String(purchaseQty) : null,
         paymentDueDate: salesContract.contractDate
           ? this.calculatePaymentDueDate(salesContract.contractDate)
           : null,
@@ -231,43 +628,47 @@ export class PurchaseContractService {
         companyId: salesContract.companyId,
       });
 
+      if (salesContract.items?.length > 0) {
+        const scItem = salesContract.items[0] as any;
+        await this.itemModel.create({
+          purchaseContractId: pc.id,
+          productId: scItem.productId || null,
+          productName: scItem.product?.name || null,
+          quantity: purchaseQty > 0 ? purchaseQty : null,
+          productQuality: scItem.remarks || null,
+          packing: null,
+          bagType: null,
+          bagSpec: null,
+          stitching: null,
+          marking: null,
+          ratePerMt: scItem.unitPrice != null ? Number(scItem.unitPrice) : null,
+          totalAmount:
+            scItem.unitPrice != null && remainingQty > 0
+              ? purchaseQty * Number(scItem.unitPrice)
+              : null,
+        });
+      }
+
       await this.activityService.log(
         pc.id,
         PC_ACTIONS.PC_CREATED,
-        `Purchase Contract PC-${salesContract.contractNumber} auto-created`,
+        `Purchase Contract ${contractNumber} auto-created`,
         userId,
         { salesContractId },
       );
 
-      // Link specified shipments if provided; otherwise link all existing shipments
-      let targetShipmentIds: number[] = [];
-      if (initialShipmentIds && initialShipmentIds.length > 0) {
-        targetShipmentIds = initialShipmentIds;
+      if (initialShipmentIds?.length) {
+        for (const sId of initialShipmentIds) {
+          await this.shipmentLinkModel.findOrCreate({
+            where: { purchaseContractId: pc.id, shipmentId: sId },
+            defaults: { purchaseContractId: pc.id, shipmentId: sId } as any,
+          });
+        }
       } else {
-        const shipments = await this.salesShipmentModel.findAll({
-          where: { salesContractId },
-          attributes: ['id'],
-        });
-        targetShipmentIds = shipments.map((s) => s.id);
-      }
-
-      for (const sId of targetShipmentIds) {
-        await this.shipmentLinkModel.findOrCreate({
-          where: { purchaseContractId: pc.id, shipmentId: sId },
-          defaults: { purchaseContractId: pc.id, shipmentId: sId } as any,
-        });
-      }
-    } else if (initialShipmentIds && initialShipmentIds.length > 0) {
-      // If PC already exists, link the new shipments being executed
-      for (const sId of initialShipmentIds) {
-        await this.shipmentLinkModel.findOrCreate({
-          where: { purchaseContractId: pc.id, shipmentId: sId },
-          defaults: { purchaseContractId: pc.id, shipmentId: sId } as any,
-        });
+        await this.reallocateSalesContractShipments(salesContractId);
       }
     }
 
-    // Persist status = 'Executed' in sales_contract_shipments database table
     if (initialShipmentIds && initialShipmentIds.length > 0) {
       await this.salesShipmentModel.update(
         { status: 'Executed', executionStatus: 'Pending' },
@@ -350,7 +751,13 @@ export class PurchaseContractService {
             dto.balancePercent != null ? Number(dto.balancePercent) : null,
           penaltyPercent:
             dto.penaltyPercent != null ? Number(dto.penaltyPercent) : null,
-          paymentDueDate: dto.paymentDueDate || (dto.contractDate ? this.calculatePaymentDueDate(dto.contractDate) : (dto.purchaseDate ? this.calculatePaymentDueDate(dto.purchaseDate) : null)),
+          paymentDueDate:
+            dto.paymentDueDate ||
+            (dto.contractDate
+              ? this.calculatePaymentDueDate(dto.contractDate)
+              : dto.purchaseDate
+                ? this.calculatePaymentDueDate(dto.purchaseDate)
+                : null),
           unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
@@ -360,7 +767,8 @@ export class PurchaseContractService {
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
-          freightRequired: dto.freightRequired != null ? Boolean(dto.freightRequired) : false,
+          freightRequired:
+            dto.freightRequired != null ? Boolean(dto.freightRequired) : false,
           productQuality: dto.productQuality || null,
           specificationNo: dto.specificationNo || null,
           specificationDate: dto.specificationDate || null,
@@ -391,7 +799,9 @@ export class PurchaseContractService {
         scUpdates.brokerId = dto.brokerId ? Number(dto.brokerId) : null;
       }
       if (dto.salesContractId && dto.brokerCommission !== undefined) {
-        scUpdates.brokerCommission = dto.brokerCommission ? String(dto.brokerCommission) : null;
+        scUpdates.brokerCommission = dto.brokerCommission
+          ? String(dto.brokerCommission)
+          : null;
       }
       if (Object.keys(scUpdates).length > 0) {
         await pc.update(scUpdates, { transaction: t });
@@ -419,8 +829,9 @@ export class PurchaseContractService {
         }
       }
 
-      // Handle shipment allocations with partial quantity tracking
-      if (
+      if (dto.salesContractId) {
+        await this.reallocateSalesContractShipments(dto.salesContractId, t);
+      } else if (
         Array.isArray(dto.shipmentAllocations) &&
         dto.shipmentAllocations.length > 0
       ) {
@@ -437,8 +848,8 @@ export class PurchaseContractService {
                 : null,
               allocatedQuantity:
                 alloc.allocatedQuantity != null
-                    ? Number(alloc.allocatedQuantity)
-                    : null,
+                  ? Number(alloc.allocatedQuantity)
+                  : null,
             });
           }
         }
@@ -547,6 +958,30 @@ export class PurchaseContractService {
       contractType,
     );
 
+    // Validate quantity against Sales Contract (live, always exclude this PC)
+    if (pc.salesContractId) {
+      let requestedQty: number | null = null;
+      if (
+        dto.quantity !== undefined &&
+        dto.quantity !== null &&
+        dto.quantity !== ''
+      ) {
+        requestedQty = Number(dto.quantity);
+      } else if (Array.isArray(dto.items) && dto.items.length > 0) {
+        requestedQty = dto.items.reduce(
+          (s: number, it: any) => s + (Number(it.quantity) || 0),
+          0,
+        );
+      }
+      if (requestedQty !== null && !isNaN(requestedQty)) {
+        await this.validateQuantityAgainstSalesContract(
+          pc.salesContractId,
+          id,
+          requestedQty,
+        );
+      }
+    }
+
     const {
       shipmentIds,
       shipmentAllocations,
@@ -611,7 +1046,11 @@ export class PurchaseContractService {
     if (updateData.contractDate !== undefined) {
       if (pc.salesContractId) {
         await this.salesContractModel.update(
-          { contractDate: updateData.contractDate ? new Date(updateData.contractDate) : null },
+          {
+            contractDate: updateData.contractDate
+              ? new Date(updateData.contractDate)
+              : null,
+          },
           { where: { id: pc.salesContractId } },
         );
       }
@@ -705,6 +1144,18 @@ export class PurchaseContractService {
     if (updateData.freightRequired !== undefined) {
       sanitizeData.freightRequired = Boolean(updateData.freightRequired);
     }
+    if (
+      sanitizeData.quantity === undefined &&
+      Array.isArray(items) &&
+      items.length > 0
+    ) {
+      const itemTotal = items.reduce(
+        (sum: number, it: any) => sum + (Number(it.quantity) || 0),
+        0,
+      );
+      sanitizeData.quantity = String(itemTotal);
+    }
+
     await pc.update({ ...sanitizeData, updatedBy: user?.userId });
 
     // Handle items update
@@ -715,7 +1166,12 @@ export class PurchaseContractService {
           purchaseContractId: id,
           productId: item.productId ? Number(item.productId) : null,
           productName: item.productName || null,
-          quantity: item.quantity != null ? Number(item.quantity) : null,
+          quantity:
+            item.quantity != null
+              ? Number(item.quantity)
+              : sanitizeData.quantity
+                ? Number(sanitizeData.quantity)
+                : null,
           productQuality: item.productQuality || null,
           packing: item.packing || null,
           bagType: item.bagType || null,
@@ -727,10 +1183,18 @@ export class PurchaseContractService {
             item.totalAmount != null ? Number(item.totalAmount) : null,
         });
       }
+    } else if (pc.salesContractId && sanitizeData.quantity !== undefined) {
+      const newQty = Number(sanitizeData.quantity);
+      await this.itemModel.update(
+        { quantity: !isNaN(newQty) ? newQty : null },
+        { where: { purchaseContractId: id } },
+      );
     }
 
-    // Handle shipment allocations with partial quantities
-    if (Array.isArray(shipmentAllocations)) {
+    // Reallocate shipments across all active Purchase Contracts of this Sales Contract
+    if (pc.salesContractId) {
+      await this.reallocateSalesContractShipments(pc.salesContractId);
+    } else if (Array.isArray(shipmentAllocations)) {
       await this.shipmentLinkModel.destroy({
         where: { purchaseContractId: id },
       });
@@ -966,7 +1430,12 @@ export class PurchaseContractService {
         });
 
         // Synchronize Route (Origin: PC Place of Loading, Destination: Linked SC Delivery Place)
-        const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || pc.deliveryPlace || '—';
+        const scDest =
+          sc?.destinationLocationName ||
+          sc?.portOfDischarge ||
+          sc?.deliveryPlace ||
+          pc.deliveryPlace ||
+          '—';
         if (LogisticsRouteModel) {
           const routes = await LogisticsRouteModel.findAll({
             where: { logisticsId: logistics.id },
@@ -1004,8 +1473,17 @@ export class PurchaseContractService {
         const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
         // Determine Mode: Domestic ONLY if BOTH Origin AND Destination are India/domestic
-        const originStr = (pc.loadingCountry || pc.placeOfLoading || enquiry?.originCountryId || '').trim().toLowerCase();
-        const destStr = (pc.deliveryPlace || enquiry?.destinationCountry || '').trim().toLowerCase();
+        const originStr = (
+          pc.loadingCountry ||
+          pc.placeOfLoading ||
+          enquiry?.originCountryId ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+        const destStr = (pc.deliveryPlace || enquiry?.destinationCountry || '')
+          .trim()
+          .toLowerCase();
 
         let mode = 'International';
         const isOriginIndia = originStr.includes('india');
@@ -1028,14 +1506,27 @@ export class PurchaseContractService {
         else if (enquiry?.shipmentMode === 'RAIL') transportMode = 'Rail';
 
         if (pc.salesContractId && this.sequelize.models.SalesContract) {
-          const linkedSc: any = await this.sequelize.models.SalesContract.findByPk(pc.salesContractId, {
-            attributes: ['contractType', 'originTransportMode', 'originCountry', 'destinationCountry'],
-          });
+          const linkedSc: any =
+            await this.sequelize.models.SalesContract.findByPk(
+              pc.salesContractId,
+              {
+                attributes: [
+                  'contractType',
+                  'originTransportMode',
+                  'originCountry',
+                  'destinationCountry',
+                ],
+              },
+            );
           if (linkedSc) {
             if (linkedSc.contractType === 'Export') mode = 'Export';
             else if (linkedSc.contractType === 'MTT') mode = 'Merchant Export';
             else if (linkedSc.contractType === 'Domestic') mode = 'Domestic';
-            else if (linkedSc.originCountry && linkedSc.destinationCountry && linkedSc.originCountry !== linkedSc.destinationCountry) {
+            else if (
+              linkedSc.originCountry &&
+              linkedSc.destinationCountry &&
+              linkedSc.originCountry !== linkedSc.destinationCountry
+            ) {
               mode = 'International';
             }
             if (linkedSc.originTransportMode) {
@@ -1053,9 +1544,7 @@ export class PurchaseContractService {
           enquiryId,
           purchaseContractId: pc.id,
           businessTransactionId:
-            pc.businessTransactionId ||
-            enquiry?.businessTransactionId ||
-            null,
+            pc.businessTransactionId || enquiry?.businessTransactionId || null,
           companyId: pc.companyId || user?.companyId,
           mode,
           transportMode,
@@ -1066,7 +1555,12 @@ export class PurchaseContractService {
         });
 
         if (LogisticsRouteModel) {
-          const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || pc.deliveryPlace || '—';
+          const scDest =
+            sc?.destinationLocationName ||
+            sc?.portOfDischarge ||
+            sc?.deliveryPlace ||
+            pc.deliveryPlace ||
+            '—';
           await LogisticsRouteModel.create({
             logisticsId: logistics.id,
             origin: pc.placeOfLoading || '—',
@@ -1077,12 +1571,16 @@ export class PurchaseContractService {
         // Auto Route Source Mapping: update child shipments origin & destination
         if (pc.placeOfLoading) {
           try {
-            const scDest = sc?.destinationLocationName || sc?.portOfDischarge || sc?.deliveryPlace || null;
+            const scDest =
+              sc?.destinationLocationName ||
+              sc?.portOfDischarge ||
+              sc?.deliveryPlace ||
+              null;
             const links = await this.shipmentLinkModel.findAll({
               where: { purchaseContractId: pc.id },
               attributes: ['shipmentId'],
             });
-            const linkedShipmentIds = links.map(l => l.shipmentId);
+            const linkedShipmentIds = links.map((l) => l.shipmentId);
             if (linkedShipmentIds.length > 0) {
               await this.salesShipmentModel.update(
                 {
@@ -1101,7 +1599,10 @@ export class PurchaseContractService {
               );
             }
           } catch (syncErr) {
-            console.warn('Could not sync shipment route fields for PC:', syncErr);
+            console.warn(
+              'Could not sync shipment route fields for PC:',
+              syncErr,
+            );
           }
         }
       }
@@ -1185,6 +1686,32 @@ export class PurchaseContractService {
         { status: nextStatus, updatedBy: user?.userId },
         { transaction },
       );
+      if (pc.salesContractId && nextStatus === 'Cancelled') {
+        await this.shipmentLinkModel.destroy({
+          where: { purchaseContractId: id },
+          transaction,
+        });
+        await this.reallocateSalesContractShipments(
+          pc.salesContractId,
+          transaction,
+        );
+      }
+      if (
+        pc.salesContractId &&
+        currentStatus === 'Cancelled' &&
+        nextStatus === 'Draft'
+      ) {
+        const quantity = this.getPcQuantity(pc);
+        await this.validateQuantityAgainstSalesContract(
+          pc.salesContractId,
+          id,
+          quantity,
+        );
+        await this.reallocateSalesContractShipments(
+          pc.salesContractId,
+          transaction,
+        );
+      }
       if (!pc.salesContractId) {
         await this.businessTransactionService.ensureForPurchaseContract(
           id,
@@ -1229,7 +1756,22 @@ export class PurchaseContractService {
         'Only Draft or Cancelled Purchase Contracts can be deleted',
       );
     }
-    await pc.update({ status: 'Cancelled', updatedBy: user?.userId });
+    await this.sequelize.transaction(async (transaction) => {
+      await pc.update(
+        { status: 'Cancelled', updatedBy: user?.userId },
+        { transaction },
+      );
+      if (pc.salesContractId) {
+        await this.shipmentLinkModel.destroy({
+          where: { purchaseContractId: id },
+          transaction,
+        });
+        await this.reallocateSalesContractShipments(
+          pc.salesContractId,
+          transaction,
+        );
+      }
+    });
     return { success: true };
   }
 }

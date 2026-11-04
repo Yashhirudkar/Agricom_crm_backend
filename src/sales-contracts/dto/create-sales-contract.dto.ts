@@ -23,10 +23,27 @@ export class CreateSalesContractItemDto {
   @IsInt()
   productId: number;
 
+  @IsOptional()
+  @IsString()
+  origin?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  quality?: string;
+
+  @IsOptional()
+  @IsString()
+  marking?: string;
+
   @IsNotEmpty()
   @IsNumber()
   @Min(0.01)
   quantity: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  qtyPerCount?: number;
 
   @IsNotEmpty()
   @IsNumber()

@@ -161,11 +161,7 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     PortService,
     ShippingLineService,
   ],
-  exports: [
-    CountryService,
-    PortService,
-    ShippingLineService,
-  ],
+  exports: [CountryService, PortService, ShippingLineService],
 })
 export class MastersModule {}
 // Dynamic master tables synced and verified successfully

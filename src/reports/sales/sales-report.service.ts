@@ -578,7 +578,9 @@ export class SalesReportService {
 
       // Creator name resolved via raw SQL subquery (handles UUID type mismatch)
       const salesExecutive =
-        (r as any).dataValues?.creatorName || (j as any).creatorName || 'Unknown';
+        (r as any).dataValues?.creatorName ||
+        (j as any).creatorName ||
+        'Unknown';
 
       return {
         id: j.id,
@@ -647,9 +649,7 @@ export class SalesReportService {
         };
       } else if (month !== undefined) {
         where[Op.and] = [
-          literal(
-            `EXTRACT(MONTH FROM "Enquiry"."enquiry_date") = ${month}`,
-          ),
+          literal(`EXTRACT(MONTH FROM "Enquiry"."enquiry_date") = ${month}`),
         ];
       }
     }

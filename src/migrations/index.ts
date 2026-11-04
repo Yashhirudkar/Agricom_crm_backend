@@ -54,6 +54,10 @@ import * as phase62 from './phase-62-add-closure-details-to-enquiries';
 import * as phase63 from './phase-63-stock-management-indexes';
 import * as phase64 from './phase-64-shipment-route-mapping';
 import * as phase65 from './phase-65-add-annual-turnover';
+import * as phase66 from './phase-66-add-qty-per-count-to-sales-contract-items';
+import * as phase67 from './phase-67-cancel-approved-leave';
+import * as phase68 from './phase-68-leave-request-handover-users';
+import * as phase69 from './phase-69-add-sales-contract-item-product-details';
 
 export interface MigrationPhase {
   phase: string;
@@ -123,4 +127,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase63,
   phase64,
   phase65,
+  phase66,
+  phase67,
+  phase68,
+  phase69,
 ];

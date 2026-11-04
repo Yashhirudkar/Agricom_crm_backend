@@ -40,7 +40,12 @@ export class PartnerDnbReportService {
       include: [
         {
           model: Partner,
-          attributes: ['id', 'yearOfEstablishment', 'entityName', 'annualTurnover'],
+          attributes: [
+            'id',
+            'yearOfEstablishment',
+            'entityName',
+            'annualTurnover',
+          ],
         },
       ],
       order: [['createdAt', 'DESC']],

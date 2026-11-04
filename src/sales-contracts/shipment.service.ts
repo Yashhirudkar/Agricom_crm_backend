@@ -960,9 +960,7 @@ export class ShipmentService {
 
       // Commodity: Purchase Contract
       const commodity =
-        pcData?.product_name ||
-        contractItems[0]?.product?.name ||
-        '—';
+        pcData?.product_name || contractItems[0]?.product?.name || '—';
 
       // Buyer: Sales Contract
       const buyer = sc.buyer?.entityName || '—';
@@ -1242,7 +1240,13 @@ export class ShipmentService {
     // Ensures a Purchase Contract exists for this Sales Contract after any shipment save.
     // Safe to call multiple times — returns existing PC if already created.
     await this.purchaseContractService
-      .ensureExists(shipment.salesContractId, user?.userId)
+      .ensureExists(
+        shipment.salesContractId,
+        user?.userId,
+        [shipment.id],
+        false,
+        Number(shipment.quantity) || 0,
+      )
       .catch((err) => {
         // Non-blocking: PC creation failure must not break shipment update
         console.error(
@@ -1462,7 +1466,11 @@ export class ShipmentService {
         pcData = pcRows[0];
       }
     } catch (err) {
-      console.warn('Could not lookup purchase contract for shipment #', id, err);
+      console.warn(
+        'Could not lookup purchase contract for shipment #',
+        id,
+        err,
+      );
     }
 
     const sc = json.salesContract || {};
@@ -1479,9 +1487,7 @@ export class ShipmentService {
       pcData?.delivery_place ||
       json.destination ||
       '—';
-    const commodity =
-      pcData?.product_name ||
-      '—';
+    const commodity = pcData?.product_name || '—';
     const buyer = sc.buyer?.entityName || '—';
     const supplier = pcData?.seller_name || '—';
 
@@ -1834,7 +1840,7 @@ export class ShipmentService {
     const destPort =
       contract.destinationLocationName ||
       contract.portOfDischarge ||
-      (contract as any).deliveryPlace ||
+      contract.deliveryPlace ||
       shipment.destination ||
       freightQuote?.pod ||
       '—';

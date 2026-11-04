@@ -663,7 +663,7 @@ export class ConversationService implements OnModuleInit {
 
     const data = await Promise.all(
       rows.map(async (conv) => {
-        const plain = conv.toJSON() as any;
+        const plain = conv.toJSON() as Record<string, any>;
         const membership = conv.members.find((m: any) => m.userId === userId);
 
         const lastMessageWhere: any = {

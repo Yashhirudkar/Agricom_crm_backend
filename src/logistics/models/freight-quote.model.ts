@@ -72,7 +72,10 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @Column({ field: 'shipment_id', type: DataType.INTEGER })
   declare shipmentId: number | null;
 
-  @BelongsTo(() => SalesContractShipment, { foreignKey: 'shipmentId', constraints: false })
+  @BelongsTo(() => SalesContractShipment, {
+    foreignKey: 'shipmentId',
+    constraints: false,
+  })
   declare shipment: SalesContractShipment;
 
   @ForeignKey(() => PurchaseContract)
@@ -80,7 +83,10 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @Column({ field: 'purchase_contract_id', type: DataType.INTEGER })
   declare purchaseContractId: number | null;
 
-  @BelongsTo(() => PurchaseContract, { foreignKey: 'purchaseContractId', constraints: false })
+  @BelongsTo(() => PurchaseContract, {
+    foreignKey: 'purchaseContractId',
+    constraints: false,
+  })
   declare purchaseContract: PurchaseContract;
 
   @AllowNull(false)

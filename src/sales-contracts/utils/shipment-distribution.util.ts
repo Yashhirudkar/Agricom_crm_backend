@@ -1,37 +1,57 @@
 /**
- * Centralized utility to distribute a total product quantity evenly across a specified number of shipments.
- * Handles decimals cleanly (up to 2 decimal places), and places any remainder in the
- * final shipment row so that the sum of all shipment quantities strictly equals totalProductQty.
+ * Checks whether Product Qty is an exact multiple of Qty Per Count.
+ * Handles floating point precision cleanly.
+ *
+ * @param totalProductQty
+ * @param qtyPerCount
+ * @returns boolean
+ */
+export function isDivisible(
+  totalProductQty: number | string,
+  qtyPerCount: number | string,
+): boolean {
+  const total = parseFloat(String(totalProductQty)) || 0;
+  const perCount = parseFloat(String(qtyPerCount)) || 0;
+  if (total <= 0 || perCount <= 0) return false;
+  const quotient = Math.round((total / perCount) * 1000000) / 1000000;
+  return (
+    Number.isInteger(quotient) ||
+    Math.abs(quotient - Math.round(quotient)) < 0.0001
+  );
+}
+
+/**
+ * Centralized utility to distribute a total product quantity across shipments using Qty Per Count.
+ *
+ * Business Rule:
+ * Shipment Qty must ALWAYS equal Qty Per Count.
+ * Every shipment must contain exactly Qty Per Count.
+ * Partial/remaining shipment is NOT allowed.
+ *
+ * If Product Qty % Qty Per Count !== 0, returns an empty array (no rows generated).
  *
  * @param totalProductQty - Total quantity from product items in MT
- * @param numShipments - Number of shipments to divide across (>= 1)
- * @returns Array of shipment quantities
+ * @param qtyPerCount - Qty Per Count per shipment in MT
+ * @returns Array of shipment quantities (each strictly equal to qtyPerCount)
  */
 export function distributeShipmentQuantities(
   totalProductQty: number | string,
-  numShipments: number | string,
+  qtyPerCount?: number | string | null,
 ): number[] {
-  const count = Math.max(1, parseInt(String(numShipments), 10) || 1);
   const total = Math.max(0, parseFloat(String(totalProductQty)) || 0);
+  const perCount =
+    qtyPerCount != null && parseFloat(String(qtyPerCount)) > 0
+      ? parseFloat(String(qtyPerCount))
+      : 0;
 
-  if (total === 0) {
-    return Array.from({ length: count }, () => 0);
+  if (total === 0 || perCount === 0) {
+    return [];
   }
 
-  // Round raw division to 2 decimal places
-  const rawPerShipment = total / count;
-  const baseQty = Math.round(rawPerShipment * 100) / 100;
-  const quantities: number[] = [];
-  let allocated = 0;
-
-  for (let i = 0; i < count - 1; i++) {
-    quantities.push(baseQty);
-    allocated = Math.round((allocated + baseQty) * 100) / 100;
+  if (!isDivisible(total, perCount)) {
+    return [];
   }
 
-  // The last shipment receives the exact remainder to ensure sum === total
-  const remainder = Math.round((total - allocated) * 100) / 100;
-  quantities.push(remainder);
-
-  return quantities;
+  const count = Math.round(total / perCount);
+  return Array.from({ length: count }, () => perCount);
 }

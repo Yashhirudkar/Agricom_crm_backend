@@ -120,7 +120,13 @@ export class ProductService implements OnModuleInit {
 
     let order: any = [['name', 'ASC']];
     if (sortBy) {
-      const allowedFields = ['name', 'country', 'hsCode', 'createdAt', 'updatedAt'];
+      const allowedFields = [
+        'name',
+        'country',
+        'hsCode',
+        'createdAt',
+        'updatedAt',
+      ];
       if (allowedFields.includes(sortBy)) {
         const direction = sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
         order = [[sortBy, direction]];

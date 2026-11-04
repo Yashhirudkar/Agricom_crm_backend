@@ -22,6 +22,7 @@ export enum LeaveAction {
   CANCELLED = 'CANCELLED',
   ESCALATED = 'ESCALATED',
   RECALCULATED = 'RECALCULATED',
+  CANCELLED_AFTER_APPROVAL = 'CANCELLED_AFTER_APPROVAL',
 }
 
 @Table({
@@ -51,6 +52,7 @@ export class LeaveApprovalLog extends Model<LeaveApprovalLog> {
       'CANCELLED',
       'ESCALATED',
       'RECALCULATED',
+      'CANCELLED_AFTER_APPROVAL',
     ),
   })
   declare action: LeaveAction;

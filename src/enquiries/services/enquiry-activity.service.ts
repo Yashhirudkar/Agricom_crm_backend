@@ -2,7 +2,10 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { OnEvent } from '@nestjs/event-emitter';
-import { EnquiryActivityLog, EnquiryActivityType } from '../models/enquiry-activity-log.model';
+import {
+  EnquiryActivityLog,
+  EnquiryActivityType,
+} from '../models/enquiry-activity-log.model';
 import { Enquiry } from '../models/enquiry.model';
 import { User } from '../../users/models/user.model';
 import { Role } from '../../rbac/models/role.model';
@@ -43,7 +46,9 @@ export class EnquiryActivityService {
    * Reusable central method to insert any enquiry activity.
    * Never updates records — ALWAYS INSERTS.
    */
-  async createActivity(dto: CreateEnquiryActivityDto): Promise<EnquiryActivityLog> {
+  async createActivity(
+    dto: CreateEnquiryActivityDto,
+  ): Promise<EnquiryActivityLog> {
     try {
       const record = await this.activityModel.create({
         enquiryId: dto.enquiryId,
@@ -56,7 +61,7 @@ export class EnquiryActivityService {
         whatsappMessageId: dto.whatsappMessageId || null,
         metadata: dto.metadata || null,
         createdAt: dto.createdAt || new Date(),
-      } as any);
+      });
 
       return record;
     } catch (err: any) {
@@ -84,17 +89,30 @@ export class EnquiryActivityService {
     return this.createActivity({
       enquiryId: enquiry.id,
       activityType: EnquiryActivityType.ENQUIRY_CREATED,
-      bidAmount: enquiry.buyingInterest != null ? Number(enquiry.buyingInterest) : null,
-      offerAmount: enquiry.offerAmount != null ? Number(enquiry.offerAmount) : null,
+      bidAmount:
+        enquiry.buyingInterest != null ? Number(enquiry.buyingInterest) : null,
+      offerAmount:
+        enquiry.offerAmount != null ? Number(enquiry.offerAmount) : null,
       currency: enquiry.bidCurrency || 'USD',
       changedByUserId: details?.user?.userId || enquiry.createdBy || null,
       metadata: {
         enquiryNo: enquiry.enquiryNo,
-        productName: details?.productName || (enquiry.product as any)?.name || 'Product',
-        partnerName: details?.partnerName || (enquiry.partner as any)?.entityName || 'Partner',
-        creatorName: details?.creatorName || details?.user?.name || (enquiry.creator as any)?.name || 'Admin',
+        productName:
+          details?.productName || (enquiry.product as any)?.name || 'Product',
+        partnerName:
+          details?.partnerName ||
+          (enquiry.partner as any)?.entityName ||
+          'Partner',
+        creatorName:
+          details?.creatorName ||
+          details?.user?.name ||
+          (enquiry.creator as any)?.name ||
+          'Admin',
         quantity: details?.quantity ?? enquiry.quantity,
-        bid: enquiry.buyingInterest != null ? String(enquiry.buyingInterest) : null,
+        bid:
+          enquiry.buyingInterest != null
+            ? String(enquiry.buyingInterest)
+            : null,
         offer: enquiry.offerAmount != null ? String(enquiry.offerAmount) : null,
         currency: enquiry.bidCurrency || 'USD',
       },
@@ -121,15 +139,27 @@ export class EnquiryActivityService {
     },
     user?: any,
   ): Promise<EnquiryActivityLog | null> {
-    const oldBid = oldData.buyingInterest != null && oldData.buyingInterest !== '' ? Number(oldData.buyingInterest) : null;
-    const newBid = newData.buyingInterest !== undefined
-      ? (newData.buyingInterest != null && newData.buyingInterest !== '' ? Number(newData.buyingInterest) : null)
-      : oldBid;
+    const oldBid =
+      oldData.buyingInterest != null && oldData.buyingInterest !== ''
+        ? Number(oldData.buyingInterest)
+        : null;
+    const newBid =
+      newData.buyingInterest !== undefined
+        ? newData.buyingInterest != null && newData.buyingInterest !== ''
+          ? Number(newData.buyingInterest)
+          : null
+        : oldBid;
 
-    const oldOffer = oldData.offerAmount != null && oldData.offerAmount !== '' ? Number(oldData.offerAmount) : null;
-    const newOffer = newData.offerAmount !== undefined
-      ? (newData.offerAmount != null && newData.offerAmount !== '' ? Number(newData.offerAmount) : null)
-      : oldOffer;
+    const oldOffer =
+      oldData.offerAmount != null && oldData.offerAmount !== ''
+        ? Number(oldData.offerAmount)
+        : null;
+    const newOffer =
+      newData.offerAmount !== undefined
+        ? newData.offerAmount != null && newData.offerAmount !== ''
+          ? Number(newData.offerAmount)
+          : null
+        : oldOffer;
 
     const bidChanged = oldBid !== newBid;
     const offerChanged = oldOffer !== newOffer;
@@ -298,7 +328,9 @@ export class EnquiryActivityService {
         });
       }
     } catch (err: any) {
-      this.logger.error(`Error in handleIncomingWhatsAppEvent: ${err?.message}`);
+      this.logger.error(
+        `Error in handleIncomingWhatsAppEvent: ${err?.message}`,
+      );
     }
   }
 
@@ -314,7 +346,9 @@ export class EnquiryActivityService {
   }) {
     if (!data.enquiryId) return;
     try {
-      const message = [data.dto?.buyerRemark, data.dto?.ourResponse].filter(Boolean).join('\n\n');
+      const message = [data.dto?.buyerRemark, data.dto?.ourResponse]
+        .filter(Boolean)
+        .join('\n\n');
       await this.createActivity({
         enquiryId: data.enquiryId,
         activityType: EnquiryActivityType.FOLLOW_UP,
@@ -340,8 +374,12 @@ export class EnquiryActivityService {
    * Fetch activity timeline in chronological order (ASC, newest at bottom).
    * Supports loading latest 50 activities initially, and lazy loading older activities on scroll.
    */
-  async getActivityTimeline(enquiryId: string, options?: ActivityQueryOptions): Promise<any[]> {
-    const limit = options?.limit && Number(options.limit) > 0 ? Number(options.limit) : 50;
+  async getActivityTimeline(
+    enquiryId: string,
+    options?: ActivityQueryOptions,
+  ): Promise<any[]> {
+    const limit =
+      options?.limit && Number(options.limit) > 0 ? Number(options.limit) : 50;
     const beforeId = options?.before ? Number(options.before) : null;
 
     const where: any = { enquiryId };
@@ -396,7 +434,13 @@ export class EnquiryActivityService {
               model: User,
               as: 'changedBy',
               attributes: ['id', 'name', 'avatarUrl'],
-              include: [{ model: Role, attributes: ['name'], through: { attributes: [] } }],
+              include: [
+                {
+                  model: Role,
+                  attributes: ['name'],
+                  through: { attributes: [] },
+                },
+              ],
             },
           ],
         });
@@ -437,13 +481,18 @@ export class EnquiryActivityService {
             avatar: changedByUser.avatarUrl,
             role: changedByUser.roles?.[0]?.name || 'User',
           }
-        : raw.metadata?.creatorName || raw.metadata?.updatedByName || raw.metadata?.authorName
-        ? {
-            id: raw.changedByUserId,
-            name: raw.metadata.creatorName || raw.metadata.updatedByName || raw.metadata.authorName,
-            role: 'User',
-          }
-        : null,
+        : raw.metadata?.creatorName ||
+            raw.metadata?.updatedByName ||
+            raw.metadata?.authorName
+          ? {
+              id: raw.changedByUserId,
+              name:
+                raw.metadata.creatorName ||
+                raw.metadata.updatedByName ||
+                raw.metadata.authorName,
+              role: 'User',
+            }
+          : null,
       whatsappMessageId: raw.whatsappMessageId,
       metadata: raw.metadata || {},
       createdAt: raw.createdAt,
@@ -481,8 +530,16 @@ export class EnquiryActivityService {
       limit: 50,
     });
 
-    const bidHistory: Array<{ amount: number; currency: string; createdAt: Date }> = [];
-    const offerHistory: Array<{ amount: number; currency: string; createdAt: Date }> = [];
+    const bidHistory: Array<{
+      amount: number;
+      currency: string;
+      createdAt: Date;
+    }> = [];
+    const offerHistory: Array<{
+      amount: number;
+      currency: string;
+      createdAt: Date;
+    }> = [];
 
     let lastBidAmount: number | null = null;
     let lastOfferAmount: number | null = null;
@@ -531,7 +588,11 @@ export class EnquiryActivityService {
     }
 
     // Fallback: if bidHistory is empty but enquiry currently has buyingInterest
-    if (bidHistory.length === 0 && enquiry.buyingInterest != null && !isNaN(Number(enquiry.buyingInterest))) {
+    if (
+      bidHistory.length === 0 &&
+      enquiry.buyingInterest != null &&
+      !isNaN(Number(enquiry.buyingInterest))
+    ) {
       bidHistory.push({
         amount: Number(enquiry.buyingInterest),
         currency: defaultCurrency,
@@ -553,5 +614,4 @@ export class EnquiryActivityService {
       offerHistory,
     };
   }
-
 }

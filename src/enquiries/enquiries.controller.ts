@@ -83,7 +83,7 @@ export class EnquiriesController {
   @RequireAnyPermission('enquiry:update', 'sales_contract:update')
   updateLoadingPoints(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { loadingPoints: string[], freightRequired?: boolean },
+    @Body() body: { loadingPoints: string[]; freightRequired?: boolean },
     @Req() req: any,
   ) {
     return this.enquiriesService.updateLoadingPoints(
@@ -153,5 +153,4 @@ export class EnquiriesController {
   getPriceHistory(@Param('id', ParseUUIDPipe) id: string) {
     return this.enquiriesService.getPriceHistory(id);
   }
-
 }

@@ -82,12 +82,17 @@ export class PortController {
         const headerRow = sheet.getRow(1);
         const colMap: Record<number, string> = {};
         headerRow.eachCell((cell, colNumber) => {
-          const val = String(cell.value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+          const val = String(cell.value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_-]+/g, '');
           if (val.includes('country')) colMap[colNumber] = 'country';
-          else if (val.includes('portname') || val === 'port') colMap[colNumber] = 'port_name';
+          else if (val.includes('portname') || val === 'port')
+            colMap[colNumber] = 'port_name';
           else if (val.includes('unlocode')) colMap[colNumber] = 'unlocode';
           else if (val.includes('type')) colMap[colNumber] = 'port_type';
-          else if (val.includes('shippingline') || val.includes('line')) colMap[colNumber] = 'shipping_line';
+          else if (val.includes('shippingline') || val.includes('line'))
+            colMap[colNumber] = 'shipping_line';
         });
 
         sheet.eachRow((row, rowNumber) => {
@@ -97,7 +102,10 @@ export class PortController {
             const key = colMap[colNumber];
             if (key) {
               const cellVal = cell.value;
-              rowData[key] = typeof cellVal === 'object' && cellVal !== null ? (cellVal as any).text || '' : String(cellVal || '');
+              rowData[key] =
+                typeof cellVal === 'object' && cellVal !== null
+                  ? (cellVal as any).text || ''
+                  : String(cellVal || '');
             }
           });
           if (rowData.country && rowData.port_name) {

@@ -53,10 +53,26 @@ export class SalesContractItem extends Model<SalesContractItem> {
   @BelongsTo(() => Product)
   declare product: Product;
 
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(150) })
+  declare origin: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(255) })
+  declare quality: string;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(500) })
+  declare marking: string;
+
   @Default(0)
   @AllowNull(false)
   @Column({ type: DataType.DECIMAL(12, 2) })
   declare quantity: number;
+
+  @AllowNull(true)
+  @Column({ field: 'qty_per_count', type: DataType.DECIMAL(12, 2) })
+  declare qtyPerCount: number;
 
   @Default(0)
   @AllowNull(false)

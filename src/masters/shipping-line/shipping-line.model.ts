@@ -63,7 +63,10 @@ export class ShippingLine extends Model<ShippingLine> {
   @BelongsToMany(() => Port, () => PortShippingLine)
   declare ports: Port[];
 
-  @HasMany(() => PortShippingLine, { foreignKey: 'shippingLineId', as: 'portMappings' })
+  @HasMany(() => PortShippingLine, {
+    foreignKey: 'shippingLineId',
+    as: 'portMappings',
+  })
   declare portMappings: PortShippingLine[];
 
   // Alias getters

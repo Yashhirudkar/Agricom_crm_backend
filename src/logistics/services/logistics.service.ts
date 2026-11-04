@@ -80,7 +80,7 @@ export class LogisticsService {
     private readonly shipmentService: ShipmentService,
     @Inject(forwardRef(() => ShipmentReadinessService))
     private readonly readinessService: ShipmentReadinessService,
-  ) { }
+  ) {}
 
   async fixDb() {
     try {
@@ -232,7 +232,11 @@ export class LogisticsService {
           { enquiryNo: { [Op.iLike]: `%${s}%` } },
           { '$partner.entity_name$': { [Op.iLike]: `%${s}%` } },
           { '$product.name$': { [Op.iLike]: `%${s}%` } },
-          { '$logistics.purchaseContract.contract_number$': { [Op.iLike]: `%${s}%` } },
+          {
+            '$logistics.purchaseContract.contract_number$': {
+              [Op.iLike]: `%${s}%`,
+            },
+          },
         ],
       };
       if (isBusinessReferenceSearch(s)) {
@@ -332,10 +336,7 @@ export class LogisticsService {
       order,
     });
 
-    const data = await this.attachPurchaseContractsToEnquiries(
-      rows,
-      companyId,
-    );
+    const data = await this.attachPurchaseContractsToEnquiries(rows, companyId);
 
     return {
       data,
@@ -454,7 +455,9 @@ export class LogisticsService {
 
     return enquiries.map((enquiry) => {
       const plain: any =
-        typeof enquiry.toJSON === 'function' ? enquiry.toJSON() : { ...enquiry };
+        typeof enquiry.toJSON === 'function'
+          ? enquiry.toJSON()
+          : { ...enquiry };
       const pcIdFromLogistics =
         plain.logistics?.purchaseContractId ||
         plain.logistics?.purchase_contract_id;
@@ -476,7 +479,10 @@ export class LogisticsService {
         }
       }
 
-      const scDest = matchedPc?.sc_destination_location_name || matchedPc?.sc_port_of_discharge || null;
+      const scDest =
+        matchedPc?.sc_destination_location_name ||
+        matchedPc?.sc_port_of_discharge ||
+        null;
       plain.salesContract = matchedPc
         ? {
             destinationLocationName: scDest,
@@ -603,10 +609,8 @@ export class LogisticsService {
     if (businessReference) {
       quoteWhereConditions.push({
         businessTransactionId:
-          (await resolveBusinessTransactionId(
-            businessReference,
-            companyId,
-          )) ?? -1,
+          (await resolveBusinessTransactionId(businessReference, companyId)) ??
+          -1,
       });
     }
 
@@ -832,11 +836,10 @@ export class LogisticsService {
     });
 
     const rawQuotes = rows.map((row) => {
-      const data = row.toJSON() as any;
+      const data = row.toJSON();
       return {
         ...data,
-        businessReference:
-          data.businessTransaction?.businessReference ?? null,
+        businessReference: data.businessTransaction?.businessReference ?? null,
       };
     });
 
@@ -1023,7 +1026,11 @@ export class LogisticsService {
    * Get detail logistics workspace of an enquiry.
    * Auto-creates the Logistics record if missing.
    */
-  async getDetails(enquiryId: string, companyId: number = 1, targetShipmentId?: number) {
+  async getDetails(
+    enquiryId: string,
+    companyId: number = 1,
+    targetShipmentId?: number,
+  ) {
     const enquiry = await this.enquiryModel.findOne({
       where: { id: enquiryId, companyId },
       include: [
@@ -1102,8 +1109,22 @@ export class LogisticsService {
         const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
         // Infer Mode: Domestic ONLY if BOTH Origin AND Destination are India/domestic
-        const originStr = (enquiry.originCountryId || enquiry.originPort || enquiry.originCity || '').trim().toLowerCase();
-        const destStr = (enquiry.destinationCountry || enquiry.destinationPort || enquiry.destinationCity || '').trim().toLowerCase();
+        const originStr = (
+          enquiry.originCountryId ||
+          enquiry.originPort ||
+          enquiry.originCity ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+        const destStr = (
+          enquiry.destinationCountry ||
+          enquiry.destinationPort ||
+          enquiry.destinationCity ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
 
         let mode = 'International';
         const isOriginIndia = originStr.includes('india');
@@ -1128,7 +1149,12 @@ export class LogisticsService {
         // Check Sales Contract if available for accurate trade type
         const scForMode = await this.salesContractModel.findOne({
           where: { enquiryId },
-          attributes: ['contractType', 'originTransportMode', 'originCountry', 'destinationCountry'],
+          attributes: [
+            'contractType',
+            'originTransportMode',
+            'originCountry',
+            'destinationCountry',
+          ],
           transaction,
         });
         if (scForMode) {
@@ -1394,12 +1420,23 @@ export class LogisticsService {
             sellerName: pc.seller_name || null,
           };
           if (!salesContract && pc.sales_contract_id) {
-            salesContract = await this.salesContractModel.findByPk(pc.sales_contract_id, {
-              include: [
-                { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
-                { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
-              ],
-            });
+            salesContract = await this.salesContractModel.findByPk(
+              pc.sales_contract_id,
+              {
+                include: [
+                  {
+                    model: Partner,
+                    as: 'buyer',
+                    attributes: ['id', 'entityName'],
+                  },
+                  {
+                    model: Partner,
+                    as: 'seller',
+                    attributes: ['id', 'entityName'],
+                  },
+                ],
+              },
+            );
           }
         }
       }
@@ -1459,7 +1496,10 @@ export class LogisticsService {
             shipmentIdSet.add(s.id);
           }
         } catch (err) {
-          console.warn('Could not query purchaseContract.salesContractId shipments:', err);
+          console.warn(
+            'Could not query purchaseContract.salesContractId shipments:',
+            err,
+          );
         }
       }
 
@@ -1493,15 +1533,24 @@ export class LogisticsService {
       if (targetShipmentId) {
         const target = dbShipments.find((s) => s.id === targetShipmentId);
         if (!target) {
-          throw new NotFoundException(`Selected shipment #${targetShipmentId} not found`);
+          throw new NotFoundException(
+            `Selected shipment #${targetShipmentId} not found`,
+          );
         }
-        if (salesContract?.id && target.salesContractId && target.salesContractId !== salesContract.id) {
-          throw new NotFoundException(`Selected shipment #${targetShipmentId} not found in this contract`);
+        if (
+          salesContract?.id &&
+          target.salesContractId &&
+          target.salesContractId !== salesContract.id
+        ) {
+          throw new NotFoundException(
+            `Selected shipment #${targetShipmentId} not found in this contract`,
+          );
         }
       }
 
       // Batch evaluate readiness
-      const readinessMap = await this.readinessService.evaluateBatch(dbShipments);
+      const readinessMap =
+        await this.readinessService.evaluateBatch(dbShipments);
 
       // Batch load quotes linked to these shipments
       const quotesForShipments = await this.quoteModel.findAll({
@@ -1563,7 +1612,8 @@ export class LogisticsService {
           origin: defaultOrigin,
           destination: defaultDestination,
           route: `${defaultOrigin} → ${defaultDestination}`,
-          commodity: purchaseContract?.productName || enquiry?.product?.name || '—',
+          commodity:
+            purchaseContract?.productName || enquiry?.product?.name || '—',
           buyer: salesContract?.buyer?.entityName || '—',
           supplier: purchaseContract?.sellerName || '—',
           status: s.status,
@@ -1585,7 +1635,9 @@ export class LogisticsService {
             Boolean(preferredQuote) || (readiness?.freightReady ?? false),
           readyForShipment: readiness?.readyForShipment ?? false,
           reasons: readiness?.reasons ?? [],
-          isExecuted: ['Executed', 'Dispatched', 'Completed'].includes(s.status),
+          isExecuted: ['Executed', 'Dispatched', 'Completed'].includes(
+            s.status,
+          ),
         };
       });
     }
@@ -1617,8 +1669,13 @@ export class LogisticsService {
     }
 
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
 
     return await this.sequelize.transaction(async (transaction) => {
@@ -1670,7 +1727,8 @@ export class LogisticsService {
           quoteNumber,
           logisticsId,
           shipmentId: dto.shipmentId || null,
-          purchaseContractId: dto.purchaseContractId || logistics.purchaseContractId || null,
+          purchaseContractId:
+            dto.purchaseContractId || logistics.purchaseContractId || null,
           businessTransactionId: logistics.businessTransactionId ?? null,
           createdBy: user?.userId,
           routeId: dto.routeId || null,
@@ -1784,10 +1842,19 @@ export class LogisticsService {
     });
   }
 
-  async createDirectFreightQuote(dto: CreateFreightQuoteDto, user: any, companyId: number = 1) {
+  async createDirectFreightQuote(
+    dto: CreateFreightQuoteDto,
+    user: any,
+    companyId: number = 1,
+  ) {
     if (dto.sellerId) {
-      const seller = await Partner.findOne({ where: { id: dto.sellerId, companyId } });
-      if (!seller) throw new BadRequestException('Seller not found or does not belong to company');
+      const seller = await Partner.findOne({
+        where: { id: dto.sellerId, companyId },
+      });
+      if (!seller)
+        throw new BadRequestException(
+          'Seller not found or does not belong to company',
+        );
     }
 
     return await this.sequelize.transaction(async (transaction) => {
@@ -1972,7 +2039,11 @@ export class LogisticsService {
     });
   }
 
-  async deleteDirectFreightQuote(quoteId: number, user: any, companyId: number = 1) {
+  async deleteDirectFreightQuote(
+    quoteId: number,
+    user: any,
+    companyId: number = 1,
+  ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, isDirect: true },
     });
@@ -1981,9 +2052,7 @@ export class LogisticsService {
     }
 
     if (quote.isPreferred) {
-      throw new BadRequestException(
-        'Cannot delete preferred quote.'
-      );
+      throw new BadRequestException('Cannot delete preferred quote.');
     }
 
     await this.sequelize.transaction(async (transaction) => {
@@ -2795,11 +2864,7 @@ export class LogisticsService {
    * Execute an individual shipment independently.
    * Executing one shipment does NOT affect any other shipment under the same Purchase Contract.
    */
-  async executeShipment(
-    shipmentId: number,
-    user: any,
-    companyId: number = 1,
-  ) {
+  async executeShipment(shipmentId: number, user: any, companyId: number = 1) {
     const shipment = await this.shipmentModel.findByPk(shipmentId);
     if (!shipment) {
       throw new NotFoundException('Shipment not found');

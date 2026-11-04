@@ -19,11 +19,14 @@ import { Employee } from './employee.model';
 import { LeaveType } from './leave-type.model';
 import { LeaveApprovalStep } from './leave-approval-step.model';
 import { LeaveApprovalLog } from './leave-approval-log.model';
+import { User } from '../../users/models/user.model';
+import { LeaveRequestHandoverUser } from './leave-request-handover-user.model';
 export enum LeaveRequestStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   CANCELLED = 'CANCELLED',
+  CANCELLED_AFTER_APPROVAL = 'CANCELLED_AFTER_APPROVAL',
 }
 
 export enum HalfDayType {
@@ -102,7 +105,13 @@ export class LeaveRequest extends Model<LeaveRequest> {
   @Default(LeaveRequestStatus.PENDING)
   @AllowNull(false)
   @Column({
-    type: DataType.ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'),
+    type: DataType.ENUM(
+      'PENDING',
+      'APPROVED',
+      'REJECTED',
+      'CANCELLED',
+      'CANCELLED_AFTER_APPROVAL',
+    ),
   })
   declare status: LeaveRequestStatus;
 
@@ -132,6 +141,35 @@ export class LeaveRequest extends Model<LeaveRequest> {
   @Column({ type: DataType.TEXT })
   declare rejectedReason: string;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN })
+  declare cancelledAfterApproval: boolean;
+
+  @ForeignKey(() => User)
+  @AllowNull(true)
+  @Column({ type: DataType.INTEGER, onDelete: 'SET NULL' })
+  declare cancelledById: number | null;
+
+  @BelongsTo(() => User, {
+    foreignKey: 'cancelledById',
+    as: 'cancelledByUser',
+    onDelete: 'SET NULL',
+  })
+  declare cancelledByUser?: User;
+
+  @AllowNull(true)
+  @Column({ type: DataType.DATE })
+  declare cancelledAt: Date | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.TEXT })
+  declare cancellationReason: string | null;
+
+  @AllowNull(true)
+  @Column({ type: DataType.STRING(50) })
+  declare previousStatus: string | null;
+
   @CreatedAt
   declare createdAt: Date;
 
@@ -143,4 +181,7 @@ export class LeaveRequest extends Model<LeaveRequest> {
 
   @HasMany(() => LeaveApprovalLog, { as: 'logs' })
   declare approvalLogs: LeaveApprovalLog[];
+
+  @HasMany(() => LeaveRequestHandoverUser, { as: 'handoverUsers' })
+  declare handoverUsers: LeaveRequestHandoverUser[];
 }

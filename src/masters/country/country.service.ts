@@ -17,7 +17,11 @@ export class CountryService {
     private readonly portModel: typeof Port,
   ) {}
 
-  async findAll(query: { search?: string; isActive?: string | boolean; limit?: number }) {
+  async findAll(query: {
+    search?: string;
+    isActive?: string | boolean;
+    limit?: number;
+  }) {
     const where: any = {};
 
     if (query.isActive !== undefined) {
@@ -88,12 +92,19 @@ export class CountryService {
     };
   }
 
-  async create(data: { name: string; iso2Code?: string; iso3Code?: string; phoneCode?: string }) {
+  async create(data: {
+    name: string;
+    iso2Code?: string;
+    iso3Code?: string;
+    phoneCode?: string;
+  }) {
     const existing = await this.countryModel.findOne({
       where: {
         [Op.or]: [
           { name: { [Op.iLike]: data.name.trim() } },
-          ...(data.iso2Code ? [{ iso2Code: { [Op.iLike]: data.iso2Code.trim() } }] : []),
+          ...(data.iso2Code
+            ? [{ iso2Code: { [Op.iLike]: data.iso2Code.trim() } }]
+            : []),
         ],
       },
     });
@@ -111,7 +122,7 @@ export class CountryService {
       iso3Code: iso3,
       phoneCode: data.phoneCode || null,
       isActive: true,
-    } as any);
+    });
   }
 
   async remove(id: number) {
@@ -129,6 +140,9 @@ export class CountryService {
     }
 
     await country.destroy();
-    return { success: true, message: `Country "${country.name}" deleted successfully` };
+    return {
+      success: true,
+      message: `Country "${country.name}" deleted successfully`,
+    };
   }
 }

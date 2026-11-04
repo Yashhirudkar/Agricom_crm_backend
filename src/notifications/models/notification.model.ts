@@ -105,7 +105,7 @@ export class Notification extends Model<Notification> {
   }
 
   override toJSON(): object {
-    const json = super.toJSON() as any;
+    const json = { ...super.toJSON() } as Record<string, unknown>;
     json.entityType = this.entityType;
     json.entityId = this.entityId;
     return json;

@@ -291,6 +291,69 @@ export class PurchaseContractQueryService {
     }
     json.health = await this.computeHealthScore(id);
     json.allocationSummary = await this.computeAllocationSummary(id);
+    const scItems = pc.salesContract?.items || [];
+    const scShipments = pc.salesContract?.shipments || [];
+    json.qtyPerCount =
+      Number(
+        scItems.find((it: any) => Number(it.qtyPerCount) > 0)?.qtyPerCount,
+      ) ||
+      Number(scShipments.find((s: any) => Number(s.quantity) > 0)?.quantity) ||
+      0;
+
+    if (json.salesContract?.shipments) {
+      json.salesContract.shipments.sort(
+        (a: any, b: any) =>
+          (Number(a.shipmentSequence) || 0) -
+            (Number(b.shipmentSequence) || 0) ||
+          (Number(a.shipmentNo) || 0) - (Number(b.shipmentNo) || 0) ||
+          a.id - b.id,
+      );
+    }
+
+    if (pc.salesContractId) {
+      const activePcs = await this.model.findAll({
+        where: {
+          salesContractId: pc.salesContractId,
+          status: { [Op.notIn]: ['Cancelled', 'Rejected'] },
+        },
+        include: [
+          {
+            model: PurchaseContractItem,
+            as: 'items',
+            attributes: ['id', 'quantity'],
+          },
+        ],
+        attributes: ['id', 'contractNumber', 'quantity', 'status'],
+        order: [['id', 'ASC']],
+      });
+      json.activePurchaseContracts = activePcs.map((p) => {
+        let pQty = 0;
+        if (
+          p.quantity !== undefined &&
+          p.quantity !== null &&
+          p.quantity !== ''
+        ) {
+          const q = Number(p.quantity);
+          if (!isNaN(q) && q > 0) pQty = q;
+        }
+        if (pQty === 0 && p.items?.length) {
+          pQty = p.items.reduce(
+            (sum, item) => sum + (Number(item.quantity) || 0),
+            0,
+          );
+        }
+        return {
+          id: p.id,
+          contractNumber: p.contractNumber,
+          quantity: pQty,
+          status: p.status,
+        };
+      });
+      if (json.salesContract) {
+        json.salesContract.activePurchaseContracts =
+          json.activePurchaseContracts;
+      }
+    }
 
     const attachmentLinks = await this.attachmentLinkModel
       .findAll({
@@ -454,12 +517,17 @@ export class PurchaseContractQueryService {
     purchaseContractId: number,
   ): Promise<AllocationSummaryResult> {
     const pc = await this.model.findByPk(purchaseContractId, {
-      attributes: ['id', 'salesContractId'],
+      attributes: ['id', 'salesContractId', 'quantity'],
       include: [
+        {
+          model: PurchaseContractItem,
+          as: 'items',
+          attributes: ['quantity'],
+        },
         {
           model: SalesContract,
           as: 'salesContract',
-          attributes: ['id'],
+          attributes: ['id', 'totalQuantity'],
           include: [
             {
               model: SalesContractItem,
@@ -472,55 +540,44 @@ export class PurchaseContractQueryService {
     });
     if (!pc) throw new NotFoundException('Purchase Contract not found');
 
-    const salesContractQty =
-      pc.salesContract?.items?.reduce(
+    let salesContractQty = Number(pc.salesContract?.totalQuantity) || 0;
+    if (salesContractQty === 0 && pc.salesContract?.items?.length) {
+      salesContractQty = pc.salesContract.items.reduce(
         (sum, item) => sum + (Number(item.quantity) || 0),
         0,
-      ) || 0;
+      );
+    }
 
-    // Sum of shipment quantities in OTHER active purchase contracts linked to the same Sales Contract
-    const [alreadyAllocatedRes]: any[] = await this.sequelize.query(
-      `
-      SELECT COALESCE(SUM(scs.quantity), 0) AS already_allocated
-      FROM purchase_contract_shipments pcs
-      JOIN sales_contract_shipments scs ON scs.id = pcs.shipment_id
-      JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
-      WHERE pc.sales_contract_id = :salesContractId
-        AND pc.id != :purchaseContractId
-        AND pc.status NOT IN ('Cancelled', 'Rejected')
-        AND scs.status != 'Cancelled'
-      `,
-      {
-        replacements: {
-          salesContractId: pc.salesContractId,
-          purchaseContractId,
-        },
-        type: QueryTypes.SELECT,
+    // Sum of quantities in OTHER active purchase contracts linked to the same Sales Contract
+    const otherPcs = await this.model.findAll({
+      where: {
+        salesContractId: pc.salesContractId,
+        id: { [Op.ne]: purchaseContractId },
+        status: { [Op.notIn]: ['Cancelled', 'Rejected'] },
       },
-    );
+      include: [
+        { model: PurchaseContractItem, as: 'items', attributes: ['quantity'] },
+      ],
+    });
 
-    const alreadyAllocatedQty = parseFloat(
-      alreadyAllocatedRes?.already_allocated || 0,
-    );
+    let alreadyAllocatedQty = 0;
+    for (const other of otherPcs) {
+      let q = Number(other.quantity) || 0;
+      if (q === 0 && other.items?.length) {
+        q = other.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+      }
+      alreadyAllocatedQty += q;
+    }
+    alreadyAllocatedQty = Math.round(alreadyAllocatedQty * 100) / 100;
 
-    // Sum of selected shipment quantities in THIS purchase contract
-    const [currentPurchaseRes]: any[] = await this.sequelize.query(
-      `
-      SELECT COALESCE(SUM(scs.quantity), 0) AS current_purchase
-      FROM purchase_contract_shipments pcs
-      JOIN sales_contract_shipments scs ON scs.id = pcs.shipment_id
-      WHERE pcs.purchase_contract_id = :purchaseContractId
-        AND scs.status != 'Cancelled'
-      `,
-      {
-        replacements: { purchaseContractId },
-        type: QueryTypes.SELECT,
-      },
-    );
-
-    const currentPurchaseQty = parseFloat(
-      currentPurchaseRes?.current_purchase || 0,
-    );
+    let currentPurchaseQty = Number(pc.quantity) || 0;
+    if (currentPurchaseQty === 0 && pc.items?.length) {
+      currentPurchaseQty = pc.items.reduce(
+        (s, it) => s + (Number(it.quantity) || 0),
+        0,
+      );
+    }
+    currentPurchaseQty = Math.round(currentPurchaseQty * 100) / 100;
 
     return calculatePurchaseAllocation({
       salesContractQty,

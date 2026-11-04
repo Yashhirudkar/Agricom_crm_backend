@@ -24,6 +24,9 @@ import { LeaveType } from '../models/leave-type.model';
 import { Employee, EmployeeStatus } from '../models/employee.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Shift } from '../../attendance/models/shift.model';
+import { LeaveRequestHandoverUser } from '../models/leave-request-handover-user.model';
+import { User } from '../../users/models/user.model';
+import { UserCompany } from '../../users/models/user-company.model';
 import { Holiday } from '../../holidays/models/holiday.model';
 import { HolidayCompany } from '../../holidays/models/holiday-company.model';
 import { AuditService } from '../../audit/services/audit.service';
@@ -35,6 +38,7 @@ import {
   ApproveLeaveDto,
   RejectLeaveDto,
   CancelLeaveDto,
+  CancelApprovedLeaveDto,
   GetLeaveRequestsFilterDto,
 } from '../dto/leave-requests.dto';
 import {
@@ -82,6 +86,10 @@ export class LeaveRequestsService {
     private readonly hrPolicyModel: typeof CompanyHrPolicy,
     @InjectModel(Holiday)
     private readonly holidayModel: typeof Holiday,
+    @InjectModel(LeaveRequestHandoverUser)
+    private readonly leaveRequestHandoverUserModel: typeof LeaveRequestHandoverUser,
+    @InjectModel(User)
+    private readonly userModel: typeof User,
     @InjectModel(AttendanceRecord)
     private readonly attendanceRecordModel: typeof AttendanceRecord,
     private readonly auditService: AuditService,
@@ -92,6 +100,102 @@ export class LeaveRequestsService {
     private readonly notificationsService: NotificationsService,
     private readonly leaveCalculationService: LeaveCalculationService,
   ) {}
+
+  async getHandoverEmployees(
+    companyId: number,
+    currentUserId?: number,
+    currentEmployeeId?: number,
+    search?: string,
+  ) {
+    const whereEmp: any = {
+      companyId,
+      status: {
+        [Op.notIn]: [
+          EmployeeStatus.TERMINATED,
+          EmployeeStatus.RESIGNED,
+          EmployeeStatus.DRAFT,
+        ],
+      },
+      departmentId: { [Op.ne]: null },
+    };
+
+    if (currentEmployeeId) {
+      whereEmp.id = { [Op.ne]: currentEmployeeId };
+    }
+
+    if (search && search.trim()) {
+      const pattern = `%${search.trim()}%`;
+      whereEmp[Op.or] = [
+        { firstName: { [Op.iLike]: pattern } },
+        { lastName: { [Op.iLike]: pattern } },
+        { email: { [Op.iLike]: pattern } },
+      ];
+    }
+
+    const employees = await this.employeeModel.findAll({
+      where: whereEmp,
+      attributes: ['id', 'userId', 'firstName', 'lastName', 'email', 'status'],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'email', 'status', 'isActive'],
+          required: true,
+          include: [
+            {
+              model: UserCompany,
+              where: {
+                companyId,
+                status: 'Active',
+                roleId: { [Op.ne]: null },
+              },
+              attributes: [],
+              required: true,
+            },
+          ],
+        },
+      ],
+      order: [
+        ['firstName', 'ASC'],
+        ['lastName', 'ASC'],
+      ],
+      limit: 200,
+    });
+
+    const activeEmployees = employees.filter((emp) => {
+      if (
+        currentUserId &&
+        (emp.userId === currentUserId || emp.user?.id === currentUserId)
+      ) {
+        return false;
+      }
+      if (emp.user) {
+        if (emp.user.isActive === false) return false;
+        const uStatus = (emp.user.status || '').toLowerCase();
+        if (uStatus === 'inactive' || uStatus === 'suspended') return false;
+      }
+      return true;
+    });
+
+    return activeEmployees.map((emp) => {
+      const rawName = `${emp.firstName || ''} ${emp.lastName || ''}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      const displayName =
+        rawName ||
+        emp.user?.name ||
+        emp.email ||
+        `User #${emp.userId || emp.id}`;
+      const resolvedUserId = emp.userId || emp.user?.id || emp.id;
+      return {
+        value: resolvedUserId,
+        label: displayName.toUpperCase(),
+        userId: resolvedUserId,
+        employeeId: emp.id,
+        email: emp.email || emp.user?.email,
+      };
+    });
+  }
 
   async getLeaveApprovalRecipients(
     companyId: number,
@@ -284,6 +388,76 @@ export class LeaveRequestsService {
       );
     }
 
+    if (!dto.handoverUserIds || dto.handoverUserIds.length === 0) {
+      throw new BadRequestException(
+        'Minimum 1 employee is required for work handover',
+      );
+    }
+
+    const currentApplicantUserId = actor?.userId || employee.userId;
+    for (const hId of dto.handoverUserIds) {
+      if (hId === currentApplicantUserId || hId === employeeId) {
+        throw new BadRequestException(
+          'You cannot assign yourself for work handover',
+        );
+      }
+    }
+
+    const candidateEmployees = await this.employeeModel.findAll({
+      where: {
+        companyId,
+        [Op.or]: [
+          { userId: { [Op.in]: dto.handoverUserIds } },
+          { id: { [Op.in]: dto.handoverUserIds } },
+        ],
+        status: {
+          [Op.notIn]: [
+            EmployeeStatus.TERMINATED,
+            EmployeeStatus.RESIGNED,
+            EmployeeStatus.DRAFT,
+          ],
+        },
+      },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'isActive', 'status'],
+          required: false,
+        },
+      ],
+    });
+
+    const validHandoverUserIds: number[] = [];
+    for (const hId of dto.handoverUserIds) {
+      const matched = candidateEmployees.find(
+        (e) => e.userId === hId || e.id === hId,
+      );
+      if (matched) {
+        const uId = matched.userId || matched.user?.id || matched.id;
+        if (uId && !validHandoverUserIds.includes(uId)) {
+          validHandoverUserIds.push(uId);
+        }
+      } else {
+        const directUser = await this.userModel.findOne({
+          where: {
+            id: hId,
+            [Op.or]: [{ clientId: companyId }, { lastCompanyId: companyId }],
+            isActive: true,
+          },
+        });
+        if (directUser && !validHandoverUserIds.includes(directUser.id)) {
+          validHandoverUserIds.push(directUser.id);
+        }
+      }
+    }
+
+    if (validHandoverUserIds.length === 0) {
+      throw new BadRequestException(
+        'Selected work handover employees are invalid or inactive',
+      );
+    }
+
     const policy = await this.hrPolicyModel.findOne({ where: { companyId } });
     if (!policy) throw new NotFoundException('HR Policy not configured');
 
@@ -468,6 +642,16 @@ export class LeaveRequestsService {
         { transaction: t },
       );
 
+      await this.leaveRequestHandoverUserModel.bulkCreate(
+        validHandoverUserIds.map((uId) => ({
+          leaveRequestId: leaveRequest.id,
+          userId: uId,
+          assignedBy: actor?.userId || null,
+          assignedAt: new Date(),
+        })),
+        { transaction: t },
+      );
+
       if (leaveType.requiresApproval) {
         let approverId = employee.managerId;
         if (!approverId) {
@@ -550,6 +734,32 @@ export class LeaveRequestsService {
         );
       }
 
+      try {
+        const fromDateStr = toDateOnlyStr(dto.fromDate);
+        const toDateStr = toDateOnlyStr(dto.toDate);
+        const applicantFullName =
+          `${employee.firstName} ${employee.lastName}`.trim();
+        await this.notificationsService.createNotification({
+          recipients: validHandoverUserIds,
+          type: NotificationType.HR,
+          referenceType: 'leave_handover',
+          referenceId: leaveRequest.id,
+          title: '🤝 Work Handover Assignment',
+          payload: {
+            message: `${applicantFullName} has assigned you as work handover for leave from ${fromDateStr} to ${toDateStr}.`,
+            url: `/my-leaves?requestId=${leaveRequest.id}`,
+            entityType: 'LEAVE_REQUEST',
+          },
+          category: 'LEAVE',
+          companyId,
+        });
+      } catch (handoverNotifErr) {
+        console.error(
+          '[LeaveRequestsService] Failed to send handover notifications:',
+          handoverNotifErr,
+        );
+      }
+
       return leaveRequest;
     } catch (err) {
       await t.rollback();
@@ -586,6 +796,20 @@ export class LeaveRequestsService {
       requestId,
       companyId,
       approverId,
+      dto,
+      actor,
+    );
+  }
+
+  async cancelApprovedLeave(
+    requestId: number,
+    companyId: number,
+    dto: CancelApprovedLeaveDto,
+    actor?: any,
+  ): Promise<{ message: string }> {
+    return this.workflowService.cancelApprovedLeave(
+      requestId,
+      companyId,
       dto,
       actor,
     );

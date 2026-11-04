@@ -186,7 +186,9 @@ export class QuotationService {
         })
       : null;
     if (dto.enquiryId && !linkedEnquiry) {
-      throw new NotFoundException('Enquiry not found or does not belong to company');
+      throw new NotFoundException(
+        'Enquiry not found or does not belong to company',
+      );
     }
     return this.sequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
@@ -207,8 +209,7 @@ export class QuotationService {
             importerId: dto.importerId ?? null,
             destinationCountry: dto.destinationCountry,
             enquiryId: linkedEnquiry?.id ?? null,
-            businessTransactionId:
-              linkedEnquiry?.businessTransactionId ?? null,
+            businessTransactionId: linkedEnquiry?.businessTransactionId ?? null,
             followUpId: dto.followUpId ?? null,
             currencyCode: dto.currencyCode,
             validUntil: dto.validUntil ?? null,
@@ -333,7 +334,7 @@ export class QuotationService {
 
     return {
       data: rows.map((row) => {
-        const data = row.toJSON() as any;
+        const data = row.toJSON();
         return {
           ...data,
           businessReference:

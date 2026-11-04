@@ -18,7 +18,9 @@ export class CountryController {
   constructor(private readonly service: CountryService) {}
 
   @Get()
-  async findAll(@Query() query: { search?: string; isActive?: string; limit?: number }) {
+  async findAll(
+    @Query() query: { search?: string; isActive?: string; limit?: number },
+  ) {
     return await this.service.findAll(query);
   }
 

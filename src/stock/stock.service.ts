@@ -436,7 +436,6 @@ export class StockService {
           contractDate: pc.purchaseDate || pc.createdAt,
         });
       }
-
     }
 
     return rawPayloads;

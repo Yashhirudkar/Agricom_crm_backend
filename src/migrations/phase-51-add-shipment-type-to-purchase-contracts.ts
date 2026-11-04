@@ -29,9 +29,13 @@ export async function up(queryInterface: QueryInterface) {
 export async function down(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    await queryInterface.removeColumn('purchase_contracts', 'shipment_type_id', {
-      transaction,
-    });
+    await queryInterface.removeColumn(
+      'purchase_contracts',
+      'shipment_type_id',
+      {
+        transaction,
+      },
+    );
 
     await transaction.commit();
   } catch (error) {

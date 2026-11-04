@@ -268,7 +268,10 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   @HasMany(() => PurchaseContractAttachment)
   declare attachments: PurchaseContractAttachment[];
 
-  @HasMany(() => FreightQuote, { foreignKey: 'purchaseContractId', constraints: false })
+  @HasMany(() => FreightQuote, {
+    foreignKey: 'purchaseContractId',
+    constraints: false,
+  })
   declare freightQuotes: FreightQuote[];
 
   @AllowNull(true)

@@ -527,9 +527,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     await this.assertEditableSummary(summaryId, companyId);
 
     const maxOrder =
-      ((await this.sectionModel.max('displayOrder', {
+      Number(await this.sectionModel.max('displayOrder', {
         where: { monthlyStockSummaryId: summaryId },
-      })) as number) || 0;
+      })) || 0;
 
     const section = await this.sectionModel.create({
       monthlyStockSummaryId: summaryId,
@@ -634,9 +634,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     }
 
     const maxOrder =
-      ((await this.sectionModel.max('displayOrder', {
+      Number(await this.sectionModel.max('displayOrder', {
         where: { monthlyStockSummaryId: summaryId },
-      })) as number) || 0;
+      })) || 0;
 
     const newSection = await this.sectionModel.create({
       monthlyStockSummaryId: summaryId,
@@ -725,9 +725,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     }
 
     const maxOrder =
-      ((await this.columnModel.max('displayOrder', {
+      Number(await this.columnModel.max('displayOrder', {
         where: { sectionId },
-      })) as number) || 0;
+      })) || 0;
 
     const columnKey = `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -822,9 +822,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     }
 
     const maxOrder =
-      ((await this.columnModel.max('displayOrder', {
+      Number(await this.columnModel.max('displayOrder', {
         where: { sectionId },
-      })) as number) || 0;
+      })) || 0;
 
     await this.columnModel.create({
       sectionId,
@@ -873,9 +873,9 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     }
 
     const maxOrder =
-      ((await this.rowModel.max('rowOrder', {
+      Number(await this.rowModel.max('rowOrder', {
         where: { sectionId },
-      })) as number) || 0;
+      })) || 0;
 
     await this.rowModel.create({
       sectionId,

@@ -14,8 +14,10 @@ import { LeaveBalanceHistory } from '../models/leave-balance-history.model';
 import { LeaveRequest } from '../models/leave-request.model';
 import { LeaveApprovalStep } from '../models/leave-approval-step.model';
 import { LeaveApprovalLog } from '../models/leave-approval-log.model';
+import { LeaveRequestHandoverUser } from '../models/leave-request-handover-user.model';
 import { CompanyHrPolicy } from '../../companies/models/company-hr-policy.model';
 import { Company } from '../../companies/models/company.model';
+import { Notification } from '../../notifications/models/notification.model';
 import { AuditModule } from '../../audit/modules/audit.module';
 import { RbacModule } from '../../rbac/modules/rbac.module';
 import { UsersModule } from '../../users/modules/users.module';
@@ -75,12 +77,14 @@ import { Shift } from '../../attendance/models/shift.model';
       LeaveRequest,
       LeaveApprovalStep,
       LeaveApprovalLog,
+      LeaveRequestHandoverUser,
       CompanyHrPolicy,
       Company,
       AttendanceRecord,
       AttendanceException,
       User,
       Shift,
+      Notification,
     ]),
     AuditModule,
     RbacModule,

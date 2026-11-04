@@ -18,6 +18,7 @@ import { Attachment } from '../attachments/models/attachment.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
+import { PurchaseContractItem } from '../purchase-contracts/models/purchase-contract-item.model';
 import { Enquiry } from '../enquiries/models/enquiry.model';
 import { PartnerRole } from '../masters/partner-role/partner-role.model';
 
@@ -34,7 +35,10 @@ import {
 } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
-import { distributeShipmentQuantities } from './utils/shipment-distribution.util';
+import {
+  distributeShipmentQuantities,
+  isDivisible,
+} from './utils/shipment-distribution.util';
 import { BusinessTransactionService } from '../system/services/business-transaction.service';
 import {
   isBusinessReferenceSearch,
@@ -247,6 +251,17 @@ export class SalesContractService implements OnModuleInit {
       let calculatedTotalAmt = 0;
       if (dto.items && dto.items.length > 0) {
         dto.items.forEach((item) => {
+          if (
+            item.qtyPerCount != null &&
+            Number(item.qtyPerCount) > 0 &&
+            item.quantity != null &&
+            Number(item.quantity) > 0 &&
+            !isDivisible(item.quantity, item.qtyPerCount)
+          ) {
+            throw new BadRequestException(
+              `Product Quantity (${item.quantity} MT) is not divisible by Qty Per Count (${item.qtyPerCount} MT). Product Quantity must be an exact multiple of Qty Per Count.`,
+            );
+          }
           item.amount = parseFloat((item.quantity * item.unitPrice).toFixed(2));
           calculatedTotalQty += item.quantity;
           calculatedTotalAmt += item.amount;
@@ -292,7 +307,12 @@ export class SalesContractService implements OnModuleInit {
           calculatedTotalQty > 0 &&
           Math.abs(totalShipmentQty - calculatedTotalQty) > 0.01;
         const autoQuantities = shouldDistribute
-          ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
+          ? distributeShipmentQuantities(
+              calculatedTotalQty,
+              (dto.items || []).find(
+                (i) => i.qtyPerCount != null && Number(i.qtyPerCount) > 0,
+              )?.qtyPerCount || dto.items?.[0]?.qtyPerCount,
+            )
           : [];
 
         // Auto Route Source Mapping: Origin from Purchase Contract, Destination from Sales Contract
@@ -301,18 +321,26 @@ export class SalesContractService implements OnModuleInit {
           try {
             const pcRows: any = await this.sequelize.query(
               `SELECT place_of_loading FROM purchase_contracts WHERE business_transaction_id = :btId AND place_of_loading IS NOT NULL LIMIT 1`,
-              { replacements: { btId: contract.businessTransactionId }, type: QueryTypes.SELECT, transaction: t }
+              {
+                replacements: { btId: contract.businessTransactionId },
+                type: QueryTypes.SELECT,
+                transaction: t,
+              },
             );
-            if (pcRows && pcRows.length > 0) pcOrigin = pcRows[0].place_of_loading;
+            if (pcRows && pcRows.length > 0)
+              pcOrigin = pcRows[0].place_of_loading;
           } catch (e) {}
         }
-        const scDest = contract.destinationLocationName || contract.portOfDischarge || null;
+        const scDest =
+          contract.destinationLocationName || contract.portOfDischarge || null;
 
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
           const finalQty = shouldDistribute
             ? autoQuantities[index]
-            : (shipment.quantity != null ? Number(shipment.quantity) : 0);
+            : shipment.quantity != null
+              ? Number(shipment.quantity)
+              : 0;
           const finalContainers =
             shipment.noOfContainers != null && shipment.noOfContainers >= 1
               ? shipment.noOfContainers
@@ -440,8 +468,15 @@ export class SalesContractService implements OnModuleInit {
         },
         {
           model: PurchaseContract,
-          attributes: ['id'],
+          attributes: ['id', 'quantity', 'status'],
           required: false,
+          include: [
+            {
+              model: PurchaseContractItem,
+              attributes: ['quantity'],
+              required: false,
+            },
+          ],
         },
       ],
       distinct: true,
@@ -450,14 +485,60 @@ export class SalesContractService implements OnModuleInit {
       order,
     });
 
-    // Attach hasPurchaseContract flag to each row
+    // Attach calculated purchase contract allocation & status
     const data = rows.map((row) => {
       const plain = row.toJSON() as any;
       plain.businessReference =
         plain.businessTransaction?.businessReference ?? null;
-      plain.hasPurchaseContract = Array.isArray(plain.purchaseContracts)
-        ? plain.purchaseContracts.length > 0
-        : false;
+
+      const salesQty =
+        Number(plain.totalQuantity) ||
+        (Array.isArray(plain.items)
+          ? plain.items.reduce(
+              (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+              0,
+            )
+          : 0);
+
+      let allocatedQty = 0;
+      if (Array.isArray(plain.purchaseContracts)) {
+        for (const pc of plain.purchaseContracts) {
+          const st = String(pc.status || '').toLowerCase();
+          if (st !== 'cancelled' && st !== 'rejected') {
+            let pcQty = Number(pc.quantity) || 0;
+            if (pcQty === 0 && Array.isArray(pc.items) && pc.items.length > 0) {
+              pcQty = pc.items.reduce(
+                (s: number, it: any) => s + (Number(it.quantity) || 0),
+                0,
+              );
+            }
+            allocatedQty += pcQty;
+          }
+        }
+      }
+      allocatedQty = Math.round(allocatedQty * 100) / 100;
+      const remainingQty = Math.max(
+        0,
+        Math.round((salesQty - allocatedQty) * 100) / 100,
+      );
+
+      let purchaseContractStatus: 'NO' | 'PARTIAL' | 'FULL' = 'NO';
+      if (allocatedQty <= 0) {
+        purchaseContractStatus = 'NO';
+      } else if (allocatedQty >= salesQty && salesQty > 0) {
+        purchaseContractStatus = 'FULL';
+      } else {
+        purchaseContractStatus = 'PARTIAL';
+      }
+
+      plain.allocatedQty = allocatedQty;
+      plain.remainingQty = remainingQty;
+      plain.purchaseContractStatus = purchaseContractStatus;
+      plain.hasPurchaseContract =
+        allocatedQty > 0 ||
+        (Array.isArray(plain.purchaseContracts) &&
+          plain.purchaseContracts.length > 0);
+
       return plain;
     });
 
@@ -505,6 +586,18 @@ export class SalesContractService implements OnModuleInit {
           model: SalesContractDocument,
           include: [TradeDocument],
         },
+        {
+          model: PurchaseContract,
+          attributes: ['id', 'quantity', 'status'],
+          required: false,
+          include: [
+            {
+              model: PurchaseContractItem,
+              attributes: ['quantity'],
+              required: false,
+            },
+          ],
+        },
       ],
     });
 
@@ -518,6 +611,60 @@ export class SalesContractService implements OnModuleInit {
         (item as any).setDataValue('broker', (item as any).enquiry.broker);
       }
     }
+
+    const scJson = item.toJSON();
+    const salesQty =
+      Number(scJson.totalQuantity) ||
+      (Array.isArray(scJson.items)
+        ? scJson.items.reduce(
+            (sum: number, it: any) => sum + (Number(it.quantity) || 0),
+            0,
+          )
+        : 0);
+
+    let allocatedQty = 0;
+    if (Array.isArray(scJson.purchaseContracts)) {
+      for (const pc of scJson.purchaseContracts) {
+        const st = String(pc.status || '').toLowerCase();
+        if (st !== 'cancelled' && st !== 'rejected') {
+          let pcQty = Number(pc.quantity) || 0;
+          if (pcQty === 0 && Array.isArray(pc.items) && pc.items.length > 0) {
+            pcQty = pc.items.reduce(
+              (s: number, it: any) => s + (Number(it.quantity) || 0),
+              0,
+            );
+          }
+          allocatedQty += pcQty;
+        }
+      }
+    }
+    allocatedQty = Math.round(allocatedQty * 100) / 100;
+    const remainingQty = Math.max(
+      0,
+      Math.round((salesQty - allocatedQty) * 100) / 100,
+    );
+
+    let purchaseContractStatus: 'NO' | 'PARTIAL' | 'FULL' = 'NO';
+    if (allocatedQty <= 0) {
+      purchaseContractStatus = 'NO';
+    } else if (allocatedQty >= salesQty && salesQty > 0) {
+      purchaseContractStatus = 'FULL';
+    } else {
+      purchaseContractStatus = 'PARTIAL';
+    }
+
+    (item as any).setDataValue('allocatedQty', allocatedQty);
+    (item as any).setDataValue('remainingQty', remainingQty);
+    (item as any).setDataValue(
+      'purchaseContractStatus',
+      purchaseContractStatus,
+    );
+    (item as any).setDataValue(
+      'hasPurchaseContract',
+      allocatedQty > 0 ||
+        (Array.isArray(scJson.purchaseContracts) &&
+          scJson.purchaseContracts.length > 0),
+    );
 
     return item;
   }
@@ -576,6 +723,19 @@ export class SalesContractService implements OnModuleInit {
 
       // 2. Update Items
       if (dto.items) {
+        dto.items.forEach((item) => {
+          if (
+            item.qtyPerCount != null &&
+            Number(item.qtyPerCount) > 0 &&
+            item.quantity != null &&
+            Number(item.quantity) > 0 &&
+            !isDivisible(item.quantity, item.qtyPerCount)
+          ) {
+            throw new BadRequestException(
+              `Product Quantity (${item.quantity} MT) is not divisible by Qty Per Count (${item.qtyPerCount} MT). Product Quantity must be an exact multiple of Qty Per Count.`,
+            );
+          }
+        });
         const existingItems = await this.itemModel.findAll({
           where: { salesContractId: contract.id },
           transaction: t,
@@ -622,13 +782,97 @@ export class SalesContractService implements OnModuleInit {
       if (dto.shipments) {
         const existingShipments = await this.shipmentModel.findAll({
           where: { salesContractId: contract.id },
+          order: [
+            ['shipmentNo', 'ASC'],
+            ['id', 'ASC'],
+          ],
           transaction: t,
         });
 
         const contractNo = (
           dto.contractNumber || contract.contractNumber
         )?.trim();
-        const updatedShipmentIds: number[] = [];
+
+        // Check which shipments are referenced by purchase_contract_shipments or cargo tables
+        const existingIds = existingShipments.map((s) => s.id);
+        let referencedShipmentIds = new Set<number>();
+        if (existingIds.length > 0) {
+          const referencedRows: any[] = await this.sequelize.query(
+            `SELECT DISTINCT shipment_id FROM (
+              SELECT shipment_id FROM purchase_contract_shipments WHERE shipment_id IN (:ids)
+              UNION
+              SELECT shipment_id FROM cargo_shipment_allocations WHERE shipment_id IN (:ids)
+              UNION
+              SELECT shipment_id FROM cargo_loading WHERE shipment_id IN (:ids)
+            ) ref`,
+            {
+              replacements: { ids: existingIds },
+              type: QueryTypes.SELECT,
+              transaction: t,
+            },
+          );
+          referencedShipmentIds = new Set(
+            referencedRows.map((r: any) => Number(r.shipment_id)),
+          );
+        }
+
+        // Avoid unique-key collisions (idx_shipment_contract_no) during renumbering
+        // by setting temporary negative shipment numbers in a single SQL update
+        if (existingIds.length > 0) {
+          await this.sequelize.query(
+            `UPDATE sales_contract_shipments 
+             SET shipment_no = - (100000 + id) 
+             WHERE sales_contract_id = :scId`,
+            {
+              replacements: { scId: contract.id },
+              transaction: t,
+            },
+          );
+        }
+
+        // Match dto.shipments to existing shipments to preserve stable PK IDs
+        const usedExistingIds = new Set<number>();
+        const matchedExisting: (SalesContractShipment | null)[] = [];
+
+        for (let i = 0; i < dto.shipments.length; i++) {
+          const incoming = dto.shipments[i] as any;
+          const sNo = incoming.shipmentNo || i + 1;
+          let match: SalesContractShipment | undefined;
+
+          // 1. Explicit ID match
+          if (incoming.id) {
+            match = existingShipments.find(
+              (e) => e.id === Number(incoming.id) && !usedExistingIds.has(e.id),
+            );
+          }
+
+          // 2. Match by shipmentNo
+          if (!match) {
+            match = existingShipments.find(
+              (e) => e.shipmentNo === sNo && !usedExistingIds.has(e.id),
+            );
+          }
+
+          // 3. Match any unused referenced shipment first (preserve referenced IDs)
+          if (!match) {
+            match = existingShipments.find(
+              (e) =>
+                !usedExistingIds.has(e.id) && referencedShipmentIds.has(e.id),
+            );
+          }
+
+          // 4. Match any remaining unused existing shipment
+          if (!match) {
+            match = existingShipments.find((e) => !usedExistingIds.has(e.id));
+          }
+
+          if (match) {
+            usedExistingIds.add(match.id);
+            matchedExisting.push(match);
+          } else {
+            matchedExisting.push(null);
+          }
+        }
 
         // Enforce shipment quantity & container integrity
         const totalShipmentQty = dto.shipments.reduce(
@@ -639,37 +883,48 @@ export class SalesContractService implements OnModuleInit {
           calculatedTotalQty > 0 &&
           Math.abs(totalShipmentQty - calculatedTotalQty) > 0.01;
         const autoQuantities = shouldDistribute
-          ? distributeShipmentQuantities(calculatedTotalQty, dto.shipments.length)
+          ? distributeShipmentQuantities(
+              calculatedTotalQty,
+              (dto.items || []).find(
+                (i) => i.qtyPerCount != null && Number(i.qtyPerCount) > 0,
+              )?.qtyPerCount || dto.items?.[0]?.qtyPerCount,
+            )
           : [];
 
-        const scDest = contract.destinationLocationName || contract.portOfDischarge || null;
+        const scDest =
+          contract.destinationLocationName || contract.portOfDischarge || null;
         let pcOrigin: string | null = null;
         try {
           const pcRows: any = await this.sequelize.query(
             `SELECT place_of_loading FROM purchase_contracts WHERE (sales_contract_id = :scId OR (business_transaction_id IS NOT NULL AND business_transaction_id = :btId)) AND place_of_loading IS NOT NULL ORDER BY updated_at DESC LIMIT 1`,
-            { replacements: { scId: contract.id, btId: contract.businessTransactionId || -1 }, type: QueryTypes.SELECT, transaction: t }
+            {
+              replacements: {
+                scId: contract.id,
+                btId: contract.businessTransactionId || -1,
+              },
+              type: QueryTypes.SELECT,
+            },
           );
-          if (pcRows && pcRows.length > 0) pcOrigin = pcRows[0].place_of_loading;
+          if (pcRows && pcRows.length > 0)
+            pcOrigin = pcRows[0].place_of_loading;
         } catch (e) {}
+
+        const updatedShipmentIds: number[] = [];
 
         for (let index = 0; index < dto.shipments.length; index++) {
           const shipment = dto.shipments[index] as any;
           const sNo = shipment.shipmentNo || index + 1;
           const finalQty = shouldDistribute
             ? autoQuantities[index]
-            : (shipment.quantity != null ? Number(shipment.quantity) : 0);
+            : shipment.quantity != null
+              ? Number(shipment.quantity)
+              : 0;
           const finalContainers =
             shipment.noOfContainers != null && shipment.noOfContainers >= 1
               ? shipment.noOfContainers
               : 1;
 
-          let existing = existingShipments.find(
-            (s) =>
-              (shipment.id && s.id === shipment.id) || s.shipmentNo === sNo,
-          );
-          if (!existing && index < existingShipments.length && !shipment.id) {
-            existing = existingShipments[index];
-          }
+          const existing = matchedExisting[index];
 
           const shipmentRef = generateShipmentReference(
             contractNo,
@@ -695,6 +950,19 @@ export class SalesContractService implements OnModuleInit {
               { transaction: t },
             );
             updatedShipmentIds.push(existing.id);
+
+            // Sync dependent Purchase Shipment allocated_quantity if referenced
+            if (referencedShipmentIds.has(existing.id)) {
+              await this.sequelize.query(
+                `UPDATE purchase_contract_shipments 
+                 SET allocated_quantity = :qty 
+                 WHERE shipment_id = :sId AND (allocated_quantity IS NULL OR allocated_quantity > :qty)`,
+                {
+                  replacements: { qty: finalQty, sId: existing.id },
+                  transaction: t,
+                },
+              );
+            }
           } else {
             const created = await this.shipmentModel.create(
               {
@@ -723,25 +991,26 @@ export class SalesContractService implements OnModuleInit {
           );
         }
 
+        // Handle unused existing shipments
         const shipmentsToDelete = existingShipments.filter(
           (s) => !updatedShipmentIds.includes(s.id),
         );
+
         for (const s of shipmentsToDelete) {
-          try {
+          // If referenced by Purchase Contract or cargo, NEVER delete - soft cancel to preserve FK integrity
+          if (referencedShipmentIds.has(s.id)) {
+            await s.update(
+              {
+                status: 'Cancelled',
+                quantity: 0,
+                shipmentNo: 90000 + s.id,
+                remarks: s.remarks ? `${s.remarks} [Cancelled]` : 'Cancelled',
+              },
+              { transaction: t },
+            );
+          } else {
+            // Orphan shipment: safe to delete
             await s.destroy({ transaction: t });
-          } catch (err: any) {
-            if (
-              err.name === 'SequelizeDatabaseError' ||
-              err.code === '23001' ||
-              err.parent?.code === '23001'
-            ) {
-              throw new BadRequestException(
-                `Cannot remove Shipment #${s.shipmentNo} (${
-                  s.shipmentReference || 'ID ' + s.id
-                }) because it is linked to a Purchase Contract or execution record. Please unlink it before deleting.`,
-              );
-            }
-            throw err;
           }
         }
       }

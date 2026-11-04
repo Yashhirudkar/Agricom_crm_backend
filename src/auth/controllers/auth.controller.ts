@@ -359,9 +359,14 @@ export class AuthController {
 
       if (
         (c1 === 'salesmaster' || c1 === 'master') &&
-        ['shipmenttype', 'paymentterm', 'tradedocument', 'currency', 'port', 'shippingline'].includes(
-          c2,
-        )
+        [
+          'shipmenttype',
+          'paymentterm',
+          'tradedocument',
+          'currency',
+          'port',
+          'shippingline',
+        ].includes(c2)
       ) {
         return true;
       }

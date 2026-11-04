@@ -98,14 +98,22 @@ function parseCsvFile(filePath: string): ParsedRow[] {
 
 // ─── Main Import Runner ───────────────────────────────────────────────────────
 async function runImport() {
-  console.log('\n🚀 Starting Port Master & Shipping Line Master CSV Import...\n');
+  console.log(
+    '\n🚀 Starting Port Master & Shipping Line Master CSV Import...\n',
+  );
 
   await sequelize.authenticate();
-  console.log('✅ Connected to database:', process.env.DB_NAME || 'Agricom_db1');
+  console.log(
+    '✅ Connected to database:',
+    process.env.DB_NAME || 'Agricom_db1',
+  );
 
   // Paths to CSVs
   const publicDir = path.resolve(__dirname, '../../public');
-  const shippingLinesCsvPath = path.join(publicDir, 'country_port_shipping_lines.csv');
+  const shippingLinesCsvPath = path.join(
+    publicDir,
+    'country_port_shipping_lines.csv',
+  );
   const summaryCsvPath = path.join(publicDir, 'country_port_summary.csv');
 
   console.log(`📂 Reading: ${summaryCsvPath}`);
@@ -126,7 +134,8 @@ async function runImport() {
     const byClean = new Map<string, Country>();
     const byIso2 = new Map<string, Country>();
 
-    const cleanStr = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanStr = (s: string) =>
+      (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
     for (const c of allCountries) {
       byExact.set(c.name.toLowerCase().trim(), c);
@@ -140,26 +149,29 @@ async function runImport() {
       'hong kong (sar)': 'hong kong s.a.r.',
       'ivory coast': "cote d'ivoire (ivory coast)",
       'south korea': 'korea, republic of',
-      'taiwan': 'taiwan',
-      'vietnam': 'vietnam',
+      taiwan: 'taiwan',
+      vietnam: 'vietnam',
     };
 
-    async function matchOrCreateCountry(rawName?: string, unlocode?: string): Promise<Country | null> {
+    async function matchOrCreateCountry(
+      rawName?: string,
+      unlocode?: string,
+    ): Promise<Country | null> {
       if (!rawName) return null;
       const lower = rawName.toLowerCase().trim();
-      if (byExact.has(lower)) return byExact.get(lower)!;
+      if (byExact.has(lower)) return byExact.get(lower);
 
       if (countryAliases[lower] && byExact.has(countryAliases[lower])) {
-        return byExact.get(countryAliases[lower])!;
+        return byExact.get(countryAliases[lower]);
       }
 
       const cClean = cleanStr(rawName);
-      if (byClean.has(cClean)) return byClean.get(cClean)!;
+      if (byClean.has(cClean)) return byClean.get(cClean);
 
       // Match via 2-char UN_LOCODE ISO prefix if available
       if (unlocode && unlocode.length >= 2) {
         const isoPrefix = unlocode.substring(0, 2).toLowerCase();
-        if (byIso2.has(isoPrefix)) return byIso2.get(isoPrefix)!;
+        if (byIso2.has(isoPrefix)) return byIso2.get(isoPrefix);
       }
 
       // Partial fallback
@@ -171,15 +183,18 @@ async function runImport() {
       }
 
       // ── Auto-create: country not in DB, derive from unlocode ──────────────
-      const iso2 = unlocode && unlocode.length >= 2
-        ? unlocode.substring(0, 2).toUpperCase()
-        : rawName.substring(0, 2).toUpperCase();
+      const iso2 =
+        unlocode && unlocode.length >= 2
+          ? unlocode.substring(0, 2).toUpperCase()
+          : rawName.substring(0, 2).toUpperCase();
       const iso3 = iso2.padEnd(3, iso2[1] || 'X').substring(0, 3);
 
       // Avoid duplicate iso2 (use raw name initials as fallback)
       const safeIso2 = byIso2.has(iso2.toLowerCase()) ? `X${iso2[0]}` : iso2;
 
-      console.log(`  🌐 Auto-creating country: "${rawName}" (iso2=${safeIso2}, iso3=${iso3})`);
+      console.log(
+        `  🌐 Auto-creating country: "${rawName}" (iso2=${safeIso2}, iso3=${iso3})`,
+      );
       const newCountry = await Country.create(
         {
           name: rawName.trim(),
@@ -236,9 +251,16 @@ async function runImport() {
 
     // Helper to generate code if missing
     function makeLineCode(name: string): string {
-      const words = name.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/);
+      const words = name
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .split(/\s+/);
       if (words.length === 1) return words[0].substring(0, 4).toUpperCase();
-      return words.map((w) => w[0]).join('').substring(0, 6).toUpperCase();
+      return words
+        .map((w) => w[0])
+        .join('')
+        .substring(0, 6)
+        .toUpperCase();
     }
 
     // ── 4. Process Summary CSV (Ensures all 107 Ports & UN_LOCODEs) ───────────
@@ -250,13 +272,17 @@ async function runImport() {
         const rawLines = row.data['Shipping_Lines'];
 
         if (!countryName || !portName) {
-          console.warn(`[Summary CSV Row ${row.rowNumber}] Skipped: Missing Country or Port.`);
+          console.warn(
+            `[Summary CSV Row ${row.rowNumber}] Skipped: Missing Country or Port.`,
+          );
           continue;
         }
 
         const country = await matchOrCreateCountry(countryName, unlocode);
         if (!country) {
-          console.warn(`[Summary CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`);
+          console.warn(
+            `[Summary CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`,
+          );
           continue;
         }
         matchedCountries.add(country.id);
@@ -289,7 +315,10 @@ async function runImport() {
 
         // Process any shipping lines in summary
         if (rawLines) {
-          const names = rawLines.split(';').map((s) => s.trim()).filter(Boolean);
+          const names = rawLines
+            .split(';')
+            .map((s) => s.trim())
+            .filter(Boolean);
           for (const lineName of names) {
             const lKey = lineName.toLowerCase().trim();
             let line = lineCache.get(lKey);
@@ -328,7 +357,9 @@ async function runImport() {
           }
         }
       } catch (rowErr: any) {
-        console.error(`[Summary CSV Row ${row.rowNumber}] Error: ${rowErr?.message || rowErr}`);
+        console.error(
+          `[Summary CSV Row ${row.rowNumber}] Error: ${rowErr?.message || rowErr}`,
+        );
       }
     }
 
@@ -342,13 +373,17 @@ async function runImport() {
         const alliance = row.data['Alliance_2026'];
 
         if (!countryName || !portName || !lineName) {
-          console.warn(`[Detailed CSV Row ${row.rowNumber}] Skipped: Incomplete data.`);
+          console.warn(
+            `[Detailed CSV Row ${row.rowNumber}] Skipped: Incomplete data.`,
+          );
           continue;
         }
 
         const country = await matchOrCreateCountry(countryName, unlocode);
         if (!country) {
-          console.warn(`[Detailed CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`);
+          console.warn(
+            `[Detailed CSV Row ${row.rowNumber}] Country not resolved for: "${countryName}".`,
+          );
           continue;
         }
         matchedCountries.add(country.id);
@@ -419,7 +454,9 @@ async function runImport() {
           relationsCreated++;
         }
       } catch (rowErr: any) {
-        console.error(`[Detailed CSV Row ${row.rowNumber}] Error: ${rowErr?.message || rowErr}`);
+        console.error(
+          `[Detailed CSV Row ${row.rowNumber}] Error: ${rowErr?.message || rowErr}`,
+        );
       }
     }
 
@@ -438,7 +475,10 @@ async function runImport() {
     console.log('\n✅ Port Master seed import completed successfully.');
   } catch (fatalError: any) {
     await transaction.rollback();
-    console.error('❌ Fatal error during import. Transaction rolled back:', fatalError?.message || fatalError);
+    console.error(
+      '❌ Fatal error during import. Transaction rolled back:',
+      fatalError?.message || fatalError,
+    );
     process.exitCode = 1;
   } finally {
     await sequelize.close();

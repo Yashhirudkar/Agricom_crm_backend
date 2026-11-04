@@ -23,7 +23,11 @@ export class ShippingLineService {
   async findAll(query: QueryShippingLineDto) {
     const where: any = {};
 
-    if (query.isActive !== undefined && query.isActive !== 'all' && query.isActive !== '') {
+    if (
+      query.isActive !== undefined &&
+      query.isActive !== 'all' &&
+      query.isActive !== ''
+    ) {
       where.isActive = String(query.isActive) === 'true';
     }
 
@@ -64,7 +68,9 @@ export class ShippingLineService {
 
     const items = rows.map((r: any) => {
       const json = r.toJSON();
-      const ports = (json.portMappings || []).map((m: any) => m.port).filter(Boolean);
+      const ports = (json.portMappings || [])
+        .map((m: any) => m.port)
+        .filter(Boolean);
       return {
         ...json,
         name: json.lineName,
@@ -76,7 +82,9 @@ export class ShippingLineService {
 
     // Compute stats
     const totalCount = await this.shippingLineModel.count();
-    const activeCount = await this.shippingLineModel.count({ where: { isActive: true } });
+    const activeCount = await this.shippingLineModel.count({
+      where: { isActive: true },
+    });
 
     return {
       data: items,
@@ -113,7 +121,9 @@ export class ShippingLineService {
     }
 
     const json = item.toJSON();
-    const ports = (json.portMappings || []).map((m: any) => m.port).filter(Boolean);
+    const ports = (json.portMappings || [])
+      .map((m: any) => m.port)
+      .filter(Boolean);
 
     return {
       ...json,
@@ -138,17 +148,26 @@ export class ShippingLineService {
     });
 
     if (existing) {
-      throw new BadRequestException(`Shipping Line "${rawName}" already exists`);
+      throw new BadRequestException(
+        `Shipping Line "${rawName}" already exists`,
+      );
     }
 
     const created = await this.shippingLineModel.create({
       lineName: rawName,
       lineCode: (dto.line_code || dto.lineCode || '').trim() || null,
       website: (dto.website || '').trim() || null,
-      contactEmail: (dto.contact_email || dto.contactEmail || '').trim() || null,
-      contactPhone: (dto.contact_phone || dto.contactPhone || '').trim() || null,
-      isActive: dto.is_active !== undefined ? dto.is_active : dto.isActive !== undefined ? dto.isActive : true,
-    } as any);
+      contactEmail:
+        (dto.contact_email || dto.contactEmail || '').trim() || null,
+      contactPhone:
+        (dto.contact_phone || dto.contactPhone || '').trim() || null,
+      isActive:
+        dto.is_active !== undefined
+          ? dto.is_active
+          : dto.isActive !== undefined
+            ? dto.isActive
+            : true,
+    });
 
     return created;
   }
@@ -168,7 +187,9 @@ export class ShippingLineService {
         },
       });
       if (existing) {
-        throw new BadRequestException(`Shipping Line "${rawName}" already exists`);
+        throw new BadRequestException(
+          `Shipping Line "${rawName}" already exists`,
+        );
       }
       item.lineName = rawName;
     }
@@ -180,13 +201,16 @@ export class ShippingLineService {
       item.website = (dto.website || '').trim() || null;
     }
     if (dto.contact_email !== undefined || dto.contactEmail !== undefined) {
-      item.contactEmail = (dto.contact_email || dto.contactEmail || '').trim() || null;
+      item.contactEmail =
+        (dto.contact_email || dto.contactEmail || '').trim() || null;
     }
     if (dto.contact_phone !== undefined || dto.contactPhone !== undefined) {
-      item.contactPhone = (dto.contact_phone || dto.contactPhone || '').trim() || null;
+      item.contactPhone =
+        (dto.contact_phone || dto.contactPhone || '').trim() || null;
     }
     if (dto.is_active !== undefined || dto.isActive !== undefined) {
-      item.isActive = dto.is_active !== undefined ? dto.is_active : !!dto.isActive;
+      item.isActive =
+        dto.is_active !== undefined ? dto.is_active : !!dto.isActive;
     }
 
     await item.save();

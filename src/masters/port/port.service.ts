@@ -34,8 +34,13 @@ export class PortService {
     const where: any = {};
 
     // 1. Status Filter
-    const activeParam = query.isActive !== undefined ? query.isActive : query.is_active;
-    if (activeParam !== undefined && activeParam !== 'all' && activeParam !== '') {
+    const activeParam =
+      query.isActive !== undefined ? query.isActive : query.is_active;
+    if (
+      activeParam !== undefined &&
+      activeParam !== 'all' &&
+      activeParam !== ''
+    ) {
       where.isActive = String(activeParam) === 'true';
     }
 
@@ -165,7 +170,9 @@ export class PortService {
 
     // Global Stats for Port Master header
     const totalPorts = await this.portModel.count();
-    const activePorts = await this.portModel.count({ where: { isActive: true } });
+    const activePorts = await this.portModel.count({
+      where: { isActive: true },
+    });
     const totalCountries = await this.portModel.count({
       distinct: true,
       col: 'country_id',
@@ -237,7 +244,7 @@ export class PortService {
           iso2Code: countryName.slice(0, 2).toUpperCase(),
           iso3Code: countryName.slice(0, 3).toUpperCase(),
           isActive: true,
-        } as any);
+        });
       }
       countryId = country.id;
     }
@@ -268,7 +275,12 @@ export class PortService {
     const portType = (dto.port_type || dto.portType || 'SEA').toUpperCase();
     const portCode = (dto.port_code || dto.portCode || '').trim() || null;
     const unlocode = (dto.unlocode || '').trim().toUpperCase() || null;
-    const isActive = dto.is_active !== undefined ? dto.is_active : dto.isActive !== undefined ? dto.isActive : true;
+    const isActive =
+      dto.is_active !== undefined
+        ? dto.is_active
+        : dto.isActive !== undefined
+          ? dto.isActive
+          : true;
 
     const newPort = await this.portModel.create({
       countryId,
@@ -277,18 +289,20 @@ export class PortService {
       unlocode,
       portType,
       isActive,
-    } as any);
+    });
 
     // Link shipping lines in junction table
     const lineIds = dto.shipping_line_ids || dto.shippingLineIds || [];
     if (Array.isArray(lineIds) && lineIds.length > 0) {
-      const uniqueLineIds = [...new Set(lineIds.map((id) => Number(id)).filter(Boolean))];
+      const uniqueLineIds = [
+        ...new Set(lineIds.map((id) => Number(id)).filter(Boolean)),
+      ];
       for (const lineId of uniqueLineIds) {
         await this.portShippingLineModel.create({
           portId: newPort.id,
           shippingLineId: lineId,
           isActive: true,
-        } as any);
+        });
       }
     }
 
@@ -314,7 +328,7 @@ export class PortService {
           iso2Code: countryName.slice(0, 2).toUpperCase(),
           iso3Code: countryName.slice(0, 3).toUpperCase(),
           isActive: true,
-        } as any);
+        });
       }
       targetCountryId = country.id;
     }
@@ -354,7 +368,8 @@ export class PortService {
       port.portType = (dto.port_type || dto.portType || 'SEA').toUpperCase();
     }
     if (dto.is_active !== undefined || dto.isActive !== undefined) {
-      port.isActive = dto.is_active !== undefined ? dto.is_active : !!dto.isActive;
+      port.isActive =
+        dto.is_active !== undefined ? dto.is_active : !!dto.isActive;
     }
 
     await port.save();
@@ -362,7 +377,9 @@ export class PortService {
     // Synchronize shipping lines in junction table only
     const rawLineIds = dto.shipping_line_ids || dto.shippingLineIds;
     if (Array.isArray(rawLineIds)) {
-      const targetIds = new Set(rawLineIds.map((lid) => Number(lid)).filter(Boolean));
+      const targetIds = new Set(
+        rawLineIds.map((lid) => Number(lid)).filter(Boolean),
+      );
       const currentMappings = await this.portShippingLineModel.findAll({
         where: { portId: id },
       });
@@ -370,7 +387,9 @@ export class PortService {
       const currentIds = new Set(currentMappings.map((m) => m.shippingLineId));
 
       // Lines to remove
-      const toRemove = currentMappings.filter((m) => !targetIds.has(m.shippingLineId));
+      const toRemove = currentMappings.filter(
+        (m) => !targetIds.has(m.shippingLineId),
+      );
       for (const m of toRemove) {
         await m.destroy();
       }
@@ -382,7 +401,7 @@ export class PortService {
             portId: id,
             shippingLineId: lineId,
             isActive: true,
-          } as any);
+          });
         }
       }
     }
@@ -431,7 +450,9 @@ export class PortService {
 
     const line = await this.shippingLineModel.findByPk(shippingLineId);
     if (!line) {
-      throw new NotFoundException(`Shipping Line with ID ${shippingLineId} not found`);
+      throw new NotFoundException(
+        `Shipping Line with ID ${shippingLineId} not found`,
+      );
     }
 
     // Validation: Cannot assign same Shipping Line twice to same Port
@@ -450,7 +471,7 @@ export class PortService {
       shippingLineId,
       remarks: dto.remarks || null,
       isActive: true,
-    } as any);
+    });
 
     return await this.findOne(portId);
   }
@@ -464,7 +485,9 @@ export class PortService {
     });
 
     if (!mapping) {
-      throw new NotFoundException(`Shipping Line relation not found on this Port`);
+      throw new NotFoundException(
+        `Shipping Line relation not found on this Port`,
+      );
     }
 
     await mapping.destroy();
@@ -528,7 +551,7 @@ export class PortService {
             iso2Code: countryRaw.slice(0, 2).toUpperCase(),
             iso3Code: countryRaw.slice(0, 3).toUpperCase(),
             isActive: true,
-          } as any);
+          });
           createdCountries++;
         }
 
@@ -543,7 +566,7 @@ export class PortService {
             shippingLine = await this.shippingLineModel.create({
               lineName: lineRaw,
               isActive: true,
-            } as any);
+            });
             createdShippingLines++;
           }
         }
@@ -556,17 +579,23 @@ export class PortService {
           },
         });
 
-        const unlocode = row.unlocode ? row.unlocode.trim().toUpperCase() : null;
-        const portType = row.port_type ? row.port_type.trim().toUpperCase() : 'SEA';
+        const unlocode = row.unlocode
+          ? row.unlocode.trim().toUpperCase()
+          : null;
+        const portType = row.port_type
+          ? row.port_type.trim().toUpperCase()
+          : 'SEA';
 
         if (!port) {
           port = await this.portModel.create({
             countryId: country.id,
             portName: portRaw,
             unlocode: unlocode || null,
-            portType: ['SEA', 'AIR', 'ICD', 'DRY_PORT'].includes(portType) ? portType : 'SEA',
+            portType: ['SEA', 'AIR', 'ICD', 'DRY_PORT'].includes(portType)
+              ? portType
+              : 'SEA',
             isActive: true,
-          } as any);
+          });
           createdPorts++;
         } else {
           // Update unlocode or type if provided
@@ -599,7 +628,7 @@ export class PortService {
               portId: port.id,
               shippingLineId: shippingLine.id,
               isActive: true,
-            } as any);
+            });
             linkedRelations++;
           } else {
             skippedRows++;
@@ -607,7 +636,9 @@ export class PortService {
         }
       } catch (err: any) {
         this.logger.error(`Error importing row ${index + 1}: ${err.message}`);
-        errors.push(`Row ${index + 1} (${countryRaw} - ${portRaw}): ${err.message}`);
+        errors.push(
+          `Row ${index + 1} (${countryRaw} - ${portRaw}): ${err.message}`,
+        );
       }
     }
 
@@ -719,14 +750,62 @@ export class PortService {
 
     // Sample rows from user prompt
     const sampleRows = [
-      { country: 'India', port_name: 'Mundra', unlocode: 'INMUN', port_type: 'SEA', shipping_line: 'MSC' },
-      { country: 'India', port_name: 'Mundra', unlocode: 'INMUN', port_type: 'SEA', shipping_line: 'Maersk' },
-      { country: 'India', port_name: 'Mundra', unlocode: 'INMUN', port_type: 'SEA', shipping_line: 'ONE' },
-      { country: 'India', port_name: 'Mumbai', unlocode: 'INBOM', port_type: 'SEA', shipping_line: 'MSC' },
-      { country: 'India', port_name: 'Mumbai', unlocode: 'INBOM', port_type: 'SEA', shipping_line: 'CMA CGM' },
-      { country: 'UAE', port_name: 'Jebel Ali', unlocode: 'AEJEA', port_type: 'SEA', shipping_line: 'MSC' },
-      { country: 'UAE', port_name: 'Jebel Ali', unlocode: 'AEJEA', port_type: 'SEA', shipping_line: 'COSCO' },
-      { country: 'UAE', port_name: 'Jebel Ali', unlocode: 'AEJEA', port_type: 'SEA', shipping_line: 'EMC' },
+      {
+        country: 'India',
+        port_name: 'Mundra',
+        unlocode: 'INMUN',
+        port_type: 'SEA',
+        shipping_line: 'MSC',
+      },
+      {
+        country: 'India',
+        port_name: 'Mundra',
+        unlocode: 'INMUN',
+        port_type: 'SEA',
+        shipping_line: 'Maersk',
+      },
+      {
+        country: 'India',
+        port_name: 'Mundra',
+        unlocode: 'INMUN',
+        port_type: 'SEA',
+        shipping_line: 'ONE',
+      },
+      {
+        country: 'India',
+        port_name: 'Mumbai',
+        unlocode: 'INBOM',
+        port_type: 'SEA',
+        shipping_line: 'MSC',
+      },
+      {
+        country: 'India',
+        port_name: 'Mumbai',
+        unlocode: 'INBOM',
+        port_type: 'SEA',
+        shipping_line: 'CMA CGM',
+      },
+      {
+        country: 'UAE',
+        port_name: 'Jebel Ali',
+        unlocode: 'AEJEA',
+        port_type: 'SEA',
+        shipping_line: 'MSC',
+      },
+      {
+        country: 'UAE',
+        port_name: 'Jebel Ali',
+        unlocode: 'AEJEA',
+        port_type: 'SEA',
+        shipping_line: 'COSCO',
+      },
+      {
+        country: 'UAE',
+        port_name: 'Jebel Ali',
+        unlocode: 'AEJEA',
+        port_type: 'SEA',
+        shipping_line: 'EMC',
+      },
     ];
 
     sampleRows.forEach((r) => sheet.addRow(r));

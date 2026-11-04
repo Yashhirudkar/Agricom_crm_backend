@@ -20,7 +20,10 @@ import { User } from '../../users/models/user.model';
 @Table({
   tableName: 'shipment_stuffings',
   timestamps: true,
-  indexes: [{ fields: ['shipment_id'], unique: true }, { fields: ['company_id'] }],
+  indexes: [
+    { fields: ['shipment_id'], unique: true },
+    { fields: ['company_id'] },
+  ],
 })
 export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @PrimaryKey

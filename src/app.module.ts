@@ -33,6 +33,7 @@ import { LeaveBalanceHistory } from './hrms/models/leave-balance-history.model';
 import { LeaveRequest } from './hrms/models/leave-request.model';
 import { LeaveApprovalStep } from './hrms/models/leave-approval-step.model';
 import { LeaveApprovalLog } from './hrms/models/leave-approval-log.model';
+import { LeaveRequestHandoverUser } from './hrms/models/leave-request-handover-user.model';
 import { AuditModule } from './audit/modules/audit.module';
 import { HrmsModule } from './hrms/modules/hrms.module';
 import { ProfileModule } from './profile/profile.module';
@@ -240,6 +241,7 @@ import {
             LeaveRequest,
             LeaveApprovalStep,
             LeaveApprovalLog,
+            LeaveRequestHandoverUser,
             UserPreference,
             UserPasswordHistory,
             ProfileActivityLog,

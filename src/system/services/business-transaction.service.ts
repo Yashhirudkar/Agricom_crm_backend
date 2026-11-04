@@ -12,9 +12,7 @@ type RootType = 'Enquiry' | 'SalesContract' | 'PurchaseContract';
 
 @Injectable()
 export class BusinessTransactionService {
-  constructor(
-    @InjectConnection() private readonly sequelize: Sequelize,
-  ) {}
+  constructor(@InjectConnection() private readonly sequelize: Sequelize) {}
 
   private getModel(name: string): ModelCtor<Model> | undefined {
     const model = this.sequelize.models[name] as ModelCtor<Model> | undefined;
@@ -87,15 +85,15 @@ export class BusinessTransactionService {
         },
         { transaction },
       );
-      await root.update(
-        { businessTransactionId: created.id },
-        { transaction },
-      );
+      await root.update({ businessTransactionId: created.id }, { transaction });
       return created;
     }
 
     const transactionId = existingByOrigin.id;
-    await root.update({ businessTransactionId: transactionId }, { transaction });
+    await root.update(
+      { businessTransactionId: transactionId },
+      { transaction },
+    );
     return existingByOrigin;
   }
 
@@ -114,10 +112,9 @@ export class BusinessTransactionService {
 
     const conflicting = records.find(
       (record) =>
-        (record.get({ plain: true }) as any).businessTransactionId != null &&
-        Number(
-          (record.get({ plain: true }) as any).businessTransactionId,
-        ) !== Number(businessTransactionId),
+        record.get({ plain: true }).businessTransactionId != null &&
+        Number(record.get({ plain: true }).businessTransactionId) !==
+          Number(businessTransactionId),
     );
     if (conflicting) {
       throw new ConflictException(
@@ -130,10 +127,7 @@ export class BusinessTransactionService {
       {
         where: {
           ...where,
-          [Op.or]: [
-            { businessTransactionId: null },
-            { businessTransactionId },
-          ],
+          [Op.or]: [{ businessTransactionId: null }, { businessTransactionId }],
         } as any,
         transaction,
       },
@@ -274,7 +268,7 @@ export class BusinessTransactionService {
       });
       if (!enquiry) throw new NotFoundException('Enquiry not found');
 
-      const values = enquiry.get({ plain: true }) as any;
+      const values = enquiry.get({ plain: true });
       if (values.status !== 'CONFIRMED') {
         throw new ConflictException(
           'A Business Transaction can only be created for a CONFIRMED Enquiry',
@@ -304,8 +298,9 @@ export class BusinessTransactionService {
         salesContractId,
         { transaction: tx },
       );
-      if (!salesContract) throw new NotFoundException('Sales Contract not found');
-      const values = salesContract.get({ plain: true }) as any;
+      if (!salesContract)
+        throw new NotFoundException('Sales Contract not found');
+      const values = salesContract.get({ plain: true });
 
       if (values.enquiryId) {
         const enquiry = await this.getModel('Enquiry').findByPk(
@@ -313,7 +308,7 @@ export class BusinessTransactionService {
           { transaction: tx },
         );
         if (!enquiry) throw new NotFoundException('Linked Enquiry not found');
-        const enquiryValues = enquiry.get({ plain: true }) as any;
+        const enquiryValues = enquiry.get({ plain: true });
         if (enquiryValues.status !== 'CONFIRMED') return null;
         const businessTransaction = await this.ensureForEnquiry(
           String(values.enquiryId),
@@ -355,7 +350,7 @@ export class BusinessTransactionService {
       if (!purchaseContract) {
         throw new NotFoundException('Purchase Contract not found');
       }
-      const values = purchaseContract.get({ plain: true }) as any;
+      const values = purchaseContract.get({ plain: true });
 
       if (values.salesContractId) {
         const businessTransaction = await this.ensureForSalesContract(
@@ -445,7 +440,9 @@ export class BusinessTransactionService {
       where: { businessReference: reference, companyId },
     });
     if (!businessTransaction) {
-      throw new NotFoundException(`Business Transaction "${reference}" not found`);
+      throw new NotFoundException(
+        `Business Transaction "${reference}" not found`,
+      );
     }
 
     const transactionId = businessTransaction.id;
@@ -480,19 +477,69 @@ export class BusinessTransactionService {
     const cargoLoadingIds = ids('cargoLoading');
 
     const childGroups = [
-      ['salesContractItems', 'SalesContractItem', 'salesContractId', salesContractIds],
-      ['salesContractDocuments', 'SalesContractDocument', 'salesContractId', salesContractIds],
-      ['salesContractDocumentFiles', 'SalesContractDocumentFile', 'salesContractId', salesContractIds],
-      ['purchaseContractItems', 'PurchaseContractItem', 'purchaseContractId', purchaseContractIds],
-      ['purchaseContractDocuments', 'PurchaseContractRequiredDocument', 'purchaseContractId', purchaseContractIds],
-      ['purchaseContractAttachments', 'PurchaseContractAttachment', 'purchaseContractId', purchaseContractIds],
-      ['purchaseContractShipments', 'PurchaseContractShipment', 'purchaseContractId', purchaseContractIds],
+      [
+        'salesContractItems',
+        'SalesContractItem',
+        'salesContractId',
+        salesContractIds,
+      ],
+      [
+        'salesContractDocuments',
+        'SalesContractDocument',
+        'salesContractId',
+        salesContractIds,
+      ],
+      [
+        'salesContractDocumentFiles',
+        'SalesContractDocumentFile',
+        'salesContractId',
+        salesContractIds,
+      ],
+      [
+        'purchaseContractItems',
+        'PurchaseContractItem',
+        'purchaseContractId',
+        purchaseContractIds,
+      ],
+      [
+        'purchaseContractDocuments',
+        'PurchaseContractRequiredDocument',
+        'purchaseContractId',
+        purchaseContractIds,
+      ],
+      [
+        'purchaseContractAttachments',
+        'PurchaseContractAttachment',
+        'purchaseContractId',
+        purchaseContractIds,
+      ],
+      [
+        'purchaseContractShipments',
+        'PurchaseContractShipment',
+        'purchaseContractId',
+        purchaseContractIds,
+      ],
       ['logisticsRoutes', 'LogisticsRoute', 'logisticsId', logisticsIds],
       ['freightQuoteCharges', 'FreightQuoteCharge', 'quoteId', freightQuoteIds],
-      ['freightQuoteContainerRates', 'FreightQuoteContainerRate', 'quoteId', freightQuoteIds],
+      [
+        'freightQuoteContainerRates',
+        'FreightQuoteContainerRate',
+        'quoteId',
+        freightQuoteIds,
+      ],
       ['freightRoutes', 'FreightRoute', 'quoteId', freightQuoteIds],
-      ['cargoReadiness', 'CargoReadiness', 'cargoAvailabilityId', cargoAvailabilityIds],
-      ['cargoShipmentAllocations', 'CargoShipmentAllocation', 'cargoAvailabilityId', cargoAvailabilityIds],
+      [
+        'cargoReadiness',
+        'CargoReadiness',
+        'cargoAvailabilityId',
+        cargoAvailabilityIds,
+      ],
+      [
+        'cargoShipmentAllocations',
+        'CargoShipmentAllocation',
+        'cargoAvailabilityId',
+        cargoAvailabilityIds,
+      ],
       ['cargoDocuments', 'CargoDocument', 'cargoLoadingId', cargoLoadingIds],
     ] as const;
     for (const [key, modelName, foreignKey, parentIds] of childGroups) {

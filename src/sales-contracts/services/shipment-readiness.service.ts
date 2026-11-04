@@ -67,61 +67,66 @@ export class ShipmentReadinessService {
     );
 
     // 1. Batch fetch Cargo Allocations and Loadings
-    const [allocations, loadings, logisticsRecords, preferredQuotes, shipmentPreferredQuotes] =
-      await Promise.all([
-        this.cargoAllocationModel.findAll({
-          where: {
-            shipmentId: { [Op.in]: shipmentIds },
-            status: 'Active',
-          },
-          attributes: ['id', 'shipmentId', 'allocatedQty', 'status'],
-        }),
-        this.cargoLoadingModel.findAll({
-          where: {
-            shipmentId: { [Op.in]: shipmentIds },
-            status: { [Op.ne]: 'Cancelled' },
-          },
-          attributes: ['id', 'shipmentId', 'loadedQty'],
-        }),
-        logisticsIds.length > 0 || businessTxIds.length > 0
-          ? this.logisticsModel.findAll({
-              where: {
-                [Op.or]: [
-                  ...(logisticsIds.length > 0
-                    ? [{ id: { [Op.in]: logisticsIds } }]
-                    : []),
-                  ...(businessTxIds.length > 0
-                    ? [{ businessTransactionId: { [Op.in]: businessTxIds } }]
-                    : []),
-                ],
-              },
-              attributes: [
-                'id',
-                'businessTransactionId',
-                'selectedFreightId',
-                'status',
+    const [
+      allocations,
+      loadings,
+      logisticsRecords,
+      preferredQuotes,
+      shipmentPreferredQuotes,
+    ] = await Promise.all([
+      this.cargoAllocationModel.findAll({
+        where: {
+          shipmentId: { [Op.in]: shipmentIds },
+          status: 'Active',
+        },
+        attributes: ['id', 'shipmentId', 'allocatedQty', 'status'],
+      }),
+      this.cargoLoadingModel.findAll({
+        where: {
+          shipmentId: { [Op.in]: shipmentIds },
+          status: { [Op.ne]: 'Cancelled' },
+        },
+        attributes: ['id', 'shipmentId', 'loadedQty'],
+      }),
+      logisticsIds.length > 0 || businessTxIds.length > 0
+        ? this.logisticsModel.findAll({
+            where: {
+              [Op.or]: [
+                ...(logisticsIds.length > 0
+                  ? [{ id: { [Op.in]: logisticsIds } }]
+                  : []),
+                ...(businessTxIds.length > 0
+                  ? [{ businessTransactionId: { [Op.in]: businessTxIds } }]
+                  : []),
               ],
-            })
-          : Promise.resolve([]),
-        logisticsIds.length > 0
-          ? this.freightQuoteModel.findAll({
-              where: {
-                logisticsId: { [Op.in]: logisticsIds },
-                isPreferred: true,
-              },
-              attributes: ['id', 'logisticsId', 'freightAmount', 'isPreferred'],
-            })
-          : Promise.resolve([]),
-        shipmentIds.length > 0
-          ? this.freightQuoteModel.findAll({
-              where: {
-                shipmentId: { [Op.in]: shipmentIds },
-                isPreferred: true,
-              },
-              attributes: ['id', 'shipmentId', 'freightAmount', 'isPreferred'],
-            })
-          : Promise.resolve([]),
-      ]);
+            },
+            attributes: [
+              'id',
+              'businessTransactionId',
+              'selectedFreightId',
+              'status',
+            ],
+          })
+        : Promise.resolve([]),
+      logisticsIds.length > 0
+        ? this.freightQuoteModel.findAll({
+            where: {
+              logisticsId: { [Op.in]: logisticsIds },
+              isPreferred: true,
+            },
+            attributes: ['id', 'logisticsId', 'freightAmount', 'isPreferred'],
+          })
+        : Promise.resolve([]),
+      shipmentIds.length > 0
+        ? this.freightQuoteModel.findAll({
+            where: {
+              shipmentId: { [Op.in]: shipmentIds },
+              isPreferred: true,
+            },
+            attributes: ['id', 'shipmentId', 'freightAmount', 'isPreferred'],
+          })
+        : Promise.resolve([]),
+    ]);
 
     // Index allocations by shipmentId
     const allocationsByShipment = new Map<number, number>();
@@ -178,7 +183,11 @@ export class ShipmentReadinessService {
       let freightReady = false;
       if (preferredQuotesByShipment.has(s.id)) {
         freightReady = true;
-      } else if (s.freight !== null && s.freight !== undefined && Number(s.freight) > 0) {
+      } else if (
+        s.freight !== null &&
+        s.freight !== undefined &&
+        Number(s.freight) > 0
+      ) {
         freightReady = true;
       } else if (s.logisticsId && logisticsById.has(s.logisticsId)) {
         const log = logisticsById.get(s.logisticsId);
@@ -203,12 +212,9 @@ export class ShipmentReadinessService {
         const log = logisticsByBusinessTx.get(s.businessTransactionId);
         if (
           log.selectedFreightId != null ||
-          [
-            'Preferred Quote Selected',
-            'Allocated',
-            'Ready',
-            'Booked',
-          ].includes(log.status)
+          ['Preferred Quote Selected', 'Allocated', 'Ready', 'Booked'].includes(
+            log.status,
+          )
         ) {
           freightReady = true;
         }

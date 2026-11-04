@@ -289,10 +289,8 @@ export class CargoAvailabilityService {
     if (productId) where.productId = productId;
     if (businessReference) {
       where.businessTransactionId =
-        (await resolveBusinessTransactionId(
-          businessReference,
-          companyId,
-        )) ?? -1;
+        (await resolveBusinessTransactionId(businessReference, companyId)) ??
+        -1;
     }
 
     const pcWhere: any = {};
@@ -344,7 +342,12 @@ export class CargoAvailabilityService {
                 String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
               ],
             ]
-          : [[sortBy, String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC']],
+          : [
+              [
+                sortBy,
+                String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
+              ],
+            ],
       limit: status ? undefined : Number(limit),
       offset: status ? undefined : offset,
     });
@@ -764,9 +767,12 @@ export class CargoAvailabilityService {
     }
 
     if (!record && dto.shipmentId) {
-      const shipment = await this.shipmentModel.findByPk(Number(dto.shipmentId), {
-        include: [{ model: SalesContract }],
-      });
+      const shipment = await this.shipmentModel.findByPk(
+        Number(dto.shipmentId),
+        {
+          include: [{ model: SalesContract }],
+        },
+      );
       if (shipment) {
         const pc = await this.purchaseContractModel.findOne({
           where: shipment.salesContractId
@@ -840,7 +846,9 @@ export class CargoAvailabilityService {
         },
       });
       if (!existingAlloc) {
-        const shipment = await this.shipmentModel.findByPk(Number(dto.shipmentId));
+        const shipment = await this.shipmentModel.findByPk(
+          Number(dto.shipmentId),
+        );
         const allocQty = Math.min(
           Number(shipment?.quantity || record.purchaseQty || 0),
           Number(record.purchaseQty || 0),
@@ -1062,7 +1070,8 @@ export class CargoAvailabilityService {
           }
           if (!existingLoading.shipmentAllocationId && allocation?.id) {
             existingLoading.shipmentAllocationId = allocation.id;
-            existingLoading.cargoAvailabilityId = allocation.cargoAvailabilityId;
+            existingLoading.cargoAvailabilityId =
+              allocation.cargoAvailabilityId;
             updated = true;
           }
           if (updated) {
@@ -1071,7 +1080,7 @@ export class CargoAvailabilityService {
         }
 
         // 2. Check or create ShipmentStuffing
-        let existingStuffing = await this.stuffingModel.findOne({
+        const existingStuffing = await this.stuffingModel.findOne({
           where: { shipmentId: shipment.id },
         });
 
@@ -1093,10 +1102,8 @@ export class CargoAvailabilityService {
               quantityMt: Number(shipment.quantity || 0),
               noOfContainers: shipment.noOfContainers || 1,
               businessRefNo:
-                shipment.businessTransaction?.businessReference ||
-                'N/A',
-              salesContractNo:
-                shipment.salesContract?.contractNumber || 'N/A',
+                shipment.businessTransaction?.businessReference || 'N/A',
+              salesContractNo: shipment.salesContract?.contractNumber || 'N/A',
               buyerName: shipment.salesContract?.buyer?.entityName || 'N/A',
               sellerCompany:
                 shipment.salesContract?.seller?.entityName || 'N/A',
@@ -1166,8 +1173,12 @@ export class CargoAvailabilityService {
         { '$shipment.shipmentReference$': { [Op.iLike]: search } },
         { '$shipment.salesContract.contractNumber$': { [Op.iLike]: search } },
         { '$shipment.salesContract.buyer.entityName$': { [Op.iLike]: search } },
-        { '$shipment.salesContract.seller.entityName$': { [Op.iLike]: search } },
-        { '$shipment.salesContract.items.product.name$': { [Op.iLike]: search } },
+        {
+          '$shipment.salesContract.seller.entityName$': { [Op.iLike]: search },
+        },
+        {
+          '$shipment.salesContract.items.product.name$': { [Op.iLike]: search },
+        },
       ];
     }
     if (query.status) loadingWhere.status = query.status;
@@ -1215,7 +1226,14 @@ export class CargoAvailabilityService {
         {
           model: SalesContractShipment,
           as: 'shipment',
-          attributes: ['id', 'shipmentReference', 'quantity', 'status', 'executionStatus', 'salesContractId'],
+          attributes: [
+            'id',
+            'shipmentReference',
+            'quantity',
+            'status',
+            'executionStatus',
+            'salesContractId',
+          ],
           include: [
             {
               model: SalesContract,
@@ -1391,9 +1409,7 @@ export class CargoAvailabilityService {
     if (!Number.isFinite(loadedQty) || loadedQty < 0) {
       throw new BadRequestException('Loaded quantity cannot be negative.');
     }
-    if (
-      loadedQty > Number(shipmentInfo.remainingShipmentQty)
-    ) {
+    if (loadedQty > Number(shipmentInfo.remainingShipmentQty)) {
       throw new BadRequestException(
         `Loaded Quantity (${loadedQty} MT) exceeds Remaining Shipment Quantity (${shipmentInfo.remainingShipmentQty} MT).`,
       );
@@ -1534,162 +1550,167 @@ export class CargoAvailabilityService {
         );
       }
 
-    if (dto.warehouseName !== undefined) {
-      loading.warehouseName = dto.warehouseName;
-    }
-    if (dto.loadingDate !== undefined) loading.loadingDate = dto.loadingDate;
-    if (dto.loadingStartTime !== undefined)
-      loading.loadingStartTime = dto.loadingStartTime;
-    if (dto.loadingEndTime !== undefined)
-      loading.loadingEndTime = dto.loadingEndTime;
-    if (dto.operator !== undefined) loading.operator = dto.operator;
-    if (dto.arrivalTime !== undefined) loading.arrivalTime = dto.arrivalTime;
-    if (dto.truckNo !== undefined) loading.truckNo = dto.truckNo || null;
-    if (dto.trailerNo !== undefined) loading.trailerNo = dto.trailerNo;
-    if (dto.driverName !== undefined) loading.driverName = dto.driverName;
-    if (dto.driverMobile !== undefined) loading.driverMobile = dto.driverMobile;
-    if (dto.transporter !== undefined) loading.transporter = dto.transporter;
-    if (dto.licenseNumber !== undefined)
-      loading.licenseNumber = dto.licenseNumber;
-    if (dto.vehicleType !== undefined) loading.vehicleType = dto.vehicleType;
-    if (dto.bagBulk !== undefined) loading.bagBulk = dto.bagBulk;
-    if (dto.bagsCount !== undefined) loading.bagsCount = dto.bagsCount;
-    if (dto.avgBagWeight !== undefined)
-      loading.avgBagWeight = dto.avgBagWeight;
-    if (dto.sealNumber !== undefined) loading.sealNumber = dto.sealNumber;
-    if (dto.containerNumber !== undefined)
-      loading.containerNumber = dto.containerNumber;
-    if (dto.loadingLocation !== undefined)
-      loading.loadingLocation = dto.loadingLocation;
-    if (dto.stackNumber !== undefined) loading.stackNumber = dto.stackNumber;
-    if (dto.lotNumber !== undefined) loading.lotNumber = dto.lotNumber;
-    if (dto.batchNumber !== undefined) loading.batchNumber = dto.batchNumber;
-    if (dto.unloadLocation !== undefined)
-      loading.unloadLocation = dto.unloadLocation;
-    if (dto.ewayBillNo !== undefined) loading.ewayBillNo = dto.ewayBillNo;
-    if (dto.lrNumber !== undefined) loading.lrNumber = dto.lrNumber;
-    if (dto.invoiceNumber !== undefined)
-      loading.invoiceNumber = dto.invoiceNumber;
-    if (dto.gatePassNumber !== undefined)
-      loading.gatePassNumber = dto.gatePassNumber;
-    if (dto.status) {
-      const currentRank = this.getLoadingStatusRank(loading.status);
-      const nextRank = this.getLoadingStatusRank(dto.status);
-      if (nextRank < 0) {
-        throw new BadRequestException(`Unsupported loading status: ${dto.status}`);
+      if (dto.warehouseName !== undefined) {
+        loading.warehouseName = dto.warehouseName;
       }
-      if (currentRank >= 0 && nextRank < currentRank) {
-        throw new BadRequestException(
-          'Loading execution status cannot move backwards.',
-        );
-      }
-      loading.status = dto.status;
-    }
-    if (dto.loadedQty !== undefined || dto.loadedWeight !== undefined) {
-      const loadedQty = Number(dto.loadedQty ?? dto.loadedWeight);
-      if (!Number.isFinite(loadedQty) || loadedQty < 0) {
-        throw new BadRequestException('Loaded quantity cannot be negative.');
-      }
-      const otherLoadedQty = Number(
-        (await this.cargoLoadingModel.sum('loadedQty', {
-          where: { shipmentId: shipment.id, id: { [Op.ne]: loading.id } },
-          transaction,
-        })) || 0,
-      );
-      if (otherLoadedQty + loadedQty > Number(shipment.quantity || 0)) {
-        throw new BadRequestException(
-          `Total loaded quantity cannot exceed shipment quantity (${shipment.quantity} MT).`,
-        );
-      }
-      if (loading.shipmentAllocationId) {
-        const allocation = await this.cargoAllocationModel.findByPk(
-          loading.shipmentAllocationId,
-          { transaction },
-        );
-        if (
-          allocation &&
-          otherLoadedQty + loadedQty > Number(allocation.allocatedQty || 0)
-        ) {
+      if (dto.loadingDate !== undefined) loading.loadingDate = dto.loadingDate;
+      if (dto.loadingStartTime !== undefined)
+        loading.loadingStartTime = dto.loadingStartTime;
+      if (dto.loadingEndTime !== undefined)
+        loading.loadingEndTime = dto.loadingEndTime;
+      if (dto.operator !== undefined) loading.operator = dto.operator;
+      if (dto.arrivalTime !== undefined) loading.arrivalTime = dto.arrivalTime;
+      if (dto.truckNo !== undefined) loading.truckNo = dto.truckNo || null;
+      if (dto.trailerNo !== undefined) loading.trailerNo = dto.trailerNo;
+      if (dto.driverName !== undefined) loading.driverName = dto.driverName;
+      if (dto.driverMobile !== undefined)
+        loading.driverMobile = dto.driverMobile;
+      if (dto.transporter !== undefined) loading.transporter = dto.transporter;
+      if (dto.licenseNumber !== undefined)
+        loading.licenseNumber = dto.licenseNumber;
+      if (dto.vehicleType !== undefined) loading.vehicleType = dto.vehicleType;
+      if (dto.bagBulk !== undefined) loading.bagBulk = dto.bagBulk;
+      if (dto.bagsCount !== undefined) loading.bagsCount = dto.bagsCount;
+      if (dto.avgBagWeight !== undefined)
+        loading.avgBagWeight = dto.avgBagWeight;
+      if (dto.sealNumber !== undefined) loading.sealNumber = dto.sealNumber;
+      if (dto.containerNumber !== undefined)
+        loading.containerNumber = dto.containerNumber;
+      if (dto.loadingLocation !== undefined)
+        loading.loadingLocation = dto.loadingLocation;
+      if (dto.stackNumber !== undefined) loading.stackNumber = dto.stackNumber;
+      if (dto.lotNumber !== undefined) loading.lotNumber = dto.lotNumber;
+      if (dto.batchNumber !== undefined) loading.batchNumber = dto.batchNumber;
+      if (dto.unloadLocation !== undefined)
+        loading.unloadLocation = dto.unloadLocation;
+      if (dto.ewayBillNo !== undefined) loading.ewayBillNo = dto.ewayBillNo;
+      if (dto.lrNumber !== undefined) loading.lrNumber = dto.lrNumber;
+      if (dto.invoiceNumber !== undefined)
+        loading.invoiceNumber = dto.invoiceNumber;
+      if (dto.gatePassNumber !== undefined)
+        loading.gatePassNumber = dto.gatePassNumber;
+      if (dto.status) {
+        const currentRank = this.getLoadingStatusRank(loading.status);
+        const nextRank = this.getLoadingStatusRank(dto.status);
+        if (nextRank < 0) {
           throw new BadRequestException(
-            `Total loaded quantity cannot exceed cargo allocation (${allocation.allocatedQty} MT).`,
+            `Unsupported loading status: ${dto.status}`,
           );
         }
+        if (currentRank >= 0 && nextRank < currentRank) {
+          throw new BadRequestException(
+            'Loading execution status cannot move backwards.',
+          );
+        }
+        loading.status = dto.status;
       }
-      if (dto.loadedQty !== undefined) loading.loadedQty = loadedQty;
-      if (dto.loadedWeight !== undefined) loading.loadedWeight = loadedQty;
-    }
-    if (dto.weighmentInWeight !== undefined)
-      loading.weighmentInWeight = dto.weighmentInWeight;
-    if (dto.weighmentOutWeight !== undefined)
-      loading.weighmentOutWeight = dto.weighmentOutWeight;
-
-    if (dto.unloadedWeight !== undefined) {
-      const unloadedWeight = Number(dto.unloadedWeight);
-      if (!Number.isFinite(unloadedWeight) || unloadedWeight < 0) {
-        throw new BadRequestException('Unloaded quantity cannot be negative.');
-      }
-      loading.unloadedWeight = dto.unloadedWeight;
-      const loadedW = Number(loading.loadedWeight || loading.loadedQty || 0);
-      if (unloadedWeight > loadedW) {
-        throw new BadRequestException(
-          'Unloaded quantity cannot exceed the loaded quantity.',
+      if (dto.loadedQty !== undefined || dto.loadedWeight !== undefined) {
+        const loadedQty = Number(dto.loadedQty ?? dto.loadedWeight);
+        if (!Number.isFinite(loadedQty) || loadedQty < 0) {
+          throw new BadRequestException('Loaded quantity cannot be negative.');
+        }
+        const otherLoadedQty = Number(
+          (await this.cargoLoadingModel.sum('loadedQty', {
+            where: { shipmentId: shipment.id, id: { [Op.ne]: loading.id } },
+            transaction,
+          })) || 0,
         );
+        if (otherLoadedQty + loadedQty > Number(shipment.quantity || 0)) {
+          throw new BadRequestException(
+            `Total loaded quantity cannot exceed shipment quantity (${shipment.quantity} MT).`,
+          );
+        }
+        if (loading.shipmentAllocationId) {
+          const allocation = await this.cargoAllocationModel.findByPk(
+            loading.shipmentAllocationId,
+            { transaction },
+          );
+          if (
+            allocation &&
+            otherLoadedQty + loadedQty > Number(allocation.allocatedQty || 0)
+          ) {
+            throw new BadRequestException(
+              `Total loaded quantity cannot exceed cargo allocation (${allocation.allocatedQty} MT).`,
+            );
+          }
+        }
+        if (dto.loadedQty !== undefined) loading.loadedQty = loadedQty;
+        if (dto.loadedWeight !== undefined) loading.loadedWeight = loadedQty;
       }
-      const diff = Math.max(0, loadedW - unloadedWeight);
-      loading.weightDifference = diff;
+      if (dto.weighmentInWeight !== undefined)
+        loading.weighmentInWeight = dto.weighmentInWeight;
+      if (dto.weighmentOutWeight !== undefined)
+        loading.weighmentOutWeight = dto.weighmentOutWeight;
 
-      if (loadedW > 0) {
-        const variancePct = (diff / loadedW) * 100;
-        if (variancePct <= 0.5) {
-          loading.varianceLevel = 'Normal';
-          loading.verificationStatus = 'Verified Normal';
-        } else if (variancePct <= 1.0) {
-          loading.varianceLevel = 'Yellow Alert';
-          loading.verificationStatus = 'Variance Flagged';
-        } else if (variancePct <= 2.0) {
-          loading.varianceLevel = 'Orange Alert';
-          loading.verificationStatus = 'Variance Flagged';
-        } else {
-          loading.varianceLevel = 'Red Claim Required';
-          loading.verificationStatus = 'Claim Raised';
+      if (dto.unloadedWeight !== undefined) {
+        const unloadedWeight = Number(dto.unloadedWeight);
+        if (!Number.isFinite(unloadedWeight) || unloadedWeight < 0) {
+          throw new BadRequestException(
+            'Unloaded quantity cannot be negative.',
+          );
+        }
+        loading.unloadedWeight = dto.unloadedWeight;
+        const loadedW = Number(loading.loadedWeight || loading.loadedQty || 0);
+        if (unloadedWeight > loadedW) {
+          throw new BadRequestException(
+            'Unloaded quantity cannot exceed the loaded quantity.',
+          );
+        }
+        const diff = Math.max(0, loadedW - unloadedWeight);
+        loading.weightDifference = diff;
+
+        if (loadedW > 0) {
+          const variancePct = (diff / loadedW) * 100;
+          if (variancePct <= 0.5) {
+            loading.varianceLevel = 'Normal';
+            loading.verificationStatus = 'Verified Normal';
+          } else if (variancePct <= 1.0) {
+            loading.varianceLevel = 'Yellow Alert';
+            loading.verificationStatus = 'Variance Flagged';
+          } else if (variancePct <= 2.0) {
+            loading.varianceLevel = 'Orange Alert';
+            loading.verificationStatus = 'Variance Flagged';
+          } else {
+            loading.varianceLevel = 'Red Claim Required';
+            loading.verificationStatus = 'Claim Raised';
+          }
         }
       }
-    }
 
-    if (dto.shortQty !== undefined) loading.shortQty = dto.shortQty;
-    if (dto.damageQty !== undefined) loading.damageQty = dto.damageQty;
-    if (dto.differenceReason) loading.differenceReason = dto.differenceReason;
-    if (dto.remarks) loading.remarks = dto.remarks;
+      if (dto.shortQty !== undefined) loading.shortQty = dto.shortQty;
+      if (dto.damageQty !== undefined) loading.damageQty = dto.damageQty;
+      if (dto.differenceReason) loading.differenceReason = dto.differenceReason;
+      if (dto.remarks) loading.remarks = dto.remarks;
 
-    // Timeline update
-    const timeline = loading.timeline || [];
-    const statusChanged =
-      Boolean(dto.status) && timeline[timeline.length - 1]?.stage !== loading.status;
-    if (statusChanged) {
-      timeline.push({
-        stage: loading.status,
-        timestamp: new Date().toISOString(),
-        user: userId || 'System',
-        remarks:
-          dto.stageRemarks ||
-          dto.remarks ||
-          `Stage updated to ${loading.status}`,
-      });
-    }
-    loading.timeline = timeline;
+      // Timeline update
+      const timeline = loading.timeline || [];
+      const statusChanged =
+        Boolean(dto.status) &&
+        timeline[timeline.length - 1]?.stage !== loading.status;
+      if (statusChanged) {
+        timeline.push({
+          stage: loading.status,
+          timestamp: new Date().toISOString(),
+          user: userId || 'System',
+          remarks:
+            dto.stageRemarks ||
+            dto.remarks ||
+            `Stage updated to ${loading.status}`,
+        });
+      }
+      loading.timeline = timeline;
 
-    const status = loading.status;
-    if (
-      this.getLoadingStatusRank(status) >=
-        this.getLoadingStatusRank('Loading Completed') &&
-      Number(loading.loadedQty || loading.loadedWeight || 0) <= 0
-    ) {
-      throw new BadRequestException(
-        'Enter a positive loaded quantity before completing loading.',
-      );
-    }
-    loading.warehouseStatus =
-      [
+      const status = loading.status;
+      if (
+        this.getLoadingStatusRank(status) >=
+          this.getLoadingStatusRank('Loading Completed') &&
+        Number(loading.loadedQty || loading.loadedWeight || 0) <= 0
+      ) {
+        throw new BadRequestException(
+          'Enter a positive loaded quantity before completing loading.',
+        );
+      }
+      loading.warehouseStatus = [
         'Loading Completed',
         'Stuffing Completed',
         'Completed',
@@ -1700,91 +1721,95 @@ export class CargoAvailabilityService {
       ].includes(status)
         ? 'Completed'
         : [
-            'Stuffing Started',
-            'Stuffing In Progress',
-            'Loading Started',
-            'Weighment Out',
-            'Ready For Dispatch',
-          ].includes(status)
+              'Stuffing Started',
+              'Stuffing In Progress',
+              'Loading Started',
+              'Weighment Out',
+              'Ready For Dispatch',
+            ].includes(status)
           ? 'In Progress'
           : status === 'Ready' || status === 'Truck Arrived'
             ? 'Ready'
             : 'Pending';
-    await loading.save({ transaction });
+      await loading.save({ transaction });
 
-    const stuffing = await this.stuffingModel.findOne({
-      where: { shipmentId: shipment.id },
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-    if (stuffing) {
-      stuffing.warehouseStatus = loading.warehouseStatus;
-      stuffing.loadingStatus = status;
-      stuffing.executionStatus = status;
-      const statusRank = this.getLoadingStatusRank(status);
-      stuffing.stuffingStatus =
-        statusRank >= this.getLoadingStatusRank('Stuffing Completed')
-          ? 'Completed'
-          : statusRank >= this.getLoadingStatusRank('Stuffing Started')
-            ? 'In Progress'
-            : 'Pending';
-      if (dto.warehouseName !== undefined) {
-        stuffing.stuffingLocation = dto.warehouseName;
-      }
-      if (dto.operator) {
-        stuffing.operator = dto.operator;
-      }
-      if (loading.containerNumber) {
-        const containers = Array.isArray(stuffing.containers)
-          ? [...stuffing.containers]
-          : [];
-        const matchIdx = containers.findIndex(
-          (c: any) => c.containerNo === loading.containerNumber,
-        );
-        if (matchIdx >= 0) {
-          containers[matchIdx] = {
-            ...containers[matchIdx],
-            status,
-            vehicleNumber: loading.truckNo || containers[matchIdx].vehicleNumber,
-            sealNo: loading.sealNumber || containers[matchIdx].sealNo,
-            warehouse: loading.warehouseName || containers[matchIdx].warehouse,
-            netWeight: Number(
-              loading.loadedWeight ||
-                loading.loadedQty ||
-                containers[matchIdx].netWeight ||
-                0,
-            ),
-          };
-          stuffing.containers = containers;
-        } else if (containers.length === 0) {
-          stuffing.containers = [
-            {
-              containerNo: loading.containerNumber,
-              containerSize: '40 FT',
-              vehicleNumber: loading.truckNo || '',
-              sealNo: loading.sealNumber || '',
-              stuffingDate: loading.loadingDate || '',
-              warehouse: loading.warehouseName || '',
-              status,
-              remarks: loading.remarks || '',
-              tareWeight: 0,
-              grossWeight: Number(
-                loading.loadedWeight || loading.loadedQty || 0,
-              ),
-              netWeight: Number(loading.loadedWeight || loading.loadedQty || 0),
-            },
-          ];
+      const stuffing = await this.stuffingModel.findOne({
+        where: { shipmentId: shipment.id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (stuffing) {
+        stuffing.warehouseStatus = loading.warehouseStatus;
+        stuffing.loadingStatus = status;
+        stuffing.executionStatus = status;
+        const statusRank = this.getLoadingStatusRank(status);
+        stuffing.stuffingStatus =
+          statusRank >= this.getLoadingStatusRank('Stuffing Completed')
+            ? 'Completed'
+            : statusRank >= this.getLoadingStatusRank('Stuffing Started')
+              ? 'In Progress'
+              : 'Pending';
+        if (dto.warehouseName !== undefined) {
+          stuffing.stuffingLocation = dto.warehouseName;
         }
+        if (dto.operator) {
+          stuffing.operator = dto.operator;
+        }
+        if (loading.containerNumber) {
+          const containers = Array.isArray(stuffing.containers)
+            ? [...stuffing.containers]
+            : [];
+          const matchIdx = containers.findIndex(
+            (c: any) => c.containerNo === loading.containerNumber,
+          );
+          if (matchIdx >= 0) {
+            containers[matchIdx] = {
+              ...containers[matchIdx],
+              status,
+              vehicleNumber:
+                loading.truckNo || containers[matchIdx].vehicleNumber,
+              sealNo: loading.sealNumber || containers[matchIdx].sealNo,
+              warehouse:
+                loading.warehouseName || containers[matchIdx].warehouse,
+              netWeight: Number(
+                loading.loadedWeight ||
+                  loading.loadedQty ||
+                  containers[matchIdx].netWeight ||
+                  0,
+              ),
+            };
+            stuffing.containers = containers;
+          } else if (containers.length === 0) {
+            stuffing.containers = [
+              {
+                containerNo: loading.containerNumber,
+                containerSize: '40 FT',
+                vehicleNumber: loading.truckNo || '',
+                sealNo: loading.sealNumber || '',
+                stuffingDate: loading.loadingDate || '',
+                warehouse: loading.warehouseName || '',
+                status,
+                remarks: loading.remarks || '',
+                tareWeight: 0,
+                grossWeight: Number(
+                  loading.loadedWeight || loading.loadedQty || 0,
+                ),
+                netWeight: Number(
+                  loading.loadedWeight || loading.loadedQty || 0,
+                ),
+              },
+            ];
+          }
+        }
+        await stuffing.save({ transaction });
       }
-      await stuffing.save({ transaction });
-    }
-    shipment.executionStatus = status;
-    if (status === 'Completed') shipment.status = 'Completed';
-    else if (status === 'Dispatched') shipment.status = 'Dispatched';
-    else if (shipment.status !== 'Completed') shipment.status = 'Executed';
-    await shipment.save({ transaction });
+      shipment.executionStatus = status;
+      if (status === 'Completed') shipment.status = 'Completed';
+      else if (status === 'Dispatched') shipment.status = 'Dispatched';
+      else if (shipment.status !== 'Completed') shipment.status = 'Executed';
+      await shipment.save({ transaction });
 
-    return loading;
+      return loading;
     });
   }
 

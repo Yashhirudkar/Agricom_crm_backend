@@ -6,7 +6,8 @@ export const name = 'add-loading-country-to-purchase-contracts';
 export async function up(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    const tableInfo: any = await queryInterface.describeTable('purchase_contracts');
+    const tableInfo: any =
+      await queryInterface.describeTable('purchase_contracts');
     if (!tableInfo.loading_country) {
       await queryInterface.addColumn(
         'purchase_contracts',
@@ -28,7 +29,8 @@ export async function up(queryInterface: QueryInterface) {
 export async function down(queryInterface: QueryInterface) {
   const transaction = await queryInterface.sequelize.transaction();
   try {
-    const tableInfo: any = await queryInterface.describeTable('purchase_contracts');
+    const tableInfo: any =
+      await queryInterface.describeTable('purchase_contracts');
     if (tableInfo.loading_country) {
       await queryInterface.removeColumn(
         'purchase_contracts',

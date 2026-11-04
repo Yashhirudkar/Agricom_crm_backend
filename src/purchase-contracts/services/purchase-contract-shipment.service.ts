@@ -42,6 +42,12 @@ export class PurchaseContractShipmentService {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
+    if (contract.salesContractId) {
+      // SC-linked links are rebuilt by PurchaseContractService from the
+      // persisted Purchase Quantity; ignore arbitrary client selections.
+      return this.getShipments(purchaseContractId);
+    }
+
     const ids = Array.isArray(shipmentIds) ? shipmentIds.map(Number) : [];
 
     // Delete links not in selected shipmentIds
@@ -85,6 +91,9 @@ export class PurchaseContractShipmentService {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
+    // Load shipment links (read-only — no DB mutation here).
+    // For SC-linked PCs the canonical links are built by the service layer
+    // whenever a PC is created or its quantity changes.
     const links = await this.linkModel.findAll({
       where: { purchaseContractId },
       include: [
@@ -121,12 +130,31 @@ export class PurchaseContractShipmentService {
       order: [['createdAt', 'ASC']],
     });
 
+    // For SC-linked PCs: sort links by shipment sequence for consistent display.
+    // Show ALL stored links — the rebuild engine already ensures correctness.
+    let visibleLinks = links;
+    if (contract.salesContractId) {
+      visibleLinks = [...links].sort(
+        (a, b) =>
+          (Number(a.shipment?.shipmentSequence) || 0) -
+            (Number(b.shipment?.shipmentSequence) || 0) ||
+          (Number(a.shipment?.shipmentNo) || 0) -
+            (Number(b.shipment?.shipmentNo) || 0) ||
+          a.id - b.id,
+      );
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return links.map((link) => {
+    return visibleLinks.map((link) => {
       const s = link.shipment;
       const sc: any = s.salesContract || {};
+      const sourceShipmentQuantity = Number(s.quantity) || 0;
+      const scheduleQuantity =
+        !contract.salesContractId && link.allocatedQuantity != null
+          ? Number(link.allocatedQuantity)
+          : sourceShipmentQuantity;
 
       // Auto Route Source Mapping
       const origin = contract.placeOfLoading || s.origin || '—';
@@ -150,7 +178,8 @@ export class PurchaseContractShipmentService {
         shipmentNo: s.shipmentNo,
         shipmentReference: s.shipmentReference,
         shipmentDate: s.shipmentDate,
-        quantity: s.quantity,
+        quantity: scheduleQuantity,
+        sourceQuantity: sourceShipmentQuantity,
         noOfContainers: s.noOfContainers,
         purchaseRate: s.purchaseRate,
         ratePerMt: s.ratePerMt,
@@ -212,6 +241,11 @@ export class PurchaseContractShipmentService {
   ) {
     const contract = await this.contractModel.findByPk(purchaseContractId);
     if (!contract) throw new NotFoundException('Purchase Contract not found');
+    if (contract.salesContractId) {
+      throw new ConflictException(
+        'Sales Contract-linked shipments are allocated automatically from Purchase Quantity',
+      );
+    }
 
     const shipment = await this.shipmentModel.findByPk(dto.shipmentId, {
       include: [
@@ -268,6 +302,14 @@ export class PurchaseContractShipmentService {
     shipmentId: number,
     user: any,
   ) {
+    const contract = await this.contractModel.findByPk(purchaseContractId);
+    if (!contract) throw new NotFoundException('Purchase Contract not found');
+    if (contract.salesContractId) {
+      throw new ConflictException(
+        'Sales Contract-linked shipments are allocated automatically from Purchase Quantity',
+      );
+    }
+
     const link = await this.linkModel.findOne({
       where: { purchaseContractId, shipmentId },
     });

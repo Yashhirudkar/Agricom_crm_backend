@@ -366,12 +366,18 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
       'DROP TRIGGER IF EXISTS business_transactions_no_delete ON business_transactions',
       { transaction },
     );
-    await sequelize.query('DROP FUNCTION IF EXISTS prevent_business_reference_change()', {
-      transaction,
-    });
-    await sequelize.query('DROP FUNCTION IF EXISTS prevent_business_transaction_delete()', {
-      transaction,
-    });
+    await sequelize.query(
+      'DROP FUNCTION IF EXISTS prevent_business_reference_change()',
+      {
+        transaction,
+      },
+    );
+    await sequelize.query(
+      'DROP FUNCTION IF EXISTS prevent_business_transaction_delete()',
+      {
+        transaction,
+      },
+    );
 
     await sequelize.query(
       'DROP INDEX IF EXISTS uq_standalone_mtt_business_transaction',
