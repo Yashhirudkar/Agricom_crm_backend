@@ -58,6 +58,7 @@ import * as phase66 from './phase-66-add-qty-per-count-to-sales-contract-items';
 import * as phase67 from './phase-67-cancel-approved-leave';
 import * as phase68 from './phase-68-leave-request-handover-users';
 import * as phase69 from './phase-69-add-sales-contract-item-product-details';
+import * as phase70 from './phase-70-sales-contract-destination-selection';
 
 export interface MigrationPhase {
   phase: string;
@@ -131,4 +132,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase67,
   phase68,
   phase69,
+  phase70,
 ];

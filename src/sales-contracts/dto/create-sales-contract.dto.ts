@@ -11,6 +11,7 @@ import {
   IsBoolean,
   Matches,
   IsObject,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -203,6 +204,14 @@ export class CreateSalesContractDto {
   @IsOptional()
   @IsString()
   destinationCountry?: string;
+
+  @IsOptional()
+  @IsIn(['enquiry', 'select'])
+  destinationSelectionMode?: string;
+
+  @IsOptional()
+  @IsString()
+  enquiryDestination?: string;
 
   @IsOptional()
   @IsString()

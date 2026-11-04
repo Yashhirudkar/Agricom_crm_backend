@@ -42,6 +42,18 @@ import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
 
+function getContractDestination(contract: SalesContract): string | null {
+  if (contract.destinationSelectionMode === 'enquiry') {
+    return contract.enquiryDestination || null;
+  }
+  return (
+    contract.destinationLocationName ||
+    contract.portOfDischarge ||
+    contract.deliveryPlace ||
+    null
+  );
+}
+
 @Injectable()
 export class ShipmentService {
   constructor(
@@ -951,8 +963,7 @@ export class ShipmentService {
 
       // Destination: ALWAYS Linked Sales Contract → Delivery Place
       const destination =
-        sc.destinationLocationName ||
-        sc.portOfDischarge ||
+        getContractDestination(sc) ||
         sc.deliveryPlace ||
         pcData?.delivery_place ||
         json.destination ||
@@ -1481,8 +1492,7 @@ export class ShipmentService {
       sc.portOfLoading ||
       '—';
     const destination =
-      sc.destinationLocationName ||
-      sc.portOfDischarge ||
+      getContractDestination(sc) ||
       sc.deliveryPlace ||
       pcData?.delivery_place ||
       json.destination ||
@@ -1838,8 +1848,7 @@ export class ShipmentService {
       freightQuote?.pol ||
       '—';
     const destPort =
-      contract.destinationLocationName ||
-      contract.portOfDischarge ||
+      getContractDestination(contract) ||
       contract.deliveryPlace ||
       shipment.destination ||
       freightQuote?.pod ||

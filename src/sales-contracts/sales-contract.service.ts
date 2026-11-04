@@ -332,7 +332,11 @@ export class SalesContractService implements OnModuleInit {
           } catch (e) {}
         }
         const scDest =
-          contract.destinationLocationName || contract.portOfDischarge || null;
+          contract.destinationSelectionMode === 'enquiry'
+            ? contract.enquiryDestination || null
+            : contract.destinationLocationName ||
+              contract.portOfDischarge ||
+              null;
 
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
@@ -892,7 +896,11 @@ export class SalesContractService implements OnModuleInit {
           : [];
 
         const scDest =
-          contract.destinationLocationName || contract.portOfDischarge || null;
+          contract.destinationSelectionMode === 'enquiry'
+            ? contract.enquiryDestination || null
+            : contract.destinationLocationName ||
+              contract.portOfDischarge ||
+              null;
         let pcOrigin: string | null = null;
         try {
           const pcRows: any = await this.sequelize.query(
@@ -984,7 +992,12 @@ export class SalesContractService implements OnModuleInit {
         }
 
         // Sync destination across all contract shipments if destination was updated
-        if (scDest) {
+        if (
+          dto.destinationSelectionMode !== undefined ||
+          dto.enquiryDestination !== undefined ||
+          dto.destinationLocationName !== undefined ||
+          dto.portOfDischarge !== undefined
+        ) {
           await this.shipmentModel.update(
             { destination: scDest },
             { where: { salesContractId: contract.id }, transaction: t },

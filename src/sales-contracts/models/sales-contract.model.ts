@@ -151,6 +151,18 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   declare destinationCountry: string;
 
   @AllowNull(true)
+  @Default('select')
+  @Column({
+    field: 'destination_selection_mode',
+    type: DataType.STRING(20),
+  })
+  declare destinationSelectionMode: string;
+
+  @AllowNull(true)
+  @Column({ field: 'enquiry_destination', type: DataType.STRING(500) })
+  declare enquiryDestination: string;
+
+  @AllowNull(true)
   @Column({ field: 'port_of_loading', type: DataType.STRING(255) })
   declare portOfLoading: string;
 
@@ -172,6 +184,9 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   @Column({
     type: DataType.VIRTUAL,
     get() {
+      if (this.getDataValue('destinationSelectionMode') === 'enquiry') {
+        return this.getDataValue('enquiryDestination') || null;
+      }
       return (
         this.getDataValue('destinationLocationName') ||
         this.getDataValue('portOfDischarge') ||
