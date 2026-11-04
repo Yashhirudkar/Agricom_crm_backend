@@ -52,8 +52,16 @@ export function getAutoContractConfig(sellerName: string):
     }
   | undefined {
   if (!sellerName) return undefined;
-  const normalized = sellerName.trim().toUpperCase();
-  return SELLER_CONFIG_MAP[normalized];
+  const normalized = sellerName
+    .trim()
+    .toUpperCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ');
+  const canonicalName =
+    normalized === 'AGRICOM IMPEX PRIVATE LIMITED'
+      ? 'AGRICOM IMPEX PVT LTD'
+      : normalized;
+  return SELLER_CONFIG_MAP[canonicalName];
 }
 
 /**
