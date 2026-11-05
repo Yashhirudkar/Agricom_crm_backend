@@ -387,6 +387,7 @@ export class StockService {
       const matchesSearch = (prodName: string): boolean => {
         if (!qSearch) return true;
         if (prodName.toLowerCase().includes(qSearch)) return true;
+        if (resolvedCountry.toLowerCase().includes(qSearch)) return true;
         if (contractNo.toLowerCase().includes(qSearch)) return true;
         if (supplierName.toLowerCase().includes(qSearch)) return true;
         if (buyerName.toLowerCase().includes(qSearch)) return true;
