@@ -586,6 +586,7 @@ export class ShipmentService {
         include: [
           { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
           { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+          { model: ShipmentType, as: 'shipmentType' },
         ],
       },
       {
@@ -732,10 +733,12 @@ export class ShipmentService {
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
+             st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
            FROM purchase_contract_shipments pcs
            JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+           LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
            LEFT JOIN partners seller ON pc.seller_id = seller.id
            LEFT JOIN LATERAL (
              SELECT product_id, product_name 
@@ -777,9 +780,11 @@ export class ShipmentService {
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
+             st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
            FROM purchase_contracts pc
+           LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
            LEFT JOIN partners seller ON pc.seller_id = seller.id
            LEFT JOIN LATERAL (
              SELECT product_id, product_name 
@@ -883,6 +888,8 @@ export class ShipmentService {
       const readiness = readinessMap.get(json.id) || {
         cargoReady: false,
         freightReady: false,
+        isFreightNotApplicable: false,
+        freightAllocationStatus: 'Pending' as const,
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,
@@ -894,18 +901,40 @@ export class ShipmentService {
         readySource: 'System' as const,
         reasons: [],
       };
+      const pcDataEarly =
+        pcDataByShipment.get(json.id) ||
+        (contractId ? pcDataBySc.get(contractId) : null);
+
+      const isFreightAutoAllocated =
+        readiness.isFreightNotApplicable ||
+        json.freightAllocationStatus === 'Yes' ||
+        json.freightAllocationStatus === 'Not Applicable' ||
+        pcDataEarly?.purchase_contract_delivery_place_required === false ||
+        json.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+
       json.cargoReady = readiness.cargoReady;
-      json.freightReady = readiness.freightReady;
-      json.systemReady = readiness.systemReady;
+      json.freightReady = isFreightAutoAllocated ? true : readiness.freightReady;
+      json.isFreightNotApplicable = false;
+      json.freightAllocationStatus = isFreightAutoAllocated
+        ? 'Yes'
+        : (readiness.freightAllocationStatus || (json.freight ? 'Allocated' : 'Pending'));
+      json.systemReady = isFreightAutoAllocated ? readiness.cargoReady : readiness.systemReady;
+
+
       json.manualReadyOverride = readiness.manualReadyOverride;
       json.manualReadyBy = readiness.manualReadyBy;
       json.manualReadyByUser = readiness.manualReadyByUser;
       json.manualReadyAt = readiness.manualReadyAt;
       json.manualReadyReason = readiness.manualReadyReason;
-      json.readyForShipment = readiness.readyForShipment;
+      json.readyForShipment =
+        readiness.manualReadyOverride !== null
+          ? Boolean(readiness.manualReadyOverride)
+          : json.systemReady;
       json.isManualOverride = readiness.isManualOverride;
       json.readySource = readiness.readySource;
-      json.readinessReasons = readiness.reasons;
+      json.readinessReasons = isFreightAutoAllocated
+        ? (readiness.cargoReady ? [] : ['Cargo allocation is pending.'])
+        : readiness.reasons;
 
       // Format Sales Contract No, Purchase Contract No, and Shipment Ref No
       const rawSc = json.salesContract?.contractNumber;
@@ -1209,6 +1238,14 @@ export class ShipmentService {
       shipment.purchaseRate = dto.purchaseRate;
     if (dto.forex !== undefined) shipment.forex = dto.forex;
     if (dto.freight !== undefined) shipment.freight = dto.freight;
+    if (dto.freightAllocationStatus !== undefined)
+      shipment.freightAllocationStatus = dto.freightAllocationStatus;
+    if (
+      shipment.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false
+    ) {
+      shipment.freightAllocationStatus = 'Yes';
+      shipment.freight = null as any;
+    }
     if (dto.remarks !== undefined) shipment.remarks = dto.remarks;
     if (dto.shipmentNo !== undefined) shipment.shipmentNo = dto.shipmentNo;
     if (dto.status !== undefined) shipment.status = dto.status;
@@ -1275,6 +1312,7 @@ export class ShipmentService {
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+          { model: ShipmentType, as: 'shipmentType' },
             {
               model: SalesContractItem,
               as: 'items',
@@ -1306,6 +1344,8 @@ export class ShipmentService {
       json.businessTransaction?.businessReference ?? null;
     json.cargoReady = readiness.cargoReady;
     json.freightReady = readiness.freightReady;
+    json.isFreightNotApplicable = readiness.isFreightNotApplicable;
+    json.freightAllocationStatus = readiness.freightAllocationStatus;
     json.systemReady = readiness.systemReady;
     json.manualReadyOverride = readiness.manualReadyOverride;
     json.manualReadyBy = readiness.manualReadyBy;
@@ -1348,6 +1388,7 @@ export class ShipmentService {
         const [scPcRows]: any = await this.sequelize.query(
           `SELECT pc.contract_number
            FROM purchase_contracts pc
+           LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
            WHERE pc.sales_contract_id = :salesContractId`,
           { replacements: { salesContractId: json.salesContractId } },
         );
@@ -1390,6 +1431,7 @@ export class ShipmentService {
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+          { model: ShipmentType, as: 'shipmentType' },
           ],
         },
         {
@@ -1425,6 +1467,8 @@ export class ShipmentService {
     json.timeline = this.calculateTimeline(json.shipmentDate, json.status);
     json.cargoReady = readiness.cargoReady;
     json.freightReady = readiness.freightReady;
+    json.isFreightNotApplicable = readiness.isFreightNotApplicable;
+    json.freightAllocationStatus = readiness.freightAllocationStatus;
     json.systemReady = readiness.systemReady;
     json.manualReadyOverride = readiness.manualReadyOverride;
     json.manualReadyBy = readiness.manualReadyBy;

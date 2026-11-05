@@ -269,9 +269,24 @@ export class SalesContractService implements OnModuleInit {
       }
 
       // 2. Create Header
+      let resolvedDestinationLocationName = dto.destinationLocationName || null;
+      let isFreightNotApplicable = false;
+      if (dto.shipmentTypeId) {
+        const st = await ShipmentType.findOne({
+          where: { id: dto.shipmentTypeId, companyId },
+        });
+        if (st && st.salesContractDeliveryPlaceRequired === false) {
+          resolvedDestinationLocationName = null;
+        }
+        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
+          isFreightNotApplicable = true;
+        }
+      }
+
       const contract = await this.model.create(
         {
           ...dto,
+          destinationLocationName: resolvedDestinationLocationName,
           contractNumber: resolvedContractNumber,
           totalQuantity: calculatedTotalQty,
           totalAmount: calculatedTotalAmt,
@@ -358,6 +373,8 @@ export class SalesContractService implements OnModuleInit {
             origin: pcOrigin,
             destination: scDest,
             status: shipment.status || 'Scheduled',
+            freightAllocationStatus: isFreightNotApplicable ? 'Yes' : null,
+            freight: isFreightNotApplicable ? null : shipment.freight,
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
             shipmentReference: generateShipmentReference(
@@ -714,8 +731,32 @@ export class SalesContractService implements OnModuleInit {
       }
 
       // 1. Update Header
+      const effectiveShipmentTypeId =
+        dto.shipmentTypeId !== undefined
+          ? (dto.shipmentTypeId ? Number(dto.shipmentTypeId) : null)
+          : contract.shipmentTypeId;
+      let destLocName = dto.destinationLocationName;
+      let isFreightNotApplicable = false;
+      let isFreightDeliveryRequired = true;
+      if (effectiveShipmentTypeId) {
+        const st = await ShipmentType.findOne({
+          where: {
+            id: effectiveShipmentTypeId,
+            companyId: contract.companyId || user?.companyId,
+          },
+        });
+        if (st && st.salesContractDeliveryPlaceRequired === false) {
+          destLocName = null;
+        }
+        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
+          isFreightNotApplicable = true;
+          isFreightDeliveryRequired = false;
+        }
+      }
+
       const updateData: any = {
         ...dto,
+        ...(destLocName !== undefined ? { destinationLocationName: destLocName } : {}),
         totalQuantity: calculatedTotalQty,
         totalAmount: calculatedTotalAmt,
         updatedBy: user?.userId,
@@ -954,6 +995,14 @@ export class SalesContractService implements OnModuleInit {
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || existing.status || 'Scheduled',
+                freightAllocationStatus: isFreightNotApplicable
+                  ? 'Yes'
+                  : (isFreightDeliveryRequired && ['Not Applicable', 'Yes'].includes(existing.freightAllocationStatus || '')
+                    ? null
+                    : (shipment.freightAllocationStatus !== undefined ? shipment.freightAllocationStatus : existing.freightAllocationStatus)),
+                freight: isFreightNotApplicable
+                  ? null
+                  : (shipment.freight !== undefined ? shipment.freight : existing.freight),
               },
               { transaction: t },
             );
@@ -984,6 +1033,8 @@ export class SalesContractService implements OnModuleInit {
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || 'Scheduled',
+            freightAllocationStatus: isFreightNotApplicable ? 'Yes' : null,
+            freight: isFreightNotApplicable ? null : shipment.freight,
               },
               { transaction: t },
             );

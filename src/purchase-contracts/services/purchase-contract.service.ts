@@ -698,6 +698,15 @@ export class PurchaseContractService {
   ): Promise<PurchaseContract> {
     const createdPc = await this.sequelize.transaction(async (t) => {
       let pc: PurchaseContract;
+      let isFreightNotApplicable = false;
+      if (dto.shipmentTypeId) {
+        const st = await ShipmentType.findOne({
+          where: { id: dto.shipmentTypeId, companyId: user?.companyId },
+        });
+        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
+          isFreightNotApplicable = true;
+        }
+      }
 
       if (dto.salesContractId) {
         const salesContract = await this.salesContractModel.findOne({
@@ -761,14 +770,16 @@ export class PurchaseContractService {
           unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
-          deliveryPlace: dto.deliveryPlace || null,
+          deliveryPlace: isFreightNotApplicable ? null : (dto.deliveryPlace || null),
           placeOfLoading: dto.placeOfLoading || null,
           loadingCountry: dto.loadingCountry || null,
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
           freightRequired:
-            dto.freightRequired != null ? Boolean(dto.freightRequired) : false,
+            isFreightNotApplicable
+              ? true
+              : (dto.freightRequired != null ? Boolean(dto.freightRequired) : false),
           productQuality: dto.productQuality || null,
           specificationNo: dto.specificationNo || null,
           specificationDate: dto.specificationDate || null,
@@ -792,7 +803,9 @@ export class PurchaseContractService {
       if (dto.salesContractId && dto.shipmentTypeId !== undefined) {
         scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
       }
-      if (dto.freightRequired !== undefined) {
+      if (isFreightNotApplicable) {
+        scUpdates.freightRequired = true;
+      } else if (dto.freightRequired !== undefined) {
         scUpdates.freightRequired = Boolean(dto.freightRequired);
       }
       if (dto.salesContractId && dto.brokerId !== undefined) {
@@ -862,6 +875,20 @@ export class PurchaseContractService {
             purchaseContractId: pc.id,
             shipmentId: Number(shipmentId),
           });
+        }
+      }
+
+      if (isFreightNotApplicable) {
+        const sIds = Array.isArray(dto.shipmentAllocations)
+          ? dto.shipmentAllocations.map((a) => Number(a.shipmentId)).filter(Boolean)
+          : Array.isArray(dto.shipmentIds)
+          ? dto.shipmentIds.map(Number).filter(Boolean)
+          : [];
+        if (sIds.length > 0) {
+          await this.salesShipmentModel.update(
+            { freightAllocationStatus: 'Yes', freight: null },
+            { where: { id: { [Op.in]: sIds } } },
+          );
         }
       }
 
@@ -1125,6 +1152,47 @@ export class PurchaseContractService {
       sanitizeData.deliveryPlace = updateData.deliveryPlace
         ? String(updateData.deliveryPlace)
         : null;
+
+    const effectiveShipmentTypeId =
+      updateData.shipmentTypeId !== undefined
+        ? (updateData.shipmentTypeId ? Number(updateData.shipmentTypeId) : null)
+        : pc.shipmentTypeId;
+    if (effectiveShipmentTypeId) {
+      const st = await ShipmentType.findOne({
+        where: {
+          id: effectiveShipmentTypeId,
+          companyId: pc.companyId || user?.companyId,
+        },
+      });
+      if (st && st.purchaseContractDeliveryPlaceRequired === false) {
+        sanitizeData.deliveryPlace = null;
+        sanitizeData.freightRequired = true;
+        const linkedShipments = await this.shipmentLinkModel.findAll({
+          where: { purchaseContractId: id },
+          attributes: ['shipmentId'],
+        });
+        const sIds = linkedShipments.map((l) => l.shipmentId).filter(Boolean);
+        if (sIds.length > 0) {
+          await this.salesShipmentModel.update(
+            { freightAllocationStatus: 'Yes', freight: null },
+            { where: { id: { [Op.in]: sIds } } },
+          );
+        }
+      } else if (st && st.purchaseContractDeliveryPlaceRequired === true) {
+        const linkedShipments = await this.shipmentLinkModel.findAll({
+          where: { purchaseContractId: id },
+          attributes: ['shipmentId'],
+        });
+        const sIds = linkedShipments.map((l) => l.shipmentId).filter(Boolean);
+        if (sIds.length > 0) {
+          await this.salesShipmentModel.update(
+            { freightAllocationStatus: null },
+            { where: { id: { [Op.in]: sIds }, freightAllocationStatus: 'Yes' } },
+          );
+        }
+      }
+    }
+
     if (updateData.placeOfLoading !== undefined)
       sanitizeData.placeOfLoading = updateData.placeOfLoading
         ? String(updateData.placeOfLoading)
@@ -1141,7 +1209,7 @@ export class PurchaseContractService {
       sanitizeData.specificationDate = updateData.specificationDate
         ? String(updateData.specificationDate)
         : null;
-    if (updateData.freightRequired !== undefined) {
+    if (updateData.freightRequired !== undefined && sanitizeData.freightRequired === undefined) {
       sanitizeData.freightRequired = Boolean(updateData.freightRequired);
     }
     if (

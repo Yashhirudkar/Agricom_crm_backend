@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
+import { Injectable, Optional } from '@nestjs/common';
+import { InjectModel, InjectConnection } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
+import { Sequelize as SequelizeConnection } from 'sequelize';
 import { CargoShipmentAllocation } from '../../cargo-availability/models/cargo-shipment-allocation.model';
 import { CargoLoading } from '../../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../../logistics/models/logistics.model';
@@ -9,6 +10,8 @@ import { FreightQuote } from '../../logistics/models/freight-quote.model';
 export interface ShipmentReadinessResult {
   cargoReady: boolean;
   freightReady: boolean;
+  isFreightNotApplicable: boolean;
+  freightAllocationStatus: 'Yes' | 'Allocated' | 'Pending';
   systemReady: boolean;
   manualReadyOverride: boolean | null;
   manualReadyBy: number | null;
@@ -36,11 +39,15 @@ export class ShipmentReadinessService {
     private readonly logisticsModel: typeof Logistics,
     @InjectModel(FreightQuote)
     private readonly freightQuoteModel: typeof FreightQuote,
+    @Optional()
+    @InjectConnection()
+    private readonly sequelize?: SequelizeConnection,
   ) {}
 
   /**
    * Evaluates readiness for a batch of shipments to avoid N+1 queries.
-   * A shipment is ready for execution ONLY when both Cargo Allocation and Freight Allocation are completed.
+   * A shipment is ready for execution when Cargo Allocation is completed
+   * and Freight Allocation is completed (or automatically set to Yes).
    */
   async evaluateBatch(
     shipments: any[],
@@ -66,7 +73,7 @@ export class ShipmentReadinessService {
       ),
     );
 
-    // 1. Batch fetch Cargo Allocations and Loadings
+    // 1. Batch fetch Cargo Allocations, Loadings, Logistics, Freight Quotes, and Shipment Type delivery place rules
     const [
       allocations,
       loadings,
@@ -128,6 +135,42 @@ export class ShipmentReadinessService {
         : Promise.resolve([]),
     ]);
 
+    // Check master-driven delivery place rules for linked purchase contracts & sales contracts
+    const freightNotApplicableShipmentIds = new Set<number>();
+    if (this.sequelize && shipmentIds.length > 0) {
+      try {
+        const [directPcRows]: any = await this.sequelize.query(
+          `SELECT pcs.shipment_id
+           FROM purchase_contract_shipments pcs
+           JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+           JOIN shipment_types st ON st.id = pc.shipment_type_id
+           WHERE pcs.shipment_id IN (:shipmentIds)
+             AND st.purchase_contract_delivery_place_required = false`,
+          { replacements: { shipmentIds } },
+        );
+        for (const row of Array.isArray(directPcRows) ? directPcRows : []) {
+          const sid = Number(row.shipment_id || row.shipmentId);
+          if (sid) freightNotApplicableShipmentIds.add(sid);
+        }
+
+        const [scRows]: any = await this.sequelize.query(
+          `SELECT scs.id AS shipment_id
+           FROM sales_contract_shipments scs
+           JOIN sales_contracts sc ON sc.id = scs.sales_contract_id
+           JOIN shipment_types st ON st.id = sc.shipment_type_id
+           WHERE scs.id IN (:shipmentIds)
+             AND st.purchase_contract_delivery_place_required = false`,
+          { replacements: { shipmentIds } },
+        );
+        for (const row of Array.isArray(scRows) ? scRows : []) {
+          const sid = Number(row.shipment_id || row.shipmentId);
+          if (sid) freightNotApplicableShipmentIds.add(sid);
+        }
+      } catch (err) {
+        console.warn('Could not query shipment type delivery place required for readiness:', err);
+      }
+    }
+
     // Index allocations by shipmentId
     const allocationsByShipment = new Map<number, number>();
     for (const alloc of allocations) {
@@ -176,57 +219,75 @@ export class ShipmentReadinessService {
       // Cargo is Ready if active allocation exists with allocatedQty > 0 or loading is active
       const cargoReady = allocatedQty > 0 || loadedQty > 0;
 
-      // Freight is Ready if:
-      // - Preferred Freight Quote exists for this shipment (Primary Source of Truth)
-      // - OR direct freight rate/charge is entered on shipment (> 0)
-      // - OR linked logistics has a selected freight quote / preferred quote / ready status
+      // Master-driven Freight Allocation:
+      // If the shipment type has purchaseContractDeliveryPlaceRequired = false,
+      // Freight Allocation is automatically set to Yes and does not block execution.
+      const isFreightAutoAllocated =
+        s.freightAllocationStatus === 'Yes' ||
+        s.freightAllocationStatus === 'Not Applicable' ||
+        s.freight_allocation_status === 'Not Applicable' ||
+        s.isFreightNotApplicable === true ||
+        freightNotApplicableShipmentIds.has(s.id) ||
+        s.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
+        s.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
+        s.purchaseContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+
       let freightReady = false;
-      if (preferredQuotesByShipment.has(s.id)) {
+      let freightAllocationStatus: 'Yes' | 'Allocated' | 'Pending' = 'Pending';
+
+      if (isFreightAutoAllocated) {
         freightReady = true;
-      } else if (
-        s.freight !== null &&
-        s.freight !== undefined &&
-        Number(s.freight) > 0
-      ) {
-        freightReady = true;
-      } else if (s.logisticsId && logisticsById.has(s.logisticsId)) {
-        const log = logisticsById.get(s.logisticsId);
-        if (
-          log.selectedFreightId != null ||
-          preferredQuotesByLogistics.has(s.logisticsId) ||
-          [
-            'Preferred Quote Selected',
-            'Allocated',
-            'Ready',
-            'Booked',
-            'Dispatched',
-            'Completed',
-          ].includes(log.status)
+        freightAllocationStatus = 'Yes';
+      } else {
+        // Freight is Ready if:
+        // - Preferred Freight Quote exists for this shipment (Primary Source of Truth)
+        // - OR direct freight rate/charge is entered on shipment (> 0)
+        // - OR linked logistics has a selected freight quote / preferred quote / ready status
+        if (preferredQuotesByShipment.has(s.id)) {
+          freightReady = true;
+        } else if (
+          s.freight !== null &&
+          s.freight !== undefined &&
+          Number(s.freight) > 0
         ) {
           freightReady = true;
-        }
-      } else if (
-        s.businessTransactionId &&
-        logisticsByBusinessTx.has(s.businessTransactionId)
-      ) {
-        const log = logisticsByBusinessTx.get(s.businessTransactionId);
-        if (
-          log.selectedFreightId != null ||
-          ['Preferred Quote Selected', 'Allocated', 'Ready', 'Booked'].includes(
-            log.status,
-          )
+        } else if (s.logisticsId && logisticsById.has(s.logisticsId)) {
+          const log = logisticsById.get(s.logisticsId);
+          if (
+            log.selectedFreightId != null ||
+            preferredQuotesByLogistics.has(s.logisticsId) ||
+            [
+              'Preferred Quote Selected',
+              'Allocated',
+              'Ready',
+              'Booked',
+              'Dispatched',
+              'Completed',
+            ].includes(log.status)
+          ) {
+            freightReady = true;
+          }
+        } else if (
+          s.businessTransactionId &&
+          logisticsByBusinessTx.has(s.businessTransactionId)
         ) {
-          freightReady = true;
+          const log = logisticsByBusinessTx.get(s.businessTransactionId);
+          if (
+            log.selectedFreightId != null ||
+            ['Preferred Quote Selected', 'Allocated', 'Ready', 'Booked'].includes(
+              log.status,
+            )
+          ) {
+            freightReady = true;
+          }
         }
+        freightAllocationStatus = freightReady ? 'Allocated' : 'Pending';
       }
 
       // ── Step 1: System Readiness (Calculated Automatically) ──
       const systemReady = cargoReady && freightReady;
 
       // ── Step 2: Manual Readiness Override Layer ──
-      // IF Manual Override is NULL -> Final Ready = System Ready
-      // IF Manual Override = YES  -> Final Ready = YES
-      // IF Manual Override = NO   -> Final Ready = NO
       const manualOverride =
         s.manualReadyOverride !== undefined && s.manualReadyOverride !== null
           ? Boolean(s.manualReadyOverride)
@@ -262,13 +323,15 @@ export class ShipmentReadinessService {
           reasons.push('Cargo and Freight allocations are pending.');
         } else {
           if (!cargoReady) reasons.push('Cargo allocation is pending.');
-          if (!freightReady) reasons.push('Freight allocation is pending.');
+          if (!freightReady && !isFreightAutoAllocated) reasons.push('Freight allocation is pending.');
         }
       }
 
       resultMap.set(s.id, {
         cargoReady,
         freightReady,
+        isFreightNotApplicable: false,
+        freightAllocationStatus,
         systemReady,
         manualReadyOverride: manualOverride,
         manualReadyBy: s.manualReadyBy ?? null,
@@ -300,6 +363,8 @@ export class ShipmentReadinessService {
       return {
         cargoReady: false,
         freightReady: false,
+        isFreightNotApplicable: false,
+        freightAllocationStatus: 'Pending',
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,
@@ -317,6 +382,8 @@ export class ShipmentReadinessService {
       map.get(shipment.id) || {
         cargoReady: false,
         freightReady: false,
+        isFreightNotApplicable: false,
+        freightAllocationStatus: 'Pending',
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,

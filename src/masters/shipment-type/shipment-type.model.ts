@@ -61,6 +61,22 @@ export class ShipmentType extends Model<ShipmentType> {
   @Column({ type: DataType.STRING(500) })
   declare remarks: string;
 
+  @Default(true)
+  @AllowNull(false)
+  @Column({
+    field: 'purchase_contract_delivery_place_required',
+    type: DataType.BOOLEAN,
+  })
+  declare purchaseContractDeliveryPlaceRequired: boolean;
+
+  @Default(true)
+  @AllowNull(false)
+  @Column({
+    field: 'sales_contract_delivery_place_required',
+    type: DataType.BOOLEAN,
+  })
+  declare salesContractDeliveryPlaceRequired: boolean;
+
   @AllowNull(true)
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;

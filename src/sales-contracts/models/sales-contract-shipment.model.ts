@@ -95,6 +95,10 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   declare freight: number;
 
   @AllowNull(true)
+  @Column({ field: 'freight_allocation_status', type: DataType.STRING(50) })
+  declare freightAllocationStatus: string | null;
+
+  @AllowNull(true)
   @Column({ type: DataType.STRING(500) })
   declare remarks: string;
 

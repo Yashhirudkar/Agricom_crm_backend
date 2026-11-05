@@ -40,6 +40,10 @@ export class UpdateShipmentDto {
 
   @IsOptional()
   @IsString()
+  freightAllocationStatus?: string;
+
+  @IsOptional()
+  @IsString()
   remarks?: string;
 
   @IsOptional()

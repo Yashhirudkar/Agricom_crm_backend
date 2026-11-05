@@ -34,6 +34,14 @@ export class ShipmentTypeService {
 
     return this.model.create({
       ...dto,
+      purchaseContractDeliveryPlaceRequired:
+        dto.purchaseContractDeliveryPlaceRequired !== undefined
+          ? dto.purchaseContractDeliveryPlaceRequired
+          : true,
+      salesContractDeliveryPlaceRequired:
+        dto.salesContractDeliveryPlaceRequired !== undefined
+          ? dto.salesContractDeliveryPlaceRequired
+          : true,
       createdBy: user?.userId,
       companyId: user?.companyId,
     });

@@ -212,5 +212,44 @@ describe('ShipmentReadinessService', () => {
       expect(result.isManualOverride).toBe(false);
       expect(result.readySource).toBe('System');
     });
+
+    it('should return System Ready = YES, Final Ready = YES when cargo is ready and freight is automatically Yes', async () => {
+      mockCargoAllocationModel.findAll.mockResolvedValue([
+        { shipmentId: 99, allocatedQty: 50, status: 'Active' },
+      ]);
+
+      const shipment = {
+        id: 99,
+        quantity: 50,
+        freightAllocationStatus: 'Yes',
+      };
+
+      const result = await service.evaluate(shipment);
+      expect(result.freightReady).toBe(true);
+      expect(result.isFreightNotApplicable).toBe(false);
+      expect(result.freightAllocationStatus).toBe('Yes');
+      expect(result.systemReady).toBe(true);
+      expect(result.readyForShipment).toBe(true);
+      expect(result.reasons).toEqual([]);
+    });
+
+    it('should return System Ready = NO, Final Ready = NO when cargo is pending and freight is automatically Yes (only cargo blocker reason)', async () => {
+      mockCargoAllocationModel.findAll.mockResolvedValue([]);
+      mockCargoLoadingModel.findAll.mockResolvedValue([]);
+
+      const shipment = {
+        id: 100,
+        quantity: 50,
+        shipmentType: { purchaseContractDeliveryPlaceRequired: false },
+      };
+
+      const result = await service.evaluate(shipment);
+      expect(result.freightReady).toBe(true);
+      expect(result.isFreightNotApplicable).toBe(false);
+      expect(result.freightAllocationStatus).toBe('Yes');
+      expect(result.systemReady).toBe(false);
+      expect(result.readyForShipment).toBe(false);
+      expect(result.reasons).toEqual(['Cargo allocation is pending.']);
+    });
   });
 });

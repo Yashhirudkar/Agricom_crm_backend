@@ -13,6 +13,7 @@ import { Partner } from '../../masters/partner/partner.model';
 import { SalesContractItem } from '../../sales-contracts/models/sales-contract-item.model';
 import { Product } from '../../masters/product/product.model';
 import { AddShipmentDto } from '../dto/add-shipment.dto';
+import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
 import {
   PurchaseContractActivityService,
   PC_ACTIONS,
@@ -39,7 +40,9 @@ export class PurchaseContractShipmentService {
     shipmentIds: number[],
     user?: any,
   ) {
-    const contract = await this.contractModel.findByPk(purchaseContractId);
+    const contract = await this.contractModel.findByPk(purchaseContractId, {
+      include: [{ model: ShipmentType, as: 'shipmentType' }],
+    });
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
     if (contract.salesContractId) {
@@ -58,17 +61,22 @@ export class PurchaseContractShipmentService {
       },
     });
 
-    // Create links for selected shipmentIds & sync origin
+    // Create links for selected shipmentIds & sync origin and freight
     for (const sId of ids) {
       await this.linkModel.findOrCreate({
         where: { purchaseContractId, shipmentId: sId },
         defaults: { purchaseContractId, shipmentId: sId } as any,
       });
+      const updateData: any = {};
       if (contract.placeOfLoading) {
-        await this.shipmentModel.update(
-          { origin: contract.placeOfLoading },
-          { where: { id: sId } },
-        );
+        updateData.origin = contract.placeOfLoading;
+      }
+      if (contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false) {
+        updateData.freightAllocationStatus = 'Yes';
+        updateData.freight = null;
+      }
+      if (Object.keys(updateData).length > 0) {
+        await this.shipmentModel.update(updateData, { where: { id: sId } });
       }
     }
 
@@ -88,7 +96,9 @@ export class PurchaseContractShipmentService {
    * No snapshots. Single join query — no N+1.
    */
   async getShipments(purchaseContractId: number) {
-    const contract = await this.contractModel.findByPk(purchaseContractId);
+    const contract = await this.contractModel.findByPk(purchaseContractId, {
+      include: [{ model: ShipmentType, as: 'shipmentType' }],
+    });
     if (!contract) throw new NotFoundException('Purchase Contract not found');
 
     // Load shipment links (read-only — no DB mutation here).
@@ -110,6 +120,10 @@ export class PurchaseContractShipmentService {
                   model: Partner,
                   as: 'buyer',
                   attributes: ['id', 'entityName'],
+                },
+                {
+                  model: ShipmentType,
+                  as: 'shipmentType',
                 },
                 {
                   model: SalesContractItem,
@@ -172,6 +186,12 @@ export class PurchaseContractShipmentService {
       const supplier = (contract as any).seller?.entityName || '—';
       const buyer = sc.buyer?.entityName || '—';
 
+      const isFreightAutoAllocated =
+        s.freightAllocationStatus === 'Yes' ||
+        s.freightAllocationStatus === 'Not Applicable' ||
+        contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
+        (s.salesContract as any)?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+
       const json: any = {
         linkId: link.id,
         shipmentId: s.id,
@@ -183,7 +203,12 @@ export class PurchaseContractShipmentService {
         noOfContainers: s.noOfContainers,
         purchaseRate: s.purchaseRate,
         ratePerMt: s.ratePerMt,
-        freight: s.freight,
+        freight: isFreightAutoAllocated ? null : s.freight,
+        freightAllocationStatus: isFreightAutoAllocated
+          ? 'Yes'
+          : (s.freightAllocationStatus || (s.freight ? 'Allocated' : 'Pending')),
+        isFreightNotApplicable: false,
+        freightReady: isFreightAutoAllocated ? true : Boolean(s.freight && Number(s.freight) > 0),
         forex: s.forex,
         status: s.status,
         remarks: s.remarks,
@@ -239,7 +264,9 @@ export class PurchaseContractShipmentService {
     dto: AddShipmentDto,
     user: any,
   ) {
-    const contract = await this.contractModel.findByPk(purchaseContractId);
+    const contract = await this.contractModel.findByPk(purchaseContractId, {
+      include: [{ model: ShipmentType, as: 'shipmentType' }],
+    });
     if (!contract) throw new NotFoundException('Purchase Contract not found');
     if (contract.salesContractId) {
       throw new ConflictException(
@@ -279,11 +306,16 @@ export class PurchaseContractShipmentService {
       shipmentId: dto.shipmentId,
     });
 
+    const updateData: any = {};
     if (contract.placeOfLoading) {
-      await this.shipmentModel.update(
-        { origin: contract.placeOfLoading },
-        { where: { id: dto.shipmentId } },
-      );
+      updateData.origin = contract.placeOfLoading;
+    }
+    if (contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false) {
+      updateData.freightAllocationStatus = 'Yes';
+      updateData.freight = null;
+    }
+    if (Object.keys(updateData).length > 0) {
+      await this.shipmentModel.update(updateData, { where: { id: dto.shipmentId } });
     }
 
     await this.activityService.log(
@@ -302,7 +334,9 @@ export class PurchaseContractShipmentService {
     shipmentId: number,
     user: any,
   ) {
-    const contract = await this.contractModel.findByPk(purchaseContractId);
+    const contract = await this.contractModel.findByPk(purchaseContractId, {
+      include: [{ model: ShipmentType, as: 'shipmentType' }],
+    });
     if (!contract) throw new NotFoundException('Purchase Contract not found');
     if (contract.salesContractId) {
       throw new ConflictException(
