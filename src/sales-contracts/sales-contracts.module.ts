@@ -20,6 +20,7 @@ import { Logistics } from '../logistics/models/logistics.model';
 import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { ShipmentReadinessService } from './services/shipment-readiness.service';
 import { ShipmentStuffing } from './models/shipment-stuffing.model';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ShipmentStuffing } from './models/shipment-stuffing.model';
     AuditModule,
     AttachmentsModule,
     forwardRef(() => PurchaseContractsModule),
+    NotificationsModule,
   ],
   controllers: [ShipmentController, SalesContractController],
   providers: [SalesContractService, ShipmentService, ShipmentReadinessService],

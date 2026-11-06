@@ -144,6 +144,8 @@ import { FollowUpManagementModule } from './follow-up-management/follow-up-manag
 import { QuotationsModule } from './quotations/quotations.module';
 import { ReportsModule } from './reports/reports.module';
 import { StockModule } from './stock/stock.module';
+import { MonthlyTargetsModule } from './monthly-targets/monthly-targets.module';
+import { MonthlyTarget } from './monthly-targets/models/monthly-target.model';
 import { Quotation } from './quotations/models/quotation.model';
 import { QuotationItem } from './quotations/models/quotation-item.model';
 import { QuotationSequence } from './quotations/models/quotation-sequence.model';
@@ -356,6 +358,7 @@ import {
             CargoShipmentAllocation,
             CargoLoading,
             CargoDocument,
+            MonthlyTarget,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -392,6 +395,7 @@ import {
     CargoAvailabilityModule,
     ReportsModule,
     StockModule,
+    MonthlyTargetsModule,
   ],
   providers: [
     {
