@@ -10,7 +10,7 @@ import {
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
-import { RequireAnyPermission } from '../rbac/decorators/require-any-permission.decorator';
+import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import { StockService } from './stock.service';
 import { QueryStockDto } from './dto/query-stock.dto';
 import {
@@ -28,7 +28,7 @@ export class StockController {
    * Returns summary metrics across countries, products, contracts, and tonnages.
    */
   @Get('dashboard')
-  @RequireAnyPermission('stock:view', 'stock:read', 'purchase-contracts:view', 'sales_contract:view')
+  @RequirePermission('stock_management:view')
   async getDashboard(@Req() req: any): Promise<StockDashboardSummary> {
     const companyId = this.extractCompanyId(req);
     return this.stockService.getDashboardSummary(companyId);
@@ -40,7 +40,7 @@ export class StockController {
    * Fully aggregated backend response ready for direct frontend rendering.
    */
   @Get()
-  @RequireAnyPermission('stock:view', 'stock:read', 'purchase-contracts:view', 'sales_contract:view')
+  @RequirePermission('stock_management:view')
   async getStockList(
     @Query() query: QueryStockDto,
     @Req() req: any,

@@ -4,6 +4,8 @@ import { AppModule as AppModuleModel } from '../models/app-module.model';
 import { ModuleResource } from '../models/module-resource.model';
 import { ResourceAction } from '../models/resource-action.model';
 import { SystemAuditService } from './system-audit.service';
+import { Client } from '../../clients/models/client.model';
+import { ClientActionAccess } from '../../clients/models/client-action-access.model';
 
 @Injectable()
 export class MatrixBuilderService {
@@ -14,10 +16,16 @@ export class MatrixBuilderService {
     private readonly moduleResourceModel: typeof ModuleResource,
     @InjectModel(ResourceAction)
     private readonly resourceActionModel: typeof ResourceAction,
+    @InjectModel(Client)
+    private readonly clientModel: typeof Client,
+    @InjectModel(ClientActionAccess)
+    private readonly clientActionAccessModel: typeof ClientActionAccess,
     private readonly systemAuditService: SystemAuditService,
   ) {}
 
   async getRegistry() {
+    await this.ensureStockManagementPermission();
+
     const modules = await this.appModuleModel.findAll({
       order: [['sort_order', 'ASC']],
       include: [
@@ -36,18 +44,24 @@ export class MatrixBuilderService {
       ],
     });
 
-    return modules.map((mod) => ({
-      module_id: mod.id,
-      module_name: mod.name,
-      resources: (mod.resources || []).map((res) => ({
-        resource_id: res.id,
-        resource_name: res.name,
-        actions: (res.actions || []).map((act) => ({
-          action_id: act.id,
-          action_name: act.name,
+    return modules
+      .filter((mod) =>
+        (mod.resources || []).some(
+          (resource) => (resource.actions || []).length > 0,
+        ),
+      )
+      .map((mod) => ({
+        module_id: mod.id,
+        module_name: mod.name,
+        resources: (mod.resources || []).map((res) => ({
+          resource_id: res.id,
+          resource_name: res.name,
+          actions: (res.actions || []).map((act) => ({
+            action_id: act.id,
+            action_name: act.name,
+          })),
         })),
-      })),
-    }));
+      }));
   }
 
   async createModule(
@@ -120,6 +134,64 @@ export class MatrixBuilderService {
       name: module.name,
     });
     return { success: true };
+  }
+
+  private async ensureStockManagementPermission(): Promise<void> {
+    const [stockModule] = await this.appModuleModel.findOrCreate({
+      where: { name: 'Stock Management' },
+      defaults: {
+        name: 'Stock Management',
+        sort_order: 10,
+      } as any,
+    });
+
+    const [stockResource, resourceCreated] =
+      await this.moduleResourceModel.findOrCreate({
+        where: { name: 'stock_management' },
+        defaults: {
+          name: 'stock_management',
+          display_name: 'Stock Management',
+          module_id: stockModule.id,
+          sort_order: 0,
+        } as any,
+      });
+
+    if (
+      !resourceCreated &&
+      (stockResource.module_id !== stockModule.id ||
+        stockResource.display_name !== 'Stock Management')
+    ) {
+      stockResource.module_id = stockModule.id;
+      stockResource.display_name = 'Stock Management';
+      await stockResource.save();
+    }
+
+    const [viewAction] = await this.resourceActionModel.findOrCreate({
+      where: { name: 'VIEW', resource_id: stockResource.id },
+      defaults: {
+        name: 'VIEW',
+        display_name: 'VIEW',
+        resource_id: stockResource.id,
+        sort_order: 0,
+      } as any,
+    });
+
+    const clients = await this.clientModel.findAll({
+      attributes: ['id'],
+    });
+
+    for (const client of clients) {
+      await this.clientActionAccessModel.findOrCreate({
+        where: {
+          client_id: client.id,
+          resource_action_id: viewAction.id,
+        },
+        defaults: {
+          client_id: client.id,
+          resource_action_id: viewAction.id,
+        } as any,
+      });
+    }
   }
 
   async deleteResource(userId: number | null, id: number) {

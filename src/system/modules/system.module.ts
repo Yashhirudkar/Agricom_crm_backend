@@ -18,6 +18,8 @@ import { ModuleResource } from '../models/module-resource.model';
 import { ResourceAction } from '../models/resource-action.model';
 import { ClientFolderAccess } from '../../clients/models/client-folder-access.model';
 import { ClientItemAccess } from '../../clients/models/client-item-access.model';
+import { Client } from '../../clients/models/client.model';
+import { ClientActionAccess } from '../../clients/models/client-action-access.model';
 import { OptionsController } from '../controllers/options.controller';
 import { OptionsService } from '../services/options.service';
 
@@ -32,6 +34,8 @@ import { OptionsService } from '../services/options.service';
       ResourceAction,
       ClientFolderAccess,
       ClientItemAccess,
+      Client,
+      ClientActionAccess,
     ]),
     RbacModule,
   ],

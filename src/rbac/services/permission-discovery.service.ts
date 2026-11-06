@@ -81,6 +81,7 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       'shipments:export',
       'shipments:print',
       'shipments:manage_documents',
+      'stock_management:view',
     ];
     extraPermissions.forEach((p) => discoveredPermissions.add(p));
 
@@ -125,6 +126,8 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       if (resourceName.startsWith('chat_') || resourceName === 'chat')
         moduleName = 'Chat';
       else if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
+      else if (resourceName === 'stock_management')
+        moduleName = 'Stock Management';
       else if (resourceName === 'follow_up') moduleName = 'Follow Up';
       else if (resourceName === 'hrpolicy') moduleName = 'HR Policy';
       else if (resourceName === 'leave_requests' || resourceName === 'leave')

@@ -26,6 +26,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
 
       await this.syncHrPoliciesSidebarItem();
       await this.syncShipmentsSidebarItem();
+      await this.syncStockManagementSidebarItem();
       await this.syncSalesContractsSidebarItem();
       await this.syncConfirmedOrdersSidebarItem();
       await this.syncRemoveOrdersSidebarItem();
@@ -456,6 +457,15 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: 'shipments:view',
         },
+        {
+          name: 'Stock Management',
+          route: '/sales/stock',
+          icon_name: 'Layers',
+          folder_id: salesFolder.id,
+          sort_order: 30,
+          is_active: true,
+          permission_link: 'stock_management:view',
+        },
       ] as any[]);
 
       this.logger.log('Sidebar default structure seeded successfully.');
@@ -693,6 +703,69 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync Sales Contracts sidebar item', err);
+    }
+  }
+
+  private async syncStockManagementSidebarItem() {
+    try {
+      let salesFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Sales' },
+      });
+
+      if (!salesFolder) {
+        salesFolder = await this.sidebarFolderModel.create({
+          name: 'Sales',
+          icon_name: 'LineChart',
+          sort_order: 80,
+          is_active: true,
+        });
+      }
+
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/sales/stock' },
+      });
+
+      if (items.length > 0) {
+        for (const item of items) {
+          let modified = false;
+          if (item.name !== 'Stock Management') {
+            item.name = 'Stock Management';
+            modified = true;
+          }
+          if (item.folder_id !== salesFolder.id) {
+            item.folder_id = salesFolder.id;
+            modified = true;
+          }
+          if (item.icon_name !== 'Layers') {
+            item.icon_name = 'Layers';
+            modified = true;
+          }
+          if (item.permission_link !== 'stock_management:view') {
+            item.permission_link = 'stock_management:view';
+            modified = true;
+          }
+          if (!item.is_active) {
+            item.is_active = true;
+            modified = true;
+          }
+          if (modified) await item.save();
+        }
+      } else {
+        await this.sidebarItemModel.create({
+          name: 'Stock Management',
+          route: '/sales/stock',
+          icon_name: 'Layers',
+          folder_id: salesFolder.id,
+          sort_order: 30,
+          is_active: true,
+          permission_link: 'stock_management:view',
+        });
+        this.logger.log(
+          'Created /sales/stock sidebar item with stock_management:view permission_link',
+        );
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Stock Management sidebar item', err);
     }
   }
 
