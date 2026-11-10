@@ -17,6 +17,12 @@ export interface StockContractItem {
   incoterm?: string;
   businessReference?: string;
   contractDate?: string | Date;
+  originalCurrency?: string;
+  originalAmount?: number;
+  exchangeRate?: number | null;
+  convertedCurrency?: 'INR';
+  convertedAmount?: number | null;
+  exchangeRateDate?: string | null;
 }
 
 export interface StockMovementItem {
@@ -46,6 +52,7 @@ export interface StockProductNode {
   executed: number;
   available: number;
   amountByCurrency: StockAmountByCurrency;
+  amountInINR?: number;
   contractCount: number;
   contracts: StockContractItem[];
   movements?: StockMovementItem[];
@@ -57,6 +64,7 @@ export interface StockCountryGroup {
   totalExecuted: number;
   totalAvailable: number;
   amountByCurrency: StockAmountByCurrency;
+  amountInINR?: number;
   products: StockProductNode[];
 }
 
@@ -68,4 +76,19 @@ export interface StockDashboardSummary {
   totalExecutedMT: number;
   totalAvailableMT: number;
   totalAmountByCurrency: StockAmountByCurrency;
+  totalAmountINR: number;
+  grandTotalInr: number;
+  exchangeRateDate: string | null;
+  currencyBreakdown: Array<{
+    currency: string;
+    amount: number;
+  }>;
+  amountDetails: Array<{
+    contractNo: string;
+    originalCurrency: string;
+    originalAmount: number;
+    exchangeRate: number | null;
+    exchangeRateDate: string | null;
+    convertedAmount: number | null;
+  }>;
 }

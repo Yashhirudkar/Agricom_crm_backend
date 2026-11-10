@@ -289,7 +289,10 @@ export class StockCalculationService {
     let totalPurchasedMT = 0;
     let totalExecutedMT = 0;
     let totalAvailableMT = 0;
-    const totalAmountByCurrency: StockAmountByCurrency = {};
+    let totalAmountINR = 0;
+    let exchangeRateDate: string | null = null;
+    const currencyBreakdown = new Map<string, number>();
+    const amountDetails: StockDashboardSummary['amountDetails'] = [];
 
     for (const country of hierarchy) {
       totalPurchasedMT += country.totalPurchased;
@@ -299,10 +302,42 @@ export class StockCalculationService {
       for (const prod of country.products) {
         allProducts.add(prod.product.toLowerCase().trim());
         totalPurchaseContracts += prod.contracts.length;
-        this.addAmounts(totalAmountByCurrency, prod.amountByCurrency);
+        totalAmountINR += prod.amountInINR ?? prod.amountByCurrency.INR ?? 0;
+        amountDetails.push(
+          ...prod.contracts.map((contract) => ({
+            contractNo: contract.contractNo,
+            originalCurrency:
+              contract.originalCurrency || contract.currency || 'N/A',
+            originalAmount: contract.originalAmount ?? contract.amount,
+            exchangeRate: contract.exchangeRate ?? null,
+            exchangeRateDate: contract.exchangeRateDate ?? null,
+            convertedAmount: contract.convertedAmount ?? null,
+          })),
+        );
+        for (const contract of prod.contracts) {
+          const currency = (
+            contract.originalCurrency ||
+            contract.currency ||
+            'N/A'
+          )
+            .trim()
+            .toUpperCase();
+          currencyBreakdown.set(
+            currency,
+            (currencyBreakdown.get(currency) || 0) +
+              (Number(contract.originalAmount ?? contract.amount) || 0),
+          );
+          if (
+            contract.exchangeRateDate &&
+            (!exchangeRateDate || contract.exchangeRateDate > exchangeRateDate)
+          ) {
+            exchangeRateDate = contract.exchangeRateDate;
+          }
+        }
       }
     }
 
+    const roundedTotalAmountINR = this.round(totalAmountINR);
     return {
       totalCountries,
       totalProducts: allProducts.size,
@@ -310,7 +345,17 @@ export class StockCalculationService {
       totalPurchasedMT: this.round(totalPurchasedMT),
       totalExecutedMT: this.round(totalExecutedMT),
       totalAvailableMT: this.round(totalAvailableMT),
-      totalAmountByCurrency,
+      totalAmountByCurrency: { INR: roundedTotalAmountINR },
+      totalAmountINR: roundedTotalAmountINR,
+      grandTotalInr: roundedTotalAmountINR,
+      exchangeRateDate,
+      currencyBreakdown: [...currencyBreakdown.entries()]
+        .map(([currency, amount]) => ({
+          currency,
+          amount: this.round(amount),
+        }))
+        .sort((a, b) => a.currency.localeCompare(b.currency)),
+      amountDetails,
     };
   }
 
@@ -409,12 +454,4 @@ export class StockCalculationService {
     return amounts;
   }
 
-  private addAmounts(
-    target: StockAmountByCurrency,
-    source: StockAmountByCurrency,
-  ): void {
-    for (const [currency, amount] of Object.entries(source)) {
-      target[currency] = this.round((target[currency] || 0) + amount);
-    }
-  }
 }

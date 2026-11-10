@@ -11,6 +11,7 @@ import { SalesContractShipment } from '../sales-contracts/models/sales-contract-
 import { Product } from '../masters/product/product.model';
 import { Country } from '../masters/country/country.model';
 import { Port } from '../masters/port/port.model';
+import { ExchangeRateService } from '../exchange-rates/exchange-rate.service';
 
 describe('StockService', () => {
   let service: StockService;
@@ -19,6 +20,7 @@ describe('StockService', () => {
   let mockShipmentLinkModel: any;
   let mockPortModel: any;
   let mockCountryModel: any;
+  let mockExchangeRateService: { getLatestRates: jest.Mock };
 
   beforeEach(async () => {
     mockPurchaseContractModel = {
@@ -36,6 +38,9 @@ describe('StockService', () => {
     };
     mockCountryModel = {
       findAll: jest.fn().mockResolvedValue([]),
+    };
+    mockExchangeRateService = {
+      getLatestRates: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,6 +74,10 @@ describe('StockService', () => {
         {
           provide: getModelToken(Port),
           useValue: mockPortModel,
+        },
+        {
+          provide: ExchangeRateService,
+          useValue: mockExchangeRateService,
         },
       ],
     }).compile();
@@ -120,6 +129,115 @@ describe('StockService', () => {
       expect(contract.contractNo).toBe('PC-VA-2512627');
       expect(contract.supplier).toBe('Export Grain');
       expect(contract.purchaseQty).toBe(88);
+    });
+
+    it('preserves original contract amounts without looking up exchange rates', async () => {
+      mockExchangeRateService.getLatestRates.mockResolvedValue([
+        {
+          baseCurrency: 'USD',
+          exchangeRate: '86.42',
+          effectiveDate: '2026-11-10',
+        },
+      ]);
+      mockPurchaseContractModel.findAll.mockResolvedValue([
+        {
+          id: 22,
+          contractNumber: 'PC-USD-001',
+          status: 'ACTIVE',
+          loadingCountry: 'Kazakhstan',
+          currencyCode: 'USD',
+          seller: { entityName: 'Export Grain' },
+          items: [
+            {
+              id: 10,
+              product: { name: 'Golden Linseed' },
+              quantity: 2,
+              ratePerMt: 10,
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.getStockList({});
+      const contract = result.data[0].products[0].contracts[0];
+
+      expect(mockExchangeRateService.getLatestRates).not.toHaveBeenCalled();
+      expect(contract).toMatchObject({
+        currency: 'USD',
+        amount: 20,
+      });
+      expect(result.data[0].amountByCurrency).toEqual({ USD: 20 });
+    });
+
+    it('returns dashboard purchase totals in INR with FX tooltip details', async () => {
+      mockExchangeRateService.getLatestRates.mockResolvedValue([
+        {
+          baseCurrency: 'EUR',
+          exchangeRate: '99.18',
+          effectiveDate: '2026-11-10',
+        },
+      ]);
+      mockPurchaseContractModel.findAll.mockResolvedValue([
+        {
+          id: 33,
+          contractNumber: 'PC-EUR-001',
+          status: 'ACTIVE',
+          loadingCountry: 'France',
+          currencyCode: 'EUR',
+          items: [
+            {
+              id: 11,
+              product: { name: 'Wheat' },
+              quantity: 3,
+              ratePerMt: 10,
+            },
+          ],
+        },
+        {
+          id: 34,
+          contractNumber: 'PC-INR-001',
+          status: 'ACTIVE',
+          loadingCountry: 'France',
+          currencyCode: 'INR',
+          items: [
+            {
+              id: 12,
+              product: { name: 'Wheat' },
+              quantity: 1,
+              ratePerMt: 400,
+            },
+          ],
+        },
+      ]);
+
+      const summary = await service.getDashboardSummary();
+
+      expect(summary.totalAmountINR).toBe(3375.4);
+      expect(summary.grandTotalInr).toBe(3375.4);
+      expect(summary.exchangeRateDate).toBe('2026-11-10');
+      expect(summary.currencyBreakdown).toEqual([
+        { currency: 'EUR', amount: 30 },
+        { currency: 'INR', amount: 400 },
+      ]);
+      expect(summary.totalAmountByCurrency).toEqual({ INR: 3375.4 });
+      expect(summary.amountDetails).toEqual([
+        expect.objectContaining({
+          contractNo: 'PC-EUR-001',
+          originalCurrency: 'EUR',
+          originalAmount: 30,
+          exchangeRate: 99.18,
+          exchangeRateDate: '2026-11-10',
+          convertedAmount: 2975.4,
+        }),
+        expect.objectContaining({
+          contractNo: 'PC-INR-001',
+          originalCurrency: 'INR',
+          originalAmount: 400,
+          exchangeRate: 1,
+          exchangeRateDate: null,
+          convertedAmount: 400,
+        }),
+      ]);
     });
 
     it('should resolve country from place of loading port when loadingCountry is empty', async () => {

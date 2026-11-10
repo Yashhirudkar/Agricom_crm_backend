@@ -17,6 +17,7 @@ import { Port } from '../masters/port/port.model';
 import { Partner } from '../masters/partner/partner.model';
 import { BusinessTransaction } from '../system/models/business-transaction.model';
 import { RbacModule } from '../rbac/modules/rbac.module';
+import { ExchangeRateModule } from '../exchange-rates/exchange-rate.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       BusinessTransaction,
     ]),
     RbacModule,
+    ExchangeRateModule,
   ],
   controllers: [StockController],
   providers: [StockService, StockCalculationService],

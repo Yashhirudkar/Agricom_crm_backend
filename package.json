@@ -31,6 +31,7 @@
     "query-attendance": "node C:/Users/Admin/.gemini/antigravity-ide/brain/6c932d4b-bfab-4b45-b7ca-ea0e957a93b0/scratch/query_attendance.js"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",

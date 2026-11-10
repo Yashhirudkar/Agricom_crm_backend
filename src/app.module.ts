@@ -146,6 +146,8 @@ import { ReportsModule } from './reports/reports.module';
 import { StockModule } from './stock/stock.module';
 import { MonthlyTargetsModule } from './monthly-targets/monthly-targets.module';
 import { MonthlyTarget } from './monthly-targets/models/monthly-target.model';
+import { ExchangeRateModule } from './exchange-rates/exchange-rate.module';
+import { ExchangeRate } from './exchange-rates/models/exchange-rate.model';
 import { Quotation } from './quotations/models/quotation.model';
 import { QuotationItem } from './quotations/models/quotation-item.model';
 import { QuotationSequence } from './quotations/models/quotation-sequence.model';
@@ -359,6 +361,7 @@ import {
             CargoLoading,
             CargoDocument,
             MonthlyTarget,
+            ExchangeRate,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -396,6 +399,7 @@ import {
     ReportsModule,
     StockModule,
     MonthlyTargetsModule,
+    ExchangeRateModule,
   ],
   providers: [
     {

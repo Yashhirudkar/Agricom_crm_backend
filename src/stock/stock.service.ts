@@ -22,6 +22,11 @@ import {
   StockCountryGroup,
   StockDashboardSummary,
 } from './dto/stock-response.dto';
+import { ExchangeRateService } from '../exchange-rates/exchange-rate.service';
+
+function roundAmount(value: number): number {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
 
 @Injectable()
 export class StockService {
@@ -43,6 +48,7 @@ export class StockService {
     @InjectModel(Port)
     private readonly portModel: typeof Port,
     private readonly calculationService: StockCalculationService,
+    private readonly exchangeRateService: ExchangeRateService,
   ) {}
 
   /**
@@ -62,6 +68,7 @@ export class StockService {
       rawContracts,
       rawShipments,
     );
+    await this.addDashboardInrConversions(hierarchy);
     return this.calculationService.calculateDashboardSummary(hierarchy);
   }
 
@@ -103,6 +110,63 @@ export class StockService {
       data: paginatedData,
       totalCount,
     };
+  }
+
+  private async addDashboardInrConversions(
+    groups: StockCountryGroup[],
+  ): Promise<void> {
+    const contracts = groups.flatMap((group) =>
+      group.products.flatMap((product) => product.contracts),
+    );
+    const currencies = [
+      ...new Set(
+        contracts
+          .map((contract) => contract.currency.trim().toUpperCase())
+          .filter((currency) => currency && currency !== 'INR'),
+      ),
+    ];
+    const rates = await this.exchangeRateService.getLatestRates(currencies);
+    const rateByCurrency = new Map(
+      rates.map((rate) => [rate.baseCurrency, rate]),
+    );
+
+    for (const group of groups) {
+      let countryTotal = 0;
+      for (const product of group.products) {
+        let productTotal = 0;
+        for (const contract of product.contracts) {
+          const originalCurrency = contract.currency.trim().toUpperCase();
+          const originalAmount = Number(contract.amount) || 0;
+          const rate =
+            originalCurrency === 'INR'
+              ? null
+              : rateByCurrency.get(originalCurrency);
+          const exchangeRate =
+            originalCurrency === 'INR'
+              ? 1
+              : rate
+                ? Number(rate.exchangeRate)
+                : null;
+          const convertedAmount =
+            exchangeRate === null
+              ? null
+              : roundAmount(originalAmount * exchangeRate);
+
+          contract.exchangeRate = exchangeRate;
+          contract.convertedCurrency = 'INR';
+          contract.convertedAmount = convertedAmount;
+          contract.exchangeRateDate =
+            originalCurrency === 'INR' ? null : rate?.effectiveDate || null;
+
+          if (convertedAmount !== null) productTotal += convertedAmount;
+        }
+
+        product.amountInINR = roundAmount(productTotal);
+        countryTotal += productTotal;
+      }
+
+      group.amountInINR = roundAmount(countryTotal);
+    }
   }
 
   /**
