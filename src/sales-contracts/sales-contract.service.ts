@@ -381,6 +381,7 @@ export class SalesContractService implements OnModuleInit {
             freight: isFreightNotApplicable ? null : shipment.freight,
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
+            companyId: contract.companyId || user?.companyId || null,
             shipmentReference: generateShipmentReference(
               contractNo,
               sNo,
@@ -1009,6 +1010,11 @@ export class SalesContractService implements OnModuleInit {
                 shipmentNo: sNo,
                 quantity: finalQty,
                 noOfContainers: finalContainers,
+                companyId:
+                  existing.companyId ||
+                  contract.companyId ||
+                  user?.companyId ||
+                  null,
                 origin: pcOrigin || existing.origin,
                 destination: scDest || existing.destination,
                 shipmentDate: new Date(shipment.shipmentDate),
@@ -1044,6 +1050,7 @@ export class SalesContractService implements OnModuleInit {
               {
                 ...shipment,
                 salesContractId: contract.id,
+                companyId: contract.companyId || user?.companyId || null,
                 shipmentNo: sNo,
                 quantity: finalQty,
                 noOfContainers: finalContainers,

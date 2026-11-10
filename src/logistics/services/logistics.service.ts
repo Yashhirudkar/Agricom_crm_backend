@@ -2641,6 +2641,7 @@ export class LogisticsService {
       const shipment = await this.shipmentModel.create(
         {
           salesContractId: salesContract.id,
+          companyId: salesContract.companyId || companyId || null,
           businessTransactionId:
             salesContract.businessTransactionId ??
             logistics.businessTransactionId ??
@@ -2868,6 +2869,14 @@ export class LogisticsService {
     const shipment = await this.shipmentModel.findByPk(shipmentId);
     if (!shipment) {
       throw new NotFoundException('Shipment not found');
+    }
+
+    if (
+      ['Executed', 'Stuffed', 'Dispatched', 'Completed'].includes(
+        shipment.status,
+      )
+    ) {
+      throw new BadRequestException('Shipment is already executed.');
     }
 
     const readiness = await this.readinessService.evaluate(shipment);

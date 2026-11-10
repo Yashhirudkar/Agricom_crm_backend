@@ -1,9 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/sequelize';
+import { BadRequestException } from '@nestjs/common';
+import { Op } from 'sequelize';
 import { StockService } from './stock.service';
 import { StockCalculationService } from './services/stock-calculation.service';
 import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
 import { PurchaseContractItem } from '../purchase-contracts/models/purchase-contract-item.model';
+import { PurchaseContractShipment } from '../purchase-contracts/models/purchase-contract-shipment.model';
+import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { Product } from '../masters/product/product.model';
 import { Country } from '../masters/country/country.model';
 import { Port } from '../masters/port/port.model';
@@ -11,12 +15,21 @@ import { Port } from '../masters/port/port.model';
 describe('StockService', () => {
   let service: StockService;
   let mockPurchaseContractModel: any;
+  let mockShipmentModel: any;
+  let mockShipmentLinkModel: any;
   let mockPortModel: any;
   let mockCountryModel: any;
 
   beforeEach(async () => {
     mockPurchaseContractModel = {
-      findAll: jest.fn(),
+      findAll: jest.fn().mockResolvedValue([]),
+    };
+    mockShipmentModel = {
+      findAll: jest.fn().mockResolvedValue([]),
+      findByPk: jest.fn(),
+    };
+    mockShipmentLinkModel = {
+      findAll: jest.fn().mockResolvedValue([]),
     };
     mockPortModel = {
       findAll: jest.fn().mockResolvedValue([]),
@@ -36,6 +49,14 @@ describe('StockService', () => {
         {
           provide: getModelToken(PurchaseContractItem),
           useValue: {},
+        },
+        {
+          provide: getModelToken(SalesContractShipment),
+          useValue: mockShipmentModel,
+        },
+        {
+          provide: getModelToken(PurchaseContractShipment),
+          useValue: mockShipmentLinkModel,
         },
         {
           provide: getModelToken(Product),
@@ -180,6 +201,312 @@ describe('StockService', () => {
       expect(summary.totalProducts).toBe(1);
       expect(summary.totalPurchaseContracts).toBe(1);
       expect(summary.totalPurchasedMT).toBe(100);
+      expect(summary.totalExecutedMT).toBe(0);
+      expect(summary.totalAvailableMT).toBe(100);
+    });
+  });
+
+  it('deducts each executed shipment from its linked Purchase Contract stock key', async () => {
+    const purchaseContract = {
+      id: 45,
+      contractNumber: 'PC-EE-045',
+      status: 'ACTIVE',
+      loadingCountry: 'Estonia',
+      purchaseDate: new Date('2026-11-01T00:00:00Z'),
+      seller: { entityName: 'Estonia Supplier' },
+      buyer: { entityName: 'Agricom' },
+      items: [
+        {
+          id: 70,
+          productId: 12,
+          product: { id: 12, name: 'POPCORN' },
+          quantity: 220,
+        },
+      ],
+    };
+    mockPurchaseContractModel.findAll.mockResolvedValue([purchaseContract]);
+    mockShipmentModel.findAll.mockResolvedValue([
+      {
+        id: 9,
+        shipmentNo: 1,
+        shipmentReference: 'REF-000009',
+        salesContractId: 30,
+        quantity: 22,
+        status: 'Executed',
+        updatedAt: new Date('2026-11-10T00:00:00Z'),
+        salesContract: {
+          contractNumber: 'SC-EE-030',
+          originCountry: 'Ghana',
+          buyerId: 2,
+          buyer: { entityName: 'Agricom' },
+          seller: { entityName: 'Estonia Supplier' },
+          items: [{ productId: 12, product: { id: 12, name: 'POPCORN' } }],
+        },
+      },
+      {
+        id: 10,
+        shipmentNo: 2,
+        shipmentReference: 'REF-000010',
+        salesContractId: 30,
+        quantity: 22,
+        status: 'Executed',
+        updatedAt: new Date('2026-11-11T00:00:00Z'),
+        salesContract: {
+          contractNumber: 'SC-EE-030',
+          originCountry: 'Ghana',
+          buyerId: 2,
+          buyer: { entityName: 'Agricom' },
+          seller: { entityName: 'Estonia Supplier' },
+          items: [{ productId: 12, product: { id: 12, name: 'POPCORN' } }],
+        },
+      },
+    ]);
+    mockShipmentLinkModel.findAll.mockResolvedValue([
+      {
+        shipmentId: 9,
+        purchaseContractId: 45,
+        purchaseContractItemId: 70,
+        allocatedQuantity: 22,
+        purchaseContract,
+      },
+      {
+        shipmentId: 10,
+        purchaseContractId: 45,
+        purchaseContractItemId: 70,
+        allocatedQuantity: 22,
+        purchaseContract,
+      },
+    ]);
+
+    const result = await service.getStockList({});
+    const estonia = result.data.find((country) => country.country === 'Estonia');
+    const popcorn = estonia?.products.find(
+      (product) => product.product === 'POPCORN',
+    );
+
+    expect(popcorn).toMatchObject({
+      purchased: 220,
+      executed: 44,
+      available: 176,
+    });
+    expect(popcorn?.movements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'OUT',
+          reference: 'REF-000009',
+          out: 22,
+          balance: 198,
+        }),
+        expect.objectContaining({
+          type: 'OUT',
+          reference: 'REF-000010',
+          out: 22,
+          balance: 176,
+        }),
+      ]),
+    );
+    const dashboard = await service.getDashboardSummary(1);
+    expect(dashboard).toMatchObject({
+      totalPurchasedMT: 220,
+      totalExecutedMT: 44,
+      totalAvailableMT: 176,
+    });
+    expect(result.data.some((country) => country.country === 'Ghana')).toBe(
+      false,
+    );
+  });
+
+  it('includes legacy executed shipments with null companyId via their Sales Contract tenant', async () => {
+    mockPurchaseContractModel.findAll.mockResolvedValue([
+      {
+        id: 45,
+        contractNumber: 'PC-EE-045',
+        status: 'ACTIVE',
+        loadingCountry: 'Estonia',
+        purchaseDate: new Date('2026-11-01T00:00:00Z'),
+        items: [
+          {
+            id: 70,
+            productId: 12,
+            product: { id: 12, name: 'POPCORN' },
+            quantity: 220,
+          },
+        ],
+      },
+    ]);
+    mockShipmentModel.findAll.mockResolvedValue([
+      {
+        id: 9,
+        shipmentNo: 1,
+        shipmentReference: 'REF-000009',
+        salesContractId: 30,
+        companyId: null,
+        quantity: 22,
+        status: 'Executed',
+        salesContract: {
+          companyId: 1,
+          contractNumber: 'SC-EE-030',
+          originCountry: 'Ghana',
+          items: [{ productId: 12, product: { id: 12, name: 'POPCORN' } }],
+        },
+      },
+    ]);
+    mockShipmentLinkModel.findAll.mockResolvedValue([
+      {
+        shipmentId: 9,
+        purchaseContractId: 45,
+        purchaseContractItemId: 70,
+        allocatedQuantity: 22,
+        purchaseContract: {
+          id: 45,
+          contractNumber: 'PC-EE-045',
+          loadingCountry: 'Estonia',
+          items: [
+            {
+              id: 70,
+              productId: 12,
+              product: { id: 12, name: 'POPCORN' },
+              quantity: 220,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await service.getStockList({}, 1);
+    const shipmentQuery = mockShipmentModel.findAll.mock.calls[0][0];
+    const estonia = result.data.find((country) => country.country === 'Estonia');
+    const popcorn = estonia?.products.find(
+      (product) => product.product === 'POPCORN',
+    );
+
+    expect(shipmentQuery.where[Op.or][0]).toEqual({ companyId: 1 });
+    expect(shipmentQuery.where[Op.or][1].companyId).toBeNull();
+    expect(shipmentQuery.where[Op.or][1][Op.and]).toMatchObject({
+      attribute: { col: 'salesContract.company_id' },
+      comparator: '=',
+      logic: 1,
+    });
+    expect(popcorn).toMatchObject({
+      purchased: 220,
+      executed: 22,
+      available: 198,
+    });
+  });
+
+  describe('validateShipmentStock', () => {
+    it('validates stock against the linked Purchase Contract loading country', async () => {
+      const purchaseContract = {
+        id: 45,
+        contractNumber: 'PC-EE-045',
+        status: 'ACTIVE',
+        loadingCountry: 'Estonia',
+        items: [
+          {
+            id: 70,
+            productId: 12,
+            product: { id: 12, name: 'POPCORN' },
+            quantity: 220,
+          },
+        ],
+      };
+      mockPurchaseContractModel.findAll.mockResolvedValue([purchaseContract]);
+      mockShipmentModel.findAll.mockResolvedValue([]);
+      mockShipmentLinkModel.findAll.mockResolvedValue([
+        {
+          shipmentId: 9,
+          purchaseContractId: 45,
+          purchaseContractItemId: 70,
+          allocatedQuantity: 22,
+          purchaseContract,
+        },
+      ]);
+
+      const result = await service.validateShipmentStock({
+        id: 9,
+        quantity: 22,
+        origin: 'Ghana',
+        salesContract: {
+          originCountry: 'Ghana',
+          items: [{ productId: 12, product: { name: 'POPCORN' } }],
+        },
+      } as any);
+
+      expect(result).toMatchObject({
+        isValid: true,
+        availableStock: 220,
+        requiredStock: 22,
+        country: 'Estonia',
+        product: 'POPCORN',
+      });
+    });
+
+    it('Scenario 3: should throw BadRequestException when available stock is insufficient', async () => {
+      // 100 MT Purchased
+      mockPurchaseContractModel.findAll.mockResolvedValue([
+        {
+          id: 1,
+          contractNumber: 'PC-1',
+          status: 'ACTIVE',
+          loadingCountry: 'India',
+          items: [
+            {
+              id: 1,
+              product: { name: 'Mustard' },
+              quantity: 100,
+            },
+          ],
+        },
+      ]);
+      mockShipmentModel.findAll.mockResolvedValue([]);
+
+      const mockShipmentToExecute: any = {
+        id: 99,
+        quantity: 150, // Requires 150 MT, but only 100 MT available
+        origin: 'India',
+        salesContract: {
+          originCountry: 'India',
+          items: [{ product: { name: 'Mustard' } }],
+        },
+      };
+
+      await expect(
+        service.validateShipmentStock(mockShipmentToExecute),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should validate successfully when available stock is sufficient', async () => {
+      mockPurchaseContractModel.findAll.mockResolvedValue([
+        {
+          id: 1,
+          contractNumber: 'PC-1',
+          status: 'ACTIVE',
+          loadingCountry: 'India',
+          items: [
+            {
+              id: 1,
+              product: { name: 'Mustard' },
+              quantity: 500,
+            },
+          ],
+        },
+      ]);
+      mockShipmentModel.findAll.mockResolvedValue([]);
+
+      const mockShipmentToExecute: any = {
+        id: 99,
+        quantity: 120, // Requires 120 MT, 500 MT available
+        origin: 'India',
+        salesContract: {
+          originCountry: 'India',
+          items: [{ product: { name: 'Mustard' } }],
+        },
+      };
+
+      const result = await service.validateShipmentStock(mockShipmentToExecute);
+      expect(result.isValid).toBe(true);
+      expect(result.availableStock).toBe(500);
+      expect(result.requiredStock).toBe(120);
     });
   });
 });

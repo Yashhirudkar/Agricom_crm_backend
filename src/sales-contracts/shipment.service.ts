@@ -41,6 +41,7 @@ import { PaymentTerm } from '../masters/payment-term/payment-term.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
+import { StockService } from '../stock/stock.service';
 
 function getContractDestination(contract: SalesContract): string | null {
   if (contract.destinationSelectionMode === 'enquiry') {
@@ -69,6 +70,8 @@ export class ShipmentService {
     private readonly docFileModel: typeof SalesContractDocumentFile,
     @Inject(forwardRef(() => PurchaseContractService))
     private readonly purchaseContractService: PurchaseContractService,
+    @Inject(forwardRef(() => StockService))
+    private readonly stockService: StockService,
     private readonly readinessService: ShipmentReadinessService,
     private readonly auditService: AuditService,
     @InjectModel(ShipmentStuffing)
@@ -1214,8 +1217,16 @@ export class ShipmentService {
     ) {
       throw new NotFoundException('Shipment not found');
     }
-    const isExecutionTransition =
-      dto.status === 'Executed' && shipment.status !== 'Executed';
+    // Prevent duplicate execution
+    if (dto.status === 'Executed') {
+      if (
+        ['Executed', 'Stuffed', 'Dispatched', 'Completed'].includes(
+          shipment.status,
+        )
+      ) {
+        throw new BadRequestException('Shipment is already executed.');
+      }
+    }
 
     // Capture changes to check if we need reference regeneration
     const hasCoreRefChanged =
@@ -1248,7 +1259,6 @@ export class ShipmentService {
     }
     if (dto.remarks !== undefined) shipment.remarks = dto.remarks;
     if (dto.shipmentNo !== undefined) shipment.shipmentNo = dto.shipmentNo;
-    if (dto.status !== undefined) shipment.status = dto.status;
 
     // Regenerate reference if core values changed and contract number is available
     if (hasCoreRefChanged && shipment.salesContract) {
@@ -1262,15 +1272,28 @@ export class ShipmentService {
       );
     }
 
-    if (shipment.status === 'Executed') {
+    const targetStatus = dto.status !== undefined ? dto.status : shipment.status;
+    const isExecutionTransition =
+      targetStatus === 'Executed' && shipment.status !== 'Executed';
+
+    if (targetStatus === 'Executed') {
       if (isExecutionTransition) {
+        // 1. Validate Readiness
         const readiness = await this.readinessService.evaluate(shipment);
         if (!readiness.readyForShipment) {
           throw new BadRequestException(
             'Shipment cannot be executed until cargo and freight allocation are ready.',
           );
         }
+
+        // 2. Validate Available Stock
+        await this.stockService.validateShipmentStock(
+          shipment,
+          user?.companyId || shipment.salesContract?.companyId,
+        );
       }
+
+      shipment.status = 'Executed';
       shipment.executionStatus = shipment.executionStatus || 'Pending';
       await this.sequelize.transaction(async (transaction) => {
         await shipment.save({ transaction });
@@ -1281,6 +1304,7 @@ export class ShipmentService {
         );
       });
     } else {
+      if (dto.status !== undefined) shipment.status = dto.status;
       await shipment.save();
     }
 
