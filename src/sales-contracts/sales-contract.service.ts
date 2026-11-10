@@ -653,6 +653,26 @@ export class SalesContractService implements OnModuleInit {
       }
     }
 
+    // Ensure items have quality resolved from printOverrides if not already present
+    if (item.items && Array.isArray(item.items)) {
+      const printOverrides = item.printOverrides || {};
+      item.items.forEach((it: any, idx: number) => {
+        const curQuality = it.getDataValue ? it.getDataValue('quality') : it.quality;
+        if (!curQuality || !String(curQuality).trim()) {
+          const overrideQuality =
+            printOverrides[`quality_${idx}`] ||
+            (idx === 0 ? printOverrides['quality_0'] : null);
+          if (overrideQuality && String(overrideQuality).trim()) {
+            if (it.setDataValue) {
+              it.setDataValue('quality', String(overrideQuality).trim());
+            } else {
+              it.quality = String(overrideQuality).trim();
+            }
+          }
+        }
+      });
+    }
+
     const scJson = item.toJSON();
     const salesQty =
       Number(scJson.totalQuantity) ||
@@ -784,6 +804,26 @@ export class SalesContractService implements OnModuleInit {
       if (dto.contractDate) {
         updateData.contractDate = new Date(dto.contractDate);
       }
+
+      // Synchronize printOverrides with items' quality so View mode and Print templates match
+      if (dto.items && dto.items.length > 0) {
+        const currentOverrides = { ...(contract.printOverrides || {}), ...(dto.printOverrides || {}) };
+        let overridesModified = false;
+        dto.items.forEach((it: any, idx: number) => {
+          if (it.quality && String(it.quality).trim()) {
+            const val = String(it.quality).trim();
+            currentOverrides[`quality_${idx}`] = val;
+            if (idx === 0) {
+              currentOverrides['quality_0'] = val;
+            }
+            overridesModified = true;
+          }
+        });
+        if (overridesModified) {
+          updateData.printOverrides = currentOverrides;
+        }
+      }
+
       await contract.update(updateData, { transaction: t });
 
       // 2. Update Items
@@ -815,9 +855,14 @@ export class SalesContractService implements OnModuleInit {
           }
 
           if (existing) {
+            const qualityToSave =
+              item.quality !== undefined && item.quality !== null && String(item.quality).trim() !== ''
+                ? String(item.quality).trim()
+                : existing.quality;
             await existing.update(
               {
                 ...item,
+                quality: qualityToSave,
                 salesContractId: contract.id,
               },
               { transaction: t },

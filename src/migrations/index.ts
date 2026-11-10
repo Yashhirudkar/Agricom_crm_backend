@@ -63,6 +63,7 @@ import * as phase71 from './phase-71-add-delivery-place-required-to-shipment-typ
 import * as phase72 from './phase-72-add-freight-allocation-status-to-shipments';
 import * as phase73 from './phase-73-sales-monthly-targets';
 import * as phase74 from './phase-74-exchange-rates';
+import * as phase75 from './phase-75-backfill-sales-contract-items-quality';
 
 export interface MigrationPhase {
   phase: string;
@@ -141,4 +142,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase72,
   phase73,
   phase74,
+  phase75,
 ];
