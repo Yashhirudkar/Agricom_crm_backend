@@ -8,12 +8,6 @@ export class LocalStorageProvider implements StorageProvider {
   private readonly logger = new Logger(LocalStorageProvider.name);
   private readonly uploadDir = './storage/attachments';
 
-  constructor() {
-    if (!fs.existsSync(this.uploadDir)) {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
-    }
-  }
-
   get diskName(): string {
     return 'local';
   }
@@ -25,12 +19,18 @@ export class LocalStorageProvider implements StorageProvider {
   async deleteFile(filename: string): Promise<void> {
     const filePath = this.resolvePath(filename);
     try {
-      if (fs.existsSync(filePath)) {
-        await fs.promises.unlink(filePath);
-        this.logger.log(`Deleted file: ${filePath}`);
-      }
+      await fs.promises.unlink(filePath);
+      this.logger.log(`Deleted file: ${filePath}`);
     } catch (error) {
-      this.logger.error(`Error deleting file ${filePath}`, error.stack);
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ) {
+        return;
+      }
+      this.logger.error(`Error deleting file ${filePath}`, error);
     }
   }
 }

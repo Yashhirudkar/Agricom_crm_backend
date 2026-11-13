@@ -18,6 +18,12 @@ import { ResourceAction } from '../../system/models/resource-action.model';
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: false,
+  indexes: [
+    {
+      name: 'idx_client_action_access_action_client',
+      fields: ['resource_action_id', 'client_id'],
+    },
+  ],
 })
 export class ClientActionAccess extends Model<ClientActionAccess> {
   @PrimaryKey

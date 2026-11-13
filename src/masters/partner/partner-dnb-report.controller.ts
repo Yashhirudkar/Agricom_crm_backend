@@ -17,6 +17,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as crypto from 'crypto';
 import { Response } from 'express';
+import { createUploadDestination } from '../../common/upload-destination';
 import {
   PartnerDnbReportService,
   DNB_REPORT_UPLOAD_DIR,
@@ -37,7 +38,7 @@ const ALLOWED_MIME_TYPES = [
 
 export const dnbReportMulterConfig = {
   storage: diskStorage({
-    destination: DNB_REPORT_UPLOAD_DIR,
+    destination: createUploadDestination(DNB_REPORT_UPLOAD_DIR),
     filename: (req: any, file, cb) => {
       const uniqueSuffix = crypto.randomUUID();
       const ext = extname(file.originalname).toLowerCase();

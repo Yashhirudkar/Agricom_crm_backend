@@ -1,4 +1,4 @@
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { Logger, Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SalesContractsModule } from './sales-contracts/sales-contracts.module';
 import { SequelizeModule } from '@nestjs/sequelize';
@@ -49,7 +49,8 @@ import { AttendanceRecord } from './attendance/models/attendance-record.model';
 import { AttendanceLog } from './attendance/models/attendance-log.model';
 import { AttendanceException } from './attendance/models/attendance-exception.model';
 
-import { join } from 'path';
+import { performance } from 'node:perf_hooks';
+import { validateProductionSchema } from './common/production-schema-readiness';
 
 import { AttachmentsModule } from './attachments/modules/attachments.module';
 import { SystemModule } from './system/modules/system.module';
@@ -212,6 +213,18 @@ import {
         const isDevelopment = env === 'development' || env === 'test';
         const shouldSync =
           isDevelopment && configService.get<string>('DB_SYNC') === 'true';
+        const configuredSlowQueryThreshold = Number(
+          configService.get<string>('DB_SLOW_QUERY_MS') ?? '500',
+        );
+        const slowQueryThresholdMs =
+          Number.isFinite(configuredSlowQueryThreshold) &&
+          configuredSlowQueryThreshold > 0
+            ? configuredSlowQueryThreshold
+            : 500;
+        const databaseLogger = new Logger('Database');
+        const connectionStartTimes = new WeakMap<object, number>();
+        let initialConnectionLogged = false;
+        let schemaValidation: Promise<void> | undefined;
 
         return {
           dialect: 'postgres',
@@ -366,7 +379,54 @@ import {
           autoLoadModels: true,
           synchronize: shouldSync,
           sync: { alter: shouldSync, force: false },
-          logging: false,
+          hooks: {
+            beforeConnect: (config) => {
+              connectionStartTimes.set(config, performance.now());
+            },
+            afterConnect: async (connection, config) => {
+              if (env === 'production') {
+                if (!schemaValidation) {
+                  schemaValidation = validateProductionSchema(
+                    connection as {
+                      query: (
+                        sql: string,
+                        values?: unknown[],
+                      ) => Promise<{ rows: Array<Record<string, string>> }>;
+                    },
+                  ).catch((error) => {
+                    schemaValidation = undefined;
+                    throw error;
+                  });
+                }
+                await schemaValidation;
+              }
+              if (initialConnectionLogged) return;
+              const startedAt = connectionStartTimes.get(config);
+              if (startedAt === undefined) return;
+              initialConnectionLogged = true;
+              databaseLogger.log(
+                `Database Connection .......... ${(performance.now() - startedAt).toFixed(1)}ms`,
+              );
+            },
+          },
+          benchmark: true,
+          logging: (sql: string, durationMs?: number) => {
+            if (
+              typeof durationMs !== 'number' ||
+              durationMs < slowQueryThresholdMs
+            ) {
+              return;
+            }
+
+            const redactedSql = sql
+              .replace(/'(?:''|[^'])*'/g, "'[redacted]'")
+              .replace(/\b\d+(?:\.\d+)?\b/g, '?')
+              .replace(/\s+/g, ' ')
+              .slice(0, 1000);
+            databaseLogger.warn(
+              `Slow query (${durationMs.toFixed(1)}ms): ${redactedSql}`,
+            );
+          },
           retryAttempts: 0,
         };
       },

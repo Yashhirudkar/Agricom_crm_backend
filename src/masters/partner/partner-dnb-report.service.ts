@@ -21,11 +21,7 @@ export class PartnerDnbReportService {
     @InjectModel(PartnerDnbReport)
     private readonly dnbReportModel: typeof PartnerDnbReport,
     private readonly sequelize: Sequelize,
-  ) {
-    if (!fs.existsSync(DNB_REPORT_UPLOAD_DIR)) {
-      fs.mkdirSync(DNB_REPORT_UPLOAD_DIR, { recursive: true });
-    }
-  }
+  ) {}
 
   async getReportsByPartner(partnerId: number): Promise<PartnerDnbReport[]> {
     const partner = await this.partnerModel.findOne({

@@ -28,6 +28,6 @@ export class ExchangeRateController {
   @HttpCode(HttpStatus.OK)
   @RequirePermission('exchange_rates:sync')
   syncRates(): Promise<ExchangeRateSyncResponseDto> {
-    return this.exchangeRateService.syncRates();
+    return this.exchangeRateService.syncRates(true);
   }
 }

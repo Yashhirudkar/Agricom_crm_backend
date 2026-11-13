@@ -20,7 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import * as fs from 'fs';
+import { createUploadDestination } from '../../common/upload-destination';
 import { ConversationService } from '../services/conversation.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -69,13 +69,7 @@ export class ConversationController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: (req, file, cb) => {
-          const dir = './uploads/chat';
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          cb(null, dir);
-        },
+        destination: createUploadDestination('./uploads/chat'),
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);

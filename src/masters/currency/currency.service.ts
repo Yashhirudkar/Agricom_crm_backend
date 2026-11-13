@@ -11,6 +11,7 @@ import { Currency } from './currency.model';
 import { CreateCurrencyDto } from './dto/create-currency.dto';
 import { UpdateCurrencyDto } from './dto/update-currency.dto';
 import { QueryCurrencyDto } from './dto/query-currency.dto';
+import { measureStartupStep } from '../../common/startup-timing';
 
 const ALL_WORLD_CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$', isActive: true },
@@ -210,28 +211,38 @@ export class CurrencyService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    try {
-      await this.model.sync({ alter: true });
-      this.logger.log('Syncing all world currencies into database...');
+    await measureStartupStep('CurrencyService.syncAllWorldCurrencies()', () =>
+      this.syncAllWorldCurrencies(),
+    );
+  }
 
-      for (const curr of ALL_WORLD_CURRENCIES) {
-        const existing = await this.model.findOne({
-          where: { code: curr.code },
-        });
-        if (!existing) {
-          await this.model.create({
-            code: curr.code,
-            name: curr.name,
-            symbol: curr.symbol,
-            isActive: curr.isActive,
-            status: curr.isActive ? 'Active' : 'Inactive',
-          });
-        }
-      }
-      this.logger.log('All world currencies seeded/verified.');
-    } catch (err) {
-      this.logger.error('Failed to sync/seed currencies table', err);
+  private async syncAllWorldCurrencies(): Promise<void> {
+    const existing = await this.model.findAll({
+      attributes: ['code'],
+      raw: true,
+    });
+    const existingCodes = new Set(
+      existing.map((currency) => currency.code.toUpperCase()),
+    );
+    const missingCurrencies = ALL_WORLD_CURRENCIES.filter(
+      (currency) => !existingCodes.has(currency.code),
+    );
+
+    if (missingCurrencies.length === 0) {
+      this.logger.log('All world currencies are already present.');
+      return;
     }
+
+    await this.model.bulkCreate(
+      missingCurrencies.map((currency) => ({
+        ...currency,
+        status: currency.isActive ? 'Active' : 'Inactive',
+      })),
+      { ignoreDuplicates: true },
+    );
+    this.logger.log(
+      `Seeded ${missingCurrencies.length} missing world currencies.`,
+    );
   }
 
   async create(dto: CreateCurrencyDto, user?: any): Promise<Currency> {

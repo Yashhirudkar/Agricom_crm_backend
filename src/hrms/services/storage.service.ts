@@ -10,12 +10,6 @@ import * as path from 'path';
 export class StorageService {
   private readonly baseDir = path.resolve(process.cwd(), 'storage');
 
-  constructor() {
-    if (!fs.existsSync(this.baseDir)) {
-      fs.mkdirSync(this.baseDir, { recursive: true });
-    }
-  }
-
   /**
    * Uploads file to local storage directory under the specified relative dir.
    * Returns the relative path for database storage.
@@ -26,16 +20,32 @@ export class StorageService {
     filename: string,
   ): Promise<string> {
     const targetDir = path.join(this.baseDir, relativeDir);
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-
+    await fs.promises.mkdir(targetDir, { recursive: true });
     const targetPath = path.join(targetDir, filename);
 
-    if (file.path && fs.existsSync(file.path)) {
-      fs.renameSync(file.path, targetPath);
+    let sourceFileExists = false;
+    if (file.path) {
+      try {
+        await fs.promises.access(file.path);
+        sourceFileExists = true;
+      } catch (error) {
+        if (
+          !(
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'ENOENT'
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+
+    if (sourceFileExists && file.path) {
+      await fs.promises.rename(file.path, targetPath);
     } else if (file.buffer) {
-      fs.writeFileSync(targetPath, file.buffer);
+      await fs.promises.writeFile(targetPath, file.buffer);
     } else {
       throw new BadRequestException('No file content found to save');
     }
@@ -51,8 +61,19 @@ export class StorageService {
     if (!absolutePath.startsWith(this.baseDir)) {
       throw new BadRequestException('Invalid file path');
     }
-    if (fs.existsSync(absolutePath)) {
-      fs.unlinkSync(absolutePath);
+    try {
+      await fs.promises.unlink(absolutePath);
+    } catch (error) {
+      if (
+        !(
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        )
+      ) {
+        throw error;
+      }
     }
   }
 
@@ -64,8 +85,18 @@ export class StorageService {
     if (!absolutePath.startsWith(this.baseDir)) {
       throw new BadRequestException('Invalid file path');
     }
-    if (!fs.existsSync(absolutePath)) {
-      throw new NotFoundException('File not found');
+    try {
+      await fs.promises.access(absolutePath);
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ) {
+        throw new NotFoundException('File not found');
+      }
+      throw error;
     }
     return absolutePath;
   }

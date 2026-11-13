@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import * as fs from 'fs';
+import { createUploadDestination } from '../../common/upload-destination';
 import { CompaniesService } from '../services/companies.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
@@ -29,12 +30,8 @@ import {
   DeleteCompanyDto,
 } from '../dto/companies.dto';
 
-// Ensure directories exist
 const logosDir = './uploads/company/logos';
 const faviconsDir = './uploads/company/favicons';
-
-if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
-if (!fs.existsSync(faviconsDir)) fs.mkdirSync(faviconsDir, { recursive: true });
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|svg|webp|ico/;
@@ -164,7 +161,7 @@ export class CompaniesController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: logosDir,
+        destination: createUploadDestination(logosDir),
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -202,7 +199,7 @@ export class CompaniesController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: faviconsDir,
+        destination: createUploadDestination(faviconsDir),
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);

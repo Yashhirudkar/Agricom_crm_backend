@@ -429,10 +429,72 @@ export class ShipmentService {
     }
   }
 
-  private async buildQueryOptions(query: any) {
+  private getExecutedCondition() {
+    return {
+      [Op.or]: [
+        { status: { [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] } },
+        {
+          executionStatus: {
+            [Op.in]: [
+              'Executed',
+              'Stuffed',
+              'Loading Completed',
+              'Dispatched',
+              'Completed',
+            ],
+          },
+        },
+        Sequelize.literal(`EXISTS (
+          SELECT 1 FROM shipment_stuffings ss 
+          WHERE ss.shipment_id = "SalesContractShipment"."id" 
+          AND (ss.stuffing_status IN ('Completed', 'Stuffed') OR ss.execution_status IN ('Executed', 'Stuffed', 'Loading Completed', 'Completed', 'Dispatched'))
+        )`),
+      ],
+    };
+  }
+
+  private getPendingCondition() {
+    return {
+      [Op.and]: [
+        {
+          [Op.or]: [
+            { status: null },
+            { status: { [Op.notIn]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] } },
+          ],
+        },
+        {
+          [Op.or]: [
+            { executionStatus: null },
+            {
+              executionStatus: {
+                [Op.notIn]: [
+                  'Executed',
+                  'Stuffed',
+                  'Loading Completed',
+                  'Dispatched',
+                  'Completed',
+                ],
+              },
+            },
+          ],
+        },
+        Sequelize.literal(`NOT EXISTS (
+          SELECT 1 FROM shipment_stuffings ss 
+          WHERE ss.shipment_id = "SalesContractShipment"."id" 
+          AND (ss.stuffing_status IN ('Completed', 'Stuffed') OR ss.execution_status IN ('Executed', 'Stuffed', 'Loading Completed', 'Completed', 'Dispatched'))
+        )`),
+      ],
+    };
+  }
+
+  private async buildQueryOptions(
+    query: any,
+    options?: { tabOverride?: string; ignoreTab?: boolean },
+  ) {
     const {
       search,
       status,
+      tab,
       timeline,
       buyerId,
       sellerId,
@@ -500,8 +562,50 @@ export class ShipmentService {
       );
     }
 
-    // 3. Workflow Status
-    if (status) {
+    const userPermissions = query.userPermissions;
+    const isDocOnly =
+      query.userType !== 'super_admin' &&
+      query.userType !== 'client_admin' &&
+      userPermissions &&
+      userPermissions.has('shipment_stuffing_execution:read') &&
+      !userPermissions.has('shipment:read');
+
+    // Tab Filtering (Pending vs Stuffed / Executed)
+    let rawTab =
+      options?.tabOverride !== undefined
+        ? options.tabOverride
+        : tab ||
+          (['pending', 'executed', 'stuffed'].includes(
+            String(status || '').toLowerCase(),
+          )
+            ? String(status).toLowerCase() === 'stuffed'
+              ? 'executed'
+              : String(status).toLowerCase()
+            : undefined);
+
+    if (isDocOnly) {
+      rawTab = 'executed';
+    }
+
+    const normalizedTab = options?.ignoreTab
+      ? 'all'
+      : rawTab
+        ? String(rawTab).toLowerCase()
+        : 'pending';
+
+    if (normalizedTab === 'executed') {
+      whereClause[Op.and] = whereClause[Op.and] || [];
+      whereClause[Op.and].push(this.getExecutedCondition());
+    } else if (normalizedTab === 'pending') {
+      whereClause[Op.and] = whereClause[Op.and] || [];
+      whereClause[Op.and].push(this.getPendingCondition());
+    }
+
+    // 3. Workflow Status (only if status is not tab name 'pending'/'executed'/'stuffed')
+    if (
+      status &&
+      !['pending', 'executed', 'stuffed'].includes(String(status).toLowerCase())
+    ) {
       whereClause.status = status;
     }
 
@@ -622,10 +726,32 @@ export class ShipmentService {
       limit = 10,
       sortBy = 'shipmentDate',
       sortOrder = 'ASC',
+      status,
+      tab,
     } = query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    const { whereClause, includes } = await this.buildQueryOptions(query);
+    const rawTab =
+      tab ||
+      (['pending', 'executed', 'stuffed'].includes(
+        String(status || '').toLowerCase(),
+      )
+        ? String(status).toLowerCase() === 'stuffed'
+          ? 'executed'
+          : String(status).toLowerCase()
+        : 'pending');
+
+    const requestedTab = String(rawTab).toLowerCase();
+
+    const { whereClause, includes } = await this.buildQueryOptions(query, {
+      tabOverride: requestedTab,
+    });
+
+    const oppositeTab = requestedTab === 'executed' ? 'pending' : 'executed';
+    const { whereClause: oppositeWhereClause } = await this.buildQueryOptions(
+      query,
+      { tabOverride: oppositeTab },
+    );
 
     // Determine sorting
     let order: any[] = [['shipmentDate', 'ASC']];
@@ -647,15 +773,30 @@ export class ShipmentService {
       ];
     }
 
-    const { rows, count } = await this.shipmentModel.findAndCountAll({
-      where: whereClause,
-      include: includes,
-      distinct: true,
-      subQuery: false,
-      limit: Number(limit),
-      offset: Number(offset),
-      order,
-    });
+    const [listResult, oppositeCount] = await Promise.all([
+      this.shipmentModel.findAndCountAll({
+        where: whereClause,
+        include: includes,
+        distinct: true,
+        subQuery: false,
+        limit: Number(limit),
+        offset: Number(offset),
+        order,
+      }),
+      this.shipmentModel.count({
+        where: oppositeWhereClause,
+        include: includes,
+        distinct: true,
+      }),
+    ]);
+
+    const rows = listResult.rows;
+    const count = listResult.count;
+
+    const pendingCount =
+      requestedTab === 'executed' ? oppositeCount : count;
+    const executedCount =
+      requestedTab === 'executed' ? count : oppositeCount;
 
     const contractIds = Array.from(
       new Set(
@@ -1039,11 +1180,15 @@ export class ShipmentService {
       page: Number(page),
       limit: Number(limit),
       totalPages: Math.max(1, Math.ceil(count / Number(limit))),
+      pendingCount,
+      executedCount,
     };
   }
 
   async getStats(query: any) {
-    const { whereClause, includes } = await this.buildQueryOptions(query);
+    const { whereClause, includes } = await this.buildQueryOptions(query, {
+      ignoreTab: query.tab !== undefined ? false : true,
+    });
     const todayStr = new Date().toISOString().split('T')[0];
     const next7DaysObj = new Date();
     next7DaysObj.setDate(next7DaysObj.getDate() + 7);
@@ -1056,6 +1201,8 @@ export class ShipmentService {
     });
 
     const total = shipments.length;
+    let pendingCount = 0;
+    let executedCount = 0;
     let todayCount = 0;
     let upcoming7Days = 0;
     let delayedCount = 0;
@@ -1102,6 +1249,22 @@ export class ShipmentService {
     for (const s of shipments) {
       const dateStr = s.shipmentDate.toString();
       const status = s.status;
+
+      // Executed vs Pending tally
+      const isExecuted =
+        ['Executed', 'Dispatched', 'Completed'].includes(status) ||
+        ['Executed', 'Loading Completed', 'Dispatched', 'Completed'].includes(
+          s.executionStatus || '',
+        ) ||
+        s.stuffingExecution?.stuffingStatus === 'Completed' ||
+        ['Executed', 'Loading Completed', 'Dispatched', 'Completed'].includes(
+          s.stuffingExecution?.executionStatus || '',
+        );
+      if (isExecuted) {
+        executedCount++;
+      } else {
+        pendingCount++;
+      }
 
       // Aggregates
       totalContainers += s.noOfContainers ? Number(s.noOfContainers) : 0;
@@ -1152,6 +1315,8 @@ export class ShipmentService {
 
     return {
       total,
+      pendingCount,
+      executedCount,
       today: todayCount,
       upcoming: upcoming7Days,
       delayed: delayedCount,
@@ -2091,6 +2256,46 @@ export class ShipmentService {
     const userId = user?.userId ?? user?.id ?? null;
     const isComplete = dto.action === 'complete';
     const now = new Date();
+    if (isComplete) {
+      const requiredLoadingFields: Array<[string, string]> = [
+        ['loadingDate', 'Date of Loading'],
+        ['actualLoadingWeight', 'Actual Loading Weight (MT)'],
+        ['grossWeight', 'Gross Weight (MT)'],
+        ['netWeight', 'Net Weight (MT)'],
+        ['loadingStartTime', 'Loading Start Time'],
+        ['loadingEndTime', 'Loading End Time'],
+      ];
+      const missingFields = requiredLoadingFields
+        .filter(([field]) => {
+          const value = dto[field];
+          return (
+            value === undefined ||
+            value === null ||
+            (typeof value === 'string' && value.trim() === '')
+          );
+        })
+        .map(([, label]) => label);
+
+      if (missingFields.length > 0) {
+        throw new BadRequestException(
+          `Complete all required Loading & Weights fields before completing stuffing: ${missingFields.join(', ')}.`,
+        );
+      }
+
+      const invalidWeightFields = requiredLoadingFields
+        .filter(([field]) =>
+          ['actualLoadingWeight', 'grossWeight', 'netWeight'].includes(field),
+        )
+        .filter(([field]) => !Number.isFinite(Number(dto[field])))
+        .map(([, label]) => label);
+
+      if (invalidWeightFields.length > 0) {
+        throw new BadRequestException(
+          `Enter valid numbers for: ${invalidWeightFields.join(', ')}.`,
+        );
+      }
+    }
+
     const { shipment, record, stuffingData } = await this.sequelize.transaction(
       async (transaction) => {
         const shipment = await this.shipmentModel.findByPk(shipmentId, {

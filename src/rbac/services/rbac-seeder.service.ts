@@ -5,6 +5,7 @@ import { Role } from '../models/role.model';
 import { UserRole } from '../models/user-role.model';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
+import { measureStartupStep } from '../../common/startup-timing';
 import * as bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 
@@ -38,7 +39,7 @@ export class RbacSeederService implements OnApplicationBootstrap {
     }
 
     try {
-      await this.seed();
+      await measureStartupStep('RbacSeederService.seed()', () => this.seed());
     } catch (error) {
       this.logger.error('RBAC seeding failed', error);
     }

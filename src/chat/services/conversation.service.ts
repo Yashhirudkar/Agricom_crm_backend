@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   BadRequestException,
   InternalServerErrorException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -47,16 +46,23 @@ import { Op } from 'sequelize';
 import { Employee } from '../../hrms/models/employee.model';
 import { Department } from '../../companies/models/department.model';
 import { Designation } from '../../hrms/models/designation.model';
+import { measureStartupStep } from '../../common/startup-timing';
 
 @Injectable()
-export class ConversationService implements OnModuleInit {
-  async onModuleInit() {
-    this.repairInvalidDMs().catch((err) => {
-      console.error(
-        '[ConversationService] Failed to run DM repair routine:',
-        err,
-      );
-    });
+export class ConversationService {
+  private invalidDmRepairPromise?: Promise<void>;
+
+  private ensureInvalidDMsRepaired(): Promise<void> {
+    if (!this.invalidDmRepairPromise) {
+      this.invalidDmRepairPromise = measureStartupStep(
+        'ConversationService.repairInvalidDMs() (first use)',
+        () => this.repairInvalidDMs(),
+      ).catch((error) => {
+        this.invalidDmRepairPromise = undefined;
+        throw error;
+      });
+    }
+    return this.invalidDmRepairPromise;
   }
 
   private async repairInvalidDMs() {
@@ -117,6 +123,7 @@ export class ConversationService implements OnModuleInit {
       userAgent?: string;
     },
   ): Promise<Conversation> {
+    await this.ensureInvalidDMsRepaired();
     const creatorId = actor.userId;
     const clientId = actor.clientId;
 
@@ -561,6 +568,7 @@ export class ConversationService implements OnModuleInit {
       archived?: boolean;
     },
   ) {
+    await this.ensureInvalidDMsRepaired();
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const offset = (page - 1) * limit;
@@ -740,6 +748,7 @@ export class ConversationService implements OnModuleInit {
     conversationId: number,
     companyId: number,
   ): Promise<Conversation> {
+    await this.ensureInvalidDMsRepaired();
     const conversation = await this.conversationModel.findOne({
       where: { id: conversationId, companyId },
       include: [
@@ -1163,6 +1172,7 @@ export class ConversationService implements OnModuleInit {
     overrides: any[],
     transaction?: any,
   ): Promise<void> {
+    await this.ensureInvalidDMsRepaired();
     if (!overrides) return;
     // Delete existing overrides
     await this.conversationModel.sequelize.models.ConversationPermissionOverride.destroy(
@@ -1188,6 +1198,7 @@ export class ConversationService implements OnModuleInit {
   }
 
   async syncDynamicMemberships(conversationId: number): Promise<void> {
+    await this.ensureInvalidDMsRepaired();
     const conversation = await this.conversationModel.findByPk(conversationId);
     if (!conversation || !conversation.dynamicMembershipRules) {
       return;

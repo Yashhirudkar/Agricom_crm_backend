@@ -125,12 +125,12 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
 
   @Default(0)
   @AllowNull(true)
-  @Column({ field: 'gross_weight', type: DataType.DECIMAL(12, 2) })
+  @Column({ field: 'gross_weight', type: DataType.DECIMAL(12, 3) })
   declare grossWeight: number;
 
   @Default(0)
   @AllowNull(true)
-  @Column({ field: 'net_weight', type: DataType.DECIMAL(12, 2) })
+  @Column({ field: 'net_weight', type: DataType.DECIMAL(12, 3) })
   declare netWeight: number;
 
   // Editable Freight details if not available from logistics

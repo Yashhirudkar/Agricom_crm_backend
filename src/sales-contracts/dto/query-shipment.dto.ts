@@ -16,6 +16,10 @@ export class QueryShipmentDto {
 
   @IsOptional()
   @IsString()
+  tab?: string;
+
+  @IsOptional()
+  @IsString()
   timeline?: string;
 
   @IsOptional()

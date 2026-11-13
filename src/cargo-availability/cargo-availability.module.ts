@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { CargoAvailability } from './models/cargo-availability.model';
 import { CargoReadiness } from './models/cargo-readiness.model';
@@ -33,15 +33,4 @@ import { RbacModule } from '../rbac/modules/rbac.module';
   providers: [CargoAvailabilityService],
   exports: [CargoAvailabilityService],
 })
-export class CargoAvailabilityModule implements OnModuleInit {
-  constructor(private readonly service: CargoAvailabilityService) {}
-
-  async onModuleInit() {
-    await this.service.syncExecutedShipmentLoadings().catch((err) => {
-      console.warn(
-        '[CargoAvailabilityModule] onModuleInit sync error:',
-        err?.message,
-      );
-    });
-  }
-}
+export class CargoAvailabilityModule {}

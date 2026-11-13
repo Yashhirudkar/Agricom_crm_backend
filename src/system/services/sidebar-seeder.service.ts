@@ -2,6 +2,7 @@ import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { SidebarFolder } from '../models/sidebar-folder.model';
 import { SidebarItem } from '../models/sidebar-item.model';
+import { measureStartupStep } from '../../common/startup-timing';
 
 @Injectable()
 export class SidebarSeederService implements OnApplicationBootstrap {
@@ -15,25 +16,28 @@ export class SidebarSeederService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    try {
-      const folderCount = await this.sidebarFolderModel.count();
-      if (folderCount === 0) {
-        this.logger.log(
-          'No sidebar configuration found. Seeding default structure...',
-        );
-        await this.seedDefaultStructure();
-      }
+    await measureStartupStep('SidebarSeederService.initialize()', async () => {
+      try {
+        const folderCount = await this.sidebarFolderModel.count();
+        if (folderCount === 0) {
+          this.logger.log(
+            'No sidebar configuration found. Seeding default structure...',
+          );
+          await this.seedDefaultStructure();
+        }
 
-      await this.syncHrPoliciesSidebarItem();
-      await this.syncShipmentsSidebarItem();
-      await this.syncStockManagementSidebarItem();
-      await this.syncSalesContractsSidebarItem();
-      await this.syncConfirmedOrdersSidebarItem();
-      await this.syncRemoveOrdersSidebarItem();
-      await this.syncReportsSidebarItem();
-    } catch (error) {
-      this.logger.error('Failed to seed or sync sidebar structure', error);
-    }
+        await this.syncHrPoliciesSidebarItem();
+        await this.syncShipmentsSidebarItem();
+        await this.syncStockManagementSidebarItem();
+        await this.syncSalesContractsSidebarItem();
+        await this.syncConfirmedOrdersSidebarItem();
+        await this.syncRemoveOrdersSidebarItem();
+        await this.syncReportsSidebarItem();
+        await this.syncDocumentsSidebarItem();
+      } catch (error) {
+        this.logger.error('Failed to seed or sync sidebar structure', error);
+      }
+    });
   }
 
   private async seedDefaultStructure() {
@@ -947,6 +951,122 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync Reports sidebar item', err);
+    }
+  }
+
+  private async syncDocumentsSidebarItem() {
+    try {
+      let docsFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Documents' },
+      });
+
+      if (!docsFolder) {
+        docsFolder = await this.sidebarFolderModel.create({
+          name: 'Documents',
+          icon_name: 'Folder',
+          sort_order: 85,
+          is_active: true,
+          isCollapsible: true,
+        } as any);
+        this.logger.log('Created Documents sidebar folder');
+      } else {
+        let folderUpdated = false;
+        if (!docsFolder.is_active) {
+          docsFolder.is_active = true;
+          folderUpdated = true;
+        }
+        if (!docsFolder.isCollapsible) {
+          docsFolder.isCollapsible = true;
+          folderUpdated = true;
+        }
+        if (docsFolder.sort_order !== 85) {
+          docsFolder.sort_order = 85;
+          folderUpdated = true;
+        }
+        if (folderUpdated) await docsFolder.save();
+      }
+
+      const items = await this.sidebarItemModel.findAll({
+        where: { route: '/documents/shipment-stuffing-execution' },
+      });
+
+      let itemId: number | null = null;
+
+      if (items.length > 0) {
+        for (const item of items) {
+          let modified = false;
+          if (item.name !== 'Shipment Stuffing Execution') {
+            item.name = 'Shipment Stuffing Execution';
+            modified = true;
+          }
+          if (item.folder_id !== docsFolder.id) {
+            item.folder_id = docsFolder.id;
+            modified = true;
+          }
+          if (item.icon_name !== 'FileText') {
+            item.icon_name = 'FileText';
+            modified = true;
+          }
+          if (item.permission_link !== 'shipment_stuffing_execution:view') {
+            item.permission_link = 'shipment_stuffing_execution:view';
+            modified = true;
+          }
+          if (!item.is_active) {
+            item.is_active = true;
+            modified = true;
+          }
+          if (modified) {
+            await item.save();
+            this.logger.log(`Updated sidebar item ${item.id} (/documents/shipment-stuffing-execution)`);
+          }
+          itemId = item.id;
+        }
+      } else {
+        const newItem = await this.sidebarItemModel.create({
+          name: 'Shipment Stuffing Execution',
+          route: '/documents/shipment-stuffing-execution',
+          icon_name: 'FileText',
+          folder_id: docsFolder.id,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'shipment_stuffing_execution:view',
+        });
+        itemId = newItem.id;
+        this.logger.log(
+          'Created /documents/shipment-stuffing-execution sidebar item with shipment_stuffing_execution:view permission_link',
+        );
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      if (itemId && seq) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          await seq
+            .query(
+              `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
+               VALUES (:clientId, :itemId, NOW(), NOW())
+               ON CONFLICT (client_id, item_id) DO NOTHING;`,
+              { replacements: { clientId: client.id, itemId } },
+            )
+            .catch(() => {});
+
+          await seq
+            .query(
+              `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
+               VALUES (:clientId, :folderId, NOW(), NOW())
+               ON CONFLICT (client_id, folder_id) DO NOTHING;`,
+              {
+                replacements: { clientId: client.id, folderId: docsFolder.id },
+              },
+            )
+            .catch(() => {});
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Documents sidebar item', err);
     }
   }
 }

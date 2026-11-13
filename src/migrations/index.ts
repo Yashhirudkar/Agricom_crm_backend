@@ -64,6 +64,10 @@ import * as phase72 from './phase-72-add-freight-allocation-status-to-shipments'
 import * as phase73 from './phase-73-sales-monthly-targets';
 import * as phase74 from './phase-74-exchange-rates';
 import * as phase75 from './phase-75-backfill-sales-contract-items-quality';
+import * as phase76 from './phase-76-shipment-stuffing-weight-precision';
+import * as phase77 from './phase-77-sales-contract-type';
+import * as phase78 from './phase-78-rbac-bootstrap-indexes';
+import * as phase79 from './phase-79-documents-module-rbac';
 
 export interface MigrationPhase {
   phase: string;
@@ -143,4 +147,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase73,
   phase74,
   phase75,
+  phase76,
+  phase77,
+  phase78,
+  phase79,
 ];

@@ -15,7 +15,7 @@ describe('ExchangeRateService', () => {
       | 'getCurrenciesInUse'
       | 'getCurrenciesToSync'
       | 'hasAnyRates'
-      | 'countRates'
+      | 'hasRatesForDate'
       | 'upsertRates'
     >
   >;
@@ -31,7 +31,7 @@ describe('ExchangeRateService', () => {
         .fn()
         .mockResolvedValue(['USD', 'EUR', 'GBP', 'AED']),
       hasAnyRates: jest.fn().mockResolvedValue(true),
-      countRates: jest.fn().mockResolvedValue(5),
+      hasRatesForDate: jest.fn().mockResolvedValue(false),
       upsertRates: jest.fn().mockResolvedValue(undefined),
     };
     httpService = { get: jest.fn() };
@@ -133,7 +133,45 @@ describe('ExchangeRateService', () => {
       exchangeRateDate: '2026-11-10',
       errors: [],
     });
-    expect(repository.countRates).toHaveBeenCalledTimes(1);
+    expect(repository.hasRatesForDate).toHaveBeenCalled();
+  });
+
+  it('skips the live API when rates for all required currencies are already current', async () => {
+    repository.hasRatesForDate.mockResolvedValue(true);
+
+    await expect(service.syncRates()).resolves.toMatchObject({
+      success: true,
+      recordsInserted: 0,
+      exchangeRateDate: expect.any(String),
+    });
+    expect(httpService.get).not.toHaveBeenCalled();
+    expect(repository.upsertRates).not.toHaveBeenCalled();
+  });
+
+  it('forces a live refresh when requested even if rates are already current', async () => {
+    repository.hasRatesForDate.mockResolvedValue(true);
+    httpService.get.mockReturnValue(
+      of({
+        status: 200,
+        data: {
+          success: true,
+          source: 'INR',
+          timestamp: Date.UTC(2026, 10, 10) / 1000,
+          quotes: {
+            INRUSD: 0.01,
+            INREUR: 0.02,
+            INRGBP: 0.025,
+            INRAED: 0.04,
+          },
+        },
+      }),
+    );
+
+    await service.syncRates(true);
+
+    expect(repository.hasRatesForDate).not.toHaveBeenCalled();
+    expect(httpService.get).toHaveBeenCalledTimes(1);
+    expect(repository.upsertRates).toHaveBeenCalledTimes(1);
   });
 
   it('reports whether any rates are stored and dates used in the ticker response', async () => {

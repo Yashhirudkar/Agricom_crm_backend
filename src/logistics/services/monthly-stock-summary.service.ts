@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
@@ -44,7 +43,7 @@ const MONTH_NAMES = [
 ];
 
 @Injectable()
-export class MonthlyStockSummaryService implements OnModuleInit {
+export class MonthlyStockSummaryService {
   constructor(
     @InjectModel(MonthlyStockSummary)
     private readonly summaryModel: typeof MonthlyStockSummary,
@@ -59,22 +58,6 @@ export class MonthlyStockSummaryService implements OnModuleInit {
     @InjectModel(MonthlyStockRowCell)
     private readonly cellModel: typeof MonthlyStockRowCell,
   ) {}
-
-  async onModuleInit() {
-    try {
-      await this.sectionModel.sequelize.query(`
-        ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_x INT DEFAULT 0;
-        ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_y INT DEFAULT 0;
-        ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_width INT DEFAULT 12;
-        ALTER TABLE monthly_stock_sections ADD COLUMN IF NOT EXISTS layout_height INT DEFAULT 1;
-      `);
-    } catch (err) {
-      console.error(
-        'Auto-migration error for monthly_stock_sections layout columns:',
-        err,
-      );
-    }
-  }
 
   private computeReportTitle(countries: MonthlyStockSummaryCountry[]): string {
     if (!countries || countries.length === 0) return 'STOCK SUMMARY';

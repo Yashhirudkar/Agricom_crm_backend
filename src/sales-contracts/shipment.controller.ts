@@ -24,6 +24,7 @@ import { QueryShipmentDto } from './dto/query-shipment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../rbac/decorators/require-any-permission.decorator';
 import { AttachmentsService } from '../attachments/services/attachments.service';
 import { getAttachmentMulterConfig } from '../attachments/config/multer.config';
 
@@ -36,16 +37,18 @@ export class ShipmentController {
   ) {}
 
   @Get()
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async findAll(@Query() query: QueryShipmentDto, @Req() req: any) {
     return await this.service.findAll({
       ...query,
       companyId: req.user?.companyId,
+      userPermissions: req.userPermissions,
+      userType: req.user?.type,
     } as any);
   }
 
   @Get('stats')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async getStats(@Query() query: QueryShipmentDto, @Req() req: any) {
     return await this.service.getStats({
       ...query,
@@ -54,7 +57,7 @@ export class ShipmentController {
   }
 
   @Get('export/excel')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async exportExcel(
     @Query() query: QueryShipmentDto,
     @Req() req: any,
@@ -63,6 +66,8 @@ export class ShipmentController {
     const buffer = await this.service.exportExcel({
       ...query,
       companyId: req.user?.companyId,
+      userPermissions: req.userPermissions,
+      userType: req.user?.type,
     });
     res.setHeader(
       'Content-Type',
@@ -76,7 +81,7 @@ export class ShipmentController {
   }
 
   @Get(':id')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user);
   }
@@ -104,7 +109,7 @@ export class ShipmentController {
   }
 
   @Get(':id/stuffing-execution')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async getStuffingExecution(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: any,
@@ -113,7 +118,11 @@ export class ShipmentController {
   }
 
   @Post(':id/stuffing-execution')
-  @RequirePermission('shipments:update')
+  @RequireAnyPermission(
+    'shipments:update',
+    'shipment_stuffing_execution:update',
+    'shipment_stuffing_execution:view',
+  )
   @HttpCode(HttpStatus.OK)
   async saveStuffingExecution(
     @Param('id', ParseIntPipe) id: number,
@@ -124,7 +133,11 @@ export class ShipmentController {
   }
 
   @Post(':id/stuffing-execution/attachments')
-  @RequirePermission('shipments:update')
+  @RequireAnyPermission(
+    'shipments:update',
+    'shipment_stuffing_execution:update',
+    'shipment_stuffing_execution:view',
+  )
   @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
   async uploadStuffingAttachment(
     @Param('id', ParseIntPipe) id: number,

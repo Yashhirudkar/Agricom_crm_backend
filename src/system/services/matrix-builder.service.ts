@@ -25,6 +25,7 @@ export class MatrixBuilderService {
 
   async getRegistry() {
     await this.ensureStockManagementPermission();
+    await this.ensureDocumentsPermission();
 
     const modules = await this.appModuleModel.findAll({
       order: [['sort_order', 'ASC']],
@@ -191,6 +192,76 @@ export class MatrixBuilderService {
           resource_action_id: viewAction.id,
         } as any,
       });
+    }
+  }
+
+  private async ensureDocumentsPermission(): Promise<void> {
+    const [docsModule] = await this.appModuleModel.findOrCreate({
+      where: { name: 'Documents' },
+      defaults: {
+        name: 'Documents',
+        sort_order: 85,
+      } as any,
+    });
+
+    const [stuffingResource, resourceCreated] =
+      await this.moduleResourceModel.findOrCreate({
+        where: { name: 'shipment_stuffing_execution' },
+        defaults: {
+          name: 'shipment_stuffing_execution',
+          display_name: 'Shipment Stuffing Execution',
+          module_id: docsModule.id,
+          sort_order: 10,
+        } as any,
+      });
+
+    if (
+      !resourceCreated &&
+      (stuffingResource.module_id !== docsModule.id ||
+        stuffingResource.display_name !== 'Shipment Stuffing Execution')
+    ) {
+      stuffingResource.module_id = docsModule.id;
+      stuffingResource.display_name = 'Shipment Stuffing Execution';
+      await stuffingResource.save();
+    }
+
+    const [viewAction] = await this.resourceActionModel.findOrCreate({
+      where: { name: 'VIEW', resource_id: stuffingResource.id },
+      defaults: {
+        name: 'VIEW',
+        display_name: 'VIEW',
+        resource_id: stuffingResource.id,
+        sort_order: 0,
+      } as any,
+    });
+
+    const [updateAction] = await this.resourceActionModel.findOrCreate({
+      where: { name: 'UPDATE', resource_id: stuffingResource.id },
+      defaults: {
+        name: 'UPDATE',
+        display_name: 'UPDATE',
+        resource_id: stuffingResource.id,
+        sort_order: 10,
+      } as any,
+    });
+
+    const clients = await this.clientModel.findAll({
+      attributes: ['id'],
+    });
+
+    for (const client of clients) {
+      for (const action of [viewAction, updateAction]) {
+        await this.clientActionAccessModel.findOrCreate({
+          where: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          },
+          defaults: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          } as any,
+        });
+      }
     }
   }
 

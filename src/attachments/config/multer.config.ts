@@ -2,14 +2,9 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as crypto from 'crypto';
 import { BadRequestException } from '@nestjs/common';
-import * as fs from 'fs';
+import { createUploadDestination } from '../../common/upload-destination';
 
 export const ATTACHMENT_UPLOAD_DIR = './storage/attachments';
-
-// Ensure uploads dir exists
-if (!fs.existsSync(ATTACHMENT_UPLOAD_DIR)) {
-  fs.mkdirSync(ATTACHMENT_UPLOAD_DIR, { recursive: true });
-}
 
 export const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -22,7 +17,7 @@ export const ALLOWED_MIME_TYPES = [
 
 export const getAttachmentMulterConfig = () => ({
   storage: diskStorage({
-    destination: ATTACHMENT_UPLOAD_DIR,
+    destination: createUploadDestination(ATTACHMENT_UPLOAD_DIR),
     filename: (req: any, file, cb) => {
       const uniqueSuffix = crypto.randomUUID();
       const ext = extname(file.originalname);

@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { EquipmentOption } from './equipment-option.model';
+import { measureStartupStep } from '../../common/startup-timing';
 
 export const DEFAULT_EQUIPMENT_SEED: Record<string, string[]> = {
   TRUCK_TYPE: [
@@ -90,38 +91,51 @@ export class EquipmentOptionService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.autoSeedDefaults();
+    await measureStartupStep('EquipmentOptionService.autoSeedDefaults()', () =>
+      this.autoSeedDefaults(),
+    );
   }
 
   public async autoSeedDefaults() {
+    const transaction = await this.equipmentOptionModel.sequelize.transaction();
     try {
-      await this.equipmentOptionModel.sync();
-      const count = await this.equipmentOptionModel.count();
-      if (count === 0) {
-        const rowsToInsert: any[] = [];
-        for (const [category, values] of Object.entries(
-          DEFAULT_EQUIPMENT_SEED,
-        )) {
-          values.forEach((value, idx) => {
-            rowsToInsert.push({
-              category,
-              value,
-              displayOrder: idx + 1,
-              isActive: true,
-            });
-          });
-        }
-        if (rowsToInsert.length > 0) {
-          await this.equipmentOptionModel.bulkCreate(rowsToInsert);
-        }
+      await this.equipmentOptionModel.sequelize.query(
+        `SELECT pg_advisory_xact_lock(hashtext('agricom_equipment_option_seed'))`,
+        { transaction },
+      );
+      const existing = await this.equipmentOptionModel.findOne({
+        attributes: ['id'],
+        raw: true,
+        transaction,
+      });
+      if (existing) {
+        await transaction.commit();
+        return;
       }
-    } catch (err: any) {
-      console.warn('[EquipmentOptionService] Auto-seed warning:', err.message);
+
+      const rowsToInsert = Object.entries(DEFAULT_EQUIPMENT_SEED).flatMap(
+        ([category, values]) =>
+          values.map((value, index) => ({
+            category,
+            value,
+            displayOrder: index + 1,
+            isActive: true,
+          })),
+      );
+      if (rowsToInsert.length > 0) {
+        await this.equipmentOptionModel.bulkCreate(rowsToInsert, {
+          transaction,
+        });
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      console.error('[EquipmentOptionService] Auto-seed failed:', error);
+      throw error;
     }
   }
 
   async findAll(category?: string, companyId?: number) {
-    await this.autoSeedDefaults();
     const where: any = { isActive: true };
     if (companyId) {
       where.companyId = companyId;

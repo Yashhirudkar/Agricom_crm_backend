@@ -3,7 +3,6 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -103,22 +102,8 @@ const INCLUDE_RELATIONS = [
 ];
 
 @Injectable()
-export class EnquiriesService implements OnModuleInit {
+export class EnquiriesService {
   private readonly logger = new Logger(EnquiriesService.name);
-
-  async onModuleInit() {
-    try {
-      await this.sequelize.query(`
-        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS broker_role_id INTEGER REFERENCES partner_roles(id) ON DELETE SET NULL;
-        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS broker_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;
-      `);
-      this.logger.log('Enquiries broker columns verified/added successfully.');
-    } catch (err: any) {
-      this.logger.warn(
-        `Could not verify/add broker columns to enquiries: ${err?.message}`,
-      );
-    }
-  }
 
   constructor(
     @InjectModel(Enquiry)

@@ -17,6 +17,12 @@ import { ResourceAction } from '../../system/models/resource-action.model';
 @Table({
   tableName: 'role_action_permissions',
   timestamps: true,
+  indexes: [
+    {
+      name: 'idx_role_action_permissions_role_action',
+      fields: ['role_id', 'resource_action_id'],
+    },
+  ],
 })
 export class RoleActionPermission extends Model<RoleActionPermission> {
   @PrimaryKey

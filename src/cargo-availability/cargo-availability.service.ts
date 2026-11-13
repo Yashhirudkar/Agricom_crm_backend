@@ -8,7 +8,7 @@ import {
   InjectConnection,
   InjectModel as InjectSequelizeModel,
 } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Sequelize as SequelizeConnection } from 'sequelize-typescript';
 import { CargoAvailability } from './models/cargo-availability.model';
 import { CargoReadiness } from './models/cargo-readiness.model';
@@ -33,6 +33,10 @@ import {
 @Injectable()
 export class CargoAvailabilityService {
   private readonly logger = new Logger(CargoAvailabilityService.name);
+  private readonly shipmentLoadingSyncPromises = new Map<
+    string,
+    Promise<void>
+  >();
 
   constructor(
     @InjectSequelizeModel(CargoAvailability)
@@ -281,6 +285,7 @@ export class CargoAvailabilityService {
       sortOrder = 'DESC',
     } = query;
 
+    await this.syncExecutedShipmentLoadings(companyId);
     await this.autoSyncAllPurchaseContractItems(companyId);
 
     const where: any = {};
@@ -372,6 +377,7 @@ export class CargoAvailabilityService {
 
   // ─── 4. DASHBOARD KPIS STATS ─────────────────────────────────────────────
   async getStats(companyId?: number): Promise<any> {
+    await this.syncExecutedShipmentLoadings(companyId);
     await this.autoSyncAllPurchaseContractItems(companyId);
 
     const whereCond: any = {};
@@ -502,6 +508,7 @@ export class CargoAvailabilityService {
 
   // ─── 5. FIND ONE BY ID ───────────────────────────────────────────────────
   async findOne(id: number, companyId?: number): Promise<any> {
+    await this.syncExecutedShipmentLoadings(companyId);
     if (!id || isNaN(Number(id))) {
       throw new BadRequestException(`Invalid CargoAvailability ID: ${id}`);
     }
@@ -554,6 +561,7 @@ export class CargoAvailabilityService {
 
   // ─── 6. AUTO-FETCH SHIPMENT INFO FOR EXPORTER LOADING ────────────────────
   async getShipmentInfo(shipmentId: number, companyId?: number): Promise<any> {
+    await this.syncExecutedShipmentLoadings(companyId);
     if (!shipmentId || isNaN(Number(shipmentId))) {
       throw new BadRequestException(`Invalid Shipment ID: ${shipmentId}`);
     }
@@ -932,6 +940,7 @@ export class CargoAvailabilityService {
     userId?: number,
     companyId?: number,
   ): Promise<CargoShipmentAllocation> {
+    await this.syncExecutedShipmentLoadings(companyId);
     const cargoWhere: any = { id: dto.cargoAvailabilityId };
     if (companyId) cargoWhere.companyId = companyId;
     const cargo = await this.cargoAvailabilityModel.findOne({
@@ -977,6 +986,26 @@ export class CargoAvailabilityService {
   }
 
   public async syncExecutedShipmentLoadings(companyId?: number): Promise<void> {
+    const scope = companyId === undefined ? 'all' : String(companyId);
+    const existingSync = this.shipmentLoadingSyncPromises.get(scope);
+    if (existingSync) {
+      return existingSync;
+    }
+
+    const syncPromise = this.syncExecutedShipmentLoadingsOnce(companyId);
+    this.shipmentLoadingSyncPromises.set(scope, syncPromise);
+    try {
+      await syncPromise;
+    } finally {
+      if (this.shipmentLoadingSyncPromises.get(scope) === syncPromise) {
+        this.shipmentLoadingSyncPromises.delete(scope);
+      }
+    }
+  }
+
+  private async syncExecutedShipmentLoadingsOnce(
+    companyId?: number,
+  ): Promise<void> {
     try {
       const shipmentWhere: any = {
         status: { [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] },
@@ -1013,30 +1042,75 @@ export class CargoAvailabilityService {
         ],
       });
 
-      for (const shipment of shipments) {
+      const eligibleShipments = shipments.filter((shipment) => {
         const resolvedCompanyId =
           shipment.companyId ?? shipment.salesContract?.companyId ?? null;
-        if (companyId && resolvedCompanyId && resolvedCompanyId !== companyId) {
-          continue;
-        }
+        return !(
+          companyId &&
+          resolvedCompanyId &&
+          resolvedCompanyId !== companyId
+        );
+      });
+      if (eligibleShipments.length === 0) return;
 
+      const shipmentIds = eligibleShipments.map((shipment) => shipment.id);
+      const [allocations, existingLoadings, existingStuffings] =
+        await Promise.all([
+          this.cargoAllocationModel.findAll({
+            where: {
+              shipmentId: { [Op.in]: shipmentIds },
+              status: 'Active',
+            },
+            order: [['createdAt', 'ASC']],
+          }),
+          this.cargoLoadingModel.findAll({
+            where: { shipmentId: { [Op.in]: shipmentIds } },
+          }),
+          this.stuffingModel.findAll({
+            where: { shipmentId: { [Op.in]: shipmentIds } },
+          }),
+        ]);
+
+      const allocationByShipment = new Map<number, CargoShipmentAllocation>();
+      for (const allocation of allocations) {
+        if (!allocationByShipment.has(allocation.shipmentId)) {
+          allocationByShipment.set(allocation.shipmentId, allocation);
+        }
+      }
+
+      const loadingByShipment = new Map<number, CargoLoading>();
+      for (const loading of existingLoadings) {
+        if (!loadingByShipment.has(loading.shipmentId)) {
+          loadingByShipment.set(loading.shipmentId, loading);
+        }
+      }
+
+      const stuffingByShipment = new Map<number, ShipmentStuffing>();
+      for (const stuffing of existingStuffings) {
+        stuffingByShipment.set(stuffing.shipmentId, stuffing);
+      }
+
+      const loadingRowsToCreate = [];
+      const loadingRowsToUpdate: Array<Partial<CargoLoading> & { id: number }> =
+        [];
+      const stuffingRowsToCreate = [];
+      const stuffingRowsToUpdate: Array<
+        Partial<ShipmentStuffing> & { id: number }
+      > = [];
+
+      for (const shipment of eligibleShipments) {
+        const resolvedCompanyId =
+          shipment.companyId ?? shipment.salesContract?.companyId ?? null;
         const resolvedBusinessTxId =
           shipment.businessTransactionId ??
           shipment.salesContract?.businessTransactionId ??
           null;
-
-        const allocation = await this.cargoAllocationModel.findOne({
-          where: { shipmentId: shipment.id, status: 'Active' },
-          order: [['createdAt', 'ASC']],
-        });
+        const allocation = allocationByShipment.get(shipment.id);
 
         // 1. Check or create CargoLoading
-        let existingLoading = await this.cargoLoadingModel.findOne({
-          where: { shipmentId: shipment.id },
-        });
-
+        const existingLoading = loadingByShipment.get(shipment.id);
         if (!existingLoading) {
-          existingLoading = await this.cargoLoadingModel.create({
+          loadingRowsToCreate.push({
             companyId: resolvedCompanyId,
             businessTransactionId: resolvedBusinessTxId,
             cargoAvailabilityId: allocation?.cargoAvailabilityId ?? null,
@@ -1059,34 +1133,34 @@ export class CargoAvailabilityService {
             remarks: 'Initialized from Shipment Execution.',
           });
         } else {
-          let updated = false;
+          const update: Partial<CargoLoading> & { id: number } = {
+            id: existingLoading.id,
+          };
           if (!existingLoading.companyId && resolvedCompanyId) {
-            existingLoading.companyId = resolvedCompanyId;
-            updated = true;
+            update.companyId = resolvedCompanyId;
           }
           if (!existingLoading.businessTransactionId && resolvedBusinessTxId) {
-            existingLoading.businessTransactionId = resolvedBusinessTxId;
-            updated = true;
+            update.businessTransactionId = resolvedBusinessTxId;
           }
           if (!existingLoading.shipmentAllocationId && allocation?.id) {
-            existingLoading.shipmentAllocationId = allocation.id;
-            existingLoading.cargoAvailabilityId =
-              allocation.cargoAvailabilityId;
-            updated = true;
+            update.shipmentAllocationId = allocation.id;
           }
-          if (updated) {
-            await existingLoading.save();
+          if (
+            !existingLoading.cargoAvailabilityId &&
+            allocation?.cargoAvailabilityId
+          ) {
+            update.cargoAvailabilityId = allocation.cargoAvailabilityId;
+          }
+          if (Object.keys(update).length > 1) {
+            loadingRowsToUpdate.push(update);
           }
         }
 
         // 2. Check or create ShipmentStuffing
-        const existingStuffing = await this.stuffingModel.findOne({
-          where: { shipmentId: shipment.id },
-        });
-
+        const existingStuffing = stuffingByShipment.get(shipment.id);
         if (!existingStuffing) {
           const firstItem = shipment.salesContract?.items?.[0];
-          await this.stuffingModel.create({
+          stuffingRowsToCreate.push({
             companyId: resolvedCompanyId,
             shipmentId: shipment.id,
             salesContractId: shipment.salesContractId,
@@ -1116,28 +1190,171 @@ export class CargoAvailabilityService {
             remarks: 'Initialized automatically from Shipment Execution.',
           });
         } else {
-          let stuffingUpdated = false;
+          const update: Partial<ShipmentStuffing> & { id: number } = {
+            id: existingStuffing.id,
+          };
           if (!existingStuffing.companyId && resolvedCompanyId) {
-            existingStuffing.companyId = resolvedCompanyId;
-            stuffingUpdated = true;
+            update.companyId = resolvedCompanyId;
           }
-          if (
-            existingStuffing.stuffingStatus === 'Draft' ||
-            existingStuffing.executionStatus === 'Draft'
-          ) {
-            existingStuffing.stuffingStatus = 'Pending';
-            existingStuffing.executionStatus = 'Pending';
-            stuffingUpdated = true;
+          if (existingStuffing.stuffingStatus === 'Draft') {
+            update.stuffingStatus = 'Pending';
           }
-          if (stuffingUpdated) {
-            await existingStuffing.save();
+          if (existingStuffing.executionStatus === 'Draft') {
+            update.executionStatus = 'Pending';
+          }
+          if (Object.keys(update).length > 1) {
+            stuffingRowsToUpdate.push(update);
           }
         }
+      }
+
+      if (loadingRowsToCreate.length > 0) {
+        await this.cargoLoadingModel.bulkCreate(loadingRowsToCreate, {
+          ignoreDuplicates: true,
+        });
+      }
+      if (loadingRowsToUpdate.length > 0) {
+        await this.bulkUpdateSyncRows('cargo_loading', loadingRowsToUpdate, {
+          companyId: 'company_id',
+          businessTransactionId: 'business_transaction_id',
+          shipmentAllocationId: 'shipment_allocation_id',
+          cargoAvailabilityId: 'cargo_availability_id',
+        });
+      }
+      if (stuffingRowsToCreate.length > 0) {
+        await this.stuffingModel.bulkCreate(stuffingRowsToCreate, {
+          ignoreDuplicates: true,
+        });
+      }
+      if (stuffingRowsToUpdate.length > 0) {
+        await this.bulkUpdateSyncRows(
+          'shipment_stuffings',
+          stuffingRowsToUpdate,
+          {
+            companyId: 'company_id',
+            stuffingStatus: 'stuffing_status',
+            executionStatus: 'execution_status',
+          },
+        );
       }
     } catch (err: any) {
       this.logger.warn(
         `[syncExecutedShipmentLoadings] Sync warning: ${err?.message}`,
       );
+      throw err;
+    }
+  }
+
+  private async bulkUpdateSyncRows<T extends { id: number }>(
+    tableName: 'cargo_loading' | 'shipment_stuffings',
+    rows: Array<Partial<T> & { id: number }>,
+    columnByAttribute: Record<string, string>,
+  ): Promise<void> {
+    const groups = new Map<string, Array<Partial<T> & { id: number }>>();
+    for (const row of rows) {
+      const fields = Object.keys(row)
+        .filter((field) => field !== 'id')
+        .sort();
+      const key = fields.join(',');
+      const group = groups.get(key) ?? [];
+      group.push(row);
+      groups.set(key, group);
+    }
+
+    const quoteIdentifier = (identifier: string) =>
+      `"${identifier.replace(/"/g, '""')}"`;
+    const table = quoteIdentifier(tableName);
+
+    for (const [fieldKey, group] of groups) {
+      const fields = fieldKey.split(',');
+      const databaseFields = fields.map((field) => {
+        const databaseField = columnByAttribute[field];
+        if (!databaseField) {
+          throw new Error(`Unsupported shipment sync field: ${field}`);
+        }
+        return databaseField;
+      });
+
+      for (let offset = 0; offset < group.length; offset += 500) {
+        const batch = group.slice(offset, offset + 500);
+        const replacements: Record<string, unknown> = {};
+        const values = batch.map((row, rowIndex) => {
+          const rowValues = [`:id_${rowIndex}`];
+          replacements[`id_${rowIndex}`] = row.id;
+          fields.forEach((field) => {
+            const replacementKey = `${field}_${rowIndex}`;
+            rowValues.push(`:${replacementKey}`);
+            replacements[replacementKey] = (row as Record<string, unknown>)[
+              field
+            ];
+          });
+          return `(${rowValues.join(', ')})`;
+        });
+        const sourceColumns = ['id', ...databaseFields]
+          .map(quoteIdentifier)
+          .join(', ');
+        const assignments = databaseFields
+          .map((field) => {
+            const sourceField = `source.${quoteIdentifier(field)}`;
+            const targetField = `target.${quoteIdentifier(field)}`;
+            if (field === 'company_id' || field === 'business_transaction_id') {
+              return `${quoteIdentifier(field)} = COALESCE(${targetField}, ${sourceField})`;
+            }
+            if (
+              tableName === 'cargo_loading' &&
+              (field === 'shipment_allocation_id' ||
+                field === 'cargo_availability_id')
+            ) {
+              return `${quoteIdentifier(field)} = CASE WHEN ${targetField} IS NULL THEN ${sourceField} ELSE ${targetField} END`;
+            }
+            if (
+              tableName === 'shipment_stuffings' &&
+              field === 'stuffing_status'
+            ) {
+              return `${quoteIdentifier(field)} = CASE WHEN ${targetField} = 'Draft' THEN ${sourceField} ELSE ${targetField} END`;
+            }
+            if (
+              tableName === 'shipment_stuffings' &&
+              field === 'execution_status'
+            ) {
+              return `${quoteIdentifier(field)} = CASE WHEN ${targetField} = 'Draft' THEN ${sourceField} ELSE ${targetField} END`;
+            }
+            return `${quoteIdentifier(field)} = ${sourceField}`;
+          })
+          .concat(`${quoteIdentifier('updated_at')} = NOW()`)
+          .join(', ');
+        const sql = `
+          UPDATE ${table} AS target
+          SET ${assignments}
+          FROM (VALUES ${values.join(', ')}) AS source (${sourceColumns})
+          WHERE target.${quoteIdentifier('id')} = source.${quoteIdentifier('id')}
+            AND (${databaseFields
+              .map((field) => {
+                const targetField = `target.${quoteIdentifier(field)}`;
+                const sourceField = `source.${quoteIdentifier(field)}`;
+                if (
+                  field === 'company_id' ||
+                  field === 'business_transaction_id' ||
+                  field === 'shipment_allocation_id' ||
+                  field === 'cargo_availability_id'
+                ) {
+                  return `${targetField} IS NULL AND ${sourceField} IS NOT NULL`;
+                }
+                if (
+                  tableName === 'shipment_stuffings' &&
+                  (field === 'stuffing_status' || field === 'execution_status')
+                ) {
+                  return `${targetField} = 'Draft' AND ${targetField} IS DISTINCT FROM ${sourceField}`;
+                }
+                return `${targetField} IS DISTINCT FROM ${sourceField}`;
+              })
+              .join(' OR ')})
+        `;
+        await this.sequelize.query(sql, {
+          replacements,
+          type: QueryTypes.BULKUPDATE,
+        });
+      }
     }
   }
 
@@ -1373,6 +1590,7 @@ export class CargoAvailabilityService {
     userId?: number,
     companyId?: number,
   ): Promise<CargoLoading> {
+    await this.syncExecutedShipmentLoadings(companyId);
     // a. Hard block duplicate truck check on same date
     if (dto.truckNo && dto.loadingDate) {
       const activeTruckWhere: any = {
@@ -1528,6 +1746,7 @@ export class CargoAvailabilityService {
     userId?: number,
     companyId?: number,
   ): Promise<CargoLoading> {
+    await this.syncExecutedShipmentLoadings(companyId);
     const loadingWhere: any = { id };
     if (companyId) loadingWhere.companyId = companyId;
     return this.sequelize.transaction(async (transaction) => {

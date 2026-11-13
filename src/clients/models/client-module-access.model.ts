@@ -18,6 +18,12 @@ import { AppModule } from '../../system/models/app-module.model';
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: false,
+  indexes: [
+    {
+      name: 'idx_client_module_access_module_client',
+      fields: ['module_id', 'client_id'],
+    },
+  ],
 })
 export class ClientModuleAccess extends Model<ClientModuleAccess> {
   @PrimaryKey

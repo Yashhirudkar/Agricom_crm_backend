@@ -116,20 +116,37 @@ export class ExchangeRateService {
     };
   }
 
-  async syncRates(): Promise<ExchangeRateSyncResponseDto> {
+  async syncRates(forceRefresh = false): Promise<ExchangeRateSyncResponseDto> {
     let apiKey: string | undefined;
     let requestUrl = API_URL;
     try {
+      const currencies = await this.repository.getCurrenciesToSync();
+      const requestedCurrencies = currencies.filter(
+        (currency) => currency !== TARGET_CURRENCY,
+      );
+      const today = this.getTodayInIndia();
+      if (
+        !forceRefresh &&
+        (await this.repository.hasRatesForDate(requestedCurrencies, today))
+      ) {
+        this.logger.log(
+          `Exchange-rate synchronization skipped; current rates are already stored for ${today}.`,
+        );
+        return {
+          success: true,
+          recordsInserted: 0,
+          currencies: requestedCurrencies,
+          exchangeRateDate: today,
+          errors: [],
+        };
+      }
+
       apiKey = this.configService.get<string>('EXCHANGE_RATE_API_KEY')?.trim();
       this.logger.log(`API Key Loaded: ${apiKey ? 'YES' : 'NO'}`);
       if (!apiKey) {
         throw new Error('EXCHANGE_RATE_API_KEY is not configured.');
       }
 
-      const currencies = await this.repository.getCurrenciesToSync();
-      const requestedCurrencies = currencies.filter(
-        (currency) => currency !== TARGET_CURRENCY,
-      );
       const requestParams = new URLSearchParams({
         source: TARGET_CURRENCY,
         currencies: requestedCurrencies.join(','),
@@ -224,11 +241,9 @@ export class ExchangeRateService {
         .filter((currency) => currency !== TARGET_CURRENCY);
       this.logger.log(`Parsed currencies: ${savedCurrencies.join(', ')}`);
       await this.repository.upsertRates(rates);
-      const totalRecords = await this.repository.countRates();
       this.logger.log(
         `Exchange rates inserted: ${savedCurrencies.map((currency) => `${currency} -> ${TARGET_CURRENCY}`).join(', ')}`,
       );
-      this.logger.log(`SELECT COUNT(*) FROM exchange_rates: ${totalRecords}`);
       this.logger.log(
         `Stored ${rates.length} exchange rates for ${effectiveDate}; missing currencies: ${missingCurrencies.length}.`,
       );

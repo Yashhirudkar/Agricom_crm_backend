@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { QueryTypes } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Currency } from '../../masters/currency/currency.model';
 import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
@@ -72,6 +72,27 @@ export class ExchangeRateRepository {
       type: QueryTypes.SELECT,
     });
     return Number(result.count);
+  }
+
+  async hasRatesForDate(
+    currencies: string[],
+    effectiveDate: string,
+  ): Promise<boolean> {
+    if (currencies.length === 0) return true;
+
+    const records = (await this.exchangeRateModel.findAll({
+      where: {
+        targetCurrency: 'INR',
+        effectiveDate,
+        baseCurrency: { [Op.in]: currencies },
+      },
+      attributes: ['baseCurrency'],
+      raw: true,
+    })) as Array<{ baseCurrency: string }>;
+    const storedCurrencies = new Set(
+      records.map(({ baseCurrency }) => baseCurrency),
+    );
+    return currencies.every((currency) => storedCurrencies.has(currency));
   }
 
   async getCurrenciesToSync(): Promise<string[]> {

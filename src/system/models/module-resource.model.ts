@@ -20,6 +20,10 @@ import { ResourceAction } from './resource-action.model';
 @Table({
   tableName: 'module_resources',
   timestamps: true,
+  indexes: [
+    { name: 'idx_module_resources_name', fields: ['name'] },
+    { name: 'idx_module_resources_module_id', fields: ['module_id'] },
+  ],
 })
 export class ModuleResource extends Model<ModuleResource> {
   @PrimaryKey

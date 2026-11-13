@@ -18,6 +18,7 @@ import { ClientModuleAccess } from '../../clients/models/client-module-access.mo
 @Table({
   tableName: 'app_modules',
   timestamps: true,
+  indexes: [{ name: 'idx_app_modules_name', fields: ['name'] }],
 })
 export class AppModule extends Model<AppModule> {
   @PrimaryKey

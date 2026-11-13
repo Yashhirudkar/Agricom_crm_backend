@@ -12,6 +12,7 @@ import { WhatsAppConfig } from './whatsapp.types';
 import { Company } from '../../companies/models/company.model';
 import { NotificationLog } from '../models/notification-log.model';
 import type { GroupMetadata } from '@whiskeysockets/baileys';
+import { measureStartupStep } from '../../common/startup-timing';
 
 // Baileys is ESM-only — always imported dynamically at runtime
 type WASocket = any;
@@ -55,6 +56,7 @@ export class WhatsAppService
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
   private readonly MAX_RECONNECT_DELAY_MS = 30_000;
+  private connectionInitialization?: Promise<void>;
 
   constructor(
     private readonly configService: ConfigService,
@@ -72,14 +74,28 @@ export class WhatsAppService
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     if (!this.config.enabled) {
       console.log(
         '[WhatsApp] Disabled via WHATSAPP_ENABLED=false — skipping init',
       );
       return;
     }
-    await this.connect();
+
+    this.connectionInitialization = new Promise((resolve) => {
+      setImmediate(() => {
+        void measureStartupStep('WhatsAppService.connect() (background)', () =>
+          this.connect(),
+        )
+          .catch((error) => {
+            this.logger.error(
+              'Background WhatsApp initialization failed',
+              error,
+            );
+          })
+          .finally(resolve);
+      });
+    });
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -117,6 +133,7 @@ export class WhatsAppService
    * Never throws — all errors are caught and logged.
    */
   async sendText(jid: string, text: string): Promise<boolean> {
+    await this.connectionInitialization;
     if (!this.isReady || !this.sock) {
       this.logger.warn('[WhatsApp] Cannot send — socket not ready');
       return false;
@@ -417,6 +434,7 @@ export class WhatsAppService
    * Resolves a group JID by its subject (name).
    */
   async resolveGroupJidByName(groupName: string): Promise<string | null> {
+    await this.connectionInitialization;
     if (!this.sock || !this.isReady) {
       this.logger.warn(
         `[WhatsApp] Cannot resolve group "${groupName}" — socket not ready`,

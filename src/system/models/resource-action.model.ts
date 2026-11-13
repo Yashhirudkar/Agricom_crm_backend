@@ -21,6 +21,12 @@ import { ClientActionAccess } from '../../clients/models/client-action-access.mo
 @Table({
   tableName: 'resource_actions',
   timestamps: true,
+  indexes: [
+    {
+      name: 'idx_resource_actions_resource_id_name',
+      fields: ['resource_id', 'name'],
+    },
+  ],
 })
 export class ResourceAction extends Model<ResourceAction> {
   @PrimaryKey

@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
+import { measureStartupStep } from '../common/startup-timing';
 
 export interface Airport {
   code: string;
@@ -11,23 +12,43 @@ export interface Airport {
 }
 
 @Injectable()
-export class AirportsService implements OnModuleInit {
+export class AirportsService {
   private readonly logger = new Logger(AirportsService.name);
 
-  // Storing airports mapped by country for fast O(1) initial filtering
   private airportsByCountry = new Map<string, Airport[]>();
+  private airportsLoadPromise?: Promise<void>;
 
-  async onModuleInit() {
-    await this.loadAirports();
+  private ensureAirportsLoaded(): Promise<void> {
+    if (!this.airportsLoadPromise) {
+      this.airportsLoadPromise = measureStartupStep(
+        'AirportsService.loadAirports() (first use)',
+        () => this.loadAirports(),
+      ).catch((error) => {
+        this.airportsLoadPromise = undefined;
+        throw error;
+      });
+    }
+
+    return this.airportsLoadPromise;
   }
 
   private async loadAirports() {
     this.logger.log('Loading airports from CSV...');
     const csvPath = path.join(process.cwd(), 'public', 'airports.csv');
 
-    if (!fs.existsSync(csvPath)) {
-      this.logger.warn(`Airports CSV not found at ${csvPath}`);
-      return;
+    try {
+      await fs.promises.access(csvPath);
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ) {
+        this.logger.warn(`Airports CSV not found at ${csvPath}`);
+        return;
+      }
+      throw error;
     }
 
     const fileStream = fs.createReadStream(csvPath);
@@ -98,11 +119,12 @@ export class AirportsService implements OnModuleInit {
   /**
    * Search airports optimally
    */
-  searchAirports(
+  async searchAirports(
     countryCode?: string,
     query?: string,
     limit: number = 5,
-  ): Airport[] {
+  ): Promise<Airport[]> {
+    await this.ensureAirportsLoaded();
     let pool: Airport[] = [];
 
     // Filter by country if provided

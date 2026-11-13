@@ -23,6 +23,7 @@ import { RateLimit } from '../guards/rate-limit.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { createUploadDestination } from '../../common/upload-destination';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { UpdatePersonalDto } from '../dto/update-personal.dto';
 import { UpdateEmergencyContactDto } from '../dto/update-emergency-contact.dto';
@@ -103,7 +104,7 @@ export class ProfileController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads/profile',
+        destination: createUploadDestination('./uploads/profile'),
         filename: (req, file, cb) => {
           const uniqueSuffix =
             Date.now() + '-' + Math.round(Math.random() * 1e9);

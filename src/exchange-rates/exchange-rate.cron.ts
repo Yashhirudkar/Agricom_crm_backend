@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ExchangeRateService } from './exchange-rate.service';
+import { measureStartupStep } from '../common/startup-timing';
 
 @Injectable()
 export class ExchangeRateCron implements OnApplicationBootstrap {
@@ -8,21 +9,26 @@ export class ExchangeRateCron implements OnApplicationBootstrap {
 
   constructor(private readonly exchangeRateService: ExchangeRateService) {}
 
-  async onApplicationBootstrap(): Promise<void> {
-    try {
-      const result = await this.exchangeRateService.syncRates();
-      this.logger.log(
-        `Initial exchange-rate synchronization stored ${result.recordsInserted} records for ${result.exchangeRateDate}.`,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unexpected synchronization error.';
-      this.logger.error(
-        `Initial exchange-rate synchronization failed: ${message}`,
-      );
-    }
+  onApplicationBootstrap(): void {
+    setImmediate(() => {
+      void measureStartupStep(
+        'ExchangeRateCron.initialSync() (background)',
+        async () => {
+          const result = await this.exchangeRateService.syncRates();
+          this.logger.log(
+            `Initial exchange-rate synchronization stored ${result.recordsInserted} records for ${result.exchangeRateDate}.`,
+          );
+        },
+      ).catch((error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unexpected synchronization error.';
+        this.logger.error(
+          `Initial exchange-rate synchronization failed: ${message}`,
+        );
+      });
+    });
   }
 
   @Cron('5 0 * * *', { timeZone: 'Asia/Kolkata' })
