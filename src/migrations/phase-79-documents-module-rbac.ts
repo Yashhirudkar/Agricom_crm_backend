@@ -11,8 +11,8 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     // 1. Ensure AppModule "Documents"
     await seq.query(
       `INSERT INTO app_modules (name, sort_order, "createdAt", "updatedAt")
-       VALUES ('Documents', 85, NOW(), NOW())
-       ON CONFLICT (name) DO NOTHING;`,
+       SELECT 'Documents', 85, NOW(), NOW()
+       WHERE NOT EXISTS (SELECT 1 FROM app_modules WHERE name = 'Documents');`,
       { transaction },
     );
 
@@ -25,9 +25,18 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
     if (docModuleId) {
       // 2. Ensure ModuleResource "shipment_stuffing_execution"
       await seq.query(
+        `UPDATE module_resources
+         SET module_id = :docModuleId, display_name = 'Shipment Stuffing Execution'
+         WHERE name = 'shipment_stuffing_execution';`,
+        { replacements: { docModuleId }, transaction },
+      );
+
+      await seq.query(
         `INSERT INTO module_resources (name, display_name, module_id, sort_order, "createdAt", "updatedAt")
-         VALUES ('shipment_stuffing_execution', 'Shipment Stuffing Execution', :docModuleId, 10, NOW(), NOW())
-         ON CONFLICT (name) DO UPDATE SET module_id = :docModuleId, display_name = 'Shipment Stuffing Execution';`,
+         SELECT 'shipment_stuffing_execution', 'Shipment Stuffing Execution', :docModuleId, 10, NOW(), NOW()
+         WHERE NOT EXISTS (
+           SELECT 1 FROM module_resources WHERE name = 'shipment_stuffing_execution'
+         );`,
         { replacements: { docModuleId }, transaction },
       );
 
@@ -41,15 +50,21 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
         // 3. Ensure ResourceActions VIEW and UPDATE
         await seq.query(
           `INSERT INTO resource_actions (name, display_name, resource_id, sort_order, "createdAt", "updatedAt")
-           VALUES ('VIEW', 'VIEW', :stuffingResourceId, 0, NOW(), NOW())
-           ON CONFLICT DO NOTHING;`,
+           SELECT 'VIEW', 'VIEW', :stuffingResourceId, 0, NOW(), NOW()
+           WHERE NOT EXISTS (
+             SELECT 1 FROM resource_actions
+             WHERE name = 'VIEW' AND resource_id = :stuffingResourceId
+           );`,
           { replacements: { stuffingResourceId }, transaction },
         );
 
         await seq.query(
           `INSERT INTO resource_actions (name, display_name, resource_id, sort_order, "createdAt", "updatedAt")
-           VALUES ('UPDATE', 'UPDATE', :stuffingResourceId, 10, NOW(), NOW())
-           ON CONFLICT DO NOTHING;`,
+           SELECT 'UPDATE', 'UPDATE', :stuffingResourceId, 10, NOW(), NOW()
+           WHERE NOT EXISTS (
+             SELECT 1 FROM resource_actions
+             WHERE name = 'UPDATE' AND resource_id = :stuffingResourceId
+           );`,
           { replacements: { stuffingResourceId }, transaction },
         );
 
@@ -68,8 +83,11 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
           for (const action of actions) {
             await seq.query(
               `INSERT INTO role_action_permissions (role_id, resource_action_id, "createdAt", "updatedAt")
-               VALUES (:roleId, :actionId, NOW(), NOW())
-               ON CONFLICT (role_id, resource_action_id) DO NOTHING;`,
+               SELECT :roleId, :actionId, NOW(), NOW()
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM role_action_permissions
+                 WHERE role_id = :roleId AND resource_action_id = :actionId
+               );`,
               { replacements: { roleId: role.id, actionId: action.id }, transaction },
             );
           }
@@ -83,17 +101,23 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
         for (const client of clients) {
           await seq.query(
-            `INSERT INTO client_module_access (client_id, module_id, "createdAt", "updatedAt")
-             VALUES (:clientId, :docModuleId, NOW(), NOW())
-             ON CONFLICT (client_id, module_id) DO NOTHING;`,
+            `INSERT INTO client_module_access (client_id, module_id, created_at)
+             SELECT :clientId, :docModuleId, NOW()
+             WHERE NOT EXISTS (
+               SELECT 1 FROM client_module_access
+               WHERE client_id = :clientId AND module_id = :docModuleId
+             );`,
             { replacements: { clientId: client.id, docModuleId }, transaction },
           );
 
           for (const action of actions) {
             await seq.query(
-              `INSERT INTO client_action_access (client_id, resource_action_id, "createdAt", "updatedAt")
-               VALUES (:clientId, :actionId, NOW(), NOW())
-               ON CONFLICT (client_id, resource_action_id) DO NOTHING;`,
+              `INSERT INTO client_action_access (client_id, resource_action_id, created_at)
+               SELECT :clientId, :actionId, NOW()
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM client_action_access
+                 WHERE client_id = :clientId AND resource_action_id = :actionId
+               );`,
               { replacements: { clientId: client.id, actionId: action.id }, transaction },
             );
           }
@@ -160,17 +184,23 @@ export async function up(queryInterface: QueryInterface): Promise<void> {
 
       for (const client of clients) {
         await seq.query(
-          `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
-           VALUES (:clientId, :folderId, NOW(), NOW())
-           ON CONFLICT (client_id, folder_id) DO NOTHING;`,
+          `INSERT INTO client_folder_access (client_id, folder_id, created_at)
+           SELECT :clientId, :folderId, NOW()
+           WHERE NOT EXISTS (
+             SELECT 1 FROM client_folder_access
+             WHERE client_id = :clientId AND folder_id = :folderId
+           );`,
           { replacements: { clientId: client.id, folderId }, transaction },
         );
 
         if (itemId) {
           await seq.query(
-            `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
-             VALUES (:clientId, :itemId, NOW(), NOW())
-             ON CONFLICT (client_id, item_id) DO NOTHING;`,
+            `INSERT INTO client_item_access (client_id, item_id, created_at)
+             SELECT :clientId, :itemId, NOW()
+             WHERE NOT EXISTS (
+               SELECT 1 FROM client_item_access
+               WHERE client_id = :clientId AND item_id = :itemId
+             );`,
             { replacements: { clientId: client.id, itemId }, transaction },
           );
         }
@@ -202,4 +232,3 @@ export async function down(queryInterface: QueryInterface): Promise<void> {
     throw error;
   }
 }
-
