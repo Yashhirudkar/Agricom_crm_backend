@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Param,
+  Query,
   Res,
   UseInterceptors,
   UploadedFile,
@@ -27,6 +28,7 @@ import { extname, join } from 'path';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
 import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../../rbac/decorators/require-any-permission.decorator';
 import * as fs from 'fs';
 import { Response } from 'express';
 import { InjectModel } from '@nestjs/sequelize';
@@ -157,8 +159,74 @@ export class AttachmentsController {
     return res.sendFile(filePath);
   }
 
+  @Get('by-path/download')
+  @RequireAnyPermission(
+    'attachments:download',
+    'shipments:view',
+    'shipments:update',
+    'shipment_stuffing_execution:view',
+    'shipment_stuffing_execution:update',
+    'sales_contracts:view',
+    'sales_contracts:read',
+    'chat:read',
+  )
+  async downloadByPath(
+    @Query('path') rawPath: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    if (!rawPath || rawPath.includes('..')) {
+      throw new BadRequestException('Invalid path');
+    }
+    const cleanPath = rawPath.replace(/^[/\\]+/, '');
+    const filename = cleanPath.split('/').pop() || cleanPath;
+    const attachment = await this.attachmentModel.findOne({
+      where: {
+        [Op.or]: [
+          { storagePath: cleanPath },
+          { storedName: cleanPath },
+          { storedName: filename },
+          { storagePath: `documents/${filename}` },
+        ],
+      },
+    });
+
+    if (!attachment) {
+      const diskPath = this.storageProvider.resolvePath(cleanPath);
+      if (fs.existsSync(diskPath)) {
+        return res.sendFile(diskPath);
+      }
+      throw new NotFoundException('Attachment not found');
+    }
+
+    const headerOrActive = req.headers['x-company-id'] || req.activeCompanyId;
+    const companyId = headerOrActive
+      ? parseInt(headerOrActive as string, 10)
+      : attachment.companyId;
+
+    if (companyId) {
+      await this.checkAttachmentAccess(attachment, req.user, companyId);
+    }
+
+    const filePath = this.storageProvider.resolvePath(attachment.storagePath);
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundException('File not found');
+    }
+
+    return res.sendFile(filePath);
+  }
+
   @Get(':id/download')
-  @RequirePermission('attachments:download')
+  @RequireAnyPermission(
+    'attachments:download',
+    'shipments:view',
+    'shipments:update',
+    'shipment_stuffing_execution:view',
+    'shipment_stuffing_execution:update',
+    'sales_contracts:view',
+    'sales_contracts:read',
+    'chat:read',
+  )
   async downloadFileById(
     @Param('id') id: string,
     @Request() req,

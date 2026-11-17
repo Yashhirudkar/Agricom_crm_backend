@@ -26,18 +26,22 @@ import { UpdatePortDto } from './dto/update-port.dto';
 import { QueryPortDto } from './dto/query-port.dto';
 import { AddShippingLineToPortDto } from './dto/port-shipping-line.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
+import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller(['masters/ports', 'ports'])
 export class PortController {
   constructor(private readonly service: PortService) {}
 
   @Get()
+  @RequirePermission('ports:view')
   async findAll(@Query() query: QueryPortDto) {
     return await this.service.findAll(query);
   }
 
   @Get('export')
+  @RequirePermission('ports:export')
   async exportExcel(@Res() res: Response) {
     const buffer = await this.service.exportExcel();
     res.setHeader(
@@ -52,6 +56,7 @@ export class PortController {
   }
 
   @Get('template')
+  @RequirePermission('ports:create')
   async getTemplate(@Res() res: Response) {
     const buffer = await this.service.getImportTemplate();
     res.setHeader(
@@ -66,6 +71,7 @@ export class PortController {
   }
 
   @Post('import')
+  @RequirePermission('ports:create')
   @UseInterceptors(FileInterceptor('file'))
   async importExcel(
     @UploadedFile() file: Express.Multer.File,
@@ -121,17 +127,20 @@ export class PortController {
   }
 
   @Get(':id')
+  @RequirePermission('ports:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return await this.service.findOne(id);
   }
 
   @Post()
+  @RequirePermission('ports:create')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreatePortDto, @Req() req: any) {
     return await this.service.create(dto, req.user);
   }
 
   @Put(':id')
+  @RequirePermission('ports:update')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePortDto,
@@ -141,16 +150,19 @@ export class PortController {
   }
 
   @Patch(':id/toggle')
+  @RequirePermission('ports:update')
   async toggleStatus(@Param('id', ParseIntPipe) id: number) {
     return await this.service.toggleStatus(id);
   }
 
   @Delete(':id')
+  @RequirePermission('ports:delete')
   async remove(@Param('id', ParseIntPipe) id: number) {
     return await this.service.remove(id);
   }
 
   @Post(':id/shipping-lines')
+  @RequirePermission('ports:update')
   @HttpCode(HttpStatus.CREATED)
   async addShippingLine(
     @Param('id', ParseIntPipe) id: number,
@@ -160,6 +172,7 @@ export class PortController {
   }
 
   @Delete(':id/shipping-lines/:lineId')
+  @RequirePermission('ports:update')
   async removeShippingLine(
     @Param('id', ParseIntPipe) id: number,
     @Param('lineId', ParseIntPipe) lineId: number,

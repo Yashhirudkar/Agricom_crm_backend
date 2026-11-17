@@ -20,6 +20,7 @@ import { UserRole } from './user-role.model';
 import { User } from '../../users/models/user.model';
 import { Client } from '../../clients/models/client.model';
 import { RoleActionPermission } from './role-action-permission.model';
+import { RolePermissionGroup } from './role-permission-group.model';
 
 @Table({
   tableName: 'roles',
@@ -80,4 +81,11 @@ export class Role extends Model<Role> {
 
   @HasMany(() => RoleActionPermission, { onDelete: 'CASCADE', hooks: true })
   declare roleActionPermissions: RoleActionPermission[];
+
+  @HasMany(() => RolePermissionGroup, {
+    foreignKey: 'role_id',
+    onDelete: 'CASCADE',
+    hooks: true,
+  })
+  declare rolePermissionGroups: RolePermissionGroup[];
 }

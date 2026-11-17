@@ -1,6 +1,9 @@
 import { Logger, Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SalesContractsModule } from './sales-contracts/sales-contracts.module';
+import { ExportInvoicesModule } from './export-invoices/export-invoices.module';
+import { ExportInvoice } from './export-invoices/models/export-invoice.model';
+import { ExportInvoiceSequence } from './export-invoices/models/export-invoice-sequence.model';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -68,6 +71,9 @@ import { SidebarFolder } from './system/models/sidebar-folder.model';
 import { SidebarItem } from './system/models/sidebar-item.model';
 import { SystemAuditLog } from './system/models/system-audit-log.model';
 import { RoleActionPermission } from './rbac/models/role-action-permission.model';
+import { PermissionGroup } from './rbac/models/permission-group.model';
+import { PermissionGroupModule } from './rbac/models/permission-group-module.model';
+import { RolePermissionGroup } from './rbac/models/role-permission-group.model';
 import { ClientFolderAccess } from './clients/models/client-folder-access.model';
 import { ClientItemAccess } from './clients/models/client-item-access.model';
 import { ClientModuleAccess } from './clients/models/client-module-access.model';
@@ -275,6 +281,9 @@ import {
             BusinessTransaction,
             BusinessTransactionCounter,
             RoleActionPermission,
+            PermissionGroup,
+            PermissionGroupModule,
+            RolePermissionGroup,
             ClientFolderAccess,
             ClientItemAccess,
             ClientModuleAccess,
@@ -375,6 +384,8 @@ import {
             CargoDocument,
             MonthlyTarget,
             ExchangeRate,
+            ExportInvoice,
+            ExportInvoiceSequence,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -460,6 +471,7 @@ import {
     StockModule,
     MonthlyTargetsModule,
     ExchangeRateModule,
+    ExportInvoicesModule,
   ],
   providers: [
     {

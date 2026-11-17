@@ -68,6 +68,9 @@ import * as phase76 from './phase-76-shipment-stuffing-weight-precision';
 import * as phase77 from './phase-77-sales-contract-type';
 import * as phase78 from './phase-78-rbac-bootstrap-indexes';
 import * as phase79 from './phase-79-documents-module-rbac';
+import * as phase80 from './phase-80-make-product-category-and-country-optional';
+import * as phase81 from './phase-81-export-invoice';
+import * as phase82 from './phase-82-permission-groups';
 
 export interface MigrationPhase {
   phase: string;
@@ -151,4 +154,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase77,
   phase78,
   phase79,
+  phase80,
+  phase81,
+  phase82,
 ];

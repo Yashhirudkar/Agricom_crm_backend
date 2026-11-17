@@ -19,29 +19,35 @@ import { CreateShippingLineDto } from './dto/create-shipping-line.dto';
 import { UpdateShippingLineDto } from './dto/update-shipping-line.dto';
 import { QueryShippingLineDto } from './dto/query-shipping-line.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/guards/permissions.guard';
+import { RequirePermission } from '../../rbac/decorators/require-permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller(['masters/shipping-lines', 'shipping-lines'])
 export class ShippingLineController {
   constructor(private readonly service: ShippingLineService) {}
 
   @Get()
+  @RequirePermission('shipping_lines:view')
   async findAll(@Query() query: QueryShippingLineDto) {
     return await this.service.findAll(query);
   }
 
   @Get(':id')
+  @RequirePermission('shipping_lines:view')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return await this.service.findOne(id);
   }
 
   @Post()
+  @RequirePermission('shipping_lines:create')
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() dto: CreateShippingLineDto, @Req() req: any) {
     return await this.service.create(dto, req.user);
   }
 
   @Put(':id')
+  @RequirePermission('shipping_lines:update')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShippingLineDto,
@@ -51,11 +57,13 @@ export class ShippingLineController {
   }
 
   @Patch(':id/toggle')
+  @RequirePermission('shipping_lines:update')
   async toggleStatus(@Param('id', ParseIntPipe) id: number) {
     return await this.service.toggleStatus(id);
   }
 
   @Delete(':id')
+  @RequirePermission('shipping_lines:delete')
   async remove(@Param('id', ParseIntPipe) id: number) {
     return await this.service.remove(id);
   }

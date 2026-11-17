@@ -43,7 +43,7 @@ export class ProductService implements OnModuleInit {
     // Schema modifications are handled by database migrations (phase-04-masters)
   }
 
-  private async validateForeignKeys(categoryId?: number) {
+  private async validateForeignKeys(categoryId?: number | null) {
     if (categoryId) {
       const category = await this.categoryModel.findOne({
         where: { id: categoryId, isActive: true },

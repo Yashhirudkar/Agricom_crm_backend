@@ -38,20 +38,20 @@ export class EnquiriesController {
   }
 
   @Get()
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   findAll(@Query() query: QueryEnquiryDto, @Req() req: any) {
     (query as any).companyId = req.user?.companyId;
     return this.enquiriesService.findAll(query);
   }
 
   @Get(':id')
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.findOne(id, req.user?.companyId);
   }
 
   @Patch(':id')
-  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
   @AuditLog({ entityType: 'Enquiry', action: 'UPDATE' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -62,7 +62,7 @@ export class EnquiriesController {
   }
 
   @Delete(':id')
-  @RequireAnyPermission('enquiry:delete', 'sales_contract:delete')
+  @RequireAnyPermission('enquiry:delete', 'sales_contract:delete', 'confirmed_orders:delete')
   @AuditLog({ entityType: 'Enquiry', action: 'DELETE' })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
@@ -74,13 +74,13 @@ export class EnquiriesController {
   }
 
   @Get(':id/loading-points')
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   getLoadingPoints(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.getLoadingPoints(id, req.user?.companyId);
   }
 
   @Put(':id/loading-points')
-  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
   updateLoadingPoints(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { loadingPoints: string[]; freightRequired?: boolean },
@@ -95,13 +95,13 @@ export class EnquiriesController {
   }
 
   @Get(':id/destinations')
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   getDestinations(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.enquiriesService.getDestinations(id, req.user?.companyId);
   }
 
   @Put(':id/destinations')
-  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
   updateDestinations(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('destinations') destinations: string[],
@@ -115,7 +115,7 @@ export class EnquiriesController {
   }
 
   @Get(':id/activity')
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   getActivity(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('limit') limit?: number,
@@ -126,7 +126,7 @@ export class EnquiriesController {
   }
 
   @Post(':id/activity')
-  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
   createActivity(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: any,
@@ -136,7 +136,7 @@ export class EnquiriesController {
   }
 
   @Post(':id/activity/incoming-whatsapp')
-  @RequireAnyPermission('enquiry:update', 'sales_contract:update')
+  @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
   createIncomingWhatsApp(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { message: string; sender?: string },
@@ -149,7 +149,7 @@ export class EnquiriesController {
   }
 
   @Get(':id/price-history')
-  @RequireAnyPermission('enquiry:view', 'sales_contract:view')
+  @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
   getPriceHistory(@Param('id', ParseUUIDPipe) id: string) {
     return this.enquiriesService.getPriceHistory(id);
   }

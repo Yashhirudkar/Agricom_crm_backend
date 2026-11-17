@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
+  Param,
   Body,
   Query,
   UseGuards,
@@ -23,6 +25,7 @@ import { AssignRoleToUserDto } from '../dto/assign-role-to-user.dto';
 import { RemoveRoleFromUserDto } from '../dto/remove-role-from-user.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
 import { UpdateRolePartnerRoleAccessDto } from '../dto/update-role-partner-role-access.dto';
+import { AssignRolePermissionGroupDto } from '../dto/assign-role-permission-group.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
@@ -245,6 +248,111 @@ export class RbacController {
     return this.rbacService.updateRolePartnerRoleAccess(
       dto.roleId,
       dto.partnerRoleIds,
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  //  PERMISSION GROUPS (Backend-Driven RBAC)
+  // ──────────────────────────────────────────────
+
+  @Get('permission-groups')
+  @RequirePermission('roles:read')
+  async getPermissionGroups() {
+    return this.rbacService.getPermissionGroups();
+  }
+
+  @Get('GetPermissionGroups')
+  @RequirePermission('roles:read')
+  async getPermissionGroupsRpc() {
+    return this.rbacService.getPermissionGroups();
+  }
+
+  @Get('roles/:id/permission-groups')
+  @RequirePermission('roles:read')
+  async getRolePermissionGroups(
+    @Param('id', ParseIntPipe) roleId: number,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(roleId, req.user, false);
+    return this.rbacService.getRolePermissionGroups(roleId);
+  }
+
+  @Get('GetRolePermissionGroups')
+  @RequirePermission('roles:read')
+  async getRolePermissionGroupsRpc(
+    @Query('roleId', ParseIntPipe) roleId: number,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(roleId, req.user, false);
+    return this.rbacService.getRolePermissionGroups(roleId);
+  }
+
+  @Post('roles/:id/permission-groups')
+  @RequirePermission('roles:assign-permission')
+  @HttpCode(HttpStatus.OK)
+  async assignRolePermissionGroup(
+    @Param('id', ParseIntPipe) roleId: number,
+    @Body() dto: AssignRolePermissionGroupDto,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(roleId, req.user, true);
+    return this.rbacService.assignPermissionGroupToRole(
+      roleId,
+      dto.groupId,
+      req.user,
+    );
+  }
+
+  @Post('AssignRolePermissionGroup')
+  @RequirePermission('roles:assign-permission')
+  @HttpCode(HttpStatus.OK)
+  async assignRolePermissionGroupRpc(
+    @Body() dto: AssignRolePermissionGroupDto,
+    @Request() req,
+  ) {
+    const roleId = dto.roleId;
+    if (!roleId) {
+      throw new ForbiddenException('roleId is required');
+    }
+    await this.validateRoleAccess(roleId, req.user, true);
+    return this.rbacService.assignPermissionGroupToRole(
+      roleId,
+      dto.groupId,
+      req.user,
+    );
+  }
+
+  @Delete('roles/:id/permission-groups/:groupId')
+  @RequirePermission('roles:assign-permission')
+  @HttpCode(HttpStatus.OK)
+  async revokeRolePermissionGroup(
+    @Param('id', ParseIntPipe) roleId: number,
+    @Param('groupId', ParseIntPipe) groupId: number,
+    @Request() req,
+  ) {
+    await this.validateRoleAccess(roleId, req.user, true);
+    return this.rbacService.revokePermissionGroupFromRole(
+      roleId,
+      groupId,
+      req.user,
+    );
+  }
+
+  @Post('RevokeRolePermissionGroup')
+  @RequirePermission('roles:assign-permission')
+  @HttpCode(HttpStatus.OK)
+  async revokeRolePermissionGroupRpc(
+    @Body() dto: { roleId: number; groupId: number },
+    @Request() req,
+  ) {
+    if (!dto.roleId || !dto.groupId) {
+      throw new ForbiddenException('roleId and groupId are required');
+    }
+    await this.validateRoleAccess(dto.roleId, req.user, true);
+    return this.rbacService.revokePermissionGroupFromRole(
+      dto.roleId,
+      dto.groupId,
+      req.user,
     );
   }
 }

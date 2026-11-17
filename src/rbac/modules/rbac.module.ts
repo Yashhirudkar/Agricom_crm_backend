@@ -15,6 +15,9 @@ import { ClientActionAccess } from '../../clients/models/client-action-access.mo
 import { ClientModuleAccess } from '../../clients/models/client-module-access.model';
 import { UserCompany } from '../../users/models/user-company.model';
 import { RolePartnerRoleAccess } from '../../masters/partner-role/role-partner-role-access.model';
+import { PermissionGroup } from '../models/permission-group.model';
+import { PermissionGroupModule } from '../models/permission-group-module.model';
+import { RolePermissionGroup } from '../models/role-permission-group.model';
 import { RbacService } from '../services/rbac.service';
 import { RbacController } from '../controllers/rbac.controller';
 import { RbacSeederService } from '../services/rbac-seeder.service';
@@ -38,6 +41,9 @@ import { AuditModule } from '../../audit/modules/audit.module';
       ClientActionAccess,
       ClientModuleAccess,
       RolePartnerRoleAccess,
+      PermissionGroup,
+      PermissionGroupModule,
+      RolePermissionGroup,
     ]),
     DiscoveryModule,
     forwardRef(() => AuditModule),

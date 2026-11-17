@@ -20,14 +20,13 @@ export class UpdateProductDto {
   @IsOptional()
   @IsInt()
   @Type(() => Number)
-  @IsNotEmpty()
-  categoryId?: number;
+  categoryId?: number | null;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(150)
-  country?: string;
+  country?: string | null;
 
   @IsOptional()
   @IsString()

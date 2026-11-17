@@ -91,6 +91,26 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       'shipments:print',
       'shipments:manage_documents',
       'stock_management:view',
+      'sales_report:view',
+      'sales_report:export',
+      'confirmed_orders:view',
+      'confirmed_orders:create',
+      'confirmed_orders:update',
+      'confirmed_orders:delete',
+      'ports:view',
+      'ports:create',
+      'ports:update',
+      'ports:delete',
+      'ports:export',
+      'shipping_lines:view',
+      'shipping_lines:create',
+      'shipping_lines:update',
+      'shipping_lines:delete',
+      'financial-year:view',
+      'financial-year:create',
+      'financial-year:update',
+      'financial-year:delete',
+      'financial-year:force_delete',
     ];
     extraPermissions.forEach((p) => discoveredPermissions.add(p));
 
@@ -125,6 +145,15 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       if (resourceName.startsWith('chat_') || resourceName === 'chat')
         moduleName = 'Chat';
       else if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
+      else if (resourceName === 'sales_report') moduleName = 'Sales Report';
+      else if (resourceName === 'confirmed_orders') moduleName = 'Confirmed Orders';
+      else if (resourceName === 'ports') moduleName = 'Port Master';
+      else if (resourceName === 'shipping_lines') moduleName = 'Shipping Lines';
+      else if (
+        resourceName === 'financial-year' ||
+        resourceName === 'financial_year'
+      )
+        moduleName = 'Financial Year';
       else if (resourceName === 'stock_management')
         moduleName = 'Stock Management';
       else if (resourceName === 'follow_up') moduleName = 'Follow Up';
@@ -259,7 +288,9 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
           display_name:
             name === 'shipment_stuffing_execution'
               ? 'Shipment Stuffing Execution'
-              : name,
+              : name === 'sales_report'
+                ? 'Sales Report'
+                : name,
           module_id: moduleIdByResource.get(name),
           sort_order: 0,
         }));

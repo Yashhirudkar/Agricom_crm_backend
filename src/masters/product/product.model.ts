@@ -46,16 +46,16 @@ export class Product extends Model<Product> {
   declare name: string;
 
   @ForeignKey(() => Category)
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'category_id', type: DataType.INTEGER })
-  declare categoryId: number;
+  declare categoryId: number | null;
 
   @BelongsTo(() => Category)
   declare category: Category;
 
-  @AllowNull(false)
+  @AllowNull(true)
   @Column({ field: 'country', type: DataType.STRING(150) })
-  declare country: string;
+  declare country: string | null;
 
   @AllowNull(true)
   @Column({ field: 'hs_code', type: DataType.STRING(100) })

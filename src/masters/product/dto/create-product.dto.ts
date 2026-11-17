@@ -18,13 +18,14 @@ export class CreateProductDto {
 
   @IsInt()
   @Type(() => Number)
-  @IsNotEmpty()
-  categoryId: number;
+  @IsOptional()
+  categoryId?: number | null;
 
   @IsString()
+  @IsOptional()
   @IsNotEmpty()
   @MaxLength(150)
-  country: string;
+  country?: string | null;
 
   @IsOptional()
   @IsString()

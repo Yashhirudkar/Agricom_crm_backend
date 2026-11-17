@@ -151,11 +151,13 @@ export class ShipmentController {
     );
     return {
       id: attachment.id,
+      attachmentId: attachment.id,
       originalName: attachment.originalName,
       fileName: attachment.storedName,
       fileSize: attachment.fileSize,
       mimeType: attachment.mimeType,
       storagePath: attachment.storagePath,
+      downloadUrl: `/attachments/${attachment.id}/download`,
     };
   }
 }

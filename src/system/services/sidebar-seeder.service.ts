@@ -937,17 +937,55 @@ export class SidebarSeederService implements OnApplicationBootstrap {
         where: { route: '/reports/sales' },
       });
 
+      let finalItemId: number | null = null;
       if (!item) {
-        await this.sidebarItemModel.create({
+        const newItem = await this.sidebarItemModel.create({
           name: 'Sales Report',
           route: '/reports/sales',
           icon_name: 'trending-up',
           folder_id: folderId,
           sort_order: 10,
           is_active: true,
-          permission_link: 'always:allow', // Optional: customize as per RBAC
+          permission_link: 'sales_report:view',
         });
+        finalItemId = newItem.id;
         this.logger.log('Created Sales Report sidebar item');
+      } else {
+        finalItemId = item.id;
+        if (item.permission_link !== 'sales_report:view') {
+          item.permission_link = 'sales_report:view';
+          await item.save();
+          this.logger.log('Updated Sales Report sidebar item permission_link to sales_report:view');
+        }
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      if (finalItemId && seq && folderId) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          await seq
+            .query(
+              `INSERT INTO client_item_access (client_id, item_id, created_at)
+               VALUES (:clientId, :itemId, NOW())
+               ON CONFLICT (client_id, item_id) DO NOTHING;`,
+              { replacements: { clientId: client.id, itemId: finalItemId } },
+            )
+            .catch(() => {});
+
+          await seq
+            .query(
+              `INSERT INTO client_folder_access (client_id, folder_id, created_at)
+               VALUES (:clientId, :folderId, NOW())
+               ON CONFLICT (client_id, folder_id) DO NOTHING;`,
+              {
+                replacements: { clientId: client.id, folderId },
+              },
+            )
+            .catch(() => {});
+        }
       }
     } catch (err) {
       this.logger.error('Failed to sync Reports sidebar item', err);

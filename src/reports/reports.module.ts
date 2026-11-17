@@ -8,6 +8,7 @@ import { User } from '../users/models/user.model';
 import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { Enquiry } from '../enquiries/models/enquiry.model';
+import { RbacModule } from '../rbac/modules/rbac.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Enquiry } from '../enquiries/models/enquiry.model';
       Product,
       Enquiry,
     ]),
+    RbacModule,
   ],
   controllers: [SalesReportController],
   providers: [SalesReportService],

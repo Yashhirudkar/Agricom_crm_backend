@@ -2144,6 +2144,8 @@ export class ShipmentService {
       bagSize: bagSizeKg ? `${bagSizeKg} Kg` : '—',
       totalBags: totalBags,
       incoterm: contract.paymentTerm?.name || contract.contractType || '—',
+      paymentTerms: contract.paymentTerm?.name || '—',
+      paymentTerm: contract.paymentTerm?.name || '—',
       shipmentDate: shipment.shipmentDate,
       freightType: contract.shipmentType?.name || freightQuote?.mode || '—',
       shipmentType: contract.contractType || contract.shipmentType?.name || '—',

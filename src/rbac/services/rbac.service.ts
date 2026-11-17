@@ -23,6 +23,12 @@ import { AuditContext } from '../../audit/audit.context';
 import { Op, QueryTypes } from 'sequelize';
 import { UserCompany } from '../../users/models/user-company.model';
 import { RolePartnerRoleAccess } from '../../masters/partner-role/role-partner-role-access.model';
+import { PermissionGroup } from '../models/permission-group.model';
+import { PermissionGroupModule } from '../models/permission-group-module.model';
+import { RolePermissionGroup } from '../models/role-permission-group.model';
+import { AppModule as AppModuleModel } from '../../system/models/app-module.model';
+import { ModuleResource } from '../../system/models/module-resource.model';
+import { ResourceAction } from '../../system/models/resource-action.model';
 
 @Injectable()
 export class RbacService {
@@ -42,6 +48,18 @@ export class RbacService {
     private readonly userCompanyModel: typeof UserCompany,
     @InjectModel(RolePartnerRoleAccess)
     private readonly rolePartnerRoleAccessModel: typeof RolePartnerRoleAccess,
+    @InjectModel(PermissionGroup)
+    private readonly permissionGroupModel: typeof PermissionGroup,
+    @InjectModel(PermissionGroupModule)
+    private readonly permissionGroupModuleModel: typeof PermissionGroupModule,
+    @InjectModel(RolePermissionGroup)
+    private readonly rolePermissionGroupModel: typeof RolePermissionGroup,
+    @InjectModel(AppModuleModel)
+    private readonly appModuleModel: typeof AppModuleModel,
+    @InjectModel(ModuleResource)
+    private readonly moduleResourceModel: typeof ModuleResource,
+    @InjectModel(ResourceAction)
+    private readonly resourceActionModel: typeof ResourceAction,
     @Inject(forwardRef(() => AuditService))
     private readonly auditService: AuditService,
   ) {}
@@ -591,5 +609,374 @@ export class RbacService {
     }
 
     return Array.from(unionIds);
+  }
+
+  // ─── Permission Groups (Backend-Driven RBAC) ──────────────────────────────
+
+  /**
+   * Retrieves all enterprise permission groups with their mapped modules and action counts.
+   */
+  async getPermissionGroups() {
+    const query = `
+      SELECT 
+        pg.id AS "groupId",
+        pg.name AS "groupName",
+        pg.slug AS "groupSlug",
+        pg.description AS "groupDescription",
+        pg.icon AS "groupIcon",
+        pg.color AS "groupColor",
+        pg.sort_order AS "groupSortOrder",
+        am.id AS "moduleId",
+        am.name AS "moduleName",
+        am.icon_name AS "moduleIcon",
+        ra.id AS "actionId"
+      FROM permission_groups pg
+      JOIN permission_group_modules pgm ON pgm.group_id = pg.id
+      JOIN app_modules am ON am.id = pgm.module_id
+      LEFT JOIN module_resources mr ON mr.module_id = am.id
+      LEFT JOIN resource_actions ra ON ra.resource_id = mr.id
+      ORDER BY pg.sort_order ASC, pgm.sort_order ASC, am.name ASC;
+    `;
+
+    const rows: any[] = await this.permissionGroupModel.sequelize.query(query, {
+      type: QueryTypes.SELECT,
+    });
+
+    const groupsMap = new Map<number, any>();
+
+    for (const row of rows) {
+      if (!groupsMap.has(row.groupId)) {
+        groupsMap.set(row.groupId, {
+          id: row.groupId,
+          name: row.groupName,
+          slug: row.groupSlug,
+          description: row.groupDescription,
+          icon: row.groupIcon,
+          color: row.groupColor,
+          sort_order: row.groupSortOrder,
+          modules: new Map<number, any>(),
+          actionIds: new Set<number>(),
+        });
+      }
+
+      const group = groupsMap.get(row.groupId);
+
+      if (row.moduleId && !group.modules.has(row.moduleId)) {
+        group.modules.set(row.moduleId, {
+          id: row.moduleId,
+          name: row.moduleName,
+          icon: row.moduleIcon,
+          actionIds: new Set<number>(),
+        });
+      }
+
+      if (row.actionId) {
+        group.actionIds.add(row.actionId);
+        const mod = group.modules.get(row.moduleId);
+        if (mod) {
+          mod.actionIds.add(row.actionId);
+        }
+      }
+    }
+
+    return Array.from(groupsMap.values()).map((g) => ({
+      id: g.id,
+      name: g.name,
+      slug: g.slug,
+      description: g.description,
+      icon: g.icon,
+      color: g.color,
+      sort_order: g.sort_order,
+      totalActions: g.actionIds.size,
+      actionIds: Array.from(g.actionIds),
+      modules: Array.from(g.modules.values()).map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        icon: m.icon,
+        totalActions: m.actionIds.size,
+      })),
+    }));
+  }
+
+  /**
+   * Retrieves all permission groups along with their assignment status (FULL, PARTIAL, NONE)
+   * for a specific role.
+   */
+  async getRolePermissionGroups(roleId: number) {
+    const role = await this.roleModel.findByPk(roleId);
+    if (!role) {
+      throw new NotFoundException(`Role with id ${roleId} not found`);
+    }
+
+    const groups = await this.getPermissionGroups();
+
+    const assignedPermRows = await this.roleActionPermissionModel.findAll({
+      where: { role_id: roleId },
+      attributes: ['resource_action_id'],
+    });
+    const assignedActionIds = new Set(
+      assignedPermRows.map((r) => r.resource_action_id),
+    );
+
+    const explicitGroupRows = await this.rolePermissionGroupModel.findAll({
+      where: { role_id: roleId },
+      attributes: ['group_id'],
+    });
+    const explicitGroupIds = new Set(explicitGroupRows.map((r) => r.group_id));
+
+    return groups.map((group) => {
+      const groupActionIds = (group.actionIds as number[]) || [];
+      const totalCount = groupActionIds.length;
+      let assignedCount = 0;
+
+      for (const actId of groupActionIds) {
+        if (assignedActionIds.has(actId)) {
+          assignedCount++;
+        }
+      }
+
+      let status: 'FULL' | 'PARTIAL' | 'NONE' = 'NONE';
+      if (totalCount > 0 && assignedCount === totalCount) {
+        status = 'FULL';
+      } else if (assignedCount > 0) {
+        status = 'PARTIAL';
+      }
+
+      return {
+        id: group.id,
+        name: group.name,
+        slug: group.slug,
+        description: group.description,
+        icon: group.icon,
+        color: group.color,
+        sort_order: group.sort_order,
+        status,
+        assignedCount,
+        totalCount,
+        isExplicitlyAssigned: explicitGroupIds.has(group.id),
+        modules: group.modules,
+      };
+    });
+  }
+
+  /**
+   * Transactionally assigns all permissions within a permission group to a role.
+   */
+  async assignPermissionGroupToRole(
+    roleId: number,
+    groupId: number,
+    reqUser?: any,
+  ) {
+    const role = await this.roleModel.findByPk(roleId);
+    if (!role) {
+      throw new NotFoundException(`Role with id ${roleId} not found`);
+    }
+
+    const group = await this.permissionGroupModel.findByPk(groupId);
+    if (!group) {
+      throw new NotFoundException(`Permission group with id ${groupId} not found`);
+    }
+
+    const query = `
+      SELECT DISTINCT ra.id AS "actionId"
+      FROM permission_group_modules pgm
+      JOIN app_modules am ON am.id = pgm.module_id
+      JOIN module_resources mr ON mr.module_id = am.id
+      JOIN resource_actions ra ON ra.resource_id = mr.id
+      WHERE pgm.group_id = :groupId
+    `;
+    const actionRows: any[] = await this.permissionGroupModel.sequelize.query(
+      query,
+      {
+        replacements: { groupId },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    let actionIdsToGrant: number[] = actionRows
+      .map((r) => r.actionId)
+      .filter(Boolean);
+
+    // If client role, scope strictly to clientActionAccess
+    if (role.clientId) {
+      const allowedActions = await this.clientActionAccessModel.findAll({
+        where: { client_id: role.clientId },
+      });
+      const allowedIds = new Set(allowedActions.map((a) => a.resource_action_id));
+      actionIdsToGrant = actionIdsToGrant.filter((id) => allowedIds.has(id));
+    }
+
+    const t = await this.roleActionPermissionModel.sequelize.transaction();
+    try {
+      // 1. Record explicit group assignment in role_permission_groups
+      const existingRpg = await this.rolePermissionGroupModel.findOne({
+        where: { role_id: roleId, group_id: groupId },
+        transaction: t,
+      });
+      if (!existingRpg) {
+        await this.rolePermissionGroupModel.create(
+          { role_id: roleId, group_id: groupId },
+          { transaction: t },
+        );
+      }
+
+      // 2. Fetch existing permissions for this role
+      const existingPerms = await this.roleActionPermissionModel.findAll({
+        where: { role_id: roleId },
+        attributes: ['resource_action_id'],
+        transaction: t,
+      });
+      const existingSet = new Set(
+        existingPerms.map((p) => p.resource_action_id),
+      );
+
+      // 3. Find missing actions and bulk insert
+      const newActionIds = actionIdsToGrant.filter((id) => !existingSet.has(id));
+      if (newActionIds.length > 0) {
+        const records = newActionIds.map((actId) => ({
+          role_id: roleId,
+          resource_action_id: actId,
+        }));
+        await this.roleActionPermissionModel.bulkCreate(records, {
+          transaction: t,
+        });
+      }
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'RolePermissionGroup',
+        entityId: roleId,
+        action: 'ASSIGN_GROUP',
+        newValue: { groupId, groupName: group.name, grantedActionsCount: actionIdsToGrant.length },
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
+    return {
+      message: `Permission group "${group.name}" assigned successfully`,
+      roleId,
+      groupId,
+      grantedCount: actionIdsToGrant.length,
+    };
+  }
+
+  /**
+   * Transactionally revokes all permissions belonging to a permission group from a role,
+   * while preserving any permissions required by other assigned groups.
+   */
+  async revokePermissionGroupFromRole(
+    roleId: number,
+    groupId: number,
+    reqUser?: any,
+  ) {
+    const role = await this.roleModel.findByPk(roleId);
+    if (!role) {
+      throw new NotFoundException(`Role with id ${roleId} not found`);
+    }
+
+    const group = await this.permissionGroupModel.findByPk(groupId);
+    if (!group) {
+      throw new NotFoundException(`Permission group with id ${groupId} not found`);
+    }
+
+    // 1. Find all action IDs belonging to this group
+    const query = `
+      SELECT DISTINCT ra.id AS "actionId"
+      FROM permission_group_modules pgm
+      JOIN app_modules am ON am.id = pgm.module_id
+      JOIN module_resources mr ON mr.module_id = am.id
+      JOIN resource_actions ra ON ra.resource_id = mr.id
+      WHERE pgm.group_id = :groupId
+    `;
+    const actionRows: any[] = await this.permissionGroupModel.sequelize.query(
+      query,
+      {
+        replacements: { groupId },
+        type: QueryTypes.SELECT,
+      },
+    );
+    const groupActionIds = actionRows.map((r) => r.actionId).filter(Boolean);
+
+    // 2. Find actions required by other remaining assigned groups for this role
+    const remainingGroupsQuery = `
+      SELECT DISTINCT ra.id AS "actionId"
+      FROM role_permission_groups rpg
+      JOIN permission_group_modules pgm ON pgm.group_id = rpg.group_id
+      JOIN app_modules am ON am.id = pgm.module_id
+      JOIN module_resources mr ON mr.module_id = am.id
+      JOIN resource_actions ra ON ra.resource_id = mr.id
+      WHERE rpg.role_id = :roleId AND rpg.group_id != :groupId
+    `;
+    const remainingRows: any[] =
+      await this.permissionGroupModel.sequelize.query(remainingGroupsQuery, {
+        replacements: { roleId, groupId },
+        type: QueryTypes.SELECT,
+      });
+    const preservedActionIds = new Set(
+      remainingRows.map((r) => r.actionId).filter(Boolean),
+    );
+
+    // Actions to revoke = groupActionIds that are not preserved by other assigned groups
+    const actionsToRevoke = groupActionIds.filter(
+      (id) => !preservedActionIds.has(id),
+    );
+
+    const t = await this.roleActionPermissionModel.sequelize.transaction();
+    try {
+      // 1. Remove group record from role_permission_groups
+      await this.rolePermissionGroupModel.destroy({
+        where: { role_id: roleId, group_id: groupId },
+        transaction: t,
+      });
+
+      // 2. Remove actions from role_action_permissions
+      if (actionsToRevoke.length > 0) {
+        await this.roleActionPermissionModel.destroy({
+          where: {
+            role_id: roleId,
+            resource_action_id: actionsToRevoke,
+          },
+          transaction: t,
+        });
+      }
+
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+
+    const store = AuditContext.getStore();
+    if (store && store.userId) {
+      await this.auditService.writeLog({
+        clientId: store.clientId || null,
+        companyId: store.companyId || null,
+        userId: store.userId,
+        entityType: 'RolePermissionGroup',
+        entityId: roleId,
+        action: 'REVOKE_GROUP',
+        newValue: { groupId, groupName: group.name, revokedActionsCount: actionsToRevoke.length },
+        ipAddress: store.ipAddress,
+        userAgent: store.userAgent,
+      });
+    }
+
+    return {
+      message: `Permission group "${group.name}" revoked successfully`,
+      roleId,
+      groupId,
+      revokedCount: actionsToRevoke.length,
+    };
   }
 }
