@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -21,8 +22,10 @@ export class SidebarController {
 
   @Get('tree')
   @RequirePermission('system:manage_sidebar')
-  async getTree() {
-    return this.sidebarService.getTree();
+  async getTree(@Query('include_inactive') includeInactive?: string) {
+    const shouldInclude =
+      includeInactive !== undefined ? includeInactive === 'true' : true;
+    return this.sidebarService.getTree(shouldInclude);
   }
 
   @Post('folder')
@@ -36,6 +39,7 @@ export class SidebarController {
       icon_color?: string;
       is_collapsible?: boolean;
       sort_order?: number;
+      is_active?: boolean;
     },
   ) {
     return this.sidebarService.createFolder(req.user.id, dto);
@@ -55,6 +59,7 @@ export class SidebarController {
       use_folder_color?: boolean;
       permission_link?: string;
       sort_order?: number;
+      is_active?: boolean;
     },
   ) {
     return this.sidebarService.createItem(req.user.id, dto);
@@ -97,6 +102,7 @@ export class SidebarController {
       icon_name?: string;
       icon_color?: string;
       is_collapsible?: boolean;
+      is_active?: boolean;
     },
   ) {
     return this.sidebarService.updateFolder(req.user.id, parseInt(id, 10), dto);
@@ -115,6 +121,7 @@ export class SidebarController {
       icon_color?: string;
       use_folder_color?: boolean;
       permission_link?: string;
+      is_active?: boolean;
     },
   ) {
     return this.sidebarService.updateItem(req.user.id, parseInt(id, 10), dto);

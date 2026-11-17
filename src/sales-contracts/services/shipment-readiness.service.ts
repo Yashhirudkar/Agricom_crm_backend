@@ -6,6 +6,7 @@ import { CargoShipmentAllocation } from '../../cargo-availability/models/cargo-s
 import { CargoLoading } from '../../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { FreightQuote } from '../../logistics/models/freight-quote.model';
+import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
 
 export interface ShipmentReadinessResult {
   cargoReady: boolean;
@@ -135,36 +136,58 @@ export class ShipmentReadinessService {
         : Promise.resolve([]),
     ]);
 
-    // Check master-driven delivery place rules for linked purchase contracts & sales contracts
+    // Evaluate Dynamic Freight Rule Engine for each shipment
     const freightNotApplicableShipmentIds = new Set<number>();
     if (this.sequelize && shipmentIds.length > 0) {
       try {
-        const [directPcRows]: any = await this.sequelize.query(
-          `SELECT pcs.shipment_id
-           FROM purchase_contract_shipments pcs
-           JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
-           JOIN shipment_types st ON st.id = pc.shipment_type_id
-           WHERE pcs.shipment_id IN (:shipmentIds)
-             AND st.purchase_contract_delivery_place_required = false`,
-          { replacements: { shipmentIds } },
-        );
-        for (const row of Array.isArray(directPcRows) ? directPcRows : []) {
-          const sid = Number(row.shipment_id || row.shipmentId);
-          if (sid) freightNotApplicableShipmentIds.add(sid);
-        }
-
-        const [scRows]: any = await this.sequelize.query(
-          `SELECT scs.id AS shipment_id
+        const [ruleRows]: any = await this.sequelize.query(
+          `SELECT 
+             scs.id AS shipment_id,
+             sc_st.id AS sc_st_id,
+             sc_st.code AS sc_st_code,
+             sc_st.stage_order AS sc_st_stage,
+             sc_st.freight_required_after_stage AS sc_st_freight_required_after_stage,
+             sc_st.purchase_contract_delivery_place_required AS sc_st_delivery_required,
+             pc_st.id AS pc_st_id,
+             pc_st.code AS pc_st_code,
+             pc_st.stage_order AS pc_st_stage,
+             pc_st.freight_required_after_stage AS pc_st_freight_required_after_stage,
+             pc_st.purchase_contract_delivery_place_required AS pc_st_delivery_required
            FROM sales_contract_shipments scs
-           JOIN sales_contracts sc ON sc.id = scs.sales_contract_id
-           JOIN shipment_types st ON st.id = sc.shipment_type_id
-           WHERE scs.id IN (:shipmentIds)
-             AND st.purchase_contract_delivery_place_required = false`,
+           LEFT JOIN sales_contracts sc ON sc.id = scs.sales_contract_id
+           LEFT JOIN shipment_types sc_st ON sc_st.id = sc.shipment_type_id
+           LEFT JOIN purchase_contract_shipments pcs ON pcs.shipment_id = scs.id
+           LEFT JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
+           LEFT JOIN shipment_types pc_st ON pc_st.id = pc.shipment_type_id
+           WHERE scs.id IN (:shipmentIds)`,
           { replacements: { shipmentIds } },
         );
-        for (const row of Array.isArray(scRows) ? scRows : []) {
+        for (const row of Array.isArray(ruleRows) ? ruleRows : []) {
           const sid = Number(row.shipment_id || row.shipmentId);
-          if (sid) freightNotApplicableShipmentIds.add(sid);
+          if (sid) {
+            const scSt = row.sc_st_id
+              ? {
+                  id: row.sc_st_id,
+                  code: row.sc_st_code,
+                  stageOrder: row.sc_st_stage,
+                  freightRequiredAfterStage: row.sc_st_freight_required_after_stage,
+                  purchaseContractDeliveryPlaceRequired: row.sc_st_delivery_required,
+                }
+              : null;
+            const pcSt = row.pc_st_id
+              ? {
+                  id: row.pc_st_id,
+                  code: row.pc_st_code,
+                  stageOrder: row.pc_st_stage,
+                  freightRequiredAfterStage: row.pc_st_freight_required_after_stage,
+                  purchaseContractDeliveryPlaceRequired: row.pc_st_delivery_required,
+                }
+              : null;
+            const res = evaluateFreightRequired(pcSt, scSt);
+            if (!res.freightRequired) {
+              freightNotApplicableShipmentIds.add(sid);
+            }
+          }
         }
       } catch (err) {
         console.warn('Could not query shipment type delivery place required for readiness:', err);
@@ -219,15 +242,22 @@ export class ShipmentReadinessService {
       // Cargo is Ready if active allocation exists with allocatedQty > 0 or loading is active
       const cargoReady = allocatedQty > 0 || loadedQty > 0;
 
-      // Master-driven Freight Allocation:
-      // If the shipment type has purchaseContractDeliveryPlaceRequired = false,
-      // Freight Allocation is automatically set to Yes and does not block execution.
+      // Dynamic Master-driven Freight Allocation:
+      const directScSt = s.salesContract?.shipmentType || s.shipmentType || null;
+      const directPcSt = s.purchaseContract?.shipmentType || null;
+      const directRule = (directScSt || directPcSt)
+        ? evaluateFreightRequired(directPcSt, directScSt)
+        : null;
+
       const isFreightAutoAllocated =
+        (directRule !== null && !directRule.freightRequired) ||
+        freightNotApplicableShipmentIds.has(s.id) ||
+        s.freightRequired === false ||
+        s.isFreightRequired === false ||
         s.freightAllocationStatus === 'Yes' ||
         s.freightAllocationStatus === 'Not Applicable' ||
         s.freight_allocation_status === 'Not Applicable' ||
         s.isFreightNotApplicable === true ||
-        freightNotApplicableShipmentIds.has(s.id) ||
         s.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
         s.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
         s.purchaseContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;

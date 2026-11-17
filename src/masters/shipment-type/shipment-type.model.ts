@@ -52,6 +52,24 @@ export class ShipmentType extends Model<ShipmentType> {
   @Column({ field: 'sort_order', type: DataType.INTEGER })
   declare sortOrder: number;
 
+  @Default(1)
+  @AllowNull(false)
+  @Column({ field: 'stage_order', type: DataType.INTEGER })
+  declare stageOrder: number;
+
+  @Default('Port of Loading (POL)')
+  @AllowNull(false)
+  @Column({ field: 'location_type', type: DataType.STRING(50) })
+  declare locationType: string;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column({
+    field: 'freight_required_after_stage',
+    type: DataType.BOOLEAN,
+  })
+  declare freightRequiredAfterStage: boolean;
+
   @Default('Active')
   @AllowNull(false)
   @Column({ type: DataType.STRING(20) })

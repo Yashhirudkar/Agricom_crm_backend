@@ -114,7 +114,7 @@ import { PurchaseContractActivity } from './purchase-contracts/models/purchase-c
 import { PurchaseContractAttachment } from './purchase-contracts/models/purchase-contract-attachment.model';
 import { PurchaseContractsModule } from './purchase-contracts/purchase-contracts.module';
 import { Enquiry } from './enquiries/models/enquiry.model';
-import { EnquiryLoadingPoint } from './enquiries/models/enquiry-loading-point.model';
+import { TransportDetail } from './enquiries/models/transport-detail.model';
 import { EnquiryDestination } from './enquiries/models/enquiry-destination.model';
 import { EnquiryActivityLog } from './enquiries/models/enquiry-activity-log.model';
 import { Logistics } from './logistics/models/logistics.model';
@@ -322,7 +322,7 @@ import {
             PurchaseContractActivity,
             PurchaseContractAttachment,
             Enquiry,
-            EnquiryLoadingPoint,
+            TransportDetail,
             EnquiryDestination,
             EnquiryActivityLog,
             Task,

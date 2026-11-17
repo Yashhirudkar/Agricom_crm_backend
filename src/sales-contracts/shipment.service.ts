@@ -37,6 +37,7 @@ import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { Company } from '../companies/models/company.model';
 import { Enquiry } from '../enquiries/models/enquiry.model';
 import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
+import { evaluateFreightRequired } from '../masters/shipment-type/freight-rule-engine.service';
 import { PaymentTerm } from '../masters/payment-term/payment-term.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
@@ -877,6 +878,11 @@ export class ShipmentService {
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
+             st.id AS pc_shipment_type_id,
+             st.code AS pc_shipment_type_code,
+             st.stage_order AS pc_stage_order,
+             st.location_type AS pc_location_type,
+             st.freight_required_after_stage AS pc_freight_required_after_stage,
              st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
@@ -924,6 +930,11 @@ export class ShipmentService {
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
+             st.id AS pc_shipment_type_id,
+             st.code AS pc_shipment_type_code,
+             st.stage_order AS pc_stage_order,
+             st.location_type AS pc_location_type,
+             st.freight_required_after_stage AS pc_freight_required_after_stage,
              st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
@@ -1049,19 +1060,45 @@ export class ShipmentService {
         pcDataByShipment.get(json.id) ||
         (contractId ? pcDataBySc.get(contractId) : null);
 
+      const pcShipmentType = pcDataEarly
+        ? {
+            id: pcDataEarly.pc_shipment_type_id,
+            code: pcDataEarly.pc_shipment_type_code,
+            stageOrder: pcDataEarly.pc_stage_order,
+            locationType: pcDataEarly.pc_location_type,
+            freightRequiredAfterStage: pcDataEarly.pc_freight_required_after_stage,
+            purchaseContractDeliveryPlaceRequired: pcDataEarly.purchase_contract_delivery_place_required,
+          }
+        : null;
+      const scShipmentType = json.salesContract?.shipmentType || null;
+      const freightRuleResult = evaluateFreightRequired(pcShipmentType, scShipmentType);
+      const isFreightRequired = freightRuleResult.freightRequired;
+
       const isFreightAutoAllocated =
+        !isFreightRequired ||
         readiness.isFreightNotApplicable ||
         json.freightAllocationStatus === 'Yes' ||
-        json.freightAllocationStatus === 'Not Applicable' ||
-        pcDataEarly?.purchase_contract_delivery_place_required === false ||
-        json.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+        json.freightAllocationStatus === 'Not Applicable';
 
       json.cargoReady = readiness.cargoReady;
       json.freightReady = isFreightAutoAllocated ? true : readiness.freightReady;
-      json.isFreightNotApplicable = false;
-      json.freightAllocationStatus = isFreightAutoAllocated
-        ? 'Yes'
-        : (readiness.freightAllocationStatus || (json.freight ? 'Allocated' : 'Pending'));
+      json.freightRequired = isFreightRequired;
+      json.isFreightRequired = isFreightRequired;
+      json.freightRuleReason = freightRuleResult.reason;
+      json.isFreightNotApplicable = !isFreightRequired;
+
+      if (!isFreightRequired) {
+        json.freight = null;
+        json.freightAllocationStatus = null;
+        json.freightCurrency = null;
+        json.freightDescription = null;
+      } else {
+        json.freightAllocationStatus =
+          json.freightAllocationStatus ||
+          readiness.freightAllocationStatus ||
+          (json.freight ? 'Allocated' : 'Pending');
+      }
+
       json.systemReady = isFreightAutoAllocated ? readiness.cargoReady : readiness.systemReady;
 
 
@@ -1369,7 +1406,13 @@ export class ShipmentService {
 
   async update(id: number, dto: UpdateShipmentDto, user?: any) {
     const shipment = await this.shipmentModel.findByPk(id, {
-      include: [{ model: SalesContract, as: 'salesContract' }],
+      include: [
+        {
+          model: SalesContract,
+          as: 'salesContract',
+          include: [{ model: ShipmentType, as: 'shipmentType' }],
+        },
+      ],
     });
 
     if (!shipment) {
@@ -1413,14 +1456,60 @@ export class ShipmentService {
     if (dto.purchaseRate !== undefined)
       shipment.purchaseRate = dto.purchaseRate;
     if (dto.forex !== undefined) shipment.forex = dto.forex;
-    if (dto.freight !== undefined) shipment.freight = dto.freight;
-    if (dto.freightAllocationStatus !== undefined)
-      shipment.freightAllocationStatus = dto.freightAllocationStatus;
-    if (
-      shipment.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false
-    ) {
-      shipment.freightAllocationStatus = 'Yes';
+
+    // Evaluate Dynamic Freight Rule Engine
+    let pcShipmentType: any = null;
+    try {
+      const [pcRow]: any = await this.sequelize.query(
+        `SELECT 
+           st.id,
+           st.code,
+           st.stage_order AS "stageOrder",
+           st.location_type AS "locationType",
+           st.freight_required_after_stage AS "freightRequiredAfterStage",
+           st.purchase_contract_delivery_place_required AS "purchaseContractDeliveryPlaceRequired"
+         FROM purchase_contracts pc
+         JOIN shipment_types st ON st.id = pc.shipment_type_id
+         LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
+         WHERE pcs.shipment_id = :id
+            OR (pc.sales_contract_id IS NOT NULL AND pc.sales_contract_id = :scId)
+            OR (pc.business_transaction_id IS NOT NULL AND pc.business_transaction_id = :btId)
+         ORDER BY CASE WHEN pcs.shipment_id = :id THEN 1 ELSE 2 END, pc.updated_at DESC
+         LIMIT 1`,
+        {
+          replacements: {
+            id,
+            scId: shipment.salesContractId || -1,
+            btId: shipment.businessTransactionId || -1,
+          },
+        },
+      );
+      if (pcRow && pcRow[0]) pcShipmentType = pcRow[0];
+    } catch (e) {}
+
+    const scShipmentType = shipment.salesContract?.shipmentType || null;
+    const freightRule = evaluateFreightRequired(pcShipmentType, scShipmentType);
+    const isFreightRequired = freightRule.freightRequired;
+
+    shipment.freightRequired = isFreightRequired;
+
+    if (!isFreightRequired) {
+      // If Freight Required = NO:
+      // Completely hide Freight Allocation, Freight Amount, Freight Currency, Freight Description.
+      // Do not validate these fields.
+      // Do not save these values in the database.
       shipment.freight = null as any;
+      shipment.freightAllocationStatus = null;
+      shipment.freightCurrency = null;
+      shipment.freightDescription = null;
+    } else {
+      if (dto.freight !== undefined) shipment.freight = dto.freight;
+      if (dto.freightAllocationStatus !== undefined)
+        shipment.freightAllocationStatus = dto.freightAllocationStatus;
+      if (dto.freightCurrency !== undefined)
+        shipment.freightCurrency = dto.freightCurrency;
+      if (dto.freightDescription !== undefined)
+        shipment.freightDescription = dto.freightDescription;
     }
     if (dto.remarks !== undefined) shipment.remarks = dto.remarks;
     if (dto.shipmentNo !== undefined) shipment.shipmentNo = dto.shipmentNo;
@@ -1679,9 +1768,16 @@ export class ShipmentService {
            pc.place_of_loading,
            pc.delivery_place,
            pc.seller_id,
+           st.id AS pc_shipment_type_id,
+           st.code AS pc_shipment_type_code,
+           st.stage_order AS pc_stage_order,
+           st.location_type AS pc_location_type,
+           st.freight_required_after_stage AS pc_freight_required_after_stage,
+           st.purchase_contract_delivery_place_required,
            seller.entity_name AS seller_name,
            COALESCE(pci.product_name, prod.name) AS product_name
          FROM purchase_contracts pc
+         LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
          LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
          LEFT JOIN partners seller ON pc.seller_id = seller.id
          LEFT JOIN LATERAL (
@@ -1715,6 +1811,32 @@ export class ShipmentService {
         id,
         err,
       );
+    }
+
+    const pcShipmentType = pcData
+      ? {
+          id: pcData.pc_shipment_type_id,
+          code: pcData.pc_shipment_type_code,
+          stageOrder: pcData.pc_stage_order,
+          locationType: pcData.pc_location_type,
+          freightRequiredAfterStage: pcData.pc_freight_required_after_stage,
+          purchaseContractDeliveryPlaceRequired: pcData.purchase_contract_delivery_place_required,
+        }
+      : null;
+    const scShipmentType = json.salesContract?.shipmentType || null;
+    const freightRuleResult = evaluateFreightRequired(pcShipmentType, scShipmentType);
+    const isFreightRequired = freightRuleResult.freightRequired;
+
+    json.freightRequired = isFreightRequired;
+    json.isFreightRequired = isFreightRequired;
+    json.freightRuleReason = freightRuleResult.reason;
+    json.isFreightNotApplicable = !isFreightRequired;
+
+    if (!isFreightRequired) {
+      json.freight = null;
+      json.freightAllocationStatus = null;
+      json.freightCurrency = null;
+      json.freightDescription = null;
     }
 
     const sc = json.salesContract || {};
@@ -2143,7 +2265,11 @@ export class ShipmentService {
       packingType: item.packingType?.name || '—',
       bagSize: bagSizeKg ? `${bagSizeKg} Kg` : '—',
       totalBags: totalBags,
-      incoterm: contract.paymentTerm?.name || contract.contractType || '—',
+      incoterm:
+        contract.shipmentType?.code ||
+        contract.shipmentType?.name ||
+        contract.contractType ||
+        '—',
       paymentTerms: contract.paymentTerm?.name || '—',
       paymentTerm: contract.paymentTerm?.name || '—',
       shipmentDate: shipment.shipmentDate,

@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsNumber,
   IsInt,
+  IsBoolean,
   Min,
 } from 'class-validator';
 
@@ -41,6 +42,18 @@ export class UpdateShipmentDto {
   @IsOptional()
   @IsString()
   freightAllocationStatus?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  freightRequired?: boolean;
+
+  @IsOptional()
+  @IsString()
+  freightCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  freightDescription?: string;
 
   @IsOptional()
   @IsString()

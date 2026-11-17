@@ -71,6 +71,9 @@ import * as phase79 from './phase-79-documents-module-rbac';
 import * as phase80 from './phase-80-make-product-category-and-country-optional';
 import * as phase81 from './phase-81-export-invoice';
 import * as phase82 from './phase-82-permission-groups';
+import * as phase83 from './phase-83-dynamic-freight-rule-engine';
+import * as phase84 from './phase-84-sales-contract-quantity-fields';
+import * as phase85 from './phase-85-replace-loading-points-with-transport-details';
 
 export interface MigrationPhase {
   phase: string;
@@ -157,4 +160,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase80,
   phase81,
   phase82,
+  phase83,
+  phase84,
+  phase85,
 ];

@@ -105,6 +105,13 @@ export class LogisticsController {
     return this.service.findQueue(query, companyId, req.user?.userId);
   }
 
+  @Get('queue')
+  @RequirePermission('logistics:view')
+  async findQueueAlias(@Query() query: QueryLogisticsDto, @Req() req: any) {
+    const companyId = req.user?.companyId;
+    return this.service.findQueue(query, companyId, req.user?.userId);
+  }
+
   @Post('enquiry/:enquiryId/hide')
   @RequirePermission('logistics:view')
   async hideEnquiryFromTransport(

@@ -73,24 +73,23 @@ export class EnquiriesController {
     return this.enquiriesService.remove(id, reason, req?.user);
   }
 
-  @Get(':id/loading-points')
+  @Get(':id/transport-details')
   @RequireAnyPermission('enquiry:view', 'sales_contract:view', 'confirmed_orders:view')
-  getLoadingPoints(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
-    return this.enquiriesService.getLoadingPoints(id, req.user?.companyId);
+  getTransportDetails(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.enquiriesService.getTransportDetails(id, req.user?.companyId);
   }
 
-  @Put(':id/loading-points')
+  @Put(':id/transport-details')
   @RequireAnyPermission('enquiry:update', 'sales_contract:update', 'confirmed_orders:update')
-  updateLoadingPoints(
+  updateTransportDetails(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { loadingPoints: string[]; freightRequired?: boolean },
+    @Body() body: { transportDetails: any[] },
     @Req() req: any,
   ) {
-    return this.enquiriesService.updateLoadingPoints(
+    return this.enquiriesService.updateTransportDetails(
       id,
       req.user?.companyId,
-      body.loadingPoints ?? [],
-      body.freightRequired,
+      body.transportDetails ?? [],
     );
   }
 

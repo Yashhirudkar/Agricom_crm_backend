@@ -19,6 +19,14 @@ export class QueryLogisticsDto {
   status?: string;
 
   @IsOptional()
+  @IsString()
+  tab?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   hiddenOnly?: boolean;

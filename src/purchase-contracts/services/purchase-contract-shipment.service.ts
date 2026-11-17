@@ -14,6 +14,7 @@ import { SalesContractItem } from '../../sales-contracts/models/sales-contract-i
 import { Product } from '../../masters/product/product.model';
 import { AddShipmentDto } from '../dto/add-shipment.dto';
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
+import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
 import {
   PurchaseContractActivityService,
   PC_ACTIONS,
@@ -71,9 +72,17 @@ export class PurchaseContractShipmentService {
       if (contract.placeOfLoading) {
         updateData.origin = contract.placeOfLoading;
       }
-      if (contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false) {
-        updateData.freightAllocationStatus = 'Yes';
+      const targetShipment = await this.shipmentModel.findByPk(sId, {
+        include: [{ model: SalesContract, as: 'salesContract', include: [{ model: ShipmentType, as: 'shipmentType' }] }],
+      });
+      const scSt = (targetShipment?.salesContract as any)?.shipmentType || null;
+      const ruleRes = evaluateFreightRequired(contract.shipmentType, scSt);
+      updateData.freightRequired = ruleRes.freightRequired;
+      if (!ruleRes.freightRequired) {
+        updateData.freightAllocationStatus = null;
         updateData.freight = null;
+        updateData.freightCurrency = null;
+        updateData.freightDescription = null;
       }
       if (Object.keys(updateData).length > 0) {
         await this.shipmentModel.update(updateData, { where: { id: sId } });
@@ -186,11 +195,14 @@ export class PurchaseContractShipmentService {
       const supplier = (contract as any).seller?.entityName || '—';
       const buyer = sc.buyer?.entityName || '—';
 
+      const pcSt = contract.shipmentType || null;
+      const scSt = (s.salesContract as any)?.shipmentType || null;
+      const ruleRes = evaluateFreightRequired(pcSt, scSt);
+      const isFreightRequired = ruleRes.freightRequired;
       const isFreightAutoAllocated =
+        !isFreightRequired ||
         s.freightAllocationStatus === 'Yes' ||
-        s.freightAllocationStatus === 'Not Applicable' ||
-        contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
-        (s.salesContract as any)?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+        s.freightAllocationStatus === 'Not Applicable';
 
       const json: any = {
         linkId: link.id,
@@ -203,11 +215,16 @@ export class PurchaseContractShipmentService {
         noOfContainers: s.noOfContainers,
         purchaseRate: s.purchaseRate,
         ratePerMt: s.ratePerMt,
-        freight: isFreightAutoAllocated ? null : s.freight,
-        freightAllocationStatus: isFreightAutoAllocated
-          ? 'Yes'
-          : (s.freightAllocationStatus || (s.freight ? 'Allocated' : 'Pending')),
-        isFreightNotApplicable: false,
+        freightRequired: isFreightRequired,
+        freight: !isFreightRequired ? null : s.freight,
+        freightCurrency: !isFreightRequired ? null : (s as any).freightCurrency,
+        freightDescription: !isFreightRequired ? null : (s as any).freightDescription,
+        freightAllocationStatus: !isFreightRequired
+          ? null
+          : (isFreightAutoAllocated
+              ? 'Yes'
+              : (s.freightAllocationStatus || (s.freight ? 'Allocated' : 'Pending'))),
+        isFreightNotApplicable: !isFreightRequired,
         freightReady: isFreightAutoAllocated ? true : Boolean(s.freight && Number(s.freight) > 0),
         forex: s.forex,
         status: s.status,
@@ -310,9 +327,17 @@ export class PurchaseContractShipmentService {
     if (contract.placeOfLoading) {
       updateData.origin = contract.placeOfLoading;
     }
-    if (contract.shipmentType?.purchaseContractDeliveryPlaceRequired === false) {
-      updateData.freightAllocationStatus = 'Yes';
+    const targetShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
+      include: [{ model: SalesContract, as: 'salesContract', include: [{ model: ShipmentType, as: 'shipmentType' }] }],
+    });
+    const scSt = (targetShipment?.salesContract as any)?.shipmentType || null;
+    const ruleRes = evaluateFreightRequired(contract.shipmentType, scSt);
+    updateData.freightRequired = ruleRes.freightRequired;
+    if (!ruleRes.freightRequired) {
+      updateData.freightAllocationStatus = null;
       updateData.freight = null;
+      updateData.freightCurrency = null;
+      updateData.freightDescription = null;
     }
     if (Object.keys(updateData).length > 0) {
       await this.shipmentModel.update(updateData, { where: { id: dto.shipmentId } });

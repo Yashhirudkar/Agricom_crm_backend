@@ -34,6 +34,13 @@ export class ShipmentTypeService {
 
     return this.model.create({
       ...dto,
+      stageOrder:
+        dto.stageOrder !== undefined ? Number(dto.stageOrder) : 1,
+      locationType: dto.locationType || 'Port of Loading (POL)',
+      freightRequiredAfterStage:
+        dto.freightRequiredAfterStage !== undefined
+          ? Boolean(dto.freightRequiredAfterStage)
+          : false,
       purchaseContractDeliveryPlaceRequired:
         dto.purchaseContractDeliveryPlaceRequired !== undefined
           ? dto.purchaseContractDeliveryPlaceRequired

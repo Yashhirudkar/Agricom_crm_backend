@@ -26,6 +26,7 @@ import { SalesContractShipment } from './sales-contract-shipment.model';
 import { SalesContractDocument } from './sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contract-document-file.model';
 import { Company } from '../../companies/models/company.model';
+import { TransportDetail } from '../../enquiries/models/transport-detail.model';
 // Forward import to avoid circular dependency issues at runtime
 import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
@@ -205,6 +206,30 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
   // ----------------------------------------------------
 
   @Column({
+    field: 'transport_mode',
+    type: DataType.STRING(50),
+    allowNull: true,
+    defaultValue: 'sea',
+  })
+  declare transportMode: string;
+
+  @Column({
+    field: 'container_type',
+    type: DataType.STRING(50),
+    allowNull: true,
+    defaultValue: '40 FT',
+  })
+  declare containerType: string;
+
+  @Column({
+    field: 'tolerance_percentage',
+    type: DataType.DECIMAL(5, 2),
+    allowNull: true,
+    defaultValue: 5,
+  })
+  declare tolerancePercentage: number;
+
+  @Column({
     field: 'origin_transport_mode',
     type: DataType.STRING(30),
     allowNull: true,
@@ -314,4 +339,7 @@ export class SalesContract extends BusinessReferenceEntity<SalesContract> {
 
   @HasMany(() => PurchaseContract)
   declare purchaseContracts: PurchaseContract[];
+
+  @HasMany(() => TransportDetail)
+  declare transportDetails: TransportDetail[];
 }

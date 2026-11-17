@@ -8,8 +8,11 @@ import {
   IsEnum,
   Min,
   MaxLength,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TransportDetailDto } from './transport-detail.dto';
 import {
   EnquiryPurity,
   EnquiryShipmentType,
@@ -169,4 +172,10 @@ export class CreateEnquiryDto {
 
   @IsOptional()
   closedAt?: any;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TransportDetailDto)
+  transportDetails?: TransportDetailDto[];
 }

@@ -291,7 +291,9 @@ export class ExportInvoicesService {
       rawContract.incoterm ||
       rawContract.termsOfDelivery ||
       rawContract.deliveryTerm ||
-      'DAP';
+      contract.shipmentType?.code ||
+      contract.contractType ||
+      '';
     const deliveryPlace =
       rawContract.deliveryPlace ||
       rawContract.destinationLocationName ||

@@ -14,6 +14,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TransportDetailDto } from '../../enquiries/dto/transport-detail.dto';
 
 export class CreateSalesContractItemDto {
   @IsOptional()
@@ -45,6 +46,22 @@ export class CreateSalesContractItemDto {
   @IsNumber()
   @Min(0.01)
   qtyPerCount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  unitCount?: number;
+
+  @IsOptional()
+  @IsString()
+  containerType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  tolerancePercentage?: number;
+
+  @IsOptional()
+  @IsString()
+  quantityDescription?: string;
 
   @IsNotEmpty()
   @IsNumber()
@@ -106,6 +123,18 @@ export class CreateSalesContractShipmentDto {
   @IsOptional()
   @IsNumber()
   freight?: number;
+
+  @IsOptional()
+  @IsString()
+  freightCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  freightDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  freightAllocationStatus?: string;
 
   @IsOptional()
   @IsString()
@@ -221,7 +250,19 @@ export class CreateSalesContractDto {
   @IsString()
   portOfDischarge?: string;
 
-  // Multi-Modal Transport Routing
+  // Multi-Modal Transport Routing & Logistics Configuration
+  @IsOptional()
+  @IsString()
+  transportMode?: string;
+
+  @IsOptional()
+  @IsString()
+  containerType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  tolerancePercentage?: number;
+
   @IsOptional()
   @IsString()
   originTransportMode?: string;
@@ -313,4 +354,10 @@ export class CreateSalesContractDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSalesContractDocumentDto)
   documents: CreateSalesContractDocumentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TransportDetailDto)
+  transportDetails?: TransportDetailDto[];
 }

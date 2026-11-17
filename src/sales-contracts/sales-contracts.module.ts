@@ -19,8 +19,10 @@ import { Logistics } from '../logistics/models/logistics.model';
 import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { ShipmentReadinessService } from './services/shipment-readiness.service';
 import { ShipmentStuffing } from './models/shipment-stuffing.model';
+import { TransportDetail } from '../enquiries/models/transport-detail.model';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StockModule } from '../stock/stock.module';
+import { LogisticsModule } from '../logistics/logistics.module';
 
 @Module({
   imports: [
@@ -35,11 +37,13 @@ import { StockModule } from '../stock/stock.module';
       Logistics,
       FreightQuote,
       ShipmentStuffing,
+      TransportDetail,
     ]),
     RbacModule,
     AuditModule,
     AttachmentsModule,
     forwardRef(() => PurchaseContractsModule),
+    forwardRef(() => LogisticsModule),
     NotificationsModule,
     StockModule,
   ],

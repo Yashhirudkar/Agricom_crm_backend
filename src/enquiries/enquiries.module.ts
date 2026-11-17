@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { EnquiriesService } from './enquiries.service';
 import { EnquiriesController } from './enquiries.controller';
 import { Enquiry } from './models/enquiry.model';
-import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
+import { TransportDetail } from './models/transport-detail.model';
 import { EnquiryDestination } from './models/enquiry-destination.model';
 import { EnquiryActivityLog } from './models/enquiry-activity-log.model';
 import { EnquiryActivityService } from './services/enquiry-activity.service';
@@ -16,12 +16,13 @@ import { Partner } from '../masters/partner/partner.model';
 import { Product } from '../masters/product/product.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { LogisticsModule } from '../logistics/logistics.module';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([
       Enquiry,
-      EnquiryLoadingPoint,
+      TransportDetail,
       EnquiryDestination,
       EnquiryActivityLog,
       PartnerRole,
@@ -34,6 +35,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     RbacModule,
     AuthModule,
     NotificationsModule,
+    forwardRef(() => LogisticsModule),
   ],
   controllers: [EnquiriesController],
   providers: [EnquiriesService, EnquiryActivityService],

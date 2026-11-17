@@ -3,13 +3,17 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import { Op, Order, QueryTypes } from 'sequelize';
 import { Enquiry } from './models/enquiry.model';
-import { EnquiryLoadingPoint } from './models/enquiry-loading-point.model';
+import { TransportDetail } from './models/transport-detail.model';
 import { EnquiryDestination } from './models/enquiry-destination.model';
+import { isFreightRequiredForIncoterm } from '../masters/shipment-type/utils/incoterm-freight.util';
+import { LogisticsService } from '../logistics/services/logistics.service';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto';
 import { UpdateEnquiryDto } from './dto/update-enquiry.dto';
 import { QueryEnquiryDto } from './dto/query-enquiry.dto';
@@ -99,6 +103,11 @@ const INCLUDE_RELATIONS = [
     attributes: ['id', 'businessReference'],
     required: false,
   },
+  {
+    model: TransportDetail,
+    as: 'transportDetails',
+    required: false,
+  },
 ];
 
 @Injectable()
@@ -108,8 +117,8 @@ export class EnquiriesService {
   constructor(
     @InjectModel(Enquiry)
     private readonly enquiryModel: typeof Enquiry,
-    @InjectModel(EnquiryLoadingPoint)
-    private readonly enquiryLoadingPointModel: typeof EnquiryLoadingPoint,
+    @InjectModel(TransportDetail)
+    private readonly transportDetailModel: typeof TransportDetail,
     @InjectModel(EnquiryDestination)
     private readonly enquiryDestinationModel: typeof EnquiryDestination,
     @InjectModel(PartnerRole)
@@ -128,6 +137,8 @@ export class EnquiriesService {
     private readonly rbacService: RbacService,
     private readonly businessTransactionService: BusinessTransactionService,
     private readonly enquiryActivityService: EnquiryActivityService,
+    @Inject(forwardRef(() => LogisticsService))
+    private readonly logisticsService: LogisticsService,
   ) {}
 
   private async generateEnquiryNumber(transaction?: any): Promise<string> {
@@ -427,6 +438,16 @@ export class EnquiriesService {
     this.validateCommercials(normalized);
     // this.validateLogistics(normalized); // Temporarily disabled — Logistics & Locations section hidden from UI
 
+    if (dto.transportDetails && Array.isArray(dto.transportDetails)) {
+      for (const [idx, item] of dto.transportDetails.entries()) {
+        if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+          throw new BadRequestException(
+            `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+          );
+        }
+      }
+    }
+
     // Pre-fetch relation names outside the transaction to keep it short
     const [partner, broker, partnerRoleName, product, packingType, creator] =
       await Promise.all([
@@ -506,8 +527,32 @@ export class EnquiriesService {
         },
         { transaction },
       );
+
+      if (dto.transportDetails && Array.isArray(dto.transportDetails) && dto.transportDetails.length > 0) {
+        const detailsToCreate = dto.transportDetails.map((td, index) => ({
+          companyId,
+          enquiryId: enquiry.id,
+          parentId: enquiry.id,
+          sequence: td.sequence != null ? td.sequence : index + 1,
+          origin: td.origin.trim(),
+          incoterm: td.incoterm.trim(),
+          destination: td.destination.trim(),
+          freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+        }));
+        await this.transportDetailModel.bulkCreate(detailsToCreate, { transaction });
+      }
+
       return enquiry;
     });
+
+    // Synchronize logistics workspace routes
+    this.logisticsService
+      .syncLogisticsRoutesForEnquiry(enquiry.id, companyId)
+      .catch((err) =>
+        this.logger.warn(
+          `Could not sync logistics routes on enquiry create: ${err?.message}`,
+        ),
+      );
 
     // ── Log First Timeline Event (ENQUIRY_CREATED) ──
     await this.enquiryActivityService
@@ -809,6 +854,26 @@ export class EnquiriesService {
       bidCurrency: row.bidCurrency,
       bidType: row.bidType || 'TARGET',
       note: row.note || null,
+      transportDetails: (row.transportDetails && row.transportDetails.length > 0)
+        ? row.transportDetails.map((td: any) => ({
+            id: td.id,
+            sequence: td.sequence,
+            origin: td.origin,
+            incoterm: td.incoterm,
+            destination: td.destination,
+            freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+          }))
+        : (row.destinationCountry || row.destinationPort || row.destinationCity)
+        ? [
+            {
+              sequence: 1,
+              origin: row.originPort || row.originCity || row.originCountryId || '',
+              incoterm: row.shipmentType || '',
+              destination: row.destinationCountry || row.destinationPort || row.destinationCity,
+              freightRequired: isFreightRequiredForIncoterm(row.shipmentType || ''),
+            },
+          ]
+        : [],
       createdBy: row.createdBy,
       createdByName: row.creator?.name || null,
       creator: row.creator
@@ -823,7 +888,7 @@ export class EnquiriesService {
     return buildPaginatedResponse(mappedRows, count, page || 1, finalLimit);
   }
 
-  async findOne(id: string, companyId?: number): Promise<Enquiry> {
+  async findOne(id: string, companyId?: number): Promise<any> {
     const where: any = { id };
     if (companyId) where.companyId = companyId;
     const enquiry = await this.enquiryModel.findOne({
@@ -833,6 +898,63 @@ export class EnquiriesService {
     if (!enquiry) {
       throw new NotFoundException('Enquiry not found');
     }
+
+    const linkedSc = (await this.sequelize.models.SalesContract.findOne({
+      where: { enquiryId: id },
+      include: [
+        { model: this.sequelize.models.ShipmentType, as: 'shipmentType' },
+        { model: this.sequelize.models.TransportDetail, as: 'transportDetails' },
+      ],
+    })) as any;
+
+    if (linkedSc) {
+      const scIncoterm =
+        linkedSc.shipmentType?.code ||
+        linkedSc.shipmentType?.name ||
+        linkedSc.transportDetails?.[0]?.incoterm;
+
+      (enquiry as any).setDataValue('salesContract', {
+        id: linkedSc.id,
+        contractNumber: linkedSc.contractNumber,
+        shipmentTypeId: linkedSc.shipmentTypeId,
+        shipmentType: linkedSc.shipmentType,
+        incoterm: scIncoterm,
+        transportDetails: linkedSc.transportDetails,
+      });
+
+      // If enquiry's transport details are missing incoterm, backfill from sales contract
+      if (enquiry.transportDetails && enquiry.transportDetails.length > 0) {
+        for (const td of enquiry.transportDetails) {
+          if (!td.incoterm && scIncoterm) {
+            td.setDataValue('incoterm', scIncoterm);
+            td.setDataValue('freightRequired', isFreightRequiredForIncoterm(scIncoterm));
+          }
+        }
+      } else if (scIncoterm) {
+        const dest =
+          enquiry.destinationCountry ||
+          enquiry.destinationPort ||
+          enquiry.destinationCity ||
+          linkedSc.destinationLocationName ||
+          linkedSc.portOfDischarge;
+        (enquiry as any).setDataValue('transportDetails', [
+          {
+            sequence: 1,
+            origin:
+              enquiry.originPort ||
+              enquiry.originCity ||
+              enquiry.originCountryId ||
+              linkedSc.originLocationName ||
+              linkedSc.portOfLoading ||
+              '',
+            incoterm: scIncoterm,
+            destination: dest || '',
+            freightRequired: isFreightRequiredForIncoterm(scIncoterm),
+          },
+        ]);
+      }
+    }
+
     return enquiry;
   }
 
@@ -868,6 +990,16 @@ export class EnquiriesService {
     this.validateCommercials(normalizedMerged);
     // this.validateLogistics(normalizedMerged); // Temporarily disabled — Logistics & Locations section hidden from UI
 
+    if (dto.transportDetails !== undefined && Array.isArray(dto.transportDetails)) {
+      for (const [idx, item] of dto.transportDetails.entries()) {
+        if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+          throw new BadRequestException(
+            `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+          );
+        }
+      }
+    }
+
     // Apply normalization to actual delta properties for DB update
     const normalizedDto = this.normalizeLogisticsPayload(dto);
     if (normalizedDto.status === EnquiryStatus.CLOSED) {
@@ -898,6 +1030,27 @@ export class EnquiriesService {
         },
         { transaction },
       );
+
+      if (dto.transportDetails !== undefined) {
+        await this.transportDetailModel.destroy({
+          where: { enquiryId: id },
+          transaction,
+        });
+        if (Array.isArray(dto.transportDetails) && dto.transportDetails.length > 0) {
+          const detailsToCreate = dto.transportDetails.map((td, index) => ({
+            companyId,
+            enquiryId: id,
+            parentId: id,
+            sequence: td.sequence != null ? td.sequence : index + 1,
+            origin: td.origin.trim(),
+            incoterm: td.incoterm.trim(),
+            destination: td.destination.trim(),
+            freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+          }));
+          await this.transportDetailModel.bulkCreate(detailsToCreate, { transaction });
+        }
+      }
+
       if (normalizedDto.status === EnquiryStatus.CONFIRMED) {
         await this.businessTransactionService.ensureForEnquiry(
           id,
@@ -908,6 +1061,15 @@ export class EnquiriesService {
     });
 
     const updatedEnquiry = await enquiry.reload({ include: INCLUDE_RELATIONS });
+
+    // Synchronize logistics workspace routes with latest Transport Details
+    await this.logisticsService
+      .syncLogisticsRoutesForEnquiry(id, companyId)
+      .catch((err) =>
+        this.logger.warn(
+          `Could not sync logistics routes on enquiry update: ${err?.message}`,
+        ),
+      );
 
     // ── Log Bid & Offer / Price Changes ──
     await this.enquiryActivityService
@@ -1013,68 +1175,127 @@ export class EnquiriesService {
     }
   }
 
-  async getLoadingPoints(
+  async getTransportDetails(
     enquiryId: string,
     companyId: number,
-  ): Promise<string[]> {
-    const points = await this.enquiryLoadingPointModel.findAll({
+  ): Promise<any[]> {
+    const details = await this.transportDetailModel.findAll({
       where: { enquiryId, companyId },
-      order: [['createdAt', 'ASC']],
-      attributes: ['loadingPoint'],
+      order: [
+        ['sequence', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
     });
-    return points.map((p) => p.loadingPoint);
+    if (details.length > 0) {
+      return details.map((d) => ({
+        id: d.id,
+        sequence: d.sequence,
+        origin: d.origin,
+        incoterm: d.incoterm,
+        destination: d.destination,
+        freightRequired: isFreightRequiredForIncoterm(d.incoterm),
+      }));
+    }
+
+    const eq = await this.enquiryModel.findOne({
+      where: { id: enquiryId, companyId },
+      attributes: [
+        'id',
+        'originPort',
+        'originCity',
+        'originCountryId',
+        'shipmentType',
+        'destinationCountry',
+        'destinationPort',
+        'destinationCity',
+      ],
+    });
+    const dest =
+      eq?.destinationCountry || eq?.destinationPort || eq?.destinationCity;
+    if (dest) {
+      return [
+        {
+          sequence: 1,
+          origin: eq.originPort || eq.originCity || eq.originCountryId || '',
+          incoterm: eq.shipmentType || '',
+          destination: dest,
+          freightRequired: isFreightRequiredForIncoterm(eq.shipmentType || ''),
+        },
+      ];
+    }
+    return [];
   }
 
-  async updateLoadingPoints(
+  async updateTransportDetails(
     enquiryId: string,
     companyId: number,
-    loadingPoints: string[],
-    freightRequired?: boolean,
-  ): Promise<string[]> {
-    // Verify enquiry belongs to this company
+    transportDetails: any[],
+  ): Promise<any[]> {
     const enquiry = await this.findOne(enquiryId, companyId);
+    if (!Array.isArray(transportDetails)) {
+      transportDetails = [];
+    }
 
-    // Filter out blank entries
-    const cleaned = loadingPoints.map((s) => s.trim()).filter(Boolean);
+    for (const [idx, item] of transportDetails.entries()) {
+      if (
+        !item.origin?.trim() ||
+        !item.incoterm?.trim() ||
+        !item.destination?.trim()
+      ) {
+        throw new BadRequestException(
+          `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+        );
+      }
+    }
 
     await this.sequelize.transaction(async (transaction) => {
-      if (freightRequired !== undefined) {
-        await enquiry.update({ freightRequired }, { transaction });
-      }
-
-      // Delete existing loading points for this enquiry
-      await this.enquiryLoadingPointModel.destroy({
+      await this.transportDetailModel.destroy({
         where: { enquiryId, companyId },
         transaction,
       });
 
-      // Bulk insert the new ones
-      if (cleaned.length > 0) {
-        await this.enquiryLoadingPointModel.bulkCreate(
-          cleaned.map((loadingPoint) => ({
-            enquiryId,
-            companyId,
-            loadingPoint,
-          })),
-          { transaction },
-        );
+      if (transportDetails.length > 0) {
+        const toCreate = transportDetails.map((td, index) => ({
+          companyId,
+          enquiryId,
+          parentId: enquiryId,
+          sequence: td.sequence != null ? td.sequence : index + 1,
+          origin: td.origin.trim(),
+          incoterm: td.incoterm.trim(),
+          destination: td.destination.trim(),
+          freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+        }));
+        await this.transportDetailModel.bulkCreate(toCreate, { transaction });
       }
     });
 
-    // ── Transport Management Real-Time Notifications ──────────────────────────
-    this.notifyTransportTeam(
-      enquiry,
-      (enquiry.product as any)?.name,
-      (enquiry.partner as any)?.entityName,
-      companyId,
-    ).catch((err) => {
-      this.logger.error(
-        `[Transport Notification] Error: ${err?.message}`,
-        err?.stack,
-      );
-    });
+    const hasFreightRequired = transportDetails.some((td) =>
+      isFreightRequiredForIncoterm(td.incoterm),
+    );
+    if (hasFreightRequired) {
+      this.notifyTransportTeam(
+        enquiry,
+        (enquiry.product as any)?.name,
+        (enquiry.partner as any)?.entityName,
+        companyId,
+      ).catch((err) => {
+        this.logger.error(
+          `[Transport Notification] Error: ${err?.message}`,
+          err?.stack,
+        );
+      });
+    }
 
-    return cleaned;
+    // Synchronize logistics workspace routes with updated Transport Details
+    await this.logisticsService
+      .syncLogisticsRoutesForEnquiry(enquiryId, companyId)
+      .catch((err) =>
+        this.logger.warn(
+          `Could not sync logistics routes on updateTransportDetails: ${err?.message}`,
+        ),
+      );
+
+    return this.getTransportDetails(enquiryId, companyId);
   }
 
   async getDestinations(

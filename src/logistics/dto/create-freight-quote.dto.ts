@@ -186,6 +186,10 @@ export class CreateFreightQuoteDto {
 
   @IsOptional()
   @IsString()
+  origin?: string;
+
+  @IsOptional()
+  @IsString()
   loadingPoint?: string;
 
   @IsOptional()

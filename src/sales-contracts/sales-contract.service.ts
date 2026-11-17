@@ -5,6 +5,8 @@ import {
   ConflictException,
   OnModuleInit,
   Optional,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, Order, QueryTypes } from 'sequelize';
@@ -21,10 +23,14 @@ import { Product } from '../masters/product/product.model';
 import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
 import { PurchaseContractItem } from '../purchase-contracts/models/purchase-contract-item.model';
 import { Enquiry } from '../enquiries/models/enquiry.model';
+import { TransportDetail } from '../enquiries/models/transport-detail.model';
+import { isFreightRequiredForIncoterm } from '../masters/shipment-type/utils/incoterm-freight.util';
+import { LogisticsService } from '../logistics/services/logistics.service';
 import { PartnerRole } from '../masters/partner-role/partner-role.model';
 
 import { TradeDocument } from '../masters/trade-document/trade-document.model';
 import { ShipmentType } from '../masters/shipment-type/shipment-type.model';
+import { evaluateFreightRequired } from '../masters/shipment-type/freight-rule-engine.service';
 import { PaymentTerm } from '../masters/payment-term/payment-term.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
@@ -36,6 +42,7 @@ import {
 } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
+import { generateQuantityDescription, getContractItemQuantityDescription } from './utils/quantity-description.util';
 import {
   distributeShipmentQuantities,
   isDivisible,
@@ -68,11 +75,16 @@ export class SalesContractService implements OnModuleInit {
     private readonly documentModel: typeof SalesContractDocument,
     @InjectModel(SalesContractDocumentFile)
     private readonly documentFileModel: typeof SalesContractDocumentFile,
+    @InjectModel(TransportDetail)
+    private readonly transportDetailModel: typeof TransportDetail,
     private readonly attachmentsService: AttachmentsService,
     private readonly sequelize: Sequelize,
     private readonly businessTransactionService: BusinessTransactionService,
     @Optional()
     private readonly notificationsGateway?: NotificationsGateway,
+    @Optional()
+    @Inject(forwardRef(() => LogisticsService))
+    private readonly logisticsService?: LogisticsService,
   ) {}
 
   async onModuleInit() {
@@ -273,17 +285,24 @@ export class SalesContractService implements OnModuleInit {
       }
 
       // 2. Create Header
+      if (dto.transportDetails && Array.isArray(dto.transportDetails)) {
+        for (const [idx, item] of dto.transportDetails.entries()) {
+          if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+            throw new BadRequestException(
+              `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+            );
+          }
+        }
+      }
+
       let resolvedDestinationLocationName = dto.destinationLocationName || null;
-      let isFreightNotApplicable = false;
+      let st: any = null;
       if (dto.shipmentTypeId) {
-        const st = await ShipmentType.findOne({
+        st = await ShipmentType.findOne({
           where: { id: dto.shipmentTypeId, companyId },
         });
         if (st && st.salesContractDeliveryPlaceRequired === false) {
           resolvedDestinationLocationName = null;
-        }
-        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
-          isFreightNotApplicable = true;
         }
       }
 
@@ -304,10 +323,35 @@ export class SalesContractService implements OnModuleInit {
 
       // 3. Create Items
       if (dto.items && dto.items.length > 0) {
-        const itemsToCreate = dto.items.map((item) => ({
-          ...item,
-          salesContractId: contract.id,
-        }));
+        const mode = contract.transportMode || contract.originTransportMode || contract.destinationTransportMode || 'sea';
+        const contractContainerType = contract.containerType || '40 FT';
+        const contractTolerance = contract.tolerancePercentage ?? 5;
+
+        const itemsToCreate = dto.items.map((item) => {
+          const itemContainerType = item.containerType || contractContainerType;
+          const itemTolerance = item.tolerancePercentage ?? contractTolerance;
+          const qtyDesc =
+            item.quantityDescription ||
+            getContractItemQuantityDescription(
+              {
+                ...contract,
+                shipments: dto.shipments,
+              },
+              {
+                ...item,
+                containerType: itemContainerType,
+                tolerancePercentage: itemTolerance,
+              },
+            );
+
+          return {
+            ...item,
+            containerType: itemContainerType,
+            tolerancePercentage: itemTolerance,
+            quantityDescription: qtyDesc,
+            salesContractId: contract.id,
+          };
+        });
         await this.itemModel.bulkCreate(itemsToCreate, { transaction: t });
       }
 
@@ -334,20 +378,27 @@ export class SalesContractService implements OnModuleInit {
             )
           : [];
 
-        // Auto Route Source Mapping: Origin from Purchase Contract, Destination from Sales Contract
+        // Auto Route Source Mapping & Dynamic Freight Evaluation
         let pcOrigin: string | null = null;
+        let pcShipmentType: any = null;
         if (contract.businessTransactionId) {
           try {
             const pcRows: any = await this.sequelize.query(
-              `SELECT place_of_loading FROM purchase_contracts WHERE business_transaction_id = :btId AND place_of_loading IS NOT NULL LIMIT 1`,
+              `SELECT pc.place_of_loading, st.* 
+               FROM purchase_contracts pc
+               LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
+               WHERE pc.business_transaction_id = :btId
+               ORDER BY pc.updated_at DESC LIMIT 1`,
               {
                 replacements: { btId: contract.businessTransactionId },
                 type: QueryTypes.SELECT,
                 transaction: t,
               },
             );
-            if (pcRows && pcRows.length > 0)
+            if (pcRows && pcRows.length > 0) {
               pcOrigin = pcRows[0].place_of_loading;
+              pcShipmentType = pcRows[0];
+            }
           } catch (e) {}
         }
         const scDest =
@@ -356,6 +407,9 @@ export class SalesContractService implements OnModuleInit {
             : contract.destinationLocationName ||
               contract.portOfDischarge ||
               null;
+
+        const freightRule = evaluateFreightRequired(pcShipmentType, st);
+        const isFreightRequired = freightRule.freightRequired;
 
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
@@ -377,8 +431,17 @@ export class SalesContractService implements OnModuleInit {
             origin: pcOrigin,
             destination: scDest,
             status: shipment.status || 'Scheduled',
-            freightAllocationStatus: isFreightNotApplicable ? 'Yes' : null,
-            freight: isFreightNotApplicable ? null : shipment.freight,
+            freightRequired: isFreightRequired,
+            freightAllocationStatus: isFreightRequired ? (shipment.freightAllocationStatus || null) : null,
+            freight: isFreightRequired
+              ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+                ? parseFloat(shipment.freight as any)
+                : null)
+              : null,
+            freightCurrency: isFreightRequired
+              ? (shipment.freightCurrency || contract.currencyCode || null)
+              : null,
+            freightDescription: isFreightRequired ? (shipment.freightDescription || null) : null,
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
             companyId: contract.companyId || user?.companyId || null,
@@ -405,6 +468,27 @@ export class SalesContractService implements OnModuleInit {
         await this.documentModel.bulkCreate(docsToCreate, { transaction: t });
       }
 
+      // 6. Create Transport Details
+      if (
+        dto.transportDetails &&
+        Array.isArray(dto.transportDetails) &&
+        dto.transportDetails.length > 0
+      ) {
+        const detailsToCreate = dto.transportDetails.map((td, index) => ({
+          companyId,
+          salesContractId: contract.id,
+          parentId: String(contract.id),
+          sequence: td.sequence != null ? td.sequence : index + 1,
+          origin: td.origin.trim(),
+          incoterm: td.incoterm.trim(),
+          destination: td.destination.trim(),
+          freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+        }));
+        await this.transportDetailModel.bulkCreate(detailsToCreate, {
+          transaction: t,
+        });
+      }
+
       if (contract.status === 'Active') {
         await this.businessTransactionService.ensureForSalesContract(
           contract.id,
@@ -427,6 +511,12 @@ export class SalesContractService implements OnModuleInit {
           },
         );
       } catch (err) {}
+    }
+
+    if (createdContract.enquiryId && this.logisticsService) {
+      await this.logisticsService
+        .syncLogisticsRoutesForEnquiry(createdContract.enquiryId, companyId)
+        .catch(() => {});
     }
 
     return createdContract;
@@ -518,6 +608,11 @@ export class SalesContractService implements OnModuleInit {
               required: false,
             },
           ],
+        },
+        {
+          model: TransportDetail,
+          as: 'transportDetails',
+          required: false,
         },
       ],
       distinct: true,
@@ -639,6 +734,11 @@ export class SalesContractService implements OnModuleInit {
             },
           ],
         },
+        {
+          model: TransportDetail,
+          as: 'transportDetails',
+          required: false,
+        },
       ],
     });
 
@@ -668,6 +768,16 @@ export class SalesContractService implements OnModuleInit {
             } else {
               it.quality = String(overrideQuality).trim();
             }
+          }
+        }
+
+        const curDesc = it.getDataValue ? it.getDataValue('quantityDescription') : it.quantityDescription;
+        if (!curDesc || !String(curDesc).trim()) {
+          const generatedDesc = getContractItemQuantityDescription(item, it);
+          if (it.setDataValue) {
+            it.setDataValue('quantityDescription', generatedDesc);
+          } else {
+            it.quantityDescription = generatedDesc;
           }
         }
       });
@@ -771,15 +881,30 @@ export class SalesContractService implements OnModuleInit {
       }
 
       // 1. Update Header
+      if (
+        dto.transportDetails !== undefined &&
+        Array.isArray(dto.transportDetails)
+      ) {
+        for (const [idx, item] of dto.transportDetails.entries()) {
+          if (
+            !item.origin?.trim() ||
+            !item.incoterm?.trim() ||
+            !item.destination?.trim()
+          ) {
+            throw new BadRequestException(
+              `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+            );
+          }
+        }
+      }
       const effectiveShipmentTypeId =
         dto.shipmentTypeId !== undefined
           ? (dto.shipmentTypeId ? Number(dto.shipmentTypeId) : null)
           : contract.shipmentTypeId;
       let destLocName = dto.destinationLocationName;
-      let isFreightNotApplicable = false;
-      let isFreightDeliveryRequired = true;
+      let st: any = null;
       if (effectiveShipmentTypeId) {
-        const st = await ShipmentType.findOne({
+        st = await ShipmentType.findOne({
           where: {
             id: effectiveShipmentTypeId,
             companyId: contract.companyId || user?.companyId,
@@ -788,11 +913,34 @@ export class SalesContractService implements OnModuleInit {
         if (st && st.salesContractDeliveryPlaceRequired === false) {
           destLocName = null;
         }
-        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
-          isFreightNotApplicable = true;
-          isFreightDeliveryRequired = false;
-        }
       }
+
+      let pcShipmentType: any = null;
+      if (contract.businessTransactionId || contract.id) {
+        try {
+          const pcRows: any = await this.sequelize.query(
+            `SELECT pc.place_of_loading, st.* 
+             FROM purchase_contracts pc
+             LEFT JOIN shipment_types st ON st.id = pc.shipment_type_id
+             WHERE pc.sales_contract_id = :scId
+                OR (pc.business_transaction_id IS NOT NULL AND pc.business_transaction_id = :btId)
+             ORDER BY pc.updated_at DESC LIMIT 1`,
+            {
+              replacements: {
+                scId: contract.id,
+                btId: contract.businessTransactionId || -1,
+              },
+              type: QueryTypes.SELECT,
+              transaction: t,
+            },
+          );
+          if (pcRows && pcRows.length > 0) {
+            pcShipmentType = pcRows[0];
+          }
+        } catch (e) {}
+      }
+      const freightRule = evaluateFreightRequired(pcShipmentType, st);
+      const isFreightRequired = freightRule.freightRequired;
 
       const updateData: any = {
         ...dto,
@@ -847,12 +995,39 @@ export class SalesContractService implements OnModuleInit {
         });
         const updatedItemIds: number[] = [];
 
+        const mode = contract.transportMode || contract.originTransportMode || contract.destinationTransportMode || 'sea';
+        const contractContainerType = contract.containerType || '40 FT';
+        const contractTolerance = contract.tolerancePercentage ?? 5;
+
         for (let index = 0; index < dto.items.length; index++) {
           const item = dto.items[index] as any;
           let existing = existingItems.find((i) => item.id && i.id === item.id);
           if (!existing && index < existingItems.length && !item.id) {
             existing = existingItems[index];
           }
+
+          const itemContainerType = item.containerType || existing?.containerType || contractContainerType;
+          const itemTolerance = item.tolerancePercentage ?? existing?.tolerancePercentage ?? contractTolerance;
+          const itemUnitCount = item.unitCount ?? existing?.unitCount;
+          const itemQtyPerCount = item.qtyPerCount ?? existing?.qtyPerCount;
+          const itemQuantity = item.quantity ?? existing?.quantity;
+
+          const qtyDesc =
+            item.quantityDescription ||
+            getContractItemQuantityDescription(
+              {
+                ...contract,
+                shipments: dto.shipments || contract.shipments,
+              },
+              {
+                ...item,
+                containerType: itemContainerType,
+                tolerancePercentage: itemTolerance,
+                unitCount: itemUnitCount,
+                qtyPerCount: itemQtyPerCount,
+                quantity: itemQuantity,
+              },
+            );
 
           if (existing) {
             const qualityToSave =
@@ -863,6 +1038,9 @@ export class SalesContractService implements OnModuleInit {
               {
                 ...item,
                 quality: qualityToSave,
+                containerType: itemContainerType,
+                tolerancePercentage: itemTolerance,
+                quantityDescription: qtyDesc,
                 salesContractId: contract.id,
               },
               { transaction: t },
@@ -872,6 +1050,9 @@ export class SalesContractService implements OnModuleInit {
             const created = await this.itemModel.create(
               {
                 ...item,
+                containerType: itemContainerType,
+                tolerancePercentage: itemTolerance,
+                quantityDescription: qtyDesc,
                 salesContractId: contract.id,
               },
               { transaction: t },
@@ -1065,14 +1246,21 @@ export class SalesContractService implements OnModuleInit {
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || existing.status || 'Scheduled',
-                freightAllocationStatus: isFreightNotApplicable
-                  ? 'Yes'
-                  : (isFreightDeliveryRequired && ['Not Applicable', 'Yes'].includes(existing.freightAllocationStatus || '')
-                    ? null
-                    : (shipment.freightAllocationStatus !== undefined ? shipment.freightAllocationStatus : existing.freightAllocationStatus)),
-                freight: isFreightNotApplicable
-                  ? null
-                  : (shipment.freight !== undefined ? shipment.freight : existing.freight),
+                freightRequired: isFreightRequired,
+                freightAllocationStatus: isFreightRequired
+                  ? (shipment.freightAllocationStatus !== undefined ? shipment.freightAllocationStatus : existing.freightAllocationStatus)
+                  : null,
+                freight: isFreightRequired
+                  ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+                    ? parseFloat(shipment.freight as any)
+                    : (existing.freight ?? null))
+                  : null,
+                freightCurrency: isFreightRequired
+                  ? (shipment.freightCurrency || (existing as any).freightCurrency || contract.currencyCode || null)
+                  : null,
+                freightDescription: isFreightRequired
+                  ? (shipment.freightDescription !== undefined ? shipment.freightDescription : ((existing as any).freightDescription ?? null))
+                  : null,
               },
               { transaction: t },
             );
@@ -1104,8 +1292,17 @@ export class SalesContractService implements OnModuleInit {
                 shipmentDate: new Date(shipment.shipmentDate),
                 shipmentReference: shipmentRef,
                 status: shipment.status || 'Scheduled',
-            freightAllocationStatus: isFreightNotApplicable ? 'Yes' : null,
-            freight: isFreightNotApplicable ? null : shipment.freight,
+                freightRequired: isFreightRequired,
+                freightAllocationStatus: isFreightRequired ? (shipment.freightAllocationStatus || null) : null,
+                freight: isFreightRequired
+                  ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+                    ? parseFloat(shipment.freight as any)
+                    : null)
+                  : null,
+                freightCurrency: isFreightRequired
+                  ? (shipment.freightCurrency || contract.currencyCode || null)
+                  : null,
+                freightDescription: isFreightRequired ? (shipment.freightDescription || null) : null,
               },
               { transaction: t },
             );
@@ -1199,6 +1396,32 @@ export class SalesContractService implements OnModuleInit {
         }
       }
 
+      // 5. Update Transport Details
+      if (dto.transportDetails !== undefined) {
+        await this.transportDetailModel.destroy({
+          where: { salesContractId: contract.id },
+          transaction: t,
+        });
+        if (
+          Array.isArray(dto.transportDetails) &&
+          dto.transportDetails.length > 0
+        ) {
+          const detailsToCreate = dto.transportDetails.map((td, index) => ({
+            companyId: contract.companyId || user?.companyId,
+            salesContractId: contract.id,
+            parentId: String(contract.id),
+            sequence: td.sequence != null ? td.sequence : index + 1,
+            origin: td.origin.trim(),
+            incoterm: td.incoterm.trim(),
+            destination: td.destination.trim(),
+            freightRequired: isFreightRequiredForIncoterm(td.incoterm),
+          }));
+          await this.transportDetailModel.bulkCreate(detailsToCreate, {
+            transaction: t,
+          });
+        }
+      }
+
       if (contract.status === 'Active') {
         await this.businessTransactionService.ensureForSalesContract(
           contract.id,
@@ -1209,6 +1432,15 @@ export class SalesContractService implements OnModuleInit {
     });
 
     const updated = await this.findOne(id);
+
+    if (updated.enquiryId && this.logisticsService) {
+      await this.logisticsService
+        .syncLogisticsRoutesForEnquiry(
+          updated.enquiryId,
+          updated.companyId || user?.companyId,
+        )
+        .catch(() => {});
+    }
 
     const creatorId = updated.createdBy;
     if (creatorId) {

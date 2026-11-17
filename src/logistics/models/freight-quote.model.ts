@@ -103,8 +103,15 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   declare product: Product;
 
   @AllowNull(true)
-  @Column({ field: 'loading_point', type: DataType.STRING(255) })
-  declare loadingPoint: string;
+  @Column({ field: 'origin', type: DataType.STRING(255) })
+  declare origin: string;
+
+  get loadingPoint(): string {
+    return this.getDataValue('origin');
+  }
+  set loadingPoint(val: string) {
+    this.setDataValue('origin', val);
+  }
 
   @AllowNull(true)
   @Column({ type: DataType.STRING(255) })

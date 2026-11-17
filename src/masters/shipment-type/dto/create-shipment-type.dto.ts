@@ -24,6 +24,18 @@ export class CreateShipmentTypeDto {
   sortOrder?: number;
 
   @IsOptional()
+  @IsInt()
+  stageOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  locationType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  freightRequiredAfterStage?: boolean;
+
+  @IsOptional()
   @IsString()
   status?: string;
 

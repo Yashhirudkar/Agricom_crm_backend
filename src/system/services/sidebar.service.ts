@@ -14,9 +14,16 @@ export class SidebarService {
     private readonly systemAuditService: SystemAuditService,
   ) {}
 
-  async getTree() {
+  async getTree(includeInactive: boolean = true) {
+    const folderWhere: any = {};
+    const itemWhere: any = {};
+    if (!includeInactive) {
+      folderWhere.is_active = true;
+      itemWhere.is_active = true;
+    }
+
     const folders = await this.sidebarFolderModel.findAll({
-      where: { is_active: true },
+      where: folderWhere,
       order: [
         ['sort_order', 'ASC'],
         [{ model: SidebarItem, as: 'items' }, 'sort_order', 'ASC'],
@@ -25,14 +32,19 @@ export class SidebarService {
         {
           model: SidebarItem,
           as: 'items',
-          where: { is_active: true },
+          where: itemWhere,
           required: false,
         },
       ],
     });
 
+    const standaloneWhere: any = { folder_id: null };
+    if (!includeInactive) {
+      standaloneWhere.is_active = true;
+    }
+
     const standaloneItems = await this.sidebarItemModel.findAll({
-      where: { is_active: true, folder_id: null },
+      where: standaloneWhere,
       order: [['sort_order', 'ASC']],
     });
 
@@ -40,10 +52,12 @@ export class SidebarService {
       const folderData: any = f.toJSON();
       folderData.icon_color = folderData.iconColor;
       folderData.is_collapsible = folderData.isCollapsible;
+      folderData.is_active = f.is_active;
       if (folderData.items) {
         folderData.items = folderData.items.map((i: any) => {
           i.icon_color = i.iconColor;
           i.use_folder_color = i.useFolderColor;
+          i.is_active = i.is_active;
           return i;
         });
       }
@@ -57,10 +71,12 @@ export class SidebarService {
         icon_name: 'Layout',
         icon_color: '#6b7280',
         is_collapsible: false,
+        is_active: true,
         items: standaloneItems.map((i) => {
           const itemData: any = i.toJSON();
           itemData.icon_color = itemData.iconColor;
           itemData.use_folder_color = itemData.useFolderColor;
+          itemData.is_active = i.is_active;
           return itemData;
         }),
       });
@@ -77,6 +93,7 @@ export class SidebarService {
       icon_color?: string;
       is_collapsible?: boolean;
       sort_order?: number;
+      is_active?: boolean;
     },
   ) {
     const t = await this.sidebarFolderModel.sequelize.transaction();
@@ -89,6 +106,7 @@ export class SidebarService {
           isCollapsible:
             dto.is_collapsible !== undefined ? dto.is_collapsible : false,
           sort_order: dto.sort_order || 0,
+          is_active: dto.is_active !== undefined ? dto.is_active : true,
         },
         { transaction: t },
       );
@@ -115,6 +133,7 @@ export class SidebarService {
       use_folder_color?: boolean;
       permission_link?: string;
       sort_order?: number;
+      is_active?: boolean;
     },
   ) {
     const t = await this.sidebarItemModel.sequelize.transaction();
@@ -130,6 +149,7 @@ export class SidebarService {
             dto.use_folder_color !== undefined ? dto.use_folder_color : true,
           permission_link: dto.permission_link || null,
           sort_order: dto.sort_order || 0,
+          is_active: dto.is_active !== undefined ? dto.is_active : true,
         },
         { transaction: t },
       );
@@ -153,6 +173,7 @@ export class SidebarService {
       icon_name?: string;
       icon_color?: string;
       is_collapsible?: boolean;
+      is_active?: boolean;
     },
   ) {
     const folder = await this.sidebarFolderModel.findByPk(id);
@@ -165,6 +186,9 @@ export class SidebarService {
     if (dto.is_collapsible !== undefined) {
       updateData.isCollapsible = dto.is_collapsible;
       delete updateData.is_collapsible;
+    }
+    if (dto.is_active !== undefined) {
+      updateData.is_active = dto.is_active;
     }
     await folder.update(updateData);
     await this.systemAuditService.logAction(userId, 'SIDEBAR_FOLDER_UPDATE', {
@@ -184,6 +208,7 @@ export class SidebarService {
       icon_color?: string;
       use_folder_color?: boolean;
       permission_link?: string;
+      is_active?: boolean;
     },
   ) {
     const item = await this.sidebarItemModel.findByPk(id);
@@ -196,6 +221,9 @@ export class SidebarService {
     if (dto.use_folder_color !== undefined) {
       updateData.useFolderColor = dto.use_folder_color;
       delete updateData.use_folder_color;
+    }
+    if (dto.is_active !== undefined) {
+      updateData.is_active = dto.is_active;
     }
     await item.update(updateData);
     await this.systemAuditService.logAction(userId, 'SIDEBAR_ITEM_UPDATE', {

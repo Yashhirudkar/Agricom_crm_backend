@@ -98,6 +98,19 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   @Column({ field: 'freight_allocation_status', type: DataType.STRING(50) })
   declare freightAllocationStatus: string | null;
 
+  @Default(true)
+  @AllowNull(true)
+  @Column({ field: 'freight_required', type: DataType.BOOLEAN })
+  declare freightRequired: boolean | null;
+
+  @AllowNull(true)
+  @Column({ field: 'freight_currency', type: DataType.STRING(10) })
+  declare freightCurrency: string | null;
+
+  @AllowNull(true)
+  @Column({ field: 'freight_description', type: DataType.STRING(500) })
+  declare freightDescription: string | null;
+
   @AllowNull(true)
   @Column({ type: DataType.STRING(500) })
   declare remarks: string;

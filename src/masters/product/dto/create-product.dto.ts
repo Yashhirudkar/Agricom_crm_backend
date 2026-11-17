@@ -23,7 +23,6 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
-  @IsNotEmpty()
   @MaxLength(150)
   country?: string | null;
 

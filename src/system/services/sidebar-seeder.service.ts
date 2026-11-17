@@ -1004,34 +1004,20 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           icon_name: 'Folder',
           sort_order: 85,
           is_active: true,
-          isCollapsible: true,
+          isCollapsible: false,
         } as any);
         this.logger.log('Created Documents sidebar folder');
-      } else {
-        let folderUpdated = false;
-        if (!docsFolder.is_active) {
-          docsFolder.is_active = true;
-          folderUpdated = true;
-        }
-        if (!docsFolder.isCollapsible) {
-          docsFolder.isCollapsible = true;
-          folderUpdated = true;
-        }
-        if (docsFolder.sort_order !== 85) {
-          docsFolder.sort_order = 85;
-          folderUpdated = true;
-        }
-        if (folderUpdated) await docsFolder.save();
       }
 
-      const items = await this.sidebarItemModel.findAll({
+      // Sync Shipment Stuffing Execution
+      const stuffingItems = await this.sidebarItemModel.findAll({
         where: { route: '/documents/shipment-stuffing-execution' },
       });
 
-      let itemId: number | null = null;
+      let stuffingItemId: number | null = null;
 
-      if (items.length > 0) {
-        for (const item of items) {
+      if (stuffingItems.length > 0) {
+        for (const item of stuffingItems) {
           let modified = false;
           if (item.name !== 'Shipment Stuffing Execution') {
             item.name = 'Shipment Stuffing Execution';
@@ -1049,15 +1035,11 @@ export class SidebarSeederService implements OnApplicationBootstrap {
             item.permission_link = 'shipment_stuffing_execution:view';
             modified = true;
           }
-          if (!item.is_active) {
-            item.is_active = true;
-            modified = true;
-          }
           if (modified) {
             await item.save();
             this.logger.log(`Updated sidebar item ${item.id} (/documents/shipment-stuffing-execution)`);
           }
-          itemId = item.id;
+          stuffingItemId = item.id;
         }
       } else {
         const newItem = await this.sidebarItemModel.create({
@@ -1069,38 +1051,88 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           is_active: true,
           permission_link: 'shipment_stuffing_execution:view',
         });
-        itemId = newItem.id;
+        stuffingItemId = newItem.id;
         this.logger.log(
           'Created /documents/shipment-stuffing-execution sidebar item with shipment_stuffing_execution:view permission_link',
         );
       }
 
+      // Sync Export Invoice
+      const invoiceItems = await this.sidebarItemModel.findAll({
+        where: { route: '/documents/export-invoices' },
+      });
+
+      let invoiceItemId: number | null = null;
+
+      if (invoiceItems.length > 0) {
+        for (const item of invoiceItems) {
+          let modified = false;
+          if (item.name !== 'Export Invoice') {
+            item.name = 'Export Invoice';
+            modified = true;
+          }
+          if (item.folder_id !== docsFolder.id) {
+            item.folder_id = docsFolder.id;
+            modified = true;
+          }
+          if (item.icon_name !== 'Receipt') {
+            item.icon_name = 'Receipt';
+            modified = true;
+          }
+          if (item.permission_link !== 'export_invoice:view') {
+            item.permission_link = 'export_invoice:view';
+            modified = true;
+          }
+          if (modified) {
+            await item.save();
+            this.logger.log(`Updated sidebar item ${item.id} (/documents/export-invoices)`);
+          }
+          invoiceItemId = item.id;
+        }
+      } else {
+        const newItem = await this.sidebarItemModel.create({
+          name: 'Export Invoice',
+          route: '/documents/export-invoices',
+          icon_name: 'Receipt',
+          folder_id: docsFolder.id,
+          sort_order: 20,
+          is_active: true,
+          permission_link: 'export_invoice:view',
+        });
+        invoiceItemId = newItem.id;
+        this.logger.log(
+          'Created /documents/export-invoices sidebar item with export_invoice:view permission_link',
+        );
+      }
+
       const seq = this.sidebarItemModel.sequelize;
-      if (itemId && seq) {
+      if (seq) {
         const clients = (await seq.query(`SELECT id FROM clients;`, {
           type: 'SELECT',
         })) as any[];
 
-        for (const client of clients) {
-          await seq
-            .query(
-              `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
-               VALUES (:clientId, :itemId, NOW(), NOW())
-               ON CONFLICT (client_id, item_id) DO NOTHING;`,
-              { replacements: { clientId: client.id, itemId } },
-            )
-            .catch(() => {});
+        for (const itemId of [stuffingItemId, invoiceItemId].filter(Boolean)) {
+          for (const client of clients) {
+            await seq
+              .query(
+                `INSERT INTO client_item_access (client_id, item_id, "createdAt", "updatedAt")
+                 VALUES (:clientId, :itemId, NOW(), NOW())
+                 ON CONFLICT (client_id, item_id) DO NOTHING;`,
+                { replacements: { clientId: client.id, itemId } },
+              )
+              .catch(() => {});
 
-          await seq
-            .query(
-              `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
-               VALUES (:clientId, :folderId, NOW(), NOW())
-               ON CONFLICT (client_id, folder_id) DO NOTHING;`,
-              {
-                replacements: { clientId: client.id, folderId: docsFolder.id },
-              },
-            )
-            .catch(() => {});
+            await seq
+              .query(
+                `INSERT INTO client_folder_access (client_id, folder_id, "createdAt", "updatedAt")
+                 VALUES (:clientId, :folderId, NOW(), NOW())
+                 ON CONFLICT (client_id, folder_id) DO NOTHING;`,
+                {
+                  replacements: { clientId: client.id, folderId: docsFolder.id },
+                },
+              )
+              .catch(() => {});
+          }
         }
       }
     } catch (err) {

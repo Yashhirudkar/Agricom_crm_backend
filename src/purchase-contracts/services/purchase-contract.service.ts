@@ -20,6 +20,7 @@ import { Partner } from '../../masters/partner/partner.model';
 import { PartnerRole } from '../../masters/partner-role/partner-role.model';
 import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
+import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
 import { SalesContractItem } from '../../sales-contracts/models/sales-contract-item.model';
 import { Product } from '../../masters/product/product.model';
 import { CreatePurchaseContractDto } from '../dto/create-purchase-contract.dto';
@@ -698,14 +699,11 @@ export class PurchaseContractService {
   ): Promise<PurchaseContract> {
     const createdPc = await this.sequelize.transaction(async (t) => {
       let pc: PurchaseContract;
-      let isFreightNotApplicable = false;
+      let pcShipmentType: ShipmentType | null = null;
       if (dto.shipmentTypeId) {
-        const st = await ShipmentType.findOne({
+        pcShipmentType = await ShipmentType.findOne({
           where: { id: dto.shipmentTypeId, companyId: user?.companyId },
         });
-        if (st && st.purchaseContractDeliveryPlaceRequired === false) {
-          isFreightNotApplicable = true;
-        }
       }
 
       if (dto.salesContractId) {
@@ -770,16 +768,19 @@ export class PurchaseContractService {
           unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
-          deliveryPlace: isFreightNotApplicable ? null : (dto.deliveryPlace || null),
+          deliveryPlace:
+            pcShipmentType && pcShipmentType.purchaseContractDeliveryPlaceRequired === false
+              ? null
+              : (dto.deliveryPlace || null),
           placeOfLoading: dto.placeOfLoading || null,
           loadingCountry: dto.loadingCountry || null,
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
           freightRequired:
-            isFreightNotApplicable
-              ? true
-              : (dto.freightRequired != null ? Boolean(dto.freightRequired) : false),
+            dto.freightRequired != null
+              ? Boolean(dto.freightRequired)
+              : Boolean(pcShipmentType?.freightRequiredAfterStage),
           productQuality: dto.productQuality || null,
           specificationNo: dto.specificationNo || null,
           specificationDate: dto.specificationDate || null,
@@ -803,8 +804,8 @@ export class PurchaseContractService {
       if (dto.salesContractId && dto.shipmentTypeId !== undefined) {
         scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
       }
-      if (isFreightNotApplicable) {
-        scUpdates.freightRequired = true;
+      if (pcShipmentType && pcShipmentType.freightRequiredAfterStage !== undefined) {
+        scUpdates.freightRequired = Boolean(pcShipmentType.freightRequiredAfterStage);
       } else if (dto.freightRequired !== undefined) {
         scUpdates.freightRequired = Boolean(dto.freightRequired);
       }
@@ -878,17 +879,38 @@ export class PurchaseContractService {
         }
       }
 
-      if (isFreightNotApplicable) {
-        const sIds = Array.isArray(dto.shipmentAllocations)
-          ? dto.shipmentAllocations.map((a) => Number(a.shipmentId)).filter(Boolean)
-          : Array.isArray(dto.shipmentIds)
-          ? dto.shipmentIds.map(Number).filter(Boolean)
-          : [];
-        if (sIds.length > 0) {
-          await this.salesShipmentModel.update(
-            { freightAllocationStatus: 'Yes', freight: null },
-            { where: { id: { [Op.in]: sIds } } },
-          );
+      const sIds = Array.isArray(dto.shipmentAllocations)
+        ? dto.shipmentAllocations.map((a) => Number(a.shipmentId)).filter(Boolean)
+        : Array.isArray(dto.shipmentIds)
+        ? dto.shipmentIds.map(Number).filter(Boolean)
+        : [];
+      if (sIds.length > 0 && pcShipmentType) {
+        const shipmentsToSync = await this.salesShipmentModel.findAll({
+          where: { id: { [Op.in]: sIds } },
+          include: [
+            {
+              model: SalesContract,
+              as: 'salesContract',
+              include: [{ model: ShipmentType, as: 'shipmentType' }],
+            },
+          ],
+        });
+        for (const s of shipmentsToSync) {
+          const scSt = s.salesContract?.shipmentType || null;
+          const res = evaluateFreightRequired(pcShipmentType, scSt);
+          if (!res.freightRequired) {
+            await s.update({
+              freightRequired: false,
+              freightAllocationStatus: null,
+              freight: null,
+              freightCurrency: null,
+              freightDescription: null,
+            });
+          } else {
+            await s.update({
+              freightRequired: true,
+            });
+          }
         }
       }
 
@@ -1164,31 +1186,46 @@ export class PurchaseContractService {
           companyId: pc.companyId || user?.companyId,
         },
       });
-      if (st && st.purchaseContractDeliveryPlaceRequired === false) {
-        sanitizeData.deliveryPlace = null;
-        sanitizeData.freightRequired = true;
-        const linkedShipments = await this.shipmentLinkModel.findAll({
-          where: { purchaseContractId: id },
-          attributes: ['shipmentId'],
-        });
-        const sIds = linkedShipments.map((l) => l.shipmentId).filter(Boolean);
-        if (sIds.length > 0) {
-          await this.salesShipmentModel.update(
-            { freightAllocationStatus: 'Yes', freight: null },
-            { where: { id: { [Op.in]: sIds } } },
-          );
+      if (st) {
+        if (st.purchaseContractDeliveryPlaceRequired === false) {
+          sanitizeData.deliveryPlace = null;
         }
-      } else if (st && st.purchaseContractDeliveryPlaceRequired === true) {
+        sanitizeData.freightRequired = Boolean(st.freightRequiredAfterStage);
+
+        // Re-evaluate all linked shipments dynamically using the Rule Engine
         const linkedShipments = await this.shipmentLinkModel.findAll({
           where: { purchaseContractId: id },
           attributes: ['shipmentId'],
         });
         const sIds = linkedShipments.map((l) => l.shipmentId).filter(Boolean);
         if (sIds.length > 0) {
-          await this.salesShipmentModel.update(
-            { freightAllocationStatus: null },
-            { where: { id: { [Op.in]: sIds }, freightAllocationStatus: 'Yes' } },
-          );
+          const shipmentsToSync = await this.salesShipmentModel.findAll({
+            where: { id: { [Op.in]: sIds } },
+            include: [
+              {
+                model: SalesContract,
+                as: 'salesContract',
+                include: [{ model: ShipmentType, as: 'shipmentType' }],
+              },
+            ],
+          });
+          for (const s of shipmentsToSync) {
+            const scSt = s.salesContract?.shipmentType || null;
+            const res = evaluateFreightRequired(st, scSt);
+            if (!res.freightRequired) {
+              await s.update({
+                freightRequired: false,
+                freightAllocationStatus: null,
+                freight: null,
+                freightCurrency: null,
+                freightDescription: null,
+              });
+            } else {
+              await s.update({
+                freightRequired: true,
+              });
+            }
+          }
         }
       }
     }

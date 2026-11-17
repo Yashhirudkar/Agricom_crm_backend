@@ -28,6 +28,7 @@ describe('EnquiriesService.findAll contract filters', () => {
       {} as any,
       {} as any,
       {} as any,
+      { syncLogisticsRoutesForEnquiry: jest.fn().mockResolvedValue([]) } as any,
     );
 
     return { service, enquiryModel };

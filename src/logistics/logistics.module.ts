@@ -19,6 +19,7 @@ import { MonthlyStockRowCell } from './models/monthly-stock-row-cell.model';
 import { TransportEnquiryHidden } from './models/transport-enquiry-hidden.model';
 
 import { Enquiry } from '../enquiries/models/enquiry.model';
+import { TransportDetail } from '../enquiries/models/transport-detail.model';
 import { SalesContract } from '../sales-contracts/models/sales-contract.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { Attachment } from '../attachments/models/attachment.model';
@@ -52,6 +53,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       MonthlyStockSectionRow,
       MonthlyStockRowCell,
       TransportEnquiryHidden,
+      TransportDetail,
       Enquiry,
       SalesContract,
       SalesContractShipment,

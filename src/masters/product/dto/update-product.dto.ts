@@ -24,7 +24,6 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(150)
   country?: string | null;
 

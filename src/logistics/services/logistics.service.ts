@@ -16,7 +16,8 @@ import { FreightQuoteCharge } from '../models/freight-quote-charge.model';
 import { FreightQuoteContainerRate } from '../models/freight-quote-container-rate.model';
 import { LogisticsRoute } from '../models/logistics-route.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
-import { EnquiryLoadingPoint } from '../../enquiries/models/enquiry-loading-point.model';
+import { TransportDetail } from '../../enquiries/models/transport-detail.model';
+import { isFreightRequiredForIncoterm } from '../../masters/shipment-type/utils/incoterm-freight.util';
 import { EnquiryDestination } from '../../enquiries/models/enquiry-destination.model';
 import { EnquiryStatus } from '../../enquiries/enquiry.constants';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
@@ -80,7 +81,7 @@ export class LogisticsService {
     private readonly shipmentService: ShipmentService,
     @Inject(forwardRef(() => ShipmentReadinessService))
     private readonly readinessService: ShipmentReadinessService,
-  ) {}
+  ) { }
 
   async fixDb() {
     try {
@@ -91,7 +92,7 @@ export class LogisticsService {
         `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "product_id" INTEGER;`,
       );
       await this.sequelize.query(
-        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "loading_point" VARCHAR(255);`,
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "origin" VARCHAR(255);`,
       );
       await this.sequelize.query(
         `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`,
@@ -146,12 +147,36 @@ export class LogisticsService {
       mode,
       status,
       hiddenOnly,
+      tab,
+      type,
       page = 1,
       limit = 10,
       sortBy,
       sortOrder,
     } = query;
     const offset = (page - 1) * limit;
+
+    const normalizedTab = (tab || type || '').trim().toLowerCase();
+    const isPurchaseContractsTab =
+      normalizedTab === 'purchase-contracts' ||
+      normalizedTab === 'purchase_contracts' ||
+      normalizedTab === 'purchase-contract' ||
+      normalizedTab === 'purchase contracts';
+
+    if (isPurchaseContractsTab) {
+      return this.findPurchaseContractsQueue(query, companyId, userId);
+    }
+
+    const effectiveHiddenOnly =
+      hiddenOnly ||
+      normalizedTab === 'hidden';
+
+    const effectiveStatus =
+      normalizedTab === 'closed'
+        ? 'Closed'
+        : normalizedTab === 'active' || normalizedTab === 'active-queue'
+          ? 'Active'
+          : status || 'Active';
 
     const company = (await this.sequelize.models.Company.findByPk(
       companyId,
@@ -184,14 +209,14 @@ export class LogisticsService {
         raw: true,
       });
       const hiddenEnquiryIds = hiddenRows.map((row: any) => row.enquiryId);
-      if (hiddenOnly) {
+      if (effectiveHiddenOnly) {
         whereConditions.push({
           id: { [Op.in]: hiddenEnquiryIds },
         });
       } else if (hiddenEnquiryIds.length > 0) {
         whereConditions.push({ id: { [Op.notIn]: hiddenEnquiryIds } });
       }
-    } else if (hiddenOnly) {
+    } else if (effectiveHiddenOnly) {
       whereConditions.push({ id: { [Op.in]: [] } });
     }
 
@@ -254,14 +279,13 @@ export class LogisticsService {
     }
 
     // ── Logistics Status Filter (Active vs Closed) ────────────────────────────
-    const effectiveStatus = status || 'Active';
     const terminalStatuses = LogisticsService.TERMINAL_LOGISTICS_STATUSES;
 
-    if (!hiddenOnly && effectiveStatus === 'Closed') {
+    if (!effectiveHiddenOnly && effectiveStatus === 'Closed') {
       whereConditions.push({
         '$logistics.status$': { [Op.in]: terminalStatuses },
       });
-    } else if (!hiddenOnly && effectiveStatus === 'Active') {
+    } else if (!effectiveHiddenOnly && effectiveStatus === 'Active') {
       whereConditions.push({
         [Op.or]: [
           { '$logistics.id$': null },
@@ -274,12 +298,12 @@ export class LogisticsService {
     const order: Order =
       sortBy === 'businessReference'
         ? [
-            [
-              { model: BusinessTransaction, as: 'businessTransaction' },
-              'businessReference',
-              String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
-            ],
-          ]
+          [
+            { model: BusinessTransaction, as: 'businessTransaction' },
+            'businessReference',
+            String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC',
+          ],
+        ]
         : [['createdAt', 'DESC']];
 
     const { rows, count } = await this.enquiryModel.findAndCountAll({
@@ -294,9 +318,9 @@ export class LogisticsService {
           required: false,
         },
         {
-          model: EnquiryLoadingPoint,
-          as: 'loadingPoints',
-          attributes: ['loadingPoint'],
+          model: TransportDetail,
+          as: 'transportDetails',
+          required: false,
         },
         {
           model: EnquiryDestination,
@@ -338,12 +362,341 @@ export class LogisticsService {
 
     const data = await this.attachPurchaseContractsToEnquiries(rows, companyId);
 
+    // Section 8: Generate independent transport queue records for every qualifying Transport Details row
+    const queueRecords: any[] = [];
+    for (const item of data) {
+      const details = item.transportDetails;
+      if (Array.isArray(details) && details.length > 0) {
+        const qualifying = details.filter((td: any) =>
+          isFreightRequiredForIncoterm(td.incoterm),
+        );
+        for (const route of qualifying) {
+          queueRecords.push({
+            ...item,
+            id: item.id,
+            queueRowId: `${item.id}_${route.sequence || route.id}`,
+            enquiryId: item.id,
+            transportDetailId: route.id,
+            sequence: route.sequence,
+            routeSequence: route.sequence,
+            origin: route.origin,
+            incoterm: route.incoterm,
+            destination: route.destination,
+            freightRequired: true,
+            transportRoute: route,
+          });
+        }
+      } else if (
+        item.freightRequired ||
+        isFreightRequiredForIncoterm(item.shipmentType)
+      ) {
+        queueRecords.push({
+          ...item,
+          id: item.id,
+          queueRowId: `${item.id}_1`,
+          enquiryId: item.id,
+          origin: item.originPort || item.originCity || '—',
+          destination: item.destinationPort || item.destinationCity || '—',
+          incoterm: item.shipmentType || 'CFR',
+          freightRequired: true,
+        });
+      }
+    }
+
     return {
-      data,
-      total: count,
+      data: queueRecords,
+      total: queueRecords.length,
       page: Number(page),
       limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+      totalPages: Math.ceil(queueRecords.length / limit) || 1,
+    };
+  }
+
+  /**
+   * Dedicated Purchase Contracts Queue for Transport Management (Backend Driven).
+   * Returns ONLY Purchase Contract records, completely filtered and paginated on the database.
+   */
+  async findPurchaseContractsQueue(
+    query: QueryLogisticsDto,
+    companyId: number = 1,
+    userId?: number,
+  ) {
+    const {
+      search,
+      businessReference,
+      mode,
+      page = 1,
+      limit = 10,
+      sortBy,
+      sortOrder,
+    } = query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const company = (await this.sequelize.models.Company.findByPk(
+      companyId,
+    )) as any;
+    const companyCountry = company?.country;
+    const normCompanyCountry = companyCountry?.trim().toLowerCase() || null;
+
+    const whereConditions: string[] = [
+      '(pc.company_id = :companyId OR pc.company_id IS NULL OR :companyId IS NULL)',
+      "pc.status NOT IN ('Cancelled', 'CANCELLED')",
+    ];
+    const replacements: any = {
+      companyId,
+      limit: Number(limit),
+      offset: Number(offset),
+    };
+
+    // Filter out user-hidden enquiries if applicable
+    if (userId) {
+      const hiddenRows = await this.transportEnquiryHiddenModel.findAll({
+        where: { userId, companyId },
+        attributes: ['enquiryId'],
+        raw: true,
+      });
+      const hiddenEnquiryIds = hiddenRows.map((row: any) => row.enquiryId);
+      if (hiddenEnquiryIds.length > 0) {
+        whereConditions.push(
+          '(sc.enquiry_id IS NULL OR sc.enquiry_id NOT IN (:hiddenEnquiryIds))',
+        );
+        replacements.hiddenEnquiryIds = hiddenEnquiryIds;
+      }
+    }
+
+    // 1. Business Reference filter
+    if (businessReference && businessReference.trim()) {
+      const bRef = businessReference.trim();
+      const transactionId = await resolveBusinessTransactionId(bRef, companyId);
+      whereConditions.push(
+        `(bt.business_reference = :bRefExact OR pc.business_transaction_id = :bRefTxId)`,
+      );
+      replacements.bRefExact = bRef;
+      replacements.bRefTxId = transactionId ?? -1;
+    }
+
+    // 2. Search filter
+    if (search && search.trim()) {
+      const s = search.trim();
+      replacements.searchLike = `%${s}%`;
+      const searchParts = [
+        'pc.contract_number ILIKE :searchLike',
+        'seller.entity_name ILIKE :searchLike',
+        'buyer.entity_name ILIKE :searchLike',
+        'COALESCE(pci.product_name, prod.name) ILIKE :searchLike',
+        'bt.business_reference ILIKE :searchLike',
+        'sc.contract_number ILIKE :searchLike',
+      ];
+      if (isBusinessReferenceSearch(s)) {
+        const txId = await resolveBusinessTransactionId(s, companyId);
+        if (txId !== null) {
+          replacements.searchTxId = txId;
+          searchParts.push('pc.business_transaction_id = :searchTxId');
+        }
+      }
+      whereConditions.push(`(${searchParts.join(' OR ')})`);
+    }
+
+    // 3. Mode filter
+    if (normCompanyCountry && mode && mode !== 'All') {
+      replacements.normCompCountry = `%${normCompanyCountry}%`;
+      if (mode === 'Domestic') {
+        whereConditions.push(
+          `(COALESCE(pc.loading_country, pc.place_of_loading, '') ILIKE :normCompCountry AND COALESCE(sc.destination_country, sc.destination_location_name, pc.delivery_place, '') ILIKE :normCompCountry)`,
+        );
+      } else if (mode === 'Export') {
+        whereConditions.push(
+          `(COALESCE(pc.loading_country, pc.place_of_loading, '') ILIKE :normCompCountry AND COALESCE(sc.destination_country, sc.destination_location_name, pc.delivery_place, '') NOT ILIKE :normCompCountry)`,
+        );
+      } else if (mode === 'Merchant Export') {
+        whereConditions.push(
+          `(COALESCE(pc.loading_country, pc.place_of_loading, '') NOT ILIKE :normCompCountry AND COALESCE(sc.destination_country, sc.destination_location_name, pc.delivery_place, '') NOT ILIKE :normCompCountry)`,
+        );
+      }
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    // Sorting
+    const sortDir = String(sortOrder).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const orderClause =
+      sortBy === 'businessReference'
+        ? `ORDER BY bt.business_reference ${sortDir} NULLS LAST, pc.id DESC`
+        : `ORDER BY pc.created_at DESC, pc.id DESC`;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT pc.id) AS total
+      FROM purchase_contracts pc
+      LEFT JOIN partners seller ON pc.seller_id = seller.id
+      LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
+      LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
+      LEFT JOIN partners sc_buyer ON sc.buyer_id = sc_buyer.id
+      LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
+      LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
+      LEFT JOIN LATERAL (
+        SELECT product_id, product_name 
+        FROM purchase_contract_items 
+        WHERE purchase_contract_id = pc.id 
+        ORDER BY id ASC LIMIT 1
+      ) pci ON true
+      LEFT JOIN products prod ON pci.product_id = prod.id
+      WHERE ${whereClause}
+    `;
+
+    const selectQuery = `
+      SELECT 
+        pc.id,
+        pc.status,
+        pc.contract_number,
+        pc.freight_required,
+        pc.quantity,
+        pc.place_of_loading,
+        pc.loading_country,
+        pc.delivery_place,
+        pc.purchase_date,
+        pc.created_at,
+        pc.sales_contract_id,
+        pc.business_transaction_id,
+        pc.shipment_type_id,
+        pc.buyer_id,
+        pc.seller_id,
+        seller.entity_name AS seller_name,
+        buyer.entity_name AS buyer_name,
+        st.name AS shipment_type_name,
+        COALESCE(log.transport_mode, sc.transport_mode, 'ROAD') AS transport_mode,
+        bt.business_reference AS business_reference,
+        sc.enquiry_id AS sc_enquiry_id,
+        sc.contract_number AS sc_contract_number,
+        sc.destination_location_name AS sc_destination_location_name,
+        sc.port_of_discharge AS sc_port_of_discharge,
+        COALESCE(sc.destination_location_name, sc.port_of_discharge, sc.enquiry_destination) AS sc_delivery_place,
+        sc.destination_country AS sc_destination_country,
+        sc_buyer.entity_name AS sc_buyer_name,
+        pci.product_id AS product_id,
+        COALESCE(pci.product_name, prod.name) AS product_name,
+        log.id AS logistics_id,
+        log.status AS logistics_status,
+        log.is_viewed AS logistics_is_viewed
+      FROM purchase_contracts pc
+      LEFT JOIN partners seller ON pc.seller_id = seller.id
+      LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
+      LEFT JOIN sales_contracts sc ON pc.sales_contract_id = sc.id
+      LEFT JOIN partners sc_buyer ON sc.buyer_id = sc_buyer.id
+      LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
+      LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
+      LEFT JOIN LATERAL (
+        SELECT product_id, product_name 
+        FROM purchase_contract_items 
+        WHERE purchase_contract_id = pc.id 
+        ORDER BY id ASC LIMIT 1
+      ) pci ON true
+      LEFT JOIN products prod ON pci.product_id = prod.id
+      LEFT JOIN LATERAL (
+        SELECT id, status, is_viewed, transport_mode 
+        FROM logistics 
+        WHERE purchase_contract_id = pc.id 
+           OR (sc.enquiry_id IS NOT NULL AND enquiry_id = sc.enquiry_id)
+        ORDER BY id DESC LIMIT 1
+      ) log ON true
+      WHERE ${whereClause}
+      ${orderClause}
+      LIMIT :limit OFFSET :offset
+    `;
+
+    const [countRows, selectRows]: any[] = await Promise.all([
+      this.sequelize.query(countQuery, {
+        replacements,
+        type: QueryTypes.SELECT,
+      }),
+      this.sequelize.query(selectQuery, {
+        replacements,
+        type: QueryTypes.SELECT,
+      }),
+    ]);
+
+    const total = parseInt(countRows?.[0]?.total || '0', 10);
+    const data = (selectRows || []).map((pc: any) => {
+      const origin =
+        pc.place_of_loading ||
+        pc.loading_country ||
+        '—';
+      const destination =
+        pc.sc_destination_location_name ||
+        pc.sc_delivery_place ||
+        pc.sc_port_of_discharge ||
+        pc.delivery_place ||
+        '—';
+      const incoterm = pc.shipment_type_name || '—';
+
+      return {
+        id: pc.sc_enquiry_id || String(pc.id),
+        recordId: `pc_${pc.id}`,
+        queueRowId: `pc_${pc.id}`,
+        enquiryId: pc.sc_enquiry_id || null,
+        purchaseContractId: Number(pc.id),
+        enquiryNo: null, // As requested: Example: PC-EA.2632627, No Enquiry records should be returned
+        businessReference: pc.business_reference || null,
+        businessTransaction: pc.business_transaction_id
+          ? {
+            id: pc.business_transaction_id,
+            businessReference: pc.business_reference,
+          }
+          : null,
+        purchaseContract: {
+          id: pc.id,
+          status: pc.status,
+          contractNumber: pc.contract_number,
+          freightRequired: Boolean(pc.freight_required),
+          quantity: pc.quantity || null,
+          placeOfLoading: pc.place_of_loading || null,
+          loadingCountry: pc.loading_country || null,
+          deliveryPlace: pc.delivery_place || null,
+          purchaseDate: pc.purchase_date || null,
+          productName: pc.product_name || null,
+          productId: pc.product_id || null,
+          buyerName: pc.buyer_name || null,
+          sellerName: pc.seller_name || null,
+          shipmentTypeName: pc.shipment_type_name || null,
+        },
+        salesContract: pc.sales_contract_id
+          ? {
+            id: pc.sales_contract_id,
+            contractNumber: pc.sc_contract_number || null,
+            destinationLocationName: pc.sc_destination_location_name || null,
+            deliveryPlace: pc.sc_delivery_place || null,
+            destinationCountry: pc.sc_destination_country || null,
+            buyerName: pc.sc_buyer_name || null,
+          }
+          : null,
+        origin,
+        destination,
+        incoterm,
+        shipmentMode: pc.transport_mode ? pc.transport_mode.toUpperCase() : 'ROAD',
+        quantity: pc.quantity ? Number(pc.quantity) : 0,
+        purchaseDate: pc.purchase_date || null,
+        enquiryDate: pc.purchase_date || null,
+        partner: {
+          entityName: pc.seller_name || pc.buyer_name || '—',
+        },
+        product: {
+          name: pc.product_name || '—',
+        },
+        logistics: {
+          id: pc.logistics_id || null,
+          status: pc.logistics_status || 'Pending',
+          isViewed: pc.logistics_is_viewed !== false,
+        },
+        sourceType: 'PurchaseContract',
+        isPurchaseContract: true,
+      };
+    });
+
+    return {
+      data,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)) || 1,
     };
   }
 
@@ -485,34 +838,34 @@ export class LogisticsService {
         null;
       plain.salesContract = matchedPc
         ? {
-            destinationLocationName: scDest,
-            deliveryPlace: scDest,
-            destinationCountry: matchedPc.sc_destination_country || null,
-            buyerName: matchedPc.sc_buyer_name || null,
-          }
+          destinationLocationName: scDest,
+          deliveryPlace: scDest,
+          destinationCountry: matchedPc.sc_destination_country || null,
+          buyerName: matchedPc.sc_buyer_name || null,
+        }
         : null;
 
       plain.purchaseContract = matchedPc
         ? {
-            id: matchedPc.id,
-            status: matchedPc.status,
-            contractNumber: matchedPc.contract_number,
-            freightRequired: Boolean(matchedPc.freight_required),
-            quantity: matchedPc.quantity || null,
-            placeOfLoading: matchedPc.place_of_loading || null,
-            loadingCountry: matchedPc.loading_country || null,
-            deliveryPlace: matchedPc.delivery_place || null,
-            shipmentTypeId: matchedPc.shipment_type_id || null,
-            shipmentTypeName: matchedPc.shipment_type_name || null,
-            businessReference: matchedPc.business_reference || null,
-            buyerId: matchedPc.buyer_id || null,
-            buyerName: matchedPc.buyer_name || null,
-            sellerId: matchedPc.seller_id || null,
-            sellerName: matchedPc.seller_name || null,
-            productName: matchedPc.product_name || null,
-            productId: matchedPc.pci_product_id || null,
-            purchaseDate: matchedPc.purchase_date || null,
-          }
+          id: matchedPc.id,
+          status: matchedPc.status,
+          contractNumber: matchedPc.contract_number,
+          freightRequired: Boolean(matchedPc.freight_required),
+          quantity: matchedPc.quantity || null,
+          placeOfLoading: matchedPc.place_of_loading || null,
+          loadingCountry: matchedPc.loading_country || null,
+          deliveryPlace: matchedPc.delivery_place || null,
+          shipmentTypeId: matchedPc.shipment_type_id || null,
+          shipmentTypeName: matchedPc.shipment_type_name || null,
+          businessReference: matchedPc.business_reference || null,
+          buyerId: matchedPc.buyer_id || null,
+          buyerName: matchedPc.buyer_name || null,
+          sellerId: matchedPc.seller_id || null,
+          sellerName: matchedPc.seller_name || null,
+          productName: matchedPc.product_name || null,
+          productId: matchedPc.pci_product_id || null,
+          purchaseDate: matchedPc.purchase_date || null,
+        }
         : null;
 
       if (typeof enquiry.setDataValue === 'function') {
@@ -534,15 +887,19 @@ export class LogisticsService {
       );
     }
 
+    const cleanEnquiryId = enquiryId
+      ? String(enquiryId).split('_')[0]
+      : enquiryId;
+
     const enquiry = await this.enquiryModel.findOne({
-      where: { id: enquiryId, companyId },
+      where: { id: cleanEnquiryId, companyId },
       attributes: ['id'],
     });
     if (!enquiry) throw new NotFoundException('Enquiry not found');
 
     await this.transportEnquiryHiddenModel.findOrCreate({
-      where: { userId, companyId, enquiryId },
-      defaults: { userId, companyId, enquiryId },
+      where: { userId, companyId, enquiryId: cleanEnquiryId },
+      defaults: { userId, companyId, enquiryId: cleanEnquiryId },
     });
 
     return { success: true };
@@ -559,8 +916,12 @@ export class LogisticsService {
       );
     }
 
+    const cleanEnquiryId = enquiryId
+      ? String(enquiryId).split('_')[0]
+      : enquiryId;
+
     await this.transportEnquiryHiddenModel.destroy({
-      where: { userId, companyId, enquiryId },
+      where: { userId, companyId, enquiryId: cleanEnquiryId },
     });
     return { success: true };
   }
@@ -702,7 +1063,7 @@ export class LogisticsService {
           { '$logistics.enquiry.origin_city$': { [Op.iLike]: orig } },
           { '$logistics.enquiry.origin_port$': { [Op.iLike]: orig } },
           { '$logistics.enquiry.origin_state$': { [Op.iLike]: orig } },
-          { loadingPoint: { [Op.iLike]: orig } },
+          { origin: { [Op.iLike]: orig } },
           { '$freightRoutes.origin$': { [Op.iLike]: orig } },
         ],
       });
@@ -798,6 +1159,11 @@ export class LogisticsService {
                   required: false,
                   attributes: ['id', 'name'],
                 },
+                {
+                  model: TransportDetail,
+                  as: 'transportDetails',
+                  required: false,
+                },
               ],
             },
           ],
@@ -822,12 +1188,12 @@ export class LogisticsService {
       order:
         sortBy === 'businessReference'
           ? [
-              [
-                { model: BusinessTransaction, as: 'businessTransaction' },
-                'businessReference',
-                orderDir,
-              ],
-            ]
+            [
+              { model: BusinessTransaction, as: 'businessTransaction' },
+              'businessReference',
+              orderDir,
+            ],
+          ]
           : [[orderCol, orderDir]],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
@@ -946,16 +1312,16 @@ export class LogisticsService {
 
       const purchaseContract = matchedPc
         ? {
-            id: matchedPc.id,
-            contractNumber: matchedPc.contract_number,
-            placeOfLoading: matchedPc.place_of_loading || null,
-            loadingCountry: matchedPc.loading_country || null,
-            deliveryPlace: matchedPc.delivery_place || null,
-            salesContractDestination:
-              matchedPc.sc_destination_location_name ||
-              matchedPc.sc_port_of_discharge ||
-              null,
-          }
+          id: matchedPc.id,
+          contractNumber: matchedPc.contract_number,
+          placeOfLoading: matchedPc.place_of_loading || null,
+          loadingCountry: matchedPc.loading_country || null,
+          deliveryPlace: matchedPc.delivery_place || null,
+          salesContractDestination:
+            matchedPc.sc_destination_location_name ||
+            matchedPc.sc_port_of_discharge ||
+            null,
+        }
         : null;
 
       quote.purchaseContract = purchaseContract;
@@ -1023,6 +1389,318 @@ export class LogisticsService {
   }
 
   /**
+   * Synchronize logistics workspace, routes, and freight quotes for an enquiry
+   * based on its latest Transport Details.
+   */
+  async syncLogisticsRoutesForEnquiry(
+    enquiryId: string,
+    companyId: number = 1,
+    parentTransaction?: any,
+  ): Promise<LogisticsRoute[]> {
+    const cleanEnquiryId = enquiryId
+      ? String(enquiryId).split('_')[0]
+      : enquiryId;
+    if (!cleanEnquiryId) return [];
+
+    const enquiry = await this.enquiryModel.findOne({
+      where: { id: cleanEnquiryId, ...(companyId ? { companyId } : {}) },
+      include: [
+        { model: TransportDetail, as: 'transportDetails', required: false },
+        { model: Partner, as: 'partner', required: false },
+        { model: Product, as: 'product', required: false },
+      ],
+      transaction: parentTransaction,
+    });
+    if (!enquiry) return [];
+
+    const salesContract = await this.salesContractModel.findOne({
+      where: { enquiryId: cleanEnquiryId },
+      include: [
+        {
+          model: this.sequelize.models.TransportDetail,
+          as: 'transportDetails',
+          required: false,
+        },
+      ],
+      transaction: parentTransaction,
+    });
+
+    // 1. Determine transportDetails source (Enquiry priority, SalesContract fallback)
+    const details: any[] =
+      enquiry.transportDetails && enquiry.transportDetails.length > 0
+        ? enquiry.transportDetails
+        : (salesContract as any)?.transportDetails || [];
+
+    // Filter for qualifying routes (FreightRequired = true)
+    const qualifying = details.filter((td: any) =>
+      isFreightRequiredForIncoterm(td.incoterm),
+    );
+
+    const expectedRoutes: {
+      origin: string;
+      destination: string;
+      incoterm?: string;
+      sequence?: number;
+    }[] = [];
+
+    if (qualifying.length > 0) {
+      for (const td of qualifying) {
+        if (td.origin?.trim() && td.destination?.trim()) {
+          expectedRoutes.push({
+            origin: td.origin.trim(),
+            destination: td.destination.trim(),
+            incoterm: td.incoterm?.trim(),
+            sequence: td.sequence,
+          });
+        }
+      }
+    } else if (details.length > 0) {
+      // User entered transport details, but all have freightRequired = false (e.g. FOB)
+    } else {
+      // Fallback: check legacy/enquiry fields
+      const origin =
+        enquiry.originPort ||
+        (enquiry.originCity
+          ? `${enquiry.originCity}${enquiry.originState ? `, ${enquiry.originState}` : ''}`
+          : null);
+      const destination =
+        enquiry.destinationPort ||
+        (enquiry.destinationCity
+          ? `${enquiry.destinationCity}${enquiry.destinationState ? `, ${enquiry.destinationState}` : ''}`
+          : null) ||
+        enquiry.destinationCountry;
+
+      if (
+        origin &&
+        destination &&
+        (enquiry.freightRequired ||
+          isFreightRequiredForIncoterm(enquiry.shipmentType))
+      ) {
+        expectedRoutes.push({
+          origin,
+          destination,
+          incoterm: enquiry.shipmentType || 'CFR',
+          sequence: 1,
+        });
+      }
+    }
+
+    let logistics = await this.logisticsModel.findOne({
+      where: { enquiryId: cleanEnquiryId },
+      transaction: parentTransaction,
+    });
+
+    if (!logistics && expectedRoutes.length === 0) {
+      return [];
+    }
+
+    if (!logistics) {
+      // Auto-create workspace
+      await this.sequelize.query(
+        `CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`,
+        { transaction: parentTransaction },
+      );
+      const [seqRes]: any = await this.sequelize.query(
+        `SELECT nextval('logistics_no_seq')`,
+        { type: QueryTypes.SELECT, transaction: parentTransaction } as any,
+      );
+      const nextVal = parseInt(
+        seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+        10,
+      );
+      const currentYear = new Date().getFullYear();
+      const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
+
+      let mode = 'International';
+      let transportMode = 'Road';
+      if (enquiry.shipmentMode === 'SHIP') transportMode = 'Sea';
+      else if (enquiry.shipmentMode === 'RAIL') transportMode = 'Rail';
+
+      logistics = await this.logisticsModel.create(
+        {
+          logisticsNumber,
+          enquiryId: cleanEnquiryId,
+          businessTransactionId: enquiry.businessTransactionId ?? null,
+          mode,
+          transportMode,
+          status: 'Pending',
+          companyId,
+        },
+        { transaction: parentTransaction },
+      );
+    }
+
+    // Update logistics mode & transportMode if known
+    if (expectedRoutes.length > 0) {
+      const originStr = (
+        expectedRoutes[0].origin ||
+        enquiry.originCountryId ||
+        ''
+      )
+        .trim()
+        .toLowerCase();
+      const destStr = (
+        expectedRoutes[0].destination ||
+        enquiry.destinationCountry ||
+        ''
+      )
+        .trim()
+        .toLowerCase();
+
+      let mode = logistics.mode || 'International';
+      const isOriginIndia =
+        originStr.includes('india') ||
+        originStr.includes('nagpur') ||
+        originStr.includes('mumbai') ||
+        originStr.includes('delhi') ||
+        originStr.includes('nhava') ||
+        originStr.includes('mundra');
+      const isDestIndia =
+        destStr.includes('india') ||
+        destStr.includes('nagpur') ||
+        destStr.includes('mumbai');
+
+      if (originStr && destStr) {
+        if (isOriginIndia && isDestIndia) {
+          mode = 'Domestic';
+        } else if (isOriginIndia && !isDestIndia) {
+          mode = 'Export';
+        } else if (!isOriginIndia && isDestIndia) {
+          mode = 'Import';
+        } else {
+          mode = 'Merchant Export';
+        }
+      }
+
+      let transportMode = logistics.transportMode || 'Road';
+      if (enquiry.shipmentMode === 'SHIP') transportMode = 'Sea';
+      else if (enquiry.shipmentMode === 'RAIL') transportMode = 'Rail';
+
+      await logistics.update(
+        { mode, transportMode },
+        { transaction: parentTransaction },
+      );
+    }
+
+    const existingRoutes = await this.logisticsRouteModel.findAll({
+      where: { logisticsId: logistics.id },
+      order: [['id', 'ASC']],
+      transaction: parentTransaction,
+    });
+
+    const finalRoutes: LogisticsRoute[] = [];
+    const matchedRouteIds = new Set<number>();
+
+    for (const exp of expectedRoutes) {
+      // 1. Exact match check
+      let matched = existingRoutes.find(
+        (r) =>
+          !matchedRouteIds.has(r.id) &&
+          r.origin === exp.origin &&
+          r.destination === exp.destination,
+      );
+
+      if (matched) {
+        matchedRouteIds.add(matched.id);
+        finalRoutes.push(matched);
+        continue;
+      }
+
+      // 2. Existing stale route check ("Unknown Origin", "Unknown Destination", "—", or unmatched)
+      const staleOrUnmatched =
+        existingRoutes.find(
+          (r) =>
+            !matchedRouteIds.has(r.id) &&
+            (r.origin === 'Unknown Origin' ||
+              r.destination === 'Unknown Destination' ||
+              r.origin === '—' ||
+              r.destination === '—'),
+        ) || existingRoutes.find((r) => !matchedRouteIds.has(r.id));
+
+      if (staleOrUnmatched) {
+        const oldOrigin = staleOrUnmatched.origin;
+        const oldDestination = staleOrUnmatched.destination;
+        await staleOrUnmatched.update(
+          {
+            origin: exp.origin,
+            destination: exp.destination,
+          },
+          { transaction: parentTransaction },
+        );
+
+        // Update all freight quotes attached to this route
+        await this.quoteModel.update(
+          { origin: exp.origin, destination: exp.destination },
+          {
+            where: { routeId: staleOrUnmatched.id },
+            transaction: parentTransaction,
+          },
+        );
+
+        // Update any freight_routes child table rows
+        await this.sequelize.query(
+          `UPDATE freight_routes 
+           SET origin = :newOrigin, destination = :newDestination
+           WHERE (origin = :oldOrigin OR origin = 'Unknown Origin')
+             AND quote_id IN (SELECT id FROM freight_quotes WHERE logistics_id = :logisticsId)`,
+          {
+            replacements: {
+              newOrigin: exp.origin,
+              newDestination: exp.destination,
+              oldOrigin,
+              logisticsId: logistics.id,
+            },
+            transaction: parentTransaction,
+          },
+        );
+
+        matchedRouteIds.add(staleOrUnmatched.id);
+        finalRoutes.push(staleOrUnmatched);
+      } else {
+        // 3. Create new route
+        const newRoute = await this.logisticsRouteModel.create(
+          {
+            logisticsId: logistics.id,
+            origin: exp.origin,
+            destination: exp.destination,
+          },
+          { transaction: parentTransaction },
+        );
+        matchedRouteIds.add(newRoute.id);
+        finalRoutes.push(newRoute);
+      }
+    }
+
+    // Clean up remaining existing routes
+    for (const r of existingRoutes) {
+      if (!matchedRouteIds.has(r.id)) {
+        const quotesCount = await this.quoteModel.count({
+          where: { routeId: r.id },
+          transaction: parentTransaction,
+        });
+        if (quotesCount === 0) {
+          await r.destroy({ transaction: parentTransaction });
+        } else if (finalRoutes.length > 0) {
+          // Reassign quotes to the primary valid route, then delete stale route
+          await this.quoteModel.update(
+            {
+              routeId: finalRoutes[0].id,
+              origin: finalRoutes[0].origin,
+              destination: finalRoutes[0].destination,
+            },
+            { where: { routeId: r.id }, transaction: parentTransaction },
+          );
+          await r.destroy({ transaction: parentTransaction });
+        } else {
+          finalRoutes.push(r);
+        }
+      }
+    }
+
+    return finalRoutes;
+  }
+
+  /**
    * Get detail logistics workspace of an enquiry.
    * Auto-creates the Logistics record if missing.
    */
@@ -1031,29 +1709,183 @@ export class LogisticsService {
     companyId: number = 1,
     targetShipmentId?: number,
   ) {
-    const enquiry = await this.enquiryModel.findOne({
-      where: { id: enquiryId, companyId },
-      include: [
-        { model: Partner, as: 'partner' },
-        { model: Product, as: 'product' },
-        {
-          model: EnquiryLoadingPoint,
-          as: 'loadingPoints',
-          attributes: ['loadingPoint'],
-        },
-        {
-          model: EnquiryDestination,
-          as: 'destinations',
-          attributes: ['destination'],
-        },
-      ],
-    });
-    if (!enquiry) {
-      throw new NotFoundException('Enquiry not found');
+    let cleanEnquiryId = enquiryId
+      ? String(enquiryId).replace(/^pc_/i, '').split('_')[0]
+      : enquiryId;
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        cleanEnquiryId,
+      );
+
+    let enquiry: any = null;
+    let initialPurchaseContract: any = null;
+
+    if (isUuid) {
+      enquiry = await this.enquiryModel.findOne({
+        where: { id: cleanEnquiryId, companyId },
+        include: [
+          { model: Partner, as: 'partner' },
+          { model: Product, as: 'product' },
+          {
+            model: TransportDetail,
+            as: 'transportDetails',
+            required: false,
+          },
+          {
+            model: EnquiryDestination,
+            as: 'destinations',
+            attributes: ['destination'],
+          },
+        ],
+      });
+      if (!enquiry) {
+        throw new NotFoundException('Enquiry not found');
+      }
+    } else {
+      // Find purchase contract directly
+      const pcId = Number(cleanEnquiryId);
+      const pcWhere: any = isNaN(pcId)
+        ? { contractNumber: cleanEnquiryId }
+        : { id: pcId };
+      const pc = (await this.sequelize.models.PurchaseContract.findOne({
+        where: { ...pcWhere, ...(companyId ? { companyId } : {}) },
+      })) as any;
+      if (!pc) {
+        throw new NotFoundException('Contract not found');
+      }
+
+      initialPurchaseContract = {
+        id: pc.id,
+        status: pc.status,
+        contractNumber: pc.contract_number,
+        freightRequired: Boolean(pc.freight_required),
+        quantity: pc.quantity || null,
+        placeOfLoading: pc.place_of_loading || null,
+        deliveryPlace: pc.delivery_place || null,
+        shipmentTypeId: pc.shipment_type_id || null,
+        businessReference: pc.business_reference || null,
+        buyerId: pc.buyer_id || null,
+        sellerId: pc.seller_id || null,
+        purchaseDate: pc.purchase_date || null,
+      };
+
+      if (pc.salesContractId) {
+        const sc = await this.salesContractModel.findByPk(pc.salesContractId);
+        if (sc?.enquiryId) {
+          cleanEnquiryId = sc.enquiryId;
+          enquiry = await this.enquiryModel.findOne({
+            where: { id: cleanEnquiryId, companyId },
+            include: [
+              { model: Partner, as: 'partner' },
+              { model: Product, as: 'product' },
+              {
+                model: TransportDetail,
+                as: 'transportDetails',
+                required: false,
+              },
+              {
+                model: EnquiryDestination,
+                as: 'destinations',
+                attributes: ['destination'],
+              },
+            ],
+          });
+        }
+      }
+
+      if (!enquiry) {
+        // Standalone Purchase Contract workspace
+        let pcLogistics = await this.logisticsModel.findOne({
+          where: { purchaseContractId: pc.id },
+          include: [
+            {
+              model: FreightQuote,
+              as: 'quotes',
+              include: [
+                { model: Partner, as: 'seller' },
+                { model: FreightQuoteCharge, as: 'charges' },
+                {
+                  model: FreightQuoteContainerRate,
+                  as: 'containerRates',
+                  include: ['charges'],
+                },
+              ],
+            },
+            {
+              model: FreightQuote,
+              as: 'selectedFreight',
+              include: [
+                { model: Partner, as: 'seller' },
+                { model: FreightQuoteCharge, as: 'charges' },
+                {
+                  model: FreightQuoteContainerRate,
+                  as: 'containerRates',
+                  include: ['charges'],
+                },
+              ],
+            },
+            {
+              model: LogisticsRoute,
+              as: 'routes',
+            },
+          ],
+        });
+
+        if (!pcLogistics) {
+          await this.sequelize.query(
+            `CREATE SEQUENCE IF NOT EXISTS logistics_no_seq START 1;`,
+          );
+          const [seqRes]: any = await this.sequelize.query(
+            `SELECT nextval('logistics_no_seq')`,
+            { type: QueryTypes.SELECT } as any,
+          );
+          const nextVal = parseInt(
+            seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+            10,
+          );
+          const currentYear = new Date().getFullYear();
+          const logisticsNumber = `LOG/${currentYear}/${String(nextVal).padStart(6, '0')}`;
+
+          pcLogistics = await this.logisticsModel.create({
+            logisticsNumber,
+            purchaseContractId: pc.id,
+            businessTransactionId: pc.business_transaction_id ?? null,
+            mode: 'Domestic',
+            transportMode: 'Road',
+            status: 'Pending',
+          });
+        }
+
+        const o = pc.place_of_loading || '—';
+        const d = pc.delivery_place || '—';
+        let routes = await this.logisticsRouteModel.findAll({
+          where: { logisticsId: pcLogistics.id },
+        });
+        if (routes.length === 0 && (o !== '—' || d !== '—')) {
+          const r = await this.logisticsRouteModel.create({
+            logisticsId: pcLogistics.id,
+            origin: o,
+            destination: d,
+          });
+          routes = [r];
+        }
+        pcLogistics.setDataValue('routes', routes);
+
+        return {
+          enquiry: null,
+          logistics: pcLogistics,
+          salesContract: null,
+          salesContractId: null,
+          salesContractNumber: null,
+          shipmentId: targetShipmentId || null,
+          purchaseContract: initialPurchaseContract,
+          shipments: [],
+        };
+      }
     }
 
     let logistics = await this.logisticsModel.findOne({
-      where: { enquiryId },
+      where: { enquiryId: cleanEnquiryId },
       include: [
         {
           model: FreightQuote,
@@ -1148,7 +1980,7 @@ export class LogisticsService {
 
         // Check Sales Contract if available for accurate trade type
         const scForMode = await this.salesContractModel.findOne({
-          where: { enquiryId },
+          where: { enquiryId: cleanEnquiryId },
           attributes: [
             'contractType',
             'originTransportMode',
@@ -1181,7 +2013,7 @@ export class LogisticsService {
         const createdLogistics = await this.logisticsModel.create(
           {
             logisticsNumber,
-            enquiryId,
+            enquiryId: cleanEnquiryId,
             businessTransactionId: enquiry.businessTransactionId ?? null,
             mode,
             transportMode,
@@ -1238,72 +2070,18 @@ export class LogisticsService {
     }
 
     // -- Auto-sync Logistics Routes --
-    const origins = enquiry.loadingPoints?.map((l) => l.loadingPoint) || [];
-    const destinations = enquiry.destinations?.map((d) => d.destination) || [];
-    const expectedRoutes = [];
-    if (origins.length > 0 && destinations.length > 0) {
-      for (const origin of origins) {
-        for (const destination of destinations) {
-          expectedRoutes.push({ origin, destination });
-        }
-      }
-    } else {
-      const o =
-        enquiry.originPort ||
-        (enquiry.originCity
-          ? `${enquiry.originCity}${enquiry.originState ? `, ${enquiry.originState}` : ''}`
-          : 'Unknown Origin');
-      const d =
-        enquiry.destinationPort ||
-        (enquiry.destinationCity
-          ? `${enquiry.destinationCity}${enquiry.destinationState ? `, ${enquiry.destinationState}` : ''}`
-          : 'Unknown Destination');
-      expectedRoutes.push({ origin: o, destination: d });
-    }
-
-    const existingRoutes = await this.logisticsRouteModel.findAll({
-      where: { logisticsId: logistics.id },
-    });
-    const finalRoutes = [];
-    const expectedRouteKeys = new Set(
-      expectedRoutes.map((r) => `${r.origin}:::${r.destination}`),
+    // Generate freight / logistics routes ONLY where FreightRequired = true
+    const finalRoutes = await this.syncLogisticsRoutesForEnquiry(
+      cleanEnquiryId,
+      companyId,
     );
 
-    for (const er of expectedRoutes) {
-      const exists = existingRoutes.find(
-        (r) => r.origin === er.origin && r.destination === er.destination,
-      );
-      if (!exists) {
-        const newRoute = await this.logisticsRouteModel.create({
-          logisticsId: logistics.id,
-          origin: er.origin,
-          destination: er.destination,
-        });
-        finalRoutes.push(newRoute);
-      } else {
-        finalRoutes.push(exists);
-      }
-    }
-
-    for (const r of existingRoutes) {
-      if (!expectedRouteKeys.has(`${r.origin}:::${r.destination}`)) {
-        const quotesCount = await this.quoteModel.count({
-          where: { routeId: r.id },
-        });
-        if (quotesCount === 0) {
-          await r.destroy();
-        } else {
-          finalRoutes.push(r);
-        }
-      }
-    }
-
     // Attach routes to response
-    logistics.setDataValue('routes', finalRoutes);
+    logistics.setDataValue('routes', finalRoutes || []);
 
     // Look up if a SalesContract exists for this enquiry
     let salesContract = await this.salesContractModel.findOne({
-      where: { enquiryId },
+      where: { enquiryId: cleanEnquiryId },
       attributes: [
         'id',
         'contractNumber',
@@ -1582,15 +2360,17 @@ export class LogisticsService {
       // Origin: ALWAYS Purchase Contract → Place of Loading
       const defaultOrigin =
         purchaseContract?.placeOfLoading ||
-        enquiry?.loadingPoints?.[0]?.loadingPoint ||
+        (enquiry as any)?.transportDetails?.[0]?.origin ||
         enquiry?.originPort ||
         enquiry?.originCity ||
         '—';
       // Destination: ALWAYS Linked Sales Contract → Delivery Place
       const defaultDestination =
+        (salesContract as any)?.transportDetails?.[0]?.destination ||
         salesContract?.destinationLocationName ||
         salesContract?.portOfDischarge ||
         salesContract?.deliveryPlace ||
+        (enquiry as any)?.transportDetails?.[0]?.destination ||
         enquiry?.destinations?.[0]?.destination ||
         enquiry?.destinationPort ||
         enquiry?.destinationCity ||
@@ -1624,9 +2404,9 @@ export class LogisticsService {
           transitDays: preferredQuote ? preferredQuote.transitDays : null,
           transportPartner: preferredQuote?.seller
             ? {
-                id: preferredQuote.seller.id,
-                name: preferredQuote.seller.entityName,
-              }
+              id: preferredQuote.seller.id,
+              name: preferredQuote.seller.entityName,
+            }
             : null,
           preferredQuote,
           quotes: sQuotes,
@@ -1722,6 +2502,7 @@ export class LogisticsService {
       const quote = await this.quoteModel.create(
         {
           ...dto,
+          origin: dto.origin || dto.loadingPoint || null,
           sellerId: dto.sellerId,
           freightAmount: calculatedFreightAmount,
           quoteNumber,
@@ -1904,6 +2685,7 @@ export class LogisticsService {
       const quote = await this.quoteModel.create(
         {
           ...dto,
+          origin: dto.origin || dto.loadingPoint || null,
           sellerId: dto.sellerId,
           freightAmount: calculatedFreightAmount,
           quoteNumber,
@@ -2089,6 +2871,8 @@ export class LogisticsService {
         {
           productId: dto.productId,
           quoteDate: dto.quoteDate,
+          origin: dto.origin || dto.loadingPoint || quote.origin,
+          destination: dto.destination || quote.destination,
           updatedBy: user?.userId,
         } as any,
         { transaction },

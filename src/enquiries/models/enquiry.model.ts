@@ -23,7 +23,7 @@ import { User } from '../../users/models/user.model';
 import { EnquiryStatus, EnquiryShipmentMode } from '../enquiry.constants';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { Company } from '../../companies/models/company.model';
-import { EnquiryLoadingPoint } from './enquiry-loading-point.model';
+import { TransportDetail } from './transport-detail.model';
 import { EnquiryDestination } from './enquiry-destination.model';
 import { EnquiryActivityLog } from './enquiry-activity-log.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
@@ -299,8 +299,8 @@ export class Enquiry extends BusinessReferenceEntity<Enquiry> {
   @HasOne(() => Logistics)
   declare logistics: Logistics;
 
-  @HasMany(() => EnquiryLoadingPoint)
-  declare loadingPoints: EnquiryLoadingPoint[];
+  @HasMany(() => TransportDetail)
+  declare transportDetails: TransportDetail[];
 
   @HasMany(() => EnquiryDestination)
   declare destinations: EnquiryDestination[];

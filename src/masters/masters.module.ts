@@ -8,6 +8,7 @@ import { CurrencyService } from './currency/currency.service';
 import { ShipmentType } from './shipment-type/shipment-type.model';
 import { ShipmentTypeController } from './shipment-type/shipment-type.controller';
 import { ShipmentTypeService } from './shipment-type/shipment-type.service';
+import { FreightRuleEngineService } from './shipment-type/freight-rule-engine.service';
 import { PaymentTerm } from './payment-term/payment-term.model';
 import { PaymentTermController } from './payment-term/payment-term.controller';
 import { PaymentTermService } from './payment-term/payment-term.service';
@@ -152,6 +153,7 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     BagSpecsService,
 
     ShipmentTypeService,
+    FreightRuleEngineService,
     PaymentTermService,
     TradeDocumentService,
     EquipmentOptionService,
@@ -161,7 +163,7 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     PortService,
     ShippingLineService,
   ],
-  exports: [CountryService, PortService, ShippingLineService],
+  exports: [CountryService, PortService, ShippingLineService, FreightRuleEngineService, ShipmentTypeService],
 })
 export class MastersModule {}
 // Dynamic master tables synced and verified successfully

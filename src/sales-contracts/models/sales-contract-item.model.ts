@@ -74,6 +74,22 @@ export class SalesContractItem extends Model<SalesContractItem> {
   @Column({ field: 'qty_per_count', type: DataType.DECIMAL(12, 2) })
   declare qtyPerCount: number;
 
+  @AllowNull(true)
+  @Column({ field: 'unit_count', type: DataType.DECIMAL(10, 2) })
+  declare unitCount: number;
+
+  @AllowNull(true)
+  @Column({ field: 'container_type', type: DataType.STRING(50) })
+  declare containerType: string;
+
+  @AllowNull(true)
+  @Column({ field: 'tolerance_percentage', type: DataType.DECIMAL(5, 2) })
+  declare tolerancePercentage: number;
+
+  @AllowNull(true)
+  @Column({ field: 'quantity_description', type: DataType.TEXT })
+  declare quantityDescription: string;
+
   @Default(0)
   @AllowNull(false)
   @Column({ field: 'unit_price', type: DataType.DECIMAL(12, 2) })
