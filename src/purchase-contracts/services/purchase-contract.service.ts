@@ -614,6 +614,17 @@ export class PurchaseContractService {
     }
 
     if (!pc) {
+      if (remainingQty <= 0) {
+        throw new BadRequestException(
+          'Sales Contract is fully allocated; no Purchase Contract can be created.',
+        );
+      }
+      if (purchaseQty <= 0) {
+        throw new BadRequestException(
+          'Purchase Contract quantity must be greater than zero.',
+        );
+      }
+
       const pcCount = await this.model.count({ where: { salesContractId } });
       const contractNumber =
         pcCount > 0
@@ -628,7 +639,10 @@ export class PurchaseContractService {
         buyerId: salesContract.sellerId || null,
         brokerId: salesContract.brokerId || null,
         shipmentTypeId: salesContract.shipmentTypeId || null,
-        paymentTermId: salesContract.paymentTermId || null,
+        paymentTermId: forceNew ? null : salesContract.paymentTermId || null,
+        paymentTermsText: null,
+        placeOfLoading: null,
+        loadingCountry: null,
         quantity: purchaseQty > 0 ? String(purchaseQty) : null,
         paymentDueDate: salesContract.contractDate
           ? this.calculatePaymentDueDate(salesContract.contractDate)
@@ -652,9 +666,12 @@ export class PurchaseContractService {
           bagSpec: null,
           stitching: null,
           marking: null,
-          ratePerMt: scItem.unitPrice != null ? Number(scItem.unitPrice) : null,
+          ratePerMt:
+            !forceNew && scItem.unitPrice != null
+              ? Number(scItem.unitPrice)
+              : null,
           totalAmount:
-            scItem.unitPrice != null && remainingQty > 0
+            !forceNew && scItem.unitPrice != null && remainingQty > 0
               ? purchaseQty * Number(scItem.unitPrice)
               : null,
         });
@@ -734,10 +751,22 @@ export class PurchaseContractService {
           },
           salesContract.contractType || 'Import',
         );
+        const itemQuantity = Array.isArray(dto.items)
+          ? dto.items.reduce(
+              (sum, item) => sum + (Number(item.quantity) || 0),
+              0,
+            )
+          : undefined;
+        const requestedQuantity =
+          dto.quantity != null && dto.quantity !== ''
+            ? Number(dto.quantity)
+            : itemQuantity;
         pc = await this.ensureExists(
           dto.salesContractId,
           user?.userId,
           dto.shipmentIds,
+          true,
+          requestedQuantity,
         );
       } else {
         await this.validateForeignKeys(

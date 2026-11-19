@@ -22,6 +22,6 @@
     "noFallthroughCasesInSwitch": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "storage", "uploads", "test", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "storage", "uploads", "test"]
 }
 

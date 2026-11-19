@@ -199,6 +199,72 @@ describe('PurchaseContractAllocationEngine (Dynamic Shipment Reallocation)', () 
     expect(shipmentLinksStore.filter((l) => l.purchaseContractId === pc1.id).length).toEqual(4);
   });
 
+  it('creates new partial allocations from the remaining Sales Contract quantity and blocks once fully allocated', async () => {
+    const originalTotalQuantity = mockSalesContract.totalQuantity;
+    const originalItemQuantity = mockSalesContract.items[0].quantity;
+    (mockSalesContract as any).paymentTermId = 7;
+    mockSalesContract.totalQuantity = 264;
+    mockSalesContract.items[0].quantity = 264;
+    const itemCreateSpy = jest.spyOn((service as any).itemModel, 'create');
+
+    try {
+      const pc1 = await service.ensureExists(1, 1, undefined, true, 176);
+      const pc2 = await service.ensureExists(1, 1, undefined, true, 22);
+      const pc3 = await service.ensureExists(1, 1, undefined, true);
+
+      expect(pc1.quantity).toEqual('176');
+      expect(pc2.quantity).toEqual('22');
+      expect(pc3.quantity).toEqual('66');
+      expect(pc3.paymentTermId).toBeNull();
+      expect(pc3.paymentTermsText).toBeNull();
+      expect(pc3.placeOfLoading).toBeNull();
+      expect(pc3.loadingCountry).toBeNull();
+      expect(itemCreateSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          purchaseContractId: pc3.id,
+          ratePerMt: null,
+          totalAmount: null,
+        }),
+      );
+      await expect(
+        service.ensureExists(1, 1, undefined, true),
+      ).rejects.toThrow('Sales Contract is fully allocated');
+    } finally {
+      mockSalesContract.totalQuantity = originalTotalQuantity;
+      mockSalesContract.items[0].quantity = originalItemQuantity;
+      delete (mockSalesContract as any).paymentTermId;
+    }
+  });
+
+  it('creates a new Purchase Contract for explicit Sales Contract-linked create requests', async () => {
+    const pc = {
+      id: 20,
+      status: 'Draft',
+      freightRequired: false,
+      update: jest.fn().mockResolvedValue(undefined),
+      reload: jest.fn().mockResolvedValue({ id: 20 }),
+    };
+    const ensureExistsSpy = jest
+      .spyOn(service, 'ensureExists')
+      .mockResolvedValue(pc as any);
+    jest
+      .spyOn(service, 'reallocateSalesContractShipments')
+      .mockResolvedValue(undefined);
+
+    await service.create(
+      { salesContractId: 1, quantity: '22' },
+      { companyId: 1, userId: 2 },
+    );
+
+    expect(ensureExistsSpy).toHaveBeenCalledWith(
+      1,
+      2,
+      undefined,
+      true,
+      22,
+    );
+  });
+
   it('should support Case 2: PC1 = 66 MT and PC2 = 22 MT without overlapping shipments', async () => {
     const pc1 = await service.ensureExists(1, 1, undefined, true, 66);
     expect(pc1.quantity).toEqual('66');

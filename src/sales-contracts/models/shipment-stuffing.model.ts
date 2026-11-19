@@ -162,8 +162,11 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @Column({ type: DataType.JSONB })
   declare trucks: Array<{
     truckNo: string;
-    driver: string;
-    transporter: string;
+    driver?: string;
+    mobile?: string;
+    transporter?: string;
+    remark?: string;
+    remarks?: string;
   }>;
 
   // Dynamic Attachments
