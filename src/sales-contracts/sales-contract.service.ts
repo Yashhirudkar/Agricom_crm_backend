@@ -302,7 +302,7 @@ export class SalesContractService implements OnModuleInit {
         for (const [idx, item] of dto.transportDetails.entries()) {
           if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
             throw new BadRequestException(
-              `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+              `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
             );
           }
         }
@@ -923,7 +923,7 @@ export class SalesContractService implements OnModuleInit {
             !item.destination?.trim()
           ) {
             throw new BadRequestException(
-              `Transport Details row ${idx + 1} must contain Origin, Incoterm, and Destination.`,
+              `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
             );
           }
         }

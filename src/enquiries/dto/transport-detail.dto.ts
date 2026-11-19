@@ -14,7 +14,7 @@ export class TransportDetailDto {
   @IsInt()
   sequence?: number;
 
-  @IsNotEmpty({ message: 'Origin is required' })
+  @IsNotEmpty({ message: 'Place of Loading (POL) is required' })
   @IsString()
   origin: string;
 
