@@ -115,6 +115,46 @@ export function extractIncotermCode(
 }
 
 /**
+ * Standalone Incoterm Freight Rules (Enquiry Flow / Single Incoterm Flow)
+ *
+ * Pickup / Origin terms (Buyer arranges freight):
+ * - EXW, FCA, FAS, FOB => freightRequired = false
+ *
+ * Destination / Delivery terms (Seller arranges freight):
+ * - CFR (CNF), CIF, CPT, CIP, DAP, DPU (DAT), DDP => freightRequired = true
+ */
+export const STANDALONE_NO_FREIGHT_INCOTERMS = [
+  'EXW',
+  'FCA',
+  'FAS',
+  'FOB',
+] as const;
+
+export const STANDALONE_FREIGHT_REQUIRED_INCOTERMS = [
+  'CFR',
+  'CIF',
+  'CPT',
+  'CIP',
+  'DAP',
+  'DPU',
+  'DDP',
+] as const;
+
+export function evaluateStandaloneFreightRequired(
+  incoterm?: ShipmentTypeRuleInput | string | number | null,
+): boolean {
+  const code = extractIncotermCode(incoterm);
+  if (!code) return false;
+  if ((STANDALONE_FREIGHT_REQUIRED_INCOTERMS as readonly string[]).includes(code as any)) {
+    return true;
+  }
+  if ((STANDALONE_NO_FREIGHT_INCOTERMS as readonly string[]).includes(code as any)) {
+    return false;
+  }
+  return false;
+}
+
+/**
  * Direct lookup in Freight Compatibility Matrix.
  * Row = Sales Contract Incoterm
  * Column = Purchase Contract Incoterm
@@ -134,21 +174,17 @@ export function lookupFreightMatrix(
 }
 
 /**
- * Pure evaluation function using the Freight Compatibility Matrix as Source of Truth.
+ * Pure evaluation function supporting both Contract Matrix and Enquiry Standalone flows.
  *
  * Parameters:
- * @param pcShipmentType Purchase Contract Incoterm (Column)
- * @param scShipmentType Sales Contract Incoterm (Row)
+ * @param pcShipmentType Purchase Contract Incoterm (Column in Matrix)
+ * @param scShipmentType Sales Contract / Enquiry Incoterm (Row in Matrix)
+ * @param shipmentId Optional shipment ID for debugging
  *
- * Matrix Lookup:
- * Row    = SC (Sales Contract)
- * Column = PC (Purchase Contract)
- *
- * Rules:
- * - If Matrix Result is "Yes" (true) -> Freight Required = YES
- * - If Matrix Result is "No" (false)  -> Freight Required = NO
- * - Same Incoterms (SC == PC) are NEVER automatically YES -> always NO
- *   (e.g. FCA -> FCA = NO, CIF -> CIF = NO, DAP -> DAP = NO, DDP -> DDP = NO)
+ * Scenarios:
+ * - Scenario A (Contract Flow): BOTH PC and SC exist -> Evaluate via Compatibility Matrix
+ * - Scenario B (Enquiry Flow): SC exists, PC is missing -> Evaluate standalone Enquiry Incoterm
+ * - Scenario C: Neither defined, or only PC defined -> freightRequired = false
  */
 export function evaluateFreightRequired(
   pcShipmentType?: ShipmentTypeRuleInput | string | number | null,
@@ -157,25 +193,52 @@ export function evaluateFreightRequired(
 ): FreightRuleEvaluationResult {
   const scCode = extractIncotermCode(scShipmentType);
   const pcCode = extractIncotermCode(pcShipmentType);
-  const matrixResult = lookupFreightMatrix(scCode, pcCode);
-  const reason = `Compatibility Matrix: SC ${scCode || 'unknown'} x PC ${pcCode || 'unknown'} = ${matrixResult ? 'YES' : 'NO'}.`;
 
-  if (scCode === 'FCA' && pcCode === 'FCA') {
-    console.debug('[FreightCompatibilityMatrix]', {
-      shipmentId: shipmentId ?? null,
-      salesContractIncoterm: scCode,
-      purchaseContractIncoterm: pcCode,
+  // Scenario A – Contract Flow: Both Sales and Purchase Incoterms exist
+  if (scCode && pcCode) {
+    const matrixResult = lookupFreightMatrix(scCode, pcCode);
+    const reason = `Compatibility Matrix: SC ${scCode} x PC ${pcCode} = ${matrixResult ? 'YES' : 'NO'}.`;
+
+    if (scCode === 'FCA' && pcCode === 'FCA') {
+      console.debug('[FreightCompatibilityMatrix]', {
+        shipmentId: shipmentId ?? null,
+        salesContractIncoterm: scCode,
+        purchaseContractIncoterm: pcCode,
+        matrixResult,
+        freightRequired: matrixResult,
+      });
+    }
+
+    return {
       matrixResult,
       freightRequired: matrixResult,
-    });
+      salesIncoterm: scCode,
+      purchaseIncoterm: pcCode,
+      reason,
+    };
   }
 
+  // Scenario B – Enquiry Flow: Purchase Contract is missing, evaluate using Sales/Enquiry Incoterm
+  if (scCode && !pcCode) {
+    const freightRequired = evaluateStandaloneFreightRequired(scCode);
+    const reason = `Enquiry Incoterm: ${scCode} = ${freightRequired ? 'YES' : 'NO'} (Standalone Evaluation).`;
+
+    return {
+      matrixResult: freightRequired,
+      freightRequired,
+      salesIncoterm: scCode,
+      purchaseIncoterm: '',
+      reason,
+    };
+  }
+
+  // Scenario C – Neither defined, or only PC defined (SC missing)
   return {
-    matrixResult,
-    freightRequired: matrixResult,
+    matrixResult: false,
+    freightRequired: false,
     salesIncoterm: scCode,
     purchaseIncoterm: pcCode,
-    reason,
+    reason: `Compatibility Matrix: SC ${scCode || 'unknown'} x PC ${pcCode || 'unknown'} = NO.`,
   };
 }
 

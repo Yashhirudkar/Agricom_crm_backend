@@ -170,6 +170,15 @@ export class PurchaseContractShipmentService {
         ),
     );
 
+    const fallbackFreightRequired =
+      contract.shipmentType ||
+      (visibleLinks[0]?.shipment?.salesContract as any)?.shipmentType
+        ? evaluateFreightRequired(
+            contract.shipmentType,
+            (visibleLinks[0]?.shipment?.salesContract as any)?.shipmentType,
+          ).freightRequired
+        : false;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -206,9 +215,9 @@ export class PurchaseContractShipmentService {
 
       const readiness = readinessMap.get(s.id);
       const isFreightRequired =
-        readiness?.freightRequired ??
-        evaluateFreightRequired(contract.shipmentType, sc.shipmentType)
-          .freightRequired;
+        typeof readiness?.freightRequired === 'boolean'
+          ? readiness.freightRequired
+          : fallbackFreightRequired;
 
       const json: any = {
         linkId: link.id,

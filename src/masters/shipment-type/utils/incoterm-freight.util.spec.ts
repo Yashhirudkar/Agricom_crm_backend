@@ -1,9 +1,16 @@
 import { isFreightRequiredForIncoterm } from './incoterm-freight.util';
 
 describe('isFreightRequiredForIncoterm', () => {
-  it('returns NO when the other contract Incoterm is missing', () => {
-    expect(isFreightRequiredForIncoterm('CFR')).toBe(false);
+  it('evaluates standalone Incoterm correctly when the other contract Incoterm is missing (Enquiry Flow)', () => {
+    expect(isFreightRequiredForIncoterm('CFR')).toBe(true);
+    expect(isFreightRequiredForIncoterm('CIF')).toBe(true);
+    expect(isFreightRequiredForIncoterm('DAP')).toBe(true);
+    expect(isFreightRequiredForIncoterm('DDP')).toBe(true);
+    expect(isFreightRequiredForIncoterm('EXW')).toBe(false);
+    expect(isFreightRequiredForIncoterm('FCA')).toBe(false);
     expect(isFreightRequiredForIncoterm('FCA - Free Carrier')).toBe(false);
+    expect(isFreightRequiredForIncoterm('FOB')).toBe(false);
+    expect(isFreightRequiredForIncoterm('FAS')).toBe(false);
   });
 
   it('uses the SC-by-PC compatibility matrix when both terms are supplied', () => {

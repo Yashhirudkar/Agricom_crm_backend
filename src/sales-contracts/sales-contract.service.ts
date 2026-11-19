@@ -493,19 +493,28 @@ export class SalesContractService implements OnModuleInit {
         Array.isArray(dto.transportDetails) &&
         dto.transportDetails.length > 0
       ) {
-        const detailsToCreate = dto.transportDetails.map((td, index) => ({
-          companyId,
-          salesContractId: contract.id,
-          parentId: String(contract.id),
-          sequence: td.sequence != null ? td.sequence : index + 1,
-          origin: td.origin.trim(),
-          incoterm: td.incoterm.trim(),
-          destination: td.destination.trim(),
-          freightRequired: evaluateFreightRequired(
-            pcShipmentType,
-            td.incoterm,
-          ).freightRequired,
-        }));
+        const tdFreightCache = new Map<string, boolean>();
+        const detailsToCreate = dto.transportDetails.map((td, index) => {
+          const incoterm = td.incoterm.trim();
+          let freightRequired = tdFreightCache.get(incoterm);
+          if (freightRequired === undefined) {
+            freightRequired = evaluateFreightRequired(
+              pcShipmentType,
+              incoterm,
+            ).freightRequired;
+            tdFreightCache.set(incoterm, freightRequired);
+          }
+          return {
+            companyId,
+            salesContractId: contract.id,
+            parentId: String(contract.id),
+            sequence: td.sequence != null ? td.sequence : index + 1,
+            origin: td.origin.trim(),
+            incoterm,
+            destination: td.destination.trim(),
+            freightRequired,
+          };
+        });
         await this.transportDetailModel.bulkCreate(detailsToCreate, {
           transaction: t,
         });
@@ -1428,19 +1437,28 @@ export class SalesContractService implements OnModuleInit {
           Array.isArray(dto.transportDetails) &&
           dto.transportDetails.length > 0
         ) {
-          const detailsToCreate = dto.transportDetails.map((td, index) => ({
+        const tdFreightCache = new Map<string, boolean>();
+        const detailsToCreate = dto.transportDetails.map((td, index) => {
+          const incoterm = td.incoterm.trim();
+          let freightRequired = tdFreightCache.get(incoterm);
+          if (freightRequired === undefined) {
+            freightRequired = evaluateFreightRequired(
+              pcShipmentType,
+              incoterm,
+            ).freightRequired;
+            tdFreightCache.set(incoterm, freightRequired);
+          }
+          return {
             companyId: contract.companyId || user?.companyId,
             salesContractId: contract.id,
             parentId: String(contract.id),
             sequence: td.sequence != null ? td.sequence : index + 1,
             origin: td.origin.trim(),
-            incoterm: td.incoterm.trim(),
+            incoterm,
             destination: td.destination.trim(),
-            freightRequired: evaluateFreightRequired(
-              pcShipmentType,
-              td.incoterm,
-            ).freightRequired,
-          }));
+            freightRequired,
+          };
+        });
           await this.transportDetailModel.bulkCreate(detailsToCreate, {
             transaction: t,
           });

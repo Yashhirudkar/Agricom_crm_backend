@@ -77,6 +77,7 @@ import * as phase85 from './phase-85-replace-loading-points-with-transport-detai
 import * as phase86 from './phase-86-dynamic-incoterm-sequence';
 import * as phase87 from './phase-87-freight-required-default-no';
 import * as phase88 from './phase-88-remove-freight-after-stage';
+import * as phase89 from './phase-89-optimize-currencies-and-indexes';
 
 export interface MigrationPhase {
   phase: string;
@@ -169,4 +170,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase86,
   phase87,
   phase88,
+  phase89,
 ];

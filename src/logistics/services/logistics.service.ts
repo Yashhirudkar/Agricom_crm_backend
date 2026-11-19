@@ -17,7 +17,10 @@ import { FreightQuoteContainerRate } from '../models/freight-quote-container-rat
 import { LogisticsRoute } from '../models/logistics-route.model';
 import { Enquiry } from '../../enquiries/models/enquiry.model';
 import { TransportDetail } from '../../enquiries/models/transport-detail.model';
-import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
+import {
+  evaluateFreightRequired,
+  extractIncotermCode,
+} from '../../masters/shipment-type/freight-rule-engine.service';
 import { EnquiryDestination } from '../../enquiries/models/enquiry-destination.model';
 import { EnquiryStatus } from '../../enquiries/enquiry.constants';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
@@ -304,6 +307,11 @@ export class LogisticsService {
           { '$partner.entity_name$': { [Op.iLike]: `%${s}%` } },
           { '$product.name$': { [Op.iLike]: `%${s}%` } },
           {
+            '$businessTransaction.businessReference$': {
+              [Op.iLike]: `%${s}%`,
+            },
+          },
+          {
             '$logistics.purchaseContract.contract_number$': {
               [Op.iLike]: `%${s}%`,
             },
@@ -410,18 +418,31 @@ export class LogisticsService {
 
     // Section 8: Generate independent transport queue records for every qualifying Transport Details row
     const queueRecords: any[] = [];
+    const freightRequiredByPair = new Map<string, boolean>();
+    const getFreightRequired = (pcSt: any, scSt: any): boolean => {
+      const pcCode = extractIncotermCode(pcSt);
+      const scCode = extractIncotermCode(scSt);
+      const pairKey = `${pcCode}__${scCode}`;
+      let cached = freightRequiredByPair.get(pairKey);
+      if (cached === undefined) {
+        cached = evaluateFreightRequired(pcSt, scSt).freightRequired;
+        freightRequiredByPair.set(pairKey, cached);
+      }
+      return cached;
+    };
+
     for (const item of data) {
       const details = item.transportDetails;
       if (Array.isArray(details) && details.length > 0) {
         const qualifying = details
           .map((route: any) => ({
             route,
-            freightRequired: evaluateFreightRequired(
+            freightRequired: getFreightRequired(
               item.purchaseContract?.shipmentType,
               route.incoterm ||
                 item.salesContract?.shipmentType ||
                 item.shipmentType,
-            ).freightRequired,
+            ),
           }))
           .filter((entry) => entry.freightRequired);
         for (const { route, freightRequired } of qualifying) {
@@ -441,10 +462,13 @@ export class LogisticsService {
           });
         }
       } else {
-        const freightRequired = evaluateFreightRequired(
-          item.purchaseContract?.shipmentType,
-          item.salesContract?.shipmentType || item.shipmentType,
-        ).freightRequired;
+        const freightRequired =
+          typeof item.freightRequired === 'boolean'
+            ? item.freightRequired
+            : getFreightRequired(
+                item.purchaseContract?.shipmentType,
+                item.salesContract?.shipmentType || item.shipmentType,
+              );
         if (freightRequired) {
           queueRecords.push({
             ...item,
@@ -644,13 +668,24 @@ export class LogisticsService {
       replacements,
       type: QueryTypes.SELECT,
     });
-    const evaluatedRows = (selectRows || []).map((pc) => ({
-      ...pc,
-      matrixFreightRequired: evaluateFreightRequired(
-        { code: pc.purchase_shipment_type_code },
-        { code: pc.sales_shipment_type_code },
-      ).freightRequired,
-    }));
+    const matrixCache = new Map<string, boolean>();
+    const evaluatedRows = (selectRows || []).map((pc) => {
+      const pcCode = pc.purchase_shipment_type_code || '';
+      const scCode = pc.sales_shipment_type_code || '';
+      const pairKey = `${pcCode}__${scCode}`;
+      let matrixFreightRequired = matrixCache.get(pairKey);
+      if (matrixFreightRequired === undefined) {
+        matrixFreightRequired = evaluateFreightRequired(
+          { code: pcCode },
+          { code: scCode },
+        ).freightRequired;
+        matrixCache.set(pairKey, matrixFreightRequired);
+      }
+      return {
+        ...pc,
+        matrixFreightRequired,
+      };
+    });
     const eligibleRows = evaluatedRows.filter((pc) => pc.matrixFreightRequired);
     const total = eligibleRows.length;
     const pageRows = eligibleRows.slice(offset, offset + Number(limit));

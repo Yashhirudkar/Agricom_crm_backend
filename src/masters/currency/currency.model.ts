@@ -16,9 +16,10 @@ import {
   tableName: 'currencies',
   timestamps: true,
   indexes: [
-    { fields: ['status'] },
-    { fields: ['is_active'] },
-    { fields: ['code'] },
+    { name: 'currencies_status', fields: ['status'] },
+    { name: 'currencies_is_active', fields: ['is_active'] },
+    { name: 'currencies_code_unique', unique: true, fields: ['code'] },
+    { name: 'idx_currencies_status_code', fields: ['status', 'code'] },
   ],
 })
 export class Currency extends Model<Currency> {
@@ -27,7 +28,7 @@ export class Currency extends Model<Currency> {
   @Column({ type: DataType.INTEGER })
   declare id: number;
 
-  @Unique
+  @Unique('currencies_code_unique')
   @AllowNull(false)
   @Column({ type: DataType.STRING(10) })
   declare code: string;

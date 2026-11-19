@@ -89,6 +89,31 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
     expect(mockEnquiryModel.findAndCountAll).not.toHaveBeenCalled();
   });
 
+  it('searches active enquiries by Business Reference in the unified search', async () => {
+    await service.findQueue({ search: 'REF-123', page: 1, limit: 10 }, 1);
+
+    const options = mockEnquiryModel.findAndCountAll.mock.calls[0][0];
+    const conditions = options.where[Op.and];
+    const searchCondition = conditions.find((condition: any) =>
+      condition[Op.or]?.some((match: any) =>
+        Object.prototype.hasOwnProperty.call(
+          match,
+          '$businessTransaction.businessReference$',
+        ),
+      ),
+    );
+
+    expect(searchCondition).toBeDefined();
+    expect(
+      searchCondition[Op.or].find((match: any) =>
+        Object.prototype.hasOwnProperty.call(
+          match,
+          '$businessTransaction.businessReference$',
+        ),
+      )['$businessTransaction.businessReference$'][Op.iLike],
+    ).toBe('%REF-123%');
+  });
+
   it('should not contain non-existent columns (st.transport_mode, sc.delivery_place) in executed SQL query', async () => {
     mockSequelize.query.mockResolvedValueOnce([]);
 

@@ -270,7 +270,9 @@ export class CurrencyService implements OnModuleInit {
 
   async findAll(query: QueryCurrencyDto) {
     const { search, status, page = 1, limit = 200 } = query;
-    const offset = (page - 1) * limit;
+    const numLimit = Number(limit);
+    const numPage = Number(page);
+    const offset = (numPage - 1) * numLimit;
 
     const whereClause: any = {};
     if (search) {
@@ -285,22 +287,42 @@ export class CurrencyService implements OnModuleInit {
       }
     }
 
-    const { rows, count } = await this.model.findAndCountAll({
+    const order: any[] = whereClause.status
+      ? [['code', 'ASC']]
+      : [
+          ['status', 'ASC'],
+          ['code', 'ASC'],
+        ];
+
+    const rows = await this.model.findAll({
       where: whereClause,
-      limit: Number(limit),
-      offset: Number(offset),
-      order: [
-        ['status', 'ASC'],
-        ['code', 'ASC'],
+      attributes: [
+        'id',
+        'code',
+        'name',
+        'symbol',
+        'isActive',
+        'status',
+        'sortOrder',
       ],
+      limit: numLimit,
+      offset,
+      order,
     });
+
+    let count: number;
+    if (offset === 0 && rows.length < numLimit) {
+      count = rows.length;
+    } else {
+      count = await this.model.count({ where: whereClause });
+    }
 
     return {
       data: rows,
       total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+      page: numPage,
+      limit: numLimit,
+      totalPages: Math.ceil(count / numLimit) || 1,
     };
   }
 

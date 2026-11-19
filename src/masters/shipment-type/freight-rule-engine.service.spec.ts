@@ -139,14 +139,59 @@ describe('Freight Compatibility Matrix Rule Engine', () => {
     });
   });
 
+  describe('Enquiry Flow (Standalone SC Incoterm when PC is missing)', () => {
+    it('SC = DAP, PC = null -> Freight Required = YES', () => {
+      const result = service.evaluate(null, DAP);
+      expect(result.freightRequired).toBe(true);
+      expect(result.salesIncoterm).toBe('DAP');
+    });
+
+    it('SC = CIF, PC = null -> Freight Required = YES', () => {
+      const result = service.evaluate(null, CIF);
+      expect(result.freightRequired).toBe(true);
+      expect(result.salesIncoterm).toBe('CIF');
+    });
+
+    it('SC = DDP, PC = null -> Freight Required = YES', () => {
+      const result = service.evaluate(null, DDP);
+      expect(result.freightRequired).toBe(true);
+      expect(result.salesIncoterm).toBe('DDP');
+    });
+
+    it('SC = CFR, PC = null -> Freight Required = YES', () => {
+      const result = service.evaluate(null, CFR);
+      expect(result.freightRequired).toBe(true);
+      expect(result.salesIncoterm).toBe('CFR');
+    });
+
+    it('SC = EXW, PC = null -> Freight Required = NO', () => {
+      const result = service.evaluate(null, EXW);
+      expect(result.freightRequired).toBe(false);
+      expect(result.salesIncoterm).toBe('EXW');
+    });
+
+    it('SC = FCA, PC = null -> Freight Required = NO', () => {
+      const result = service.evaluate(null, FCA);
+      expect(result.freightRequired).toBe(false);
+      expect(result.salesIncoterm).toBe('FCA');
+    });
+
+    it('SC = FOB, PC = null -> Freight Required = NO', () => {
+      const result = service.evaluate(null, FOB);
+      expect(result.freightRequired).toBe(false);
+      expect(result.salesIncoterm).toBe('FOB');
+    });
+
+    it('SC = FAS, PC = null -> Freight Required = NO', () => {
+      const result = service.evaluate(null, FAS);
+      expect(result.freightRequired).toBe(false);
+      expect(result.salesIncoterm).toBe('FAS');
+    });
+  });
+
   describe('Null and Edge Cases', () => {
     it('Neither SC nor PC defined -> Freight Required = NO', () => {
       const result = service.evaluate(null, null);
-      expect(result.freightRequired).toBe(false);
-    });
-
-    it('SC defined, PC not defined -> Freight Required = NO', () => {
-      const result = service.evaluate(null, CIF);
       expect(result.freightRequired).toBe(false);
     });
 

@@ -311,13 +311,13 @@ export class ShipmentReadinessService {
       const directScSt =
         s.salesContract?.shipmentType || s.shipmentType || null;
       const directPcSt = s.purchaseContract?.shipmentType || null;
-      const freightRule =
-        freightRulesByShipment.get(s.id) ??
-        (directScSt || directPcSt
-          ? evaluateFreightRequired(directPcSt, directScSt, s.id)
-          : null);
+      let freightRule = freightRulesByShipment.get(s.id);
+      if (freightRule === undefined && (directScSt || directPcSt)) {
+        freightRule = evaluateFreightRequired(directPcSt, directScSt, s.id);
+        freightRulesByShipment.set(s.id, freightRule);
+      }
       const isFreightRequired =
-        freightRule !== null
+        freightRule !== undefined && freightRule !== null
           ? freightRule.freightRequired
           : Boolean(s.freightRequired ?? s.isFreightRequired ?? false);
 
