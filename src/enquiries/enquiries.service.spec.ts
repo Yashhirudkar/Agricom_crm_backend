@@ -70,11 +70,13 @@ describe('EnquiriesService.findOne sales-contract prefill', () => {
 });
 
 describe('EnquiriesService.findAll contract filters', () => {
-  const makeService = () => {
+  const makeService = (rowOverrides: Record<string, any> = {}) => {
     const row = {
       id: 'enquiry-id',
       status: 'CONFIRMED',
+      createdAt: new Date(),
       get: jest.fn().mockReturnValue(42),
+      ...rowOverrides,
     };
     const enquiryModel = {
       findAndCountAll: jest.fn().mockResolvedValue({ rows: [row], count: 1 }),
@@ -100,6 +102,51 @@ describe('EnquiriesService.findAll contract filters', () => {
 
     return { service, enquiryModel };
   };
+
+  describe('enquiry aging', () => {
+    const now = new Date('2026-11-19T12:00:00.000Z').getTime();
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('marks an active enquiry overdue at exactly 15 elapsed days', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      const { service } = makeService({
+        createdAt: new Date(now - 15 * 24 * 60 * 60 * 1000),
+      });
+
+      const result = await service.findAll({} as any);
+
+      expect(result.data[0].isOverdue).toBe(true);
+    });
+
+    it('does not mark enquiries overdue before 15 complete days', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      const { service } = makeService({
+        createdAt: new Date(now - (15 * 24 * 60 * 60 * 1000 - 1)),
+      });
+
+      const result = await service.findAll({} as any);
+
+      expect(result.data[0].isOverdue).toBe(false);
+    });
+
+    it.each(['CLOSED', 'CANCELLED'])(
+      'does not mark %s enquiries overdue',
+      async (status) => {
+        jest.spyOn(Date, 'now').mockReturnValue(now);
+        const { service } = makeService({
+          status,
+          createdAt: new Date(now - 15 * 24 * 60 * 60 * 1000),
+        });
+
+        const result = await service.findAll({} as any);
+
+        expect(result.data[0].isOverdue).toBe(false);
+      },
+    );
+  });
 
   it.each(['CONFIRMED', 'CLOSED'])(
     'returns %s history without contract-based filtering',
@@ -204,16 +251,34 @@ describe('EnquiriesService.findAll contract filters', () => {
   });
 
   describe('WhatsAppTemplates Annual Sales (Turnover)', () => {
-    it('includes Indian currency formatted turnover in enquiryCreated message', () => {
-      const msg = WhatsAppTemplates.enquiryCreated({
+    it('converts Annual Sales into Indian financial units with up to 2 decimal places and trailing zeros removed', () => {
+      const msg1 = WhatsAppTemplates.enquiryCreated({
         enquiryNo: 'ENQ-001',
         customerName: 'ALBERT E JAMES & SON LTD',
-        partnerAnnualTurnover: 5303520,
+        partnerAnnualTurnover: 1449529797.32,
         product: 'BLACK MILLET',
       });
-      expect(msg).toContain('*Customer:* ALBERT E JAMES & SON LTD');
-      expect(msg).toContain('*Annual Sales (Turnover):* ₹ 53,03,520');
-      expect(msg).toContain('*Product:* BLACK MILLET');
+      expect(msg1).toContain('*Customer:* ALBERT E JAMES & SON LTD');
+      expect(msg1).toContain('*Annual Sales (Turnover):* 145 Cr');
+      expect(msg1).toContain('*Product:* BLACK MILLET');
+
+      const msg2 = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-002',
+        partnerAnnualTurnover: 134567890,
+      });
+      expect(msg2).toContain('*Annual Sales (Turnover):* 13.46 Cr');
+
+      const msg3 = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-003',
+        partnerAnnualTurnover: 9500000,
+      });
+      expect(msg3).toContain('*Annual Sales (Turnover):* 95 Lakh');
+
+      const msg4 = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-004',
+        partnerAnnualTurnover: 12500,
+      });
+      expect(msg4).toContain('*Annual Sales (Turnover):* 12.5 K');
     });
 
     it('shows N/A when turnover is null or undefined', () => {
@@ -236,7 +301,7 @@ describe('EnquiriesService.findAll contract filters', () => {
           partnerAnnualTurnover: 10000000,
         },
       });
-      expect(msg).toContain('*Annual Sales (Turnover):* ₹ 1,00,00,000');
+      expect(msg).toContain('*Annual Sales (Turnover):* 1 Cr');
     });
   });
 });

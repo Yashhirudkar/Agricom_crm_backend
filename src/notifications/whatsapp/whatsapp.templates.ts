@@ -88,12 +88,34 @@ export class WhatsAppTemplates {
       return 'N/A';
     }
     const num = Number(value);
-    const hasDecimals = num % 1 !== 0;
-    const formatted = num.toLocaleString('en-IN', {
-      minimumFractionDigits: hasDecimals ? 2 : 0,
-      maximumFractionDigits: 2,
-    });
-    return `₹ ${formatted}`;
+    if (num === 0) return '0';
+
+    const abs = Math.abs(num);
+    let amount: number;
+    let unit = '';
+
+    if (abs >= 10000000) {
+      amount = num / 10000000;
+      unit = 'Cr';
+    } else if (abs >= 100000) {
+      amount = num / 100000;
+      unit = 'Lakh';
+    } else if (abs >= 1000) {
+      amount = num / 1000;
+      unit = 'K';
+    } else {
+      amount = num;
+      unit = '';
+    }
+
+    // Up to 2 decimal places with unnecessary trailing zeros removed.
+    // Whole unit figures (>= 100 Cr) are rounded to the nearest integer (e.g. 145 Cr).
+    const rounded =
+      Math.abs(amount) >= 100
+        ? Math.round(amount)
+        : Math.round(amount * 100) / 100;
+
+    return unit ? `${rounded} ${unit}` : `${rounded}`;
   }
 
   // ─── Templates ──────────────────────────────────────────────────────────────

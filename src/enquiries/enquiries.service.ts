@@ -805,10 +805,17 @@ export class EnquiriesService {
       subQuery: false,
     });
 
+    const now = Date.now();
+    const overdueThresholdMs = 15 * 24 * 60 * 60 * 1000;
     const mappedRows = rows.map((row: any) => ({
       id: row.id,
       salesContractId: row.get('salesContractId') || null,
       enquiryNo: row.enquiryNo,
+      isOverdue:
+        row.createdAt != null &&
+        now - new Date(row.createdAt).getTime() >= overdueThresholdMs &&
+        row.status !== EnquiryStatus.CLOSED &&
+        row.status !== EnquiryStatus.CANCELLED,
       businessTransactionId: row.businessTransactionId ?? null,
       businessReference: row.businessTransaction?.businessReference ?? null,
       enquiryDate: row.enquiryDate,
