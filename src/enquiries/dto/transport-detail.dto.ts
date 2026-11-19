@@ -3,7 +3,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsInt,
-  IsBoolean,
 } from 'class-validator';
 
 export class TransportDetailDto {
@@ -26,8 +25,5 @@ export class TransportDetailDto {
   @IsNotEmpty({ message: 'Destination is required' })
   @IsString()
   destination: string;
-
-  @IsOptional()
-  @IsBoolean()
-  freightRequired?: boolean;
 }
+

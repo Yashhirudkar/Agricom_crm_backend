@@ -98,7 +98,7 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   @Column({ field: 'freight_allocation_status', type: DataType.STRING(50) })
   declare freightAllocationStatus: string | null;
 
-  @Default(true)
+  @Default(false)
   @AllowNull(true)
   @Column({ field: 'freight_required', type: DataType.BOOLEAN })
   declare freightRequired: boolean | null;

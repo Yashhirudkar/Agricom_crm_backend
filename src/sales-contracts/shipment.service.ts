@@ -880,9 +880,6 @@ export class ShipmentService {
              pc.seller_id,
              st.id AS pc_shipment_type_id,
              st.code AS pc_shipment_type_code,
-             st.stage_order AS pc_stage_order,
-             st.location_type AS pc_location_type,
-             st.freight_required_after_stage AS pc_freight_required_after_stage,
              st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
@@ -932,9 +929,6 @@ export class ShipmentService {
              pc.seller_id,
              st.id AS pc_shipment_type_id,
              st.code AS pc_shipment_type_code,
-             st.stage_order AS pc_stage_order,
-             st.location_type AS pc_location_type,
-             st.freight_required_after_stage AS pc_freight_required_after_stage,
              st.purchase_contract_delivery_place_required,
              seller.entity_name AS seller_name,
              COALESCE(pci.product_name, prod.name) AS product_name
@@ -1043,8 +1037,10 @@ export class ShipmentService {
       const readiness = readinessMap.get(json.id) || {
         cargoReady: false,
         freightReady: false,
-        isFreightNotApplicable: false,
-        freightAllocationStatus: 'Pending' as const,
+        freightRequired: false,
+        freightRuleReason: null,
+        isFreightNotApplicable: true,
+        freightAllocationStatus: 'No' as const,
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,
@@ -1056,51 +1052,22 @@ export class ShipmentService {
         readySource: 'System' as const,
         reasons: [],
       };
-      const pcDataEarly =
-        pcDataByShipment.get(json.id) ||
-        (contractId ? pcDataBySc.get(contractId) : null);
-
-      const pcShipmentType = pcDataEarly
-        ? {
-            id: pcDataEarly.pc_shipment_type_id,
-            code: pcDataEarly.pc_shipment_type_code,
-            stageOrder: pcDataEarly.pc_stage_order,
-            locationType: pcDataEarly.pc_location_type,
-            freightRequiredAfterStage: pcDataEarly.pc_freight_required_after_stage,
-            purchaseContractDeliveryPlaceRequired: pcDataEarly.purchase_contract_delivery_place_required,
-          }
-        : null;
-      const scShipmentType = json.salesContract?.shipmentType || null;
-      const freightRuleResult = evaluateFreightRequired(pcShipmentType, scShipmentType);
-      const isFreightRequired = freightRuleResult.freightRequired;
-
-      const isFreightAutoAllocated =
-        !isFreightRequired ||
-        readiness.isFreightNotApplicable ||
-        json.freightAllocationStatus === 'Yes' ||
-        json.freightAllocationStatus === 'Not Applicable';
 
       json.cargoReady = readiness.cargoReady;
-      json.freightReady = isFreightAutoAllocated ? true : readiness.freightReady;
-      json.freightRequired = isFreightRequired;
-      json.isFreightRequired = isFreightRequired;
-      json.freightRuleReason = freightRuleResult.reason;
-      json.isFreightNotApplicable = !isFreightRequired;
+      json.freightReady = readiness.freightReady;
+      json.freightRequired = readiness.freightRequired;
+      json.isFreightRequired = readiness.freightRequired;
+      json.freightRuleReason = readiness.freightRuleReason;
+      json.isFreightNotApplicable = readiness.isFreightNotApplicable;
+      json.freightAllocationStatus = readiness.freightAllocationStatus;
 
-      if (!isFreightRequired) {
+      if (!readiness.freightRequired) {
         json.freight = null;
-        json.freightAllocationStatus = null;
         json.freightCurrency = null;
         json.freightDescription = null;
-      } else {
-        json.freightAllocationStatus =
-          json.freightAllocationStatus ||
-          readiness.freightAllocationStatus ||
-          (json.freight ? 'Allocated' : 'Pending');
       }
 
-      json.systemReady = isFreightAutoAllocated ? readiness.cargoReady : readiness.systemReady;
-
+      json.systemReady = readiness.systemReady;
 
       json.manualReadyOverride = readiness.manualReadyOverride;
       json.manualReadyBy = readiness.manualReadyBy;
@@ -1113,9 +1080,7 @@ export class ShipmentService {
           : json.systemReady;
       json.isManualOverride = readiness.isManualOverride;
       json.readySource = readiness.readySource;
-      json.readinessReasons = isFreightAutoAllocated
-        ? (readiness.cargoReady ? [] : ['Cargo allocation is pending.'])
-        : readiness.reasons;
+      json.readinessReasons = readiness.reasons;
 
       // Format Sales Contract No, Purchase Contract No, and Shipment Ref No
       const rawSc = json.salesContract?.contractNumber;
@@ -1463,11 +1428,7 @@ export class ShipmentService {
       const [pcRow]: any = await this.sequelize.query(
         `SELECT 
            st.id,
-           st.code,
-           st.stage_order AS "stageOrder",
-           st.location_type AS "locationType",
-           st.freight_required_after_stage AS "freightRequiredAfterStage",
-           st.purchase_contract_delivery_place_required AS "purchaseContractDeliveryPlaceRequired"
+            st.code
          FROM purchase_contracts pc
          JOIN shipment_types st ON st.id = pc.shipment_type_id
          LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
@@ -1488,9 +1449,12 @@ export class ShipmentService {
     } catch (e) {}
 
     const scShipmentType = shipment.salesContract?.shipmentType || null;
-    const freightRule = evaluateFreightRequired(pcShipmentType, scShipmentType);
+    const freightRule = evaluateFreightRequired(
+      pcShipmentType,
+      scShipmentType,
+      id,
+    );
     const isFreightRequired = freightRule.freightRequired;
-
     shipment.freightRequired = isFreightRequired;
 
     if (!isFreightRequired) {
@@ -1499,13 +1463,11 @@ export class ShipmentService {
       // Do not validate these fields.
       // Do not save these values in the database.
       shipment.freight = null as any;
-      shipment.freightAllocationStatus = null;
+      shipment.freightAllocationStatus = 'No';
       shipment.freightCurrency = null;
       shipment.freightDescription = null;
     } else {
       if (dto.freight !== undefined) shipment.freight = dto.freight;
-      if (dto.freightAllocationStatus !== undefined)
-        shipment.freightAllocationStatus = dto.freightAllocationStatus;
       if (dto.freightCurrency !== undefined)
         shipment.freightCurrency = dto.freightCurrency;
       if (dto.freightDescription !== undefined)
@@ -1770,9 +1732,6 @@ export class ShipmentService {
            pc.seller_id,
            st.id AS pc_shipment_type_id,
            st.code AS pc_shipment_type_code,
-           st.stage_order AS pc_stage_order,
-           st.location_type AS pc_location_type,
-           st.freight_required_after_stage AS pc_freight_required_after_stage,
            st.purchase_contract_delivery_place_required,
            seller.entity_name AS seller_name,
            COALESCE(pci.product_name, prod.name) AS product_name
@@ -1813,28 +1772,14 @@ export class ShipmentService {
       );
     }
 
-    const pcShipmentType = pcData
-      ? {
-          id: pcData.pc_shipment_type_id,
-          code: pcData.pc_shipment_type_code,
-          stageOrder: pcData.pc_stage_order,
-          locationType: pcData.pc_location_type,
-          freightRequiredAfterStage: pcData.pc_freight_required_after_stage,
-          purchaseContractDeliveryPlaceRequired: pcData.purchase_contract_delivery_place_required,
-        }
-      : null;
-    const scShipmentType = json.salesContract?.shipmentType || null;
-    const freightRuleResult = evaluateFreightRequired(pcShipmentType, scShipmentType);
-    const isFreightRequired = freightRuleResult.freightRequired;
+    json.freightRequired = readiness.freightRequired;
+    json.isFreightRequired = readiness.freightRequired;
+    json.freightRuleReason = readiness.freightRuleReason;
+    json.isFreightNotApplicable = readiness.isFreightNotApplicable;
+    json.freightAllocationStatus = readiness.freightAllocationStatus;
 
-    json.freightRequired = isFreightRequired;
-    json.isFreightRequired = isFreightRequired;
-    json.freightRuleReason = freightRuleResult.reason;
-    json.isFreightNotApplicable = !isFreightRequired;
-
-    if (!isFreightRequired) {
+    if (!readiness.freightRequired) {
       json.freight = null;
-      json.freightAllocationStatus = null;
       json.freightCurrency = null;
       json.freightDescription = null;
     }

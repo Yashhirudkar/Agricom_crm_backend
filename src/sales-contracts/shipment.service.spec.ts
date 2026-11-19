@@ -87,6 +87,90 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       expect(result.data.length).toBe(1);
     });
 
+    it('returns calculated Freight Allocation status instead of stored shipment values', async () => {
+      mockShipmentModel.findAndCountAll.mockResolvedValue({
+        rows: [
+          {
+            id: 11,
+            shipmentDate: '2026-11-20',
+            status: 'Scheduled',
+            toJSON: () => ({
+              id: 11,
+              shipmentDate: '2026-11-20',
+              status: 'Scheduled',
+              freight: 1200,
+              freightAllocationStatus: 'Yes',
+            }),
+          },
+          {
+            id: 12,
+            shipmentDate: '2026-11-21',
+            status: 'Scheduled',
+            toJSON: () => ({
+              id: 12,
+              shipmentDate: '2026-11-21',
+              status: 'Scheduled',
+              freightAllocationStatus: 'No',
+            }),
+          },
+        ],
+        count: 2,
+      });
+      mockReadinessService.evaluateBatch.mockResolvedValue(
+        new Map([
+          [
+            11,
+            {
+              cargoReady: true,
+              freightReady: false,
+              freightRequired: true,
+              freightRuleReason: 'Freight is required.',
+              isFreightNotApplicable: false,
+              freightAllocationStatus: 'No',
+              systemReady: false,
+              manualReadyOverride: null,
+              manualReadyBy: null,
+              manualReadyByUser: null,
+              manualReadyAt: null,
+              manualReadyReason: null,
+              readyForShipment: false,
+              isManualOverride: false,
+              readySource: 'System',
+              reasons: ['Freight allocation is pending.'],
+            },
+          ],
+          [
+            12,
+            {
+              cargoReady: true,
+              freightReady: false,
+              freightRequired: false,
+              freightRuleReason: 'Freight is not required.',
+              isFreightNotApplicable: true,
+              freightAllocationStatus: 'No',
+              systemReady: true,
+              manualReadyOverride: null,
+              manualReadyBy: null,
+              manualReadyByUser: null,
+              manualReadyAt: null,
+              manualReadyReason: null,
+              readyForShipment: true,
+              isManualOverride: false,
+              readySource: 'System',
+              reasons: [],
+            },
+          ],
+        ]),
+      );
+
+      const result = await service.findAll({ page: 1, limit: 10 });
+
+      expect(result.data[0].freightAllocationStatus).toBe('No');
+      expect(result.data[0].freightReady).toBe(false);
+      expect(result.data[1].freightAllocationStatus).toBe('No');
+      expect(result.data[1].freightReady).toBe(false);
+    });
+
     it('returns executed shipments and correct counts when tab is executed', async () => {
       mockShipmentModel.findAndCountAll.mockResolvedValue({
         rows: [

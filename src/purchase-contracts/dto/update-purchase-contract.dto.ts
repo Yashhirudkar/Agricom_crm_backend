@@ -60,9 +60,6 @@ export class UpdatePurchaseContractDto {
   shipmentTypeId?: number;
 
   @IsOptional()
-  freightRequired?: any;
-
-  @IsOptional()
   paymentTermsText?: any;
 
   @IsOptional()

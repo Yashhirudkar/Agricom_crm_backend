@@ -122,10 +122,6 @@ export class CreatePurchaseContractDto {
   shipmentTypeId?: number;
 
   @IsOptional()
-  @IsBoolean()
-  freightRequired?: boolean;
-
-  @IsOptional()
   @IsString()
   paymentTermsText?: string;
 

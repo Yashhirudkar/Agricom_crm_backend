@@ -25,15 +25,15 @@ export class CreateShipmentTypeDto {
 
   @IsOptional()
   @IsInt()
+  sequence?: number;
+
+  @IsOptional()
+  @IsInt()
   stageOrder?: number;
 
   @IsOptional()
   @IsString()
   locationType?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  freightRequiredAfterStage?: boolean;
 
   @IsOptional()
   @IsString()

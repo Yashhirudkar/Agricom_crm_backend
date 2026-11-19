@@ -899,6 +899,11 @@ export class EnquiriesService {
       throw new NotFoundException('Enquiry not found');
     }
 
+    const partner = enquiry.partner?.toJSON() ?? null;
+    (enquiry as any).setDataValue('partnerName', partner?.entityName ?? null);
+    (enquiry as any).setDataValue('buyerId', enquiry.partnerId);
+    (enquiry as any).setDataValue('buyer', partner);
+
     const linkedSc = (await this.sequelize.models.SalesContract.findOne({
       where: { enquiryId: id },
       include: [
@@ -952,6 +957,20 @@ export class EnquiriesService {
             freightRequired: isFreightRequiredForIncoterm(scIncoterm),
           },
         ]);
+      }
+    }
+
+    const transportDetails = [...(enquiry.transportDetails || [])].sort(
+      (a, b) => Number(a.sequence ?? 1) - Number(b.sequence ?? 1),
+    );
+    if (transportDetails.length > 0) {
+      (enquiry as any).setDataValue('transportDetails', transportDetails);
+      const defaultDestination = transportDetails[0].destination?.trim();
+      if (defaultDestination) {
+        (enquiry as any).setDataValue(
+          'enquiryDestination',
+          defaultDestination,
+        );
       }
     }
 

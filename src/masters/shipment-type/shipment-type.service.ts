@@ -32,15 +32,18 @@ export class ShipmentTypeService {
       throw new BadRequestException('Shipment Type Code already exists');
     }
 
+    const finalSequence =
+      dto.sequence !== undefined
+        ? Number(dto.sequence)
+        : dto.stageOrder !== undefined
+          ? Number(dto.stageOrder)
+          : 1;
+
     return this.model.create({
       ...dto,
-      stageOrder:
-        dto.stageOrder !== undefined ? Number(dto.stageOrder) : 1,
+      sequence: finalSequence,
+      stageOrder: finalSequence,
       locationType: dto.locationType || 'Port of Loading (POL)',
-      freightRequiredAfterStage:
-        dto.freightRequiredAfterStage !== undefined
-          ? Boolean(dto.freightRequiredAfterStage)
-          : false,
       purchaseContractDeliveryPlaceRequired:
         dto.purchaseContractDeliveryPlaceRequired !== undefined
           ? dto.purchaseContractDeliveryPlaceRequired
@@ -77,6 +80,7 @@ export class ShipmentTypeService {
       limit: Number(limit),
       offset: Number(offset),
       order: [
+        ['sequence', 'ASC'],
         ['sortOrder', 'ASC'],
         ['createdAt', 'DESC'],
       ],
@@ -127,10 +131,18 @@ export class ShipmentTypeService {
       dto.name = dto.name.trim();
     }
 
-    await item.update({
-      ...dto,
-      updatedBy: user?.userId,
-    });
+    const updatePayload: any = { ...dto, updatedBy: user?.userId };
+    if (dto.sequence !== undefined) {
+      updatePayload.sequence = Number(dto.sequence);
+      if (dto.stageOrder === undefined) {
+        updatePayload.stageOrder = Number(dto.sequence);
+      }
+    } else if (dto.stageOrder !== undefined) {
+      updatePayload.sequence = Number(dto.stageOrder);
+      updatePayload.stageOrder = Number(dto.stageOrder);
+    }
+
+    await item.update(updatePayload);
     return item.reload();
   }
 

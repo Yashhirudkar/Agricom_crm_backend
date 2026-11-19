@@ -33,6 +33,7 @@ import {
   PC_ACTIONS,
 } from './purchase-contract-activity.service';
 import { BusinessTransactionService } from '../../system/services/business-transaction.service';
+import { formatLogisticsLocation } from '../../logistics/utils/logistics-location.util';
 
 // Status transition rules
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -250,11 +251,15 @@ export class PurchaseContractService {
       const salesContract = await this.salesContractModel.findByPk(
         salesContractId,
         {
-          attributes: ['id', 'totalQuantity'],
+          attributes: ['id', 'totalQuantity', 'shipmentTypeId'],
           include: [
             {
               model: SalesContractItem,
               attributes: ['quantity', 'qtyPerCount'],
+            },
+            {
+              model: ShipmentType,
+              as: 'shipmentType',
             },
           ],
           transaction: tx,
@@ -293,6 +298,10 @@ export class PurchaseContractService {
             model: PurchaseContractItem,
             as: 'items',
             attributes: ['id', 'quantity'],
+          },
+          {
+            model: ShipmentType,
+            as: 'shipmentType',
           },
         ],
         order: [['id', 'ASC']],
@@ -392,6 +401,7 @@ export class PurchaseContractService {
           }
         }
       }
+
     };
 
     if (transaction) {
@@ -699,6 +709,7 @@ export class PurchaseContractService {
   ): Promise<PurchaseContract> {
     const createdPc = await this.sequelize.transaction(async (t) => {
       let pc: PurchaseContract;
+      let salesContract: SalesContract | null = null;
       let pcShipmentType: ShipmentType | null = null;
       if (dto.shipmentTypeId) {
         pcShipmentType = await ShipmentType.findOne({
@@ -707,8 +718,9 @@ export class PurchaseContractService {
       }
 
       if (dto.salesContractId) {
-        const salesContract = await this.salesContractModel.findOne({
+        salesContract = await this.salesContractModel.findOne({
           where: { id: dto.salesContractId, companyId: user?.companyId },
+          include: [{ model: ShipmentType, as: 'shipmentType' }],
         });
         if (!salesContract)
           throw new NotFoundException(
@@ -777,10 +789,10 @@ export class PurchaseContractService {
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
-          freightRequired:
-            dto.freightRequired != null
-              ? Boolean(dto.freightRequired)
-              : Boolean(pcShipmentType?.freightRequiredAfterStage),
+          freightRequired: evaluateFreightRequired(
+            pcShipmentType,
+            null,
+          ).freightRequired,
           productQuality: dto.productQuality || null,
           specificationNo: dto.specificationNo || null,
           specificationDate: dto.specificationDate || null,
@@ -801,13 +813,21 @@ export class PurchaseContractService {
       }
 
       const scUpdates: any = {};
-      if (dto.salesContractId && dto.shipmentTypeId !== undefined) {
-        scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
-      }
-      if (pcShipmentType && pcShipmentType.freightRequiredAfterStage !== undefined) {
-        scUpdates.freightRequired = Boolean(pcShipmentType.freightRequiredAfterStage);
-      } else if (dto.freightRequired !== undefined) {
-        scUpdates.freightRequired = Boolean(dto.freightRequired);
+      if (dto.salesContractId) {
+        if (dto.shipmentTypeId !== undefined) {
+          scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
+        }
+        let scSt: any = (salesContract as any)?.shipmentType || null;
+        if (!scSt && (salesContract as any)?.shipmentTypeId) {
+          scSt = await ShipmentType.findByPk((salesContract as any).shipmentTypeId);
+        }
+        const freightRes = evaluateFreightRequired(pcShipmentType, scSt);
+        scUpdates.freightRequired = freightRes.freightRequired;
+        if (!freightRes.freightRequired) {
+          scUpdates.deliveryPlace = null;
+        } else if (dto.deliveryPlace !== undefined) {
+          scUpdates.deliveryPlace = dto.deliveryPlace ? String(dto.deliveryPlace) : null;
+        }
       }
       if (dto.salesContractId && dto.brokerId !== undefined) {
         scUpdates.brokerId = dto.brokerId ? Number(dto.brokerId) : null;
@@ -876,41 +896,6 @@ export class PurchaseContractService {
             purchaseContractId: pc.id,
             shipmentId: Number(shipmentId),
           });
-        }
-      }
-
-      const sIds = Array.isArray(dto.shipmentAllocations)
-        ? dto.shipmentAllocations.map((a) => Number(a.shipmentId)).filter(Boolean)
-        : Array.isArray(dto.shipmentIds)
-        ? dto.shipmentIds.map(Number).filter(Boolean)
-        : [];
-      if (sIds.length > 0 && pcShipmentType) {
-        const shipmentsToSync = await this.salesShipmentModel.findAll({
-          where: { id: { [Op.in]: sIds } },
-          include: [
-            {
-              model: SalesContract,
-              as: 'salesContract',
-              include: [{ model: ShipmentType, as: 'shipmentType' }],
-            },
-          ],
-        });
-        for (const s of shipmentsToSync) {
-          const scSt = s.salesContract?.shipmentType || null;
-          const res = evaluateFreightRequired(pcShipmentType, scSt);
-          if (!res.freightRequired) {
-            await s.update({
-              freightRequired: false,
-              freightAllocationStatus: null,
-              freight: null,
-              freightCurrency: null,
-              freightDescription: null,
-            });
-          } else {
-            await s.update({
-              freightRequired: true,
-            });
-          }
         }
       }
 
@@ -1187,46 +1172,30 @@ export class PurchaseContractService {
         },
       });
       if (st) {
-        if (st.purchaseContractDeliveryPlaceRequired === false) {
-          sanitizeData.deliveryPlace = null;
-        }
-        sanitizeData.freightRequired = Boolean(st.freightRequiredAfterStage);
-
-        // Re-evaluate all linked shipments dynamically using the Rule Engine
-        const linkedShipments = await this.shipmentLinkModel.findAll({
-          where: { purchaseContractId: id },
-          attributes: ['shipmentId'],
-        });
-        const sIds = linkedShipments.map((l) => l.shipmentId).filter(Boolean);
-        if (sIds.length > 0) {
-          const shipmentsToSync = await this.salesShipmentModel.findAll({
-            where: { id: { [Op.in]: sIds } },
-            include: [
-              {
-                model: SalesContract,
-                as: 'salesContract',
-                include: [{ model: ShipmentType, as: 'shipmentType' }],
-              },
-            ],
+        if (pc.salesContractId) {
+          const sc = await this.salesContractModel.findByPk(pc.salesContractId, {
+            include: [{ model: ShipmentType, as: 'shipmentType' }],
           });
-          for (const s of shipmentsToSync) {
-            const scSt = s.salesContract?.shipmentType || null;
-            const res = evaluateFreightRequired(st, scSt);
-            if (!res.freightRequired) {
-              await s.update({
-                freightRequired: false,
-                freightAllocationStatus: null,
-                freight: null,
-                freightCurrency: null,
-                freightDescription: null,
-              });
-            } else {
-              await s.update({
-                freightRequired: true,
-              });
-            }
+          const scSt = (sc as any)?.shipmentType || null;
+          const freightRes = evaluateFreightRequired(st, scSt);
+          sanitizeData.freightRequired = freightRes.freightRequired;
+          if (!freightRes.freightRequired) {
+            sanitizeData.deliveryPlace = null;
+          } else if (updateData.deliveryPlace !== undefined) {
+            sanitizeData.deliveryPlace = updateData.deliveryPlace
+              ? String(updateData.deliveryPlace)
+              : null;
           }
+        } else {
+          if (st.purchaseContractDeliveryPlaceRequired === false) {
+            sanitizeData.deliveryPlace = null;
+          }
+          sanitizeData.freightRequired = evaluateFreightRequired(
+            st,
+            null,
+          ).freightRequired;
         }
+
       }
     }
 
@@ -1246,9 +1215,6 @@ export class PurchaseContractService {
       sanitizeData.specificationDate = updateData.specificationDate
         ? String(updateData.specificationDate)
         : null;
-    if (updateData.freightRequired !== undefined && sanitizeData.freightRequired === undefined) {
-      sanitizeData.freightRequired = Boolean(updateData.freightRequired);
-    }
     if (
       sanitizeData.quantity === undefined &&
       Array.isArray(items) &&
@@ -1433,6 +1399,7 @@ export class PurchaseContractService {
         sc = await this.salesContractModel.findByPk(pc.salesContractId, {
           attributes: [
             'id',
+            'shipmentTypeId',
             'enquiryId',
             'businessTransactionId',
             'destinationLocationName',
@@ -1448,6 +1415,19 @@ export class PurchaseContractService {
           enquiryId = sc.enquiryId;
         }
       }
+
+      const purchaseShipmentType: any =
+        (pc as any).shipmentType ||
+        (pc.shipmentTypeId
+          ? await this.sequelize.models.ShipmentType.findByPk(pc.shipmentTypeId)
+          : null);
+      const salesShipmentType: any = sc?.shipmentTypeId
+        ? await this.sequelize.models.ShipmentType.findByPk(sc.shipmentTypeId)
+        : null;
+      const freightRequired = evaluateFreightRequired(
+        purchaseShipmentType,
+        salesShipmentType,
+      ).freightRequired;
 
       if (!enquiryId && pc.businessTransactionId) {
         const enq = await EnquiryModel.findOne({
@@ -1506,7 +1486,7 @@ export class PurchaseContractService {
               : 1,
           businessTransactionId: null,
           status: 'CONFIRMED',
-          freightRequired: true,
+          freightRequired,
         });
         enquiryId = newEnq.id;
         enquiry = newEnq;
@@ -1522,6 +1502,9 @@ export class PurchaseContractService {
           ...(pc.companyId ? { companyId: pc.companyId } : {}),
         },
       });
+      const loadingPoint =
+        formatLogisticsLocation(pc.placeOfLoading, pc.loadingCountry) ||
+        null;
 
       if (logistics) {
         // Update existing queue record with the latest Purchase Contract values
@@ -1548,15 +1531,15 @@ export class PurchaseContractService {
           if (routes && routes.length > 0) {
             await LogisticsRouteModel.update(
               {
-                origin: pc.placeOfLoading || undefined,
+                origin: loadingPoint || undefined,
                 destination: scDest !== '—' ? scDest : undefined,
               },
               { where: { logisticsId: logistics.id } },
             );
-          } else if (pc.placeOfLoading || scDest !== '—') {
+          } else if (loadingPoint || scDest !== '—') {
             await LogisticsRouteModel.create({
               logisticsId: logistics.id,
-              origin: pc.placeOfLoading || '—',
+              origin: loadingPoint || '—',
               destination: scDest,
             });
           }
@@ -1668,13 +1651,13 @@ export class PurchaseContractService {
             '—';
           await LogisticsRouteModel.create({
             logisticsId: logistics.id,
-            origin: pc.placeOfLoading || '—',
+            origin: loadingPoint || '—',
             destination: scDest,
           });
         }
 
         // Auto Route Source Mapping: update child shipments origin & destination
-        if (pc.placeOfLoading) {
+        if (loadingPoint) {
           try {
             const scDest =
               sc?.destinationLocationName ||
@@ -1689,7 +1672,7 @@ export class PurchaseContractService {
             if (linkedShipmentIds.length > 0) {
               await this.salesShipmentModel.update(
                 {
-                  origin: pc.placeOfLoading,
+                  origin: loadingPoint,
                   ...(scDest ? { destination: scDest } : {}),
                 },
                 { where: { id: { [Op.in]: linkedShipmentIds } } },
@@ -1697,7 +1680,7 @@ export class PurchaseContractService {
             } else if (pc.salesContractId) {
               await this.salesShipmentModel.update(
                 {
-                  origin: pc.placeOfLoading,
+                  origin: loadingPoint,
                   ...(scDest ? { destination: scDest } : {}),
                 },
                 { where: { salesContractId: pc.salesContractId } },

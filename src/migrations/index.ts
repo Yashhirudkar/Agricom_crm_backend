@@ -74,6 +74,9 @@ import * as phase82 from './phase-82-permission-groups';
 import * as phase83 from './phase-83-dynamic-freight-rule-engine';
 import * as phase84 from './phase-84-sales-contract-quantity-fields';
 import * as phase85 from './phase-85-replace-loading-points-with-transport-details';
+import * as phase86 from './phase-86-dynamic-incoterm-sequence';
+import * as phase87 from './phase-87-freight-required-default-no';
+import * as phase88 from './phase-88-remove-freight-after-stage';
 
 export interface MigrationPhase {
   phase: string;
@@ -163,4 +166,7 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase83,
   phase84,
   phase85,
+  phase86,
+  phase87,
+  phase88,
 ];

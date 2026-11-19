@@ -1,18 +1,33 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { Sequelize as SequelizeConnection } from 'sequelize';
 import { CargoShipmentAllocation } from '../../cargo-availability/models/cargo-shipment-allocation.model';
 import { CargoLoading } from '../../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { FreightQuote } from '../../logistics/models/freight-quote.model';
 import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
+import { isTransportAllocationComplete } from '../../logistics/utils/transport-allocation.util';
+
+interface ShipmentFreightRuleRow {
+  shipment_id?: number | string;
+  shipmentId?: number | string;
+  sc_st_id?: number | string | null;
+  sc_st_code?: string | null;
+  sc_st_delivery_required?: boolean | null;
+  pc_id?: number | string | null;
+  pc_st_id?: number | string | null;
+  pc_st_code?: string | null;
+  pc_st_delivery_required?: boolean | null;
+}
 
 export interface ShipmentReadinessResult {
   cargoReady: boolean;
   freightReady: boolean;
+  freightRequired: boolean;
+  freightRuleReason: string | null;
   isFreightNotApplicable: boolean;
-  freightAllocationStatus: 'Yes' | 'Allocated' | 'Pending';
+  freightAllocationStatus: 'Yes' | 'No';
   systemReady: boolean;
   manualReadyOverride: boolean | null;
   manualReadyBy: number | null;
@@ -69,19 +84,110 @@ export class ShipmentReadinessService {
     const businessTxIds = Array.from(
       new Set(
         shipments
-          .map((s) => s.businessTransactionId)
+          .flatMap((s) => [
+            s.businessTransactionId,
+            s.salesContract?.businessTransactionId,
+          ])
           .filter((id): id is number => id !== null && id !== undefined),
       ),
     );
+    const purchaseContractIdsByShipment = new Map<number, Set<number>>();
+    for (const shipment of shipments) {
+      const purchaseContractId =
+        shipment.purchaseContractId ?? shipment.purchaseContract?.id;
+      if (purchaseContractId) {
+        purchaseContractIdsByShipment.set(
+          shipment.id,
+          new Set([Number(purchaseContractId)]),
+        );
+      }
+    }
 
-    // 1. Batch fetch Cargo Allocations, Loadings, Logistics, Freight Quotes, and Shipment Type delivery place rules
-    const [
-      allocations,
-      loadings,
-      logisticsRecords,
-      preferredQuotes,
-      shipmentPreferredQuotes,
-    ] = await Promise.all([
+    const freightRulesByShipment = new Map<
+      number,
+      ReturnType<typeof evaluateFreightRequired>
+    >();
+    if (this.sequelize && shipmentIds.length > 0) {
+      const ruleRows = await this.sequelize.query<ShipmentFreightRuleRow>(
+        `SELECT
+           scs.id AS shipment_id,
+           sc_st.id AS sc_st_id,
+           sc_st.code AS sc_st_code,
+           sc_st.purchase_contract_delivery_place_required AS sc_st_delivery_required,
+           pc.id AS pc_id,
+           pc_st.id AS pc_st_id,
+           pc_st.code AS pc_st_code,
+           pc_st.purchase_contract_delivery_place_required AS pc_st_delivery_required
+         FROM sales_contract_shipments scs
+         LEFT JOIN sales_contracts sc ON sc.id = scs.sales_contract_id
+         LEFT JOIN shipment_types sc_st ON sc_st.id = sc.shipment_type_id
+         LEFT JOIN LATERAL (
+           SELECT pc.id, pc.shipment_type_id
+           FROM purchase_contracts pc
+           LEFT JOIN purchase_contract_shipments pcs
+             ON pcs.purchase_contract_id = pc.id
+           WHERE pcs.shipment_id = scs.id
+              OR pc.sales_contract_id = scs.sales_contract_id
+              OR pc.business_transaction_id = COALESCE(
+                scs.business_transaction_id,
+                sc.business_transaction_id
+              )
+           ORDER BY
+             CASE
+               WHEN pcs.shipment_id = scs.id THEN 0
+               WHEN pc.sales_contract_id = scs.sales_contract_id THEN 1
+               ELSE 2
+             END,
+             pc.updated_at DESC,
+             pc.id DESC
+           LIMIT 1
+         ) pc ON true
+         LEFT JOIN shipment_types pc_st ON pc_st.id = pc.shipment_type_id
+         WHERE scs.id IN (:shipmentIds)`,
+        { replacements: { shipmentIds }, type: QueryTypes.SELECT },
+      );
+
+      for (const row of ruleRows) {
+        const shipmentId = Number(row.shipment_id || row.shipmentId);
+        if (!shipmentId) continue;
+
+        const salesShipmentType = row.sc_st_id
+          ? {
+              id: Number(row.sc_st_id),
+              code: row.sc_st_code ?? undefined,
+              purchaseContractDeliveryPlaceRequired:
+                row.sc_st_delivery_required,
+            }
+          : null;
+        const purchaseShipmentType = row.pc_st_id
+          ? {
+              id: Number(row.pc_st_id),
+              code: row.pc_st_code ?? undefined,
+              purchaseContractDeliveryPlaceRequired:
+                row.pc_st_delivery_required,
+            }
+          : null;
+
+        freightRulesByShipment.set(
+          shipmentId,
+          evaluateFreightRequired(
+            purchaseShipmentType,
+            salesShipmentType,
+            shipmentId,
+          ),
+        );
+        const purchaseContractId = Number(row.pc_id);
+        if (purchaseContractId) {
+          const ids =
+            purchaseContractIdsByShipment.get(shipmentId) ?? new Set<number>();
+          ids.add(purchaseContractId);
+          purchaseContractIdsByShipment.set(shipmentId, ids);
+        }
+      }
+    }
+
+    // Batch fetch allocations and logistics records for the linked contracts.
+    const [allocations, loadings, logisticsRecords] = await Promise.all([
       this.cargoAllocationModel.findAll({
         where: {
           shipmentId: { [Op.in]: shipmentIds },
@@ -96,7 +202,11 @@ export class ShipmentReadinessService {
         },
         attributes: ['id', 'shipmentId', 'loadedQty'],
       }),
-      logisticsIds.length > 0 || businessTxIds.length > 0
+      logisticsIds.length > 0 ||
+      businessTxIds.length > 0 ||
+      Array.from(purchaseContractIdsByShipment.values()).some(
+        (ids) => ids.size > 0,
+      )
         ? this.logisticsModel.findAll({
             where: {
               [Op.or]: [
@@ -106,93 +216,63 @@ export class ShipmentReadinessService {
                 ...(businessTxIds.length > 0
                   ? [{ businessTransactionId: { [Op.in]: businessTxIds } }]
                   : []),
+                ...Array.from(purchaseContractIdsByShipment.values()).flatMap(
+                  (ids) =>
+                    ids.size > 0
+                      ? [{ purchaseContractId: { [Op.in]: Array.from(ids) } }]
+                      : [],
+                ),
               ],
             },
             attributes: [
               'id',
               'businessTransactionId',
+              'purchaseContractId',
               'selectedFreightId',
               'status',
             ],
           })
         : Promise.resolve([]),
-      logisticsIds.length > 0
-        ? this.freightQuoteModel.findAll({
-            where: {
-              logisticsId: { [Op.in]: logisticsIds },
-              isPreferred: true,
-            },
-            attributes: ['id', 'logisticsId', 'freightAmount', 'isPreferred'],
-          })
-        : Promise.resolve([]),
-      shipmentIds.length > 0
-        ? this.freightQuoteModel.findAll({
-            where: {
-              shipmentId: { [Op.in]: shipmentIds },
-              isPreferred: true,
-            },
-            attributes: ['id', 'shipmentId', 'freightAmount', 'isPreferred'],
-          })
-        : Promise.resolve([]),
     ]);
 
-    // Evaluate Dynamic Freight Rule Engine for each shipment
-    const freightNotApplicableShipmentIds = new Set<number>();
-    if (this.sequelize && shipmentIds.length > 0) {
-      try {
-        const [ruleRows]: any = await this.sequelize.query(
-          `SELECT 
-             scs.id AS shipment_id,
-             sc_st.id AS sc_st_id,
-             sc_st.code AS sc_st_code,
-             sc_st.stage_order AS sc_st_stage,
-             sc_st.freight_required_after_stage AS sc_st_freight_required_after_stage,
-             sc_st.purchase_contract_delivery_place_required AS sc_st_delivery_required,
-             pc_st.id AS pc_st_id,
-             pc_st.code AS pc_st_code,
-             pc_st.stage_order AS pc_st_stage,
-             pc_st.freight_required_after_stage AS pc_st_freight_required_after_stage,
-             pc_st.purchase_contract_delivery_place_required AS pc_st_delivery_required
-           FROM sales_contract_shipments scs
-           LEFT JOIN sales_contracts sc ON sc.id = scs.sales_contract_id
-           LEFT JOIN shipment_types sc_st ON sc_st.id = sc.shipment_type_id
-           LEFT JOIN purchase_contract_shipments pcs ON pcs.shipment_id = scs.id
-           LEFT JOIN purchase_contracts pc ON pc.id = pcs.purchase_contract_id
-           LEFT JOIN shipment_types pc_st ON pc_st.id = pc.shipment_type_id
-           WHERE scs.id IN (:shipmentIds)`,
-          { replacements: { shipmentIds } },
-        );
-        for (const row of Array.isArray(ruleRows) ? ruleRows : []) {
-          const sid = Number(row.shipment_id || row.shipmentId);
-          if (sid) {
-            const scSt = row.sc_st_id
-              ? {
-                  id: row.sc_st_id,
-                  code: row.sc_st_code,
-                  stageOrder: row.sc_st_stage,
-                  freightRequiredAfterStage: row.sc_st_freight_required_after_stage,
-                  purchaseContractDeliveryPlaceRequired: row.sc_st_delivery_required,
-                }
-              : null;
-            const pcSt = row.pc_st_id
-              ? {
-                  id: row.pc_st_id,
-                  code: row.pc_st_code,
-                  stageOrder: row.pc_st_stage,
-                  freightRequiredAfterStage: row.pc_st_freight_required_after_stage,
-                  purchaseContractDeliveryPlaceRequired: row.pc_st_delivery_required,
-                }
-              : null;
-            const res = evaluateFreightRequired(pcSt, scSt);
-            if (!res.freightRequired) {
-              freightNotApplicableShipmentIds.add(sid);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Could not query shipment type delivery place required for readiness:', err);
-      }
-    }
+    const logisticsRecordIds = logisticsRecords.map((record) => record.id);
+    const purchaseContractIds = Array.from(
+      new Set(
+        Array.from(purchaseContractIdsByShipment.values()).flatMap((ids) =>
+          Array.from(ids),
+        ),
+      ),
+    );
+    const freightQuotes =
+      shipmentIds.length > 0 ||
+      logisticsRecordIds.length > 0 ||
+      purchaseContractIds.length > 0
+        ? await this.freightQuoteModel.findAll({
+            where: {
+              [Op.or]: [
+                ...(shipmentIds.length > 0
+                  ? [{ shipmentId: { [Op.in]: shipmentIds } }]
+                  : []),
+                ...(logisticsRecordIds.length > 0
+                  ? [{ logisticsId: { [Op.in]: logisticsRecordIds } }]
+                  : []),
+                ...(purchaseContractIds.length > 0
+                  ? [{ purchaseContractId: { [Op.in]: purchaseContractIds } }]
+                  : []),
+              ],
+              isRejected: false,
+            },
+            attributes: [
+              'id',
+              'shipmentId',
+              'logisticsId',
+              'purchaseContractId',
+              'businessTransactionId',
+              'isPreferred',
+              'isRejected',
+            ],
+          })
+        : [];
 
     // Index allocations by shipmentId
     const allocationsByShipment = new Map<number, number>();
@@ -214,24 +294,9 @@ export class ShipmentReadinessService {
       );
     }
 
-    // Index logistics by id and businessTransactionId
-    const logisticsById = new Map<number, any>();
-    const logisticsByBusinessTx = new Map<number, any>();
-    for (const log of logisticsRecords) {
-      logisticsById.set(log.id, log);
-      if (log.businessTransactionId) {
-        logisticsByBusinessTx.set(log.businessTransactionId, log);
-      }
-    }
-
-    // Preferred quotes index by logisticsId and shipmentId
-    const preferredQuotesByLogistics = new Set<number>();
-    for (const q of preferredQuotes) {
-      preferredQuotesByLogistics.add(q.logisticsId);
-    }
-    const preferredQuotesByShipment = new Set<number>();
-    for (const q of shipmentPreferredQuotes) {
-      if (q.shipmentId) preferredQuotesByShipment.add(q.shipmentId);
+    const freightQuotesById = new Map<number, FreightQuote>();
+    for (const quote of freightQuotes) {
+      freightQuotesById.set(Number(quote.id), quote);
     }
 
     // 2. Evaluate each shipment
@@ -243,79 +308,89 @@ export class ShipmentReadinessService {
       const cargoReady = allocatedQty > 0 || loadedQty > 0;
 
       // Dynamic Master-driven Freight Allocation:
-      const directScSt = s.salesContract?.shipmentType || s.shipmentType || null;
+      const directScSt =
+        s.salesContract?.shipmentType || s.shipmentType || null;
       const directPcSt = s.purchaseContract?.shipmentType || null;
-      const directRule = (directScSt || directPcSt)
-        ? evaluateFreightRequired(directPcSt, directScSt)
-        : null;
-
-      const isFreightAutoAllocated =
-        (directRule !== null && !directRule.freightRequired) ||
-        freightNotApplicableShipmentIds.has(s.id) ||
-        s.freightRequired === false ||
-        s.isFreightRequired === false ||
-        s.freightAllocationStatus === 'Yes' ||
-        s.freightAllocationStatus === 'Not Applicable' ||
-        s.freight_allocation_status === 'Not Applicable' ||
-        s.isFreightNotApplicable === true ||
-        s.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
-        s.salesContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false ||
-        s.purchaseContract?.shipmentType?.purchaseContractDeliveryPlaceRequired === false;
+      const freightRule =
+        freightRulesByShipment.get(s.id) ??
+        (directScSt || directPcSt
+          ? evaluateFreightRequired(directPcSt, directScSt, s.id)
+          : null);
+      const isFreightRequired =
+        freightRule !== null
+          ? freightRule.freightRequired
+          : Boolean(s.freightRequired ?? s.isFreightRequired ?? false);
 
       let freightReady = false;
-      let freightAllocationStatus: 'Yes' | 'Allocated' | 'Pending' = 'Pending';
+      let freightAllocationStatus: 'Yes' | 'No' = 'No';
 
-      if (isFreightAutoAllocated) {
-        freightReady = true;
-        freightAllocationStatus = 'Yes';
-      } else {
-        // Freight is Ready if:
-        // - Preferred Freight Quote exists for this shipment (Primary Source of Truth)
-        // - OR direct freight rate/charge is entered on shipment (> 0)
-        // - OR linked logistics has a selected freight quote / preferred quote / ready status
-        if (preferredQuotesByShipment.has(s.id)) {
-          freightReady = true;
-        } else if (
-          s.freight !== null &&
-          s.freight !== undefined &&
-          Number(s.freight) > 0
-        ) {
-          freightReady = true;
-        } else if (s.logisticsId && logisticsById.has(s.logisticsId)) {
-          const log = logisticsById.get(s.logisticsId);
-          if (
-            log.selectedFreightId != null ||
-            preferredQuotesByLogistics.has(s.logisticsId) ||
-            [
-              'Preferred Quote Selected',
-              'Allocated',
-              'Ready',
-              'Booked',
-              'Dispatched',
-              'Completed',
-            ].includes(log.status)
-          ) {
-            freightReady = true;
-          }
-        } else if (
-          s.businessTransactionId &&
-          logisticsByBusinessTx.has(s.businessTransactionId)
-        ) {
-          const log = logisticsByBusinessTx.get(s.businessTransactionId);
-          if (
-            log.selectedFreightId != null ||
-            ['Preferred Quote Selected', 'Allocated', 'Ready', 'Booked'].includes(
-              log.status,
-            )
-          ) {
-            freightReady = true;
-          }
+      if (isFreightRequired) {
+        const linkedPurchaseContractIds =
+          purchaseContractIdsByShipment.get(s.id) ?? new Set<number>();
+        const linkedBusinessTransactionIds = new Set(
+          [
+            s.businessTransactionId,
+            s.salesContract?.businessTransactionId,
+          ].filter((id): id is number => id !== null && id !== undefined),
+        );
+        const linkedLogistics = logisticsRecords.filter(
+          (log) =>
+            log.id === s.logisticsId ||
+            linkedBusinessTransactionIds.has(log.businessTransactionId) ||
+            linkedPurchaseContractIds.has(log.purchaseContractId),
+        );
+        const linkedLogisticsIds = new Set(
+          linkedLogistics.map((log) => Number(log.id)),
+        );
+        if (s.logisticsId != null) {
+          linkedLogisticsIds.add(Number(s.logisticsId));
         }
-        freightAllocationStatus = freightReady ? 'Allocated' : 'Pending';
+
+        const hasCompletedTransportAssignment = linkedLogistics.some((log) => {
+          if (log.selectedFreightId == null) return false;
+          const selectedQuote = freightQuotesById.get(
+            Number(log.selectedFreightId),
+          );
+          return (
+            isTransportAllocationComplete(log.status) &&
+            selectedQuote !== undefined &&
+            selectedQuote.isRejected !== true &&
+            selectedQuote.isPreferred === true &&
+            selectedQuote.shipmentId != null &&
+            Number(selectedQuote.shipmentId) === Number(s.id) &&
+            selectedQuote.logisticsId === log.id
+          );
+        });
+
+        // Check if ANY valid (non-rejected) freight quote is associated with THIS shipmentId only
+        const directShipmentQuotes = Array.isArray(s.freightQuotes)
+          ? s.freightQuotes
+          : [];
+        const hasDirectQuote = directShipmentQuotes.some(
+          (q: any) =>
+            !q.isRejected &&
+            q.shipmentId != null &&
+            Number(q.shipmentId) === Number(s.id),
+        );
+
+        const hasValidFreightQuote =
+          hasDirectQuote ||
+          freightQuotes.some((quote) => {
+            if (quote.isRejected) return false;
+            // STRICTLY match THIS shipmentId only - NEVER contract-level or logistics-level
+            return (
+              quote.shipmentId != null &&
+              Number(quote.shipmentId) === Number(s.id)
+            );
+          });
+
+        freightReady = hasValidFreightQuote || hasCompletedTransportAssignment;
+        freightAllocationStatus = freightReady ? 'Yes' : 'No';
       }
 
       // ── Step 1: System Readiness (Calculated Automatically) ──
-      const systemReady = cargoReady && freightReady;
+      // When freight is not required, cargoReady alone satisfies system readiness.
+      const systemReady = cargoReady && (!isFreightRequired || freightReady);
 
       // ── Step 2: Manual Readiness Override Layer ──
       const manualOverride =
@@ -349,18 +424,22 @@ export class ShipmentReadinessService {
       } else if (manualOverride === true) {
         // Force Ready - no blocking reasons
       } else {
-        if (!cargoReady && !freightReady) {
+        if (!isFreightRequired) {
+          if (!cargoReady) reasons.push('Cargo allocation is pending.');
+        } else if (!cargoReady && !freightReady) {
           reasons.push('Cargo and Freight allocations are pending.');
         } else {
           if (!cargoReady) reasons.push('Cargo allocation is pending.');
-          if (!freightReady && !isFreightAutoAllocated) reasons.push('Freight allocation is pending.');
+          if (!freightReady) reasons.push('Freight allocation is pending.');
         }
       }
 
       resultMap.set(s.id, {
         cargoReady,
         freightReady,
-        isFreightNotApplicable: false,
+        freightRequired: isFreightRequired,
+        freightRuleReason: freightRule?.reason ?? null,
+        isFreightNotApplicable: !isFreightRequired,
         freightAllocationStatus,
         systemReady,
         manualReadyOverride: manualOverride,
@@ -393,8 +472,10 @@ export class ShipmentReadinessService {
       return {
         cargoReady: false,
         freightReady: false,
-        isFreightNotApplicable: false,
-        freightAllocationStatus: 'Pending',
+        freightRequired: false,
+        freightRuleReason: null,
+        isFreightNotApplicable: true,
+        freightAllocationStatus: 'No',
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,
@@ -404,7 +485,7 @@ export class ShipmentReadinessService {
         readyForShipment: false,
         isManualOverride: false,
         readySource: 'System',
-        reasons: ['Cargo and Freight allocations are pending.'],
+        reasons: ['Shipment not found.'],
       };
     }
     const map = await this.evaluateBatch([shipment]);
@@ -412,8 +493,10 @@ export class ShipmentReadinessService {
       map.get(shipment.id) || {
         cargoReady: false,
         freightReady: false,
-        isFreightNotApplicable: false,
-        freightAllocationStatus: 'Pending',
+        freightRequired: false,
+        freightRuleReason: null,
+        isFreightNotApplicable: true,
+        freightAllocationStatus: 'No',
         systemReady: false,
         manualReadyOverride: null,
         manualReadyBy: null,
@@ -423,7 +506,7 @@ export class ShipmentReadinessService {
         readyForShipment: false,
         isManualOverride: false,
         readySource: 'System',
-        reasons: ['Cargo and Freight allocations are pending.'],
+        reasons: ['Shipment readiness could not be determined.'],
       }
     );
   }

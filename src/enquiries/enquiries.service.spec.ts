@@ -2,6 +2,73 @@ import { Op } from 'sequelize';
 import { EnquiriesService } from './enquiries.service';
 import { WhatsAppTemplates } from '../notifications/whatsapp/whatsapp.templates';
 
+describe('EnquiriesService.findOne sales-contract prefill', () => {
+  const makeService = (transportDetails: any[]) => {
+    const enquiry: any = {
+      id: 'enquiry-id',
+      partner: null,
+      partnerId: 42,
+      transportDetails,
+      setDataValue(key: string, value: any) {
+        (this as any)[key] = value;
+      },
+    };
+    const enquiryModel = {
+      findOne: jest.fn().mockResolvedValue(enquiry),
+    };
+    const sequelize = {
+      models: {
+        SalesContract: {
+          findOne: jest.fn().mockResolvedValue(null),
+        },
+      },
+    };
+    const service = new EnquiriesService(
+      enquiryModel as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      sequelize as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    return { service, enquiry };
+  };
+
+  it('includes the single transport route destination in the prefill response', async () => {
+    const { service, enquiry } = makeService([
+      { sequence: 1, destination: 'SURABAYA, INDONESIA' },
+    ]);
+
+    const result = await service.findOne('enquiry-id');
+
+    expect(result.enquiryDestination).toBe('SURABAYA, INDONESIA');
+    expect(enquiry.enquiryDestination).toBe('SURABAYA, INDONESIA');
+  });
+
+  it('uses the lowest-sequence route as the default destination', async () => {
+    const { service, enquiry } = makeService([
+      { sequence: 2, destination: 'JAKARTA, INDONESIA' },
+      { sequence: 1, destination: 'SURABAYA, INDONESIA' },
+    ]);
+
+    const result = await service.findOne('enquiry-id');
+
+    expect(result.enquiryDestination).toBe('SURABAYA, INDONESIA');
+    expect(enquiry.transportDetails[0].destination).toBe('SURABAYA, INDONESIA');
+  });
+});
+
 describe('EnquiriesService.findAll contract filters', () => {
   const makeService = () => {
     const row = {

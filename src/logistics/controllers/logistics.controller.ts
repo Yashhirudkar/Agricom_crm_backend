@@ -148,6 +148,12 @@ export class LogisticsController {
   ) {
     const companyId = req.user?.companyId;
     const shipmentId = shipmentIdQuery ? Number(shipmentIdQuery) : undefined;
+    if (
+      shipmentIdQuery !== undefined &&
+      (!Number.isSafeInteger(shipmentId) || shipmentId <= 0)
+    ) {
+      throw new BadRequestException('shipmentId must be a positive integer');
+    }
     return this.service.getDetails(enquiryId, companyId, shipmentId);
   }
 
@@ -229,10 +235,24 @@ export class LogisticsController {
   async deleteFreightQuote(
     @Param('id', ParseIntPipe) id: number,
     @Param('quoteId', ParseIntPipe) quoteId: number,
+    @Query('shipmentId') shipmentIdQuery: string | undefined,
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.deleteFreightQuote(id, quoteId, req.user, companyId);
+    const shipmentId = shipmentIdQuery ? Number(shipmentIdQuery) : undefined;
+    if (
+      shipmentIdQuery !== undefined &&
+      (!Number.isSafeInteger(shipmentId) || shipmentId <= 0)
+    ) {
+      throw new BadRequestException('shipmentId must be a positive integer');
+    }
+    return this.service.deleteFreightQuote(
+      id,
+      quoteId,
+      req.user,
+      companyId,
+      shipmentId,
+    );
   }
 
   // ─── Toggle Preferred Quote ──────────────────────────────────────────────────
@@ -241,10 +261,24 @@ export class LogisticsController {
   async setPreferredQuote(
     @Param('id', ParseIntPipe) id: number,
     @Param('quoteId', ParseIntPipe) quoteId: number,
+    @Query('shipmentId') shipmentIdQuery: string | undefined,
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.setPreferredQuote(id, quoteId, req.user, companyId);
+    const shipmentId = shipmentIdQuery ? Number(shipmentIdQuery) : undefined;
+    if (
+      shipmentIdQuery !== undefined &&
+      (!Number.isSafeInteger(shipmentId) || shipmentId <= 0)
+    ) {
+      throw new BadRequestException('shipmentId must be a positive integer');
+    }
+    return this.service.setPreferredQuote(
+      id,
+      quoteId,
+      req.user,
+      companyId,
+      shipmentId,
+    );
   }
 
   // ─── Update Logistics Status & Header Details ────────────────────────────────
@@ -257,6 +291,20 @@ export class LogisticsController {
   ) {
     const companyId = req.user?.companyId;
     return this.service.updateStatus(id, dto, req.user, companyId);
+  }
+
+  // ─── Direct Shipment Transport Workspace ──────────────────────────────────
+  @Get('shipments/:shipmentId/workspace')
+  @RequireAnyPermission('logistics:view', 'enquiry:read')
+  async getShipmentWorkspace(
+    @Param('shipmentId', ParseIntPipe) shipmentId: number,
+    @Req() req: any,
+  ) {
+    return this.service.getShipmentWorkspace(
+      shipmentId,
+      req.user,
+      req.user?.companyId,
+    );
   }
 
   // ─── Execute Single Shipment ────────────────────────────────────────────────

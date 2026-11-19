@@ -44,10 +44,6 @@ export class UpdateShipmentDto {
   freightAllocationStatus?: string;
 
   @IsOptional()
-  @IsBoolean()
-  freightRequired?: boolean;
-
-  @IsOptional()
   @IsString()
   freightCurrency?: string;
 

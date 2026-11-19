@@ -14,6 +14,8 @@ import { SalesContractItem } from '../../sales-contracts/models/sales-contract-i
 import { Product } from '../../masters/product/product.model';
 import { AddShipmentDto } from '../dto/add-shipment.dto';
 import { ShipmentType } from '../../masters/shipment-type/shipment-type.model';
+import { formatLogisticsLocation } from '../../logistics/utils/logistics-location.util';
+import { ShipmentReadinessService } from '../../sales-contracts/services/shipment-readiness.service';
 import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
 import {
   PurchaseContractActivityService,
@@ -30,6 +32,7 @@ export class PurchaseContractShipmentService {
     @InjectModel(SalesContractShipment)
     private readonly shipmentModel: typeof SalesContractShipment,
     private readonly activityService: PurchaseContractActivityService,
+    private readonly shipmentReadinessService: ShipmentReadinessService,
   ) {}
 
   /**
@@ -69,20 +72,12 @@ export class PurchaseContractShipmentService {
         defaults: { purchaseContractId, shipmentId: sId } as any,
       });
       const updateData: any = {};
-      if (contract.placeOfLoading) {
-        updateData.origin = contract.placeOfLoading;
-      }
-      const targetShipment = await this.shipmentModel.findByPk(sId, {
-        include: [{ model: SalesContract, as: 'salesContract', include: [{ model: ShipmentType, as: 'shipmentType' }] }],
-      });
-      const scSt = (targetShipment?.salesContract as any)?.shipmentType || null;
-      const ruleRes = evaluateFreightRequired(contract.shipmentType, scSt);
-      updateData.freightRequired = ruleRes.freightRequired;
-      if (!ruleRes.freightRequired) {
-        updateData.freightAllocationStatus = null;
-        updateData.freight = null;
-        updateData.freightCurrency = null;
-        updateData.freightDescription = null;
+      const loadingPoint = formatLogisticsLocation(
+        contract.placeOfLoading,
+        contract.loadingCountry,
+      );
+      if (loadingPoint) {
+        updateData.origin = loadingPoint;
       }
       if (Object.keys(updateData).length > 0) {
         await this.shipmentModel.update(updateData, { where: { id: sId } });
@@ -167,6 +162,14 @@ export class PurchaseContractShipmentService {
       );
     }
 
+    const readinessMap = await this.shipmentReadinessService.evaluateBatch(
+      visibleLinks
+        .map((link) => link.shipment)
+        .filter((shipment): shipment is SalesContractShipment =>
+          Boolean(shipment),
+        ),
+    );
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -180,7 +183,13 @@ export class PurchaseContractShipmentService {
           : sourceShipmentQuantity;
 
       // Auto Route Source Mapping
-      const origin = contract.placeOfLoading || s.origin || '—';
+      const origin =
+        formatLogisticsLocation(
+          contract.placeOfLoading,
+          contract.loadingCountry,
+        ) ||
+        s.origin ||
+        '—';
       const destination =
         sc.destinationLocationName ||
         sc.portOfDischarge ||
@@ -195,14 +204,11 @@ export class PurchaseContractShipmentService {
       const supplier = (contract as any).seller?.entityName || '—';
       const buyer = sc.buyer?.entityName || '—';
 
-      const pcSt = contract.shipmentType || null;
-      const scSt = (s.salesContract as any)?.shipmentType || null;
-      const ruleRes = evaluateFreightRequired(pcSt, scSt);
-      const isFreightRequired = ruleRes.freightRequired;
-      const isFreightAutoAllocated =
-        !isFreightRequired ||
-        s.freightAllocationStatus === 'Yes' ||
-        s.freightAllocationStatus === 'Not Applicable';
+      const readiness = readinessMap.get(s.id);
+      const isFreightRequired =
+        readiness?.freightRequired ??
+        evaluateFreightRequired(contract.shipmentType, sc.shipmentType)
+          .freightRequired;
 
       const json: any = {
         linkId: link.id,
@@ -219,13 +225,10 @@ export class PurchaseContractShipmentService {
         freight: !isFreightRequired ? null : s.freight,
         freightCurrency: !isFreightRequired ? null : (s as any).freightCurrency,
         freightDescription: !isFreightRequired ? null : (s as any).freightDescription,
-        freightAllocationStatus: !isFreightRequired
-          ? null
-          : (isFreightAutoAllocated
-              ? 'Yes'
-              : (s.freightAllocationStatus || (s.freight ? 'Allocated' : 'Pending'))),
-        isFreightNotApplicable: !isFreightRequired,
-        freightReady: isFreightAutoAllocated ? true : Boolean(s.freight && Number(s.freight) > 0),
+        freightAllocationStatus:
+          readiness?.freightAllocationStatus ?? 'No',
+        isFreightNotApplicable: readiness?.isFreightNotApplicable ?? false,
+        freightReady: readiness?.freightReady ?? false,
         forex: s.forex,
         status: s.status,
         remarks: s.remarks,
@@ -324,20 +327,12 @@ export class PurchaseContractShipmentService {
     });
 
     const updateData: any = {};
-    if (contract.placeOfLoading) {
-      updateData.origin = contract.placeOfLoading;
-    }
-    const targetShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
-      include: [{ model: SalesContract, as: 'salesContract', include: [{ model: ShipmentType, as: 'shipmentType' }] }],
-    });
-    const scSt = (targetShipment?.salesContract as any)?.shipmentType || null;
-    const ruleRes = evaluateFreightRequired(contract.shipmentType, scSt);
-    updateData.freightRequired = ruleRes.freightRequired;
-    if (!ruleRes.freightRequired) {
-      updateData.freightAllocationStatus = null;
-      updateData.freight = null;
-      updateData.freightCurrency = null;
-      updateData.freightDescription = null;
+    const loadingPoint = formatLogisticsLocation(
+      contract.placeOfLoading,
+      contract.loadingCountry,
+    );
+    if (loadingPoint) {
+      updateData.origin = loadingPoint;
     }
     if (Object.keys(updateData).length > 0) {
       await this.shipmentModel.update(updateData, { where: { id: dto.shipmentId } });

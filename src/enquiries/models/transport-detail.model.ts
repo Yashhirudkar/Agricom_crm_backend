@@ -16,7 +16,6 @@ import {
 import { Enquiry } from './enquiry.model';
 import { Company } from '../../companies/models/company.model';
 import { SalesContract } from '../../sales-contracts/models/sales-contract.model';
-import { isFreightRequiredForIncoterm } from '../../masters/shipment-type/utils/incoterm-freight.util';
 
 @Table({
   tableName: 'transport_details',
@@ -98,7 +97,6 @@ export class TransportDetail extends Model<TransportDetail> {
   @BeforeCreate
   @BeforeUpdate
   static autoCompute(instance: TransportDetail) {
-    instance.freightRequired = isFreightRequiredForIncoterm(instance.incoterm);
     if (!instance.parentId) {
       instance.parentId =
         instance.enquiryId ||

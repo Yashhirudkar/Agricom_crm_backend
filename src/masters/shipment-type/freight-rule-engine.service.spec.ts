@@ -1,158 +1,168 @@
 import {
   evaluateFreightRequired,
+  lookupFreightMatrix,
   FreightRuleEngineService,
+  FREIGHT_COMPATIBILITY_MATRIX,
+  SUPPORTED_INCOTERMS,
 } from './freight-rule-engine.service';
 
-describe('Dynamic Freight Rule Engine', () => {
+describe('Freight Compatibility Matrix Rule Engine', () => {
   let service: FreightRuleEngineService;
 
   beforeEach(() => {
     service = new FreightRuleEngineService();
   });
 
-  const FCA = {
-    code: 'FCA',
-    name: 'Free Carrier',
-    stageOrder: 1,
-    locationType: 'Pickup Location',
-    freightRequiredAfterStage: false,
-  };
+  const EXW = { code: 'EXW', name: 'Ex Works' };
+  const FCA = { code: 'FCA', name: 'Free Carrier' };
+  const FAS = { code: 'FAS', name: 'Free Alongside Ship' };
+  const FOB = { code: 'FOB', name: 'Free On Board' };
+  const CFR = { code: 'CFR', name: 'Cost and Freight' };
+  const CIF = { code: 'CIF', name: 'Cost, Insurance and Freight' };
+  const CPT = { code: 'CPT', name: 'Carriage Paid To' };
+  const CIP = { code: 'CIP', name: 'Carriage and Insurance Paid To' };
+  const DAP = { code: 'DAP', name: 'Delivered at Place' };
+  const DPU = { code: 'DPU', name: 'Delivered at Place Unloaded' };
+  const DDP = { code: 'DDP', name: 'Delivered Duty Paid' };
 
-  const FOB = {
-    code: 'FOB',
-    name: 'Free On Board',
-    stageOrder: 2,
-    locationType: 'Port of Loading (POL)',
-    freightRequiredAfterStage: false,
-  };
-
-  const CNF = {
-    code: 'CNF',
-    name: 'Cost and Freight',
-    stageOrder: 3,
-    locationType: 'Port of Destination (POD)',
-    freightRequiredAfterStage: true,
-  };
-
-  const CIF = {
-    code: 'CIF',
-    name: 'Cost, Insurance and Freight',
-    stageOrder: 3,
-    locationType: 'Port of Destination (POD)',
-    freightRequiredAfterStage: true,
-  };
-
-  const DAP = {
-    code: 'DAP',
-    name: 'Delivered at Place',
-    stageOrder: 4,
-    locationType: 'Final Destination',
-    freightRequiredAfterStage: true,
-  };
-
-  const DDP = {
-    code: 'DDP',
-    name: 'Delivered Duty Paid',
-    stageOrder: 5,
-    locationType: 'Final Destination',
-    freightRequiredAfterStage: true,
-  };
-
-  describe('Prompt Specification Scenarios', () => {
-    it('Example 1: PC = FCA (Stage 1), SC = DAP (Stage 4) -> Freight Required = YES', () => {
-      const result = service.evaluate(FCA, DAP);
-      expect(result.freightRequired).toBe(true);
-      expect(result.salesStage).toBe(4);
-      expect(result.purchaseStage).toBe(1);
-    });
-
-    it('Example 2: PC = FCA, SC = FCA -> Freight Required = NO', () => {
+  describe('Current Bug & Same Incoterm Scenarios', () => {
+    it('Current case: SC = FCA, PC = FCA -> Freight Required = NO', () => {
       const result = service.evaluate(FCA, FCA);
       expect(result.freightRequired).toBe(false);
-      expect(result.salesStage).toBe(1);
-      expect(result.purchaseStage).toBe(1);
+      expect(result.salesIncoterm).toBe('FCA');
+      expect(result.purchaseIncoterm).toBe('FCA');
     });
 
-    it('Example 3: PC = FOB, SC = FOB -> Freight Required = NO', () => {
-      const result = service.evaluate(FOB, FOB);
-      expect(result.freightRequired).toBe(false);
-      expect(result.salesStage).toBe(2);
-      expect(result.purchaseStage).toBe(2);
-    });
-
-    it('Example 4: PC = FOB, SC = CIF -> Freight Required = YES', () => {
-      const result = service.evaluate(FOB, CIF);
-      expect(result.freightRequired).toBe(true);
-      expect(result.salesStage).toBe(3);
-      expect(result.purchaseStage).toBe(2);
-    });
-  });
-
-  describe('Additional Multi-Stage Scenarios', () => {
-    it('PC = CIF (Stage 3), SC = CIF (Stage 3) -> Freight Required = NO', () => {
+    it('SC = CIF, PC = CIF -> Freight Required = NO', () => {
       const result = service.evaluate(CIF, CIF);
       expect(result.freightRequired).toBe(false);
     });
 
-    it('PC = CIF (Stage 3), SC = DAP (Stage 4) -> Freight Required = YES', () => {
-      const result = service.evaluate(CIF, DAP);
-      expect(result.freightRequired).toBe(true);
-    });
-
-    it('PC = DAP (Stage 4), SC = FOB (Stage 2) -> Freight Required = NO (Sales stage < Purchase stage)', () => {
-      const result = service.evaluate(DAP, FOB);
+    it('SC = DAP, PC = DAP -> Freight Required = NO', () => {
+      const result = service.evaluate(DAP, DAP);
       expect(result.freightRequired).toBe(false);
     });
 
-    it('PC = FOB (Stage 2), SC = CNF (Stage 3) -> Freight Required = YES', () => {
-      const result = service.evaluate(FOB, CNF);
+    it('SC = DDP, PC = DDP -> Freight Required = NO', () => {
+      const result = service.evaluate(DDP, DDP);
+      expect(result.freightRequired).toBe(false);
+    });
+
+    it('All same Incoterms (diagonal) return NO', () => {
+      for (const term of SUPPORTED_INCOTERMS) {
+        const res = service.evaluate({ code: term }, { code: term });
+        expect(res.freightRequired).toBe(false);
+      }
+    });
+  });
+
+  describe('Complete Freight Compatibility Matrix Verification (11 x 11 Combinations)', () => {
+    it('Exact lookup verification across all 121 combinations', () => {
+      for (const sc of SUPPORTED_INCOTERMS) {
+        for (const pc of SUPPORTED_INCOTERMS) {
+          const expected = FREIGHT_COMPATIBILITY_MATRIX[sc][pc];
+          // evaluate(pc, sc) -> Row = sc, Col = pc
+          const evalResult = service.evaluate({ code: pc }, { code: sc });
+          expect(evalResult.freightRequired).toBe(expected);
+
+          // Direct lookup helper
+          const lookupResult = lookupFreightMatrix(sc, pc);
+          expect(lookupResult).toBe(expected);
+        }
+      }
+    });
+
+    it('SC = FCA, PC = EXW -> Freight Required = YES', () => {
+      const result = service.evaluate(EXW, FCA);
       expect(result.freightRequired).toBe(true);
     });
 
-    it('PC = FCA (Stage 1), SC = DDP (Stage 5) -> Freight Required = YES', () => {
-      const result = service.evaluate(FCA, DDP);
+    it('SC = FAS, PC = FCA -> Freight Required = YES', () => {
+      const result = service.evaluate(FCA, FAS);
       expect(result.freightRequired).toBe(true);
     });
 
-    it('Standalone SC = CIF without PC -> Freight Required = YES', () => {
-      const result = service.evaluate(null, CIF);
+    it('SC = FOB, PC = FAS -> Freight Required = YES', () => {
+      const result = service.evaluate(FAS, FOB);
       expect(result.freightRequired).toBe(true);
     });
 
-    it('Standalone SC = FOB without PC -> Freight Required = NO', () => {
-      const result = service.evaluate(null, FOB);
+    it('SC = CIF, PC = CFR -> Freight Required = YES', () => {
+      const result = service.evaluate(CFR, CIF);
+      expect(result.freightRequired).toBe(true);
+    });
+
+    it('SC = DAP, PC = CIP -> Freight Required = YES', () => {
+      const result = service.evaluate(CIP, DAP);
+      expect(result.freightRequired).toBe(true);
+    });
+
+    it('SC = DDP, PC = DPU -> Freight Required = YES', () => {
+      const result = service.evaluate(DPU, DDP);
+      expect(result.freightRequired).toBe(true);
+    });
+
+    it('SC = EXW, PC = DDP -> Freight Required = NO', () => {
+      const result = service.evaluate(DDP, EXW);
+      expect(result.freightRequired).toBe(false);
+    });
+
+    it('SC = FOB, PC = CIF -> Freight Required = NO', () => {
+      const result = service.evaluate(CIF, FOB);
       expect(result.freightRequired).toBe(false);
     });
   });
 
-  describe('Future-Proof (Zero hardcoded codes)', () => {
-    it('Works dynamically with brand new custom shipment types (e.g. EXW Stage 1, CFR Stage 3)', () => {
-      const CUSTOM_EXW = {
-        code: 'CUSTOM_EXW',
-        stageOrder: 1,
-        locationType: 'Pickup Location',
-        freightRequiredAfterStage: false,
-      };
-      const CUSTOM_CFR = {
-        code: 'CUSTOM_CFR',
-        stageOrder: 3,
-        locationType: 'Port of Destination (POD)',
-        freightRequiredAfterStage: true,
-      };
-
-      const result = evaluateFreightRequired(CUSTOM_EXW, CUSTOM_CFR);
-      expect(result.freightRequired).toBe(true);
-      expect(result.salesStage).toBe(3);
-      expect(result.purchaseStage).toBe(1);
+  describe('Aliases and String Formats', () => {
+    it('Handles CNF as CFR', () => {
+      // SC = CIF, PC = CNF -> YES
+      expect(service.evaluate('CNF', 'CIF').freightRequired).toBe(true);
+      // SC = CNF, PC = CNF -> NO
+      expect(service.evaluate('CNF', 'CNF').freightRequired).toBe(false);
     });
 
-    it('Works dynamically when a stage has freightRequiredAfterStage = false even if stage is higher', () => {
-      const STAGE_1 = { stageOrder: 1, freightRequiredAfterStage: false };
-      const STAGE_2_NO_FREIGHT = { stageOrder: 2, freightRequiredAfterStage: false };
+    it('Handles full names like "FCA - Free Carrier"', () => {
+      const res = service.evaluate(
+        { name: 'EXW - Ex Works' },
+        { name: 'FCA - Free Carrier' },
+      );
+      expect(res.freightRequired).toBe(true);
+      expect(res.salesIncoterm).toBe('FCA');
+      expect(res.purchaseIncoterm).toBe('EXW');
+    });
 
-      const result = evaluateFreightRequired(STAGE_1, STAGE_2_NO_FREIGHT);
+    it('Handles DAT as DPU', () => {
+      // SC = DAT, PC = DAT -> NO
+      expect(service.evaluate('DAT', 'DAT').freightRequired).toBe(false);
+      // SC = DDP, PC = DAT -> YES
+      expect(service.evaluate('DAT', 'DDP').freightRequired).toBe(true);
+    });
+  });
+
+  describe('Null and Edge Cases', () => {
+    it('Neither SC nor PC defined -> Freight Required = NO', () => {
+      const result = service.evaluate(null, null);
       expect(result.freightRequired).toBe(false);
+    });
+
+    it('SC defined, PC not defined -> Freight Required = NO', () => {
+      const result = service.evaluate(null, CIF);
+      expect(result.freightRequired).toBe(false);
+    });
+
+    it('PC defined, SC not defined -> Freight Required = NO', () => {
+      const result = service.evaluate(FOB, null);
+      expect(result.freightRequired).toBe(false);
+    });
+
+    it('does not derive Freight Required from numeric IDs or sequence metadata', () => {
+      expect(service.evaluate(2, 4).freightRequired).toBe(false);
+      expect(
+        service.evaluate(
+          { code: 'CUSTOM-SC', sequence: 4 } as any,
+          { code: 'CUSTOM-PC', sequence: 2 } as any,
+        ).freightRequired,
+      ).toBe(false);
     });
   });
 });
-
