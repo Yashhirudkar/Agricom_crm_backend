@@ -393,11 +393,15 @@ export class AuthController {
         const [userResource, userAction] = userPerm.split(':');
         if (!userResource || !userAction) return false;
 
+        // Normalize to lowercase for case-insensitive action comparison
+        const reqActionLower = reqAction.toLowerCase();
+        const userActionLower = userAction.toLowerCase();
+
         // Action match: read and view are equivalent
         const isActionMatch =
-          reqAction === userAction ||
-          (['read', 'view'].includes(reqAction) &&
-            ['read', 'view'].includes(userAction));
+          reqActionLower === userActionLower ||
+          (['read', 'view'].includes(reqActionLower) &&
+            ['read', 'view'].includes(userActionLower));
 
         if (!isActionMatch) return false;
 
