@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
+import { RequireAnyPermission } from '../rbac/decorators/require-any-permission.decorator';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 import { CargoAvailabilityService } from './cargo-availability.service';
 
@@ -33,7 +34,7 @@ export class CargoAvailabilityController {
   }
 
   @Get('shipment-info/:shipmentId')
-  @RequirePermission('cargo_availability:view')
+  @RequireAnyPermission('cargo_availability:view', 'shipments:view')
   async getShipmentInfo(
     @Param('shipmentId') shipmentId: number,
     @Req() req: any,
@@ -45,7 +46,7 @@ export class CargoAvailabilityController {
   }
 
   @Get('by-shipment/:shipmentId')
-  @RequirePermission('cargo_availability:view')
+  @RequireAnyPermission('cargo_availability:view', 'shipments:view')
   async getByShipmentId(
     @Param('shipmentId') shipmentId: number,
     @Req() req: any,

@@ -421,7 +421,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: enquiriesFolder.id,
           sort_order: 20,
           is_active: true,
-          permission_link: 'enquiries:read',
+          permission_link: 'confirmed_orders:view',
         },
         {
           name: 'Follow-ups',
@@ -797,7 +797,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
           folder_id: enquiriesFolder.id,
           sort_order: 20,
           is_active: true,
-          permission_link: 'enquiries:read',
+          permission_link: 'confirmed_orders:view',
         });
 
         itemId = newItem.id;
@@ -823,8 +823,8 @@ export class SidebarSeederService implements OnApplicationBootstrap {
             item.sort_order = 20;
             modified = true;
           }
-          if (item.permission_link !== 'enquiries:read') {
-            item.permission_link = 'enquiries:read';
+          if (item.permission_link !== 'confirmed_orders:view') {
+            item.permission_link = 'confirmed_orders:view';
             modified = true;
           }
           if (item.is_active !== true) {
