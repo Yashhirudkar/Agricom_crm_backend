@@ -1956,6 +1956,23 @@ export class ShipmentService {
       );
     }
 
+    // ── CARGO ALLOCATION GUARD ──────────────────────────────────────────────
+    // If manually marking as Ready (Yes), cargo allocation MUST exist first.
+    // This prevents shipments from being executed without cargo allocation,
+    // which would result in Cargo Allocation showing "No" after execution.
+    if (dto.manualReadyOverride === true) {
+      const activeCargoAlloc = await this.cargoAllocationModel.findOne({
+        where: { shipmentId: id, status: 'Active' },
+        attributes: ['id'],
+      });
+      if (!activeCargoAlloc) {
+        throw new BadRequestException(
+          'Cargo Allocation is required before marking this shipment as Ready. Please complete Cargo Allocation first.',
+        );
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const previousValue = {
       manualReadyOverride: shipment.manualReadyOverride,
       manualReadyBy: shipment.manualReadyBy,
