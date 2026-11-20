@@ -17,6 +17,17 @@ import { SalesContract } from './sales-contract.model';
 import { Company } from '../../companies/models/company.model';
 import { User } from '../../users/models/user.model';
 
+export interface ShipmentDowntime {
+  price?: number;
+  currency?: string;
+  reason?: string;
+  customReason?: string;
+  fromDate?: string;
+  toDate?: string;
+  duration?: string;
+  remarks?: string;
+}
+
 @Table({
   tableName: 'shipment_stuffings',
   timestamps: true,
@@ -145,16 +156,17 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   declare containers: Array<{
     containerNo: string;
     containerSize?: '20 FT' | '40 FT' | '40 HC';
-    vehicleNumber?: string;
     sealNo: string;
-    stuffingDate?: string;
-    warehouse?: string;
-    status?: string;
     remarks?: string;
     tareWeight?: number;
     grossWeight?: number;
     netWeight?: number;
   }>;
+
+  @Default([])
+  @AllowNull(false)
+  @Column({ field: 'downtime_records', type: DataType.JSONB })
+  declare downtimes: ShipmentDowntime[];
 
   // Dynamic Trucks
   @Default([])

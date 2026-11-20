@@ -9,7 +9,8 @@ import {
   IsArray,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
+import { normalizeTruckCapacity } from '../../common/utils/truck-capacity.util';
 
 export class FreightQuoteChargeDto {
   @IsOptional()
@@ -24,6 +25,10 @@ export class FreightQuoteChargeDto {
   @IsNumber()
   @Min(0.01, { message: 'Amount must be greater than zero.' })
   amount: number;
+
+  @IsOptional()
+  @IsString()
+  chargeDate?: string;
 
   @IsOptional()
   @IsString()
@@ -120,6 +125,10 @@ export class CreateFreightQuoteDto {
   paymentTerms?: string;
 
   @IsOptional()
+  @IsInt()
+  paymentTermId?: number;
+
+  @IsOptional()
   @IsString()
   remarks?: string;
 
@@ -166,6 +175,7 @@ export class CreateFreightQuoteDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => normalizeTruckCapacity(value))
   truckCapacity?: string;
 
   @IsOptional()

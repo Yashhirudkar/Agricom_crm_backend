@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Inject,
   forwardRef,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Sequelize } from 'sequelize-typescript';
@@ -45,6 +46,7 @@ import { CreateChargeMasterDto } from '../dto/create-charge-master.dto';
 import { UpdateLogisticsStatusDto } from '../dto/update-logistics-status.dto';
 
 import { PartnerContact } from '../../masters/partner/partner-contact.model';
+import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
 import { Company } from '../../companies/models/company.model';
 import { TransportEnquiryHidden } from '../models/transport-enquiry-hidden.model';
 import { formatLogisticsLocation } from '../utils/logistics-location.util';
@@ -86,7 +88,66 @@ export class LogisticsService {
     private readonly shipmentService: ShipmentService,
     @Inject(forwardRef(() => ShipmentReadinessService))
     private readonly readinessService: ShipmentReadinessService,
+    @Optional()
+    @InjectModel(PaymentTerm)
+    private readonly paymentTermModel?: typeof PaymentTerm,
   ) { }
+
+  private async resolvePaymentTerm(
+    paymentTermId?: number,
+    paymentTermsText?: string,
+    user?: any,
+    companyId?: number,
+  ): Promise<{ paymentTermId: number | null; paymentTerms: string | null }> {
+    const termModel = this.paymentTermModel || PaymentTerm;
+    if (paymentTermId) {
+      const pt = await termModel.findByPk(paymentTermId);
+      if (pt) {
+        return { paymentTermId: pt.id, paymentTerms: pt.name };
+      }
+    }
+    if (paymentTermsText && paymentTermsText.trim()) {
+      const trimmed = paymentTermsText.trim();
+      const pt = await termModel.findOne({
+        where: Sequelize.where(
+          Sequelize.fn('LOWER', Sequelize.fn('TRIM', Sequelize.col('name'))),
+          trimmed.toLowerCase(),
+        ),
+      });
+      if (pt) {
+        return { paymentTermId: pt.id, paymentTerms: pt.name };
+      }
+      try {
+        const baseCode =
+          trimmed
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 40) || 'PT';
+        let code = baseCode;
+        let counter = 1;
+        while (await termModel.findOne({ where: { code } })) {
+          code = `${baseCode.slice(0, 35)}_${counter++}`;
+        }
+        let creditDays = 0;
+        const match = trimmed.match(/^(\d+)\s*days?/i);
+        if (match) creditDays = parseInt(match[1], 10);
+
+        const newPt = await termModel.create({
+          name: trimmed,
+          code,
+          creditDays,
+          status: 'Active',
+          createdBy: user?.userId,
+          companyId,
+        } as any);
+        return { paymentTermId: newPt.id, paymentTerms: newPt.name };
+      } catch {
+        return { paymentTermId: null, paymentTerms: trimmed };
+      }
+    }
+    return { paymentTermId: null, paymentTerms: null };
+  }
 
   private async findSalesContractForEnquiry(
     enquiryId: string | null | undefined,
@@ -145,6 +206,9 @@ export class LogisticsService {
       );
       await this.sequelize.query(
         `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "destination" VARCHAR(255);`,
+      );
+      await this.sequelize.query(
+        `ALTER TABLE "freight_quotes" ADD COLUMN IF NOT EXISTS "payment_term_id" INTEGER;`,
       );
       await this.sequelize.query(
         `ALTER TABLE "freight_quotes" ALTER COLUMN "logistics_id" DROP NOT NULL;`,
@@ -1213,6 +1277,7 @@ export class LogisticsService {
           required: false,
         },
         { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
+        { model: PaymentTerm, as: 'paymentTerm' },
         { model: FreightQuoteCharge, as: 'charges' },
         {
           model: FreightQuoteContainerRate,
@@ -2861,6 +2926,13 @@ export class LogisticsService {
       const currentYear = new Date().getFullYear();
       const quoteNumber = `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
+      const resolvedPt = await this.resolvePaymentTerm(
+        dto.paymentTermId,
+        dto.paymentTerms,
+        user,
+        companyId,
+      );
+
       const quote = await this.quoteModel.create(
         {
           ...dto,
@@ -2875,6 +2947,8 @@ export class LogisticsService {
           businessTransactionId: logistics.businessTransactionId ?? null,
           createdBy: user?.userId,
           routeId: dto.routeId || null,
+          paymentTermId: resolvedPt.paymentTermId,
+          paymentTerms: resolvedPt.paymentTerms,
         } as any,
         { transaction },
       );
@@ -2922,6 +2996,7 @@ export class LogisticsService {
               chargeMasterId: c.chargeMasterId || null,
               chargeName: c.chargeName,
               amount: c.amount,
+              chargeDate: c.chargeDate || null,
               remarks: c.remarks || null,
               displayOrder: c.displayOrder ?? idx + 1,
             }));
@@ -2938,6 +3013,7 @@ export class LogisticsService {
           chargeMasterId: c.chargeMasterId || null,
           chargeName: c.chargeName,
           amount: c.amount,
+          chargeDate: c.chargeDate || null,
           remarks: c.remarks || null,
           displayOrder: c.displayOrder ?? idx + 1,
         }));
@@ -2997,6 +3073,7 @@ export class LogisticsService {
             include: ['charges'],
           },
           { model: FreightQuoteCharge, as: 'charges' },
+          { model: PaymentTerm, as: 'paymentTerm' },
         ],
         transaction,
       });
@@ -3083,6 +3160,13 @@ export class LogisticsService {
       const currentYear = new Date().getFullYear();
       const quoteNumber = `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
 
+      const resolvedPt = await this.resolvePaymentTerm(
+        dto.paymentTermId,
+        dto.paymentTerms,
+        user,
+        companyId,
+      );
+
       const quote = await this.quoteModel.create(
         {
           ...dto,
@@ -3093,6 +3177,8 @@ export class LogisticsService {
           isDirect: true,
           companyId,
           createdBy: user?.userId,
+          paymentTermId: resolvedPt.paymentTermId,
+          paymentTerms: resolvedPt.paymentTerms,
         } as any,
         { transaction },
       );
@@ -3167,6 +3253,7 @@ export class LogisticsService {
                 chargeMasterId: c.chargeMasterId || null,
                 chargeName: c.chargeName,
                 amount: c.amount,
+                chargeDate: c.chargeDate || null,
                 remarks: c.remarks || null,
                 displayOrder: c.displayOrder ?? idx + 1,
               }));
@@ -3182,6 +3269,7 @@ export class LogisticsService {
             chargeMasterId: c.chargeMasterId || null,
             chargeName: c.chargeName,
             amount: c.amount,
+            chargeDate: c.chargeDate || null,
             remarks: c.remarks || null,
             displayOrder: c.displayOrder ?? idx + 1,
           }));
@@ -3221,6 +3309,7 @@ export class LogisticsService {
             include: ['charges'],
           },
           { model: FreightQuoteCharge, as: 'charges' },
+          { model: PaymentTerm, as: 'paymentTerm' },
           { model: Product, as: 'product' },
           {
             model: this.sequelize.models.FreightRoute,
@@ -3308,6 +3397,13 @@ export class LogisticsService {
     if (!quote) throw new NotFoundException('Direct freight quote not found');
 
     return await this.sequelize.transaction(async (transaction) => {
+      const resolvedPt = await this.resolvePaymentTerm(
+        dto.paymentTermId,
+        dto.paymentTerms,
+        user,
+        companyId,
+      );
+
       // 1. Update quote basic details
       await quote.update(
         {
@@ -3315,6 +3411,8 @@ export class LogisticsService {
           quoteDate: dto.quoteDate,
           origin: dto.origin || dto.loadingPoint || quote.origin,
           destination: dto.destination || quote.destination,
+          paymentTermId: resolvedPt.paymentTermId,
+          paymentTerms: resolvedPt.paymentTerms,
           updatedBy: user?.userId,
         } as any,
         { transaction },
@@ -3484,6 +3582,13 @@ export class LogisticsService {
       // Increment version placeholder
       const newVersion = (quote.version || 1) + 1;
 
+      const resolvedPt = await this.resolvePaymentTerm(
+        dto.paymentTermId,
+        dto.paymentTerms,
+        user,
+        companyId,
+      );
+
       await quote.update(
         {
           ...dto,
@@ -3491,6 +3596,8 @@ export class LogisticsService {
           version: newVersion,
           updatedBy: user?.userId,
           routeId: dto.routeId || null,
+          paymentTermId: resolvedPt.paymentTermId,
+          paymentTerms: resolvedPt.paymentTerms,
         } as any,
         { transaction },
       );
@@ -3529,6 +3636,7 @@ export class LogisticsService {
               chargeMasterId: c.chargeMasterId || null,
               chargeName: c.chargeName,
               amount: c.amount,
+              chargeDate: c.chargeDate || null,
               remarks: c.remarks || null,
               displayOrder: c.displayOrder ?? idx + 1,
             }));
@@ -3544,6 +3652,7 @@ export class LogisticsService {
           chargeMasterId: c.chargeMasterId || null,
           chargeName: c.chargeName,
           amount: c.amount,
+          chargeDate: c.chargeDate || null,
           remarks: c.remarks || null,
           displayOrder: c.displayOrder ?? idx + 1,
         }));
@@ -3580,6 +3689,7 @@ export class LogisticsService {
           include: ['charges'],
         },
         { model: FreightQuoteCharge, as: 'charges' },
+        { model: PaymentTerm, as: 'paymentTerm' },
       ],
     });
   }

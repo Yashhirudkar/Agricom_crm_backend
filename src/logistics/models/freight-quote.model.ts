@@ -15,7 +15,9 @@ import {
   ForeignKey,
   BelongsTo,
   HasMany,
+  BeforeSave,
 } from 'sequelize-typescript';
+import { normalizeTruckCapacity } from '../../common/utils/truck-capacity.util';
 import { Logistics } from './logistics.model';
 import { LogisticsRoute } from './logistics-route.model';
 import { Partner } from '../../masters/partner/partner.model';
@@ -27,6 +29,7 @@ import { FreightRoute } from './freight-route.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
+import { PaymentTerm } from '../../masters/payment-term/payment-term.model';
 
 @Table({
   tableName: 'freight_quotes',
@@ -146,8 +149,25 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   declare truckType: string;
 
   @AllowNull(true)
-  @Column({ field: 'truck_capacity', type: DataType.STRING(50) })
+  @Column({
+    field: 'truck_capacity',
+    type: DataType.STRING(50),
+    get() {
+      const val = this.getDataValue('truckCapacity');
+      return normalizeTruckCapacity(val);
+    },
+    set(val: string | null | undefined) {
+      this.setDataValue('truckCapacity', normalizeTruckCapacity(val));
+    },
+  })
   declare truckCapacity: string;
+
+  @BeforeSave
+  static normalizeTruckCapacityHook(instance: FreightQuote) {
+    if (instance.truckCapacity) {
+      instance.truckCapacity = normalizeTruckCapacity(instance.truckCapacity);
+    }
+  }
 
   @AllowNull(true)
   @Column({ field: 'wagon_type', type: DataType.STRING(50) })
@@ -200,6 +220,14 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @AllowNull(true)
   @Column({ field: 'payment_terms', type: DataType.STRING(255) })
   declare paymentTerms: string;
+
+  @ForeignKey(() => PaymentTerm)
+  @AllowNull(true)
+  @Column({ field: 'payment_term_id', type: DataType.INTEGER })
+  declare paymentTermId: number;
+
+  @BelongsTo(() => PaymentTerm)
+  declare paymentTerm: PaymentTerm;
 
   @AllowNull(true)
   @Column({ type: DataType.TEXT })

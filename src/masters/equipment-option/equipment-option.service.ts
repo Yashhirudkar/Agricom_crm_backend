@@ -3,6 +3,12 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { EquipmentOption } from './equipment-option.model';
 import { measureStartupStep } from '../../common/startup-timing';
+import {
+  DEFAULT_TRUCK_CAPACITIES,
+  normalizeTruckCapacity,
+  canonicalCapacityKey,
+  extractCapacityNumber,
+} from '../../common/utils/truck-capacity.util';
 
 export const DEFAULT_EQUIPMENT_SEED: Record<string, string[]> = {
   TRUCK_TYPE: [
@@ -25,23 +31,7 @@ export const DEFAULT_EQUIPMENT_SEED: Record<string, string[]> = {
     'Open Body Truck',
     'Closed Body Truck',
   ],
-  TRUCK_CAPACITY: [
-    '1 MT',
-    '2 MT',
-    '3 MT',
-    '5 MT',
-    '7 MT',
-    '9 MT',
-    '10 MT',
-    '12 MT',
-    '15 MT',
-    '18 MT',
-    '20 MT',
-    '25 MT',
-    '30 MT',
-    '35 MT',
-    '40 MT',
-  ],
+  TRUCK_CAPACITY: DEFAULT_TRUCK_CAPACITIES,
   CONTAINER_TYPE: [
     'Standard (Dry)',
     'High Cube',
@@ -108,30 +98,105 @@ export class EquipmentOptionService implements OnModuleInit {
         raw: true,
         transaction,
       });
-      if (existing) {
-        await transaction.commit();
-        return;
-      }
-
-      const rowsToInsert = Object.entries(DEFAULT_EQUIPMENT_SEED).flatMap(
-        ([category, values]) =>
-          values.map((value, index) => ({
-            category,
-            value,
-            displayOrder: index + 1,
-            isActive: true,
-          })),
-      );
-      if (rowsToInsert.length > 0) {
-        await this.equipmentOptionModel.bulkCreate(rowsToInsert, {
-          transaction,
-        });
+      if (!existing) {
+        const rowsToInsert = Object.entries(DEFAULT_EQUIPMENT_SEED).flatMap(
+          ([category, values]) =>
+            values.map((value, index) => ({
+              category,
+              value,
+              displayOrder: index + 1,
+              isActive: true,
+            })),
+        );
+        if (rowsToInsert.length > 0) {
+          await this.equipmentOptionModel.bulkCreate(rowsToInsert, {
+            transaction,
+          });
+        }
+      } else {
+        // Ensure TRUCK_CAPACITY rows are normalized, deduplicated, and defaults exist
+        await this.normalizeExistingData(transaction);
       }
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();
       console.error('[EquipmentOptionService] Auto-seed failed:', error);
       throw error;
+    }
+  }
+
+  private async normalizeExistingData(transaction: any) {
+    try {
+      const options = await this.equipmentOptionModel.findAll({
+        where: { category: 'TRUCK_CAPACITY' },
+        transaction,
+      });
+
+      const seen = new Set<string>();
+      for (const opt of options) {
+        const norm = normalizeTruckCapacity(opt.value);
+        const key = canonicalCapacityKey(norm);
+        if (seen.has(key)) {
+          // Remove duplicate record
+          await opt.destroy({ transaction });
+        } else {
+          seen.add(key);
+          if (opt.value !== norm) {
+            await opt.update({ value: norm }, { transaction });
+          }
+        }
+      }
+
+      // Ensure all standard default capacities exist
+      for (let i = 0; i < DEFAULT_TRUCK_CAPACITIES.length; i++) {
+        const defCap = DEFAULT_TRUCK_CAPACITIES[i];
+        const key = canonicalCapacityKey(defCap);
+        if (!seen.has(key)) {
+          seen.add(key);
+          await this.equipmentOptionModel.create(
+            {
+              category: 'TRUCK_CAPACITY',
+              value: defCap,
+              displayOrder: i + 1,
+              isActive: true,
+            },
+            { transaction },
+          );
+        }
+      }
+
+      // Normalize any existing truck_capacity in freight_quotes table
+      const [quotes]: any = await this.equipmentOptionModel.sequelize.query(
+        `SELECT id, truck_capacity FROM freight_quotes WHERE truck_capacity IS NOT NULL AND truck_capacity != ''`,
+        { transaction },
+      );
+      if (Array.isArray(quotes)) {
+        for (const q of quotes) {
+          const raw = q.truck_capacity;
+          const norm = normalizeTruckCapacity(raw);
+          if (raw !== norm) {
+            await this.equipmentOptionModel.sequelize.query(
+              `UPDATE freight_quotes SET truck_capacity = :norm WHERE id = :id`,
+              { replacements: { norm, id: q.id }, transaction },
+            );
+          }
+        }
+      }
+      // Ensure charge_date column exists in freight_quote_charges
+      await this.equipmentOptionModel.sequelize.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'freight_quote_charges' AND column_name = 'charge_date'
+          ) THEN
+            ALTER TABLE freight_quote_charges ADD COLUMN charge_date DATE;
+          END IF;
+        END $$;
+      `, { transaction });
+    } catch (err) {
+      // Best-effort cleanup during startup
+      console.warn('[EquipmentOptionService] Cleanup notice:', err?.message || err);
     }
   }
 
@@ -143,7 +208,7 @@ export class EquipmentOptionService implements OnModuleInit {
     if (category && category.trim()) {
       where.category = category.trim().toUpperCase();
     }
-    return await this.equipmentOptionModel.findAll({
+    const list = await this.equipmentOptionModel.findAll({
       where,
       order: [
         ['category', 'ASC'],
@@ -151,6 +216,36 @@ export class EquipmentOptionService implements OnModuleInit {
         ['id', 'ASC'],
       ],
     });
+
+    const isTruckCapacityQuery =
+      category && category.trim().toUpperCase() === 'TRUCK_CAPACITY';
+
+    // Normalize and deduplicate any TRUCK_CAPACITY records
+    const seenCapacities = new Set<string>();
+    const deduplicatedList: EquipmentOption[] = [];
+
+    for (const item of list) {
+      if (item.category === 'TRUCK_CAPACITY') {
+        const norm = normalizeTruckCapacity(item.value);
+        const key = canonicalCapacityKey(norm);
+        if (seenCapacities.has(key)) {
+          continue; // drop duplicate
+        }
+        seenCapacities.add(key);
+        item.value = norm;
+        deduplicatedList.push(item);
+      } else {
+        deduplicatedList.push(item);
+      }
+    }
+
+    if (isTruckCapacityQuery) {
+      deduplicatedList.sort((a, b) => {
+        return extractCapacityNumber(a.value) - extractCapacityNumber(b.value);
+      });
+    }
+
+    return deduplicatedList;
   }
 
   async create(dto: { category: string; value: string }, companyId?: number) {
@@ -162,31 +257,50 @@ export class EquipmentOptionService implements OnModuleInit {
     }
 
     const category = dto.category.trim().toUpperCase();
-    const value = dto.value.trim();
+    let value = dto.value.trim();
 
-    if (value.length > 100) {
-      throw new BadRequestException(
-        'Option value cannot exceed 100 characters',
+    if (category === 'TRUCK_CAPACITY') {
+      value = normalizeTruckCapacity(value);
+      if (!value) {
+        throw new BadRequestException('A valid truck capacity is required');
+      }
+
+      // Check for duplicate normalized value within same category & company
+      const allCapacities = await this.equipmentOptionModel.findAll({
+        where: companyId ? { category, companyId } : { category },
+      });
+      const targetKey = canonicalCapacityKey(value);
+      const existing = allCapacities.find(
+        (opt) => canonicalCapacityKey(opt.value) === targetKey,
       );
-    }
 
-    // Case-insensitive duplicate check within same category
-    const whereCondition: any = {
-      category,
-      value: { [Op.iLike]: value },
-    };
-    if (companyId) {
-      whereCondition.companyId = companyId;
-    }
+      if (existing) {
+        // Requirement 4: If the normalized value already exists, do not create another record. Instead, select the existing one.
+        return existing;
+      }
+    } else {
+      if (value.length > 100) {
+        throw new BadRequestException(
+          'Option value cannot exceed 100 characters',
+        );
+      }
 
-    const existing = await this.equipmentOptionModel.findOne({
-      where: whereCondition,
-    });
+      // Case-insensitive duplicate check within same category
+      const whereCondition: any = {
+        category,
+        value: { [Op.iLike]: value },
+      };
+      if (companyId) {
+        whereCondition.companyId = companyId;
+      }
 
-    if (existing) {
-      throw new BadRequestException(
-        `"${value}" already exists in ${category}.`,
-      );
+      const existing = await this.equipmentOptionModel.findOne({
+        where: whereCondition,
+      });
+
+      if (existing) {
+        return existing;
+      }
     }
 
     const maxOrderRes: any = await this.equipmentOptionModel.max(

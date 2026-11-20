@@ -5,7 +5,17 @@ interface PostgreSqlConnection {
   ): Promise<{ rows: Array<Record<string, string>> }>;
 }
 
-const REQUIRED_MIGRATIONS = ['19', '53', '55', '57', '58', '76', '77', '78'];
+const REQUIRED_MIGRATIONS = [
+  '19',
+  '53',
+  '55',
+  '57',
+  '58',
+  '76',
+  '77',
+  '78',
+  '93',
+];
 
 const REQUIRED_COLUMNS = [
   'monthly_stock_sections.layout_x',
@@ -34,6 +44,7 @@ const REQUIRED_COLUMNS = [
   'shipment_stuffings.operator',
   'shipment_stuffings.gross_weight',
   'shipment_stuffings.net_weight',
+  'shipment_stuffings.downtime_records',
 ];
 
 const REQUIRED_INDEXES = [

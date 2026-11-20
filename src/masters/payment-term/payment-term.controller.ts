@@ -29,7 +29,15 @@ export class PaymentTermController {
   constructor(private readonly service: PaymentTermService) {}
 
   @Post()
-  @RequirePermission('payment-term:create')
+  @RequireAnyPermission(
+    'payment-term:create',
+    'logistics:create',
+    'logistics:update',
+    'sales_contract:create',
+    'sales_contract:update',
+    'purchase_contract:create',
+    'purchase_contract:update',
+  )
   @AuditLog({ entityType: 'PaymentTerm', action: 'CREATE' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreatePaymentTermDto, @Req() req: any) {
@@ -41,6 +49,9 @@ export class PaymentTermController {
     'payment-term:view',
     'sales_contract:view',
     'enquiry:view',
+    'logistics:view',
+    'shipment:view',
+    'purchase_contract:view',
   )
   async findAll(@Query() query: QueryPaymentTermDto, @Req() req: any) {
     return await this.service.findAll({
@@ -54,6 +65,9 @@ export class PaymentTermController {
     'payment-term:view',
     'sales_contract:view',
     'enquiry:view',
+    'logistics:view',
+    'shipment:view',
+    'purchase_contract:view',
   )
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     return await this.service.findOne(id, req.user?.companyId);

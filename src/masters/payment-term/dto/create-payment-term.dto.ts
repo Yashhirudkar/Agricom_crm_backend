@@ -1,9 +1,9 @@
 import { IsString, IsNotEmpty, IsInt, IsOptional } from 'class-validator';
 
 export class CreatePaymentTermDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  code: string;
+  code?: string;
 
   @IsNotEmpty()
   @IsString()
@@ -29,3 +29,4 @@ export class CreatePaymentTermDto {
   @IsString()
   remarks?: string;
 }
+

@@ -29,7 +29,10 @@ import {
 import { ShipmentReadinessService } from './services/shipment-readiness.service';
 import { AuditService } from '../audit/services/audit.service';
 import { User } from '../users/models/user.model';
-import { ShipmentStuffing } from './models/shipment-stuffing.model';
+import {
+  ShipmentDowntime,
+  ShipmentStuffing,
+} from './models/shipment-stuffing.model';
 import { CargoShipmentAllocation } from '../cargo-availability/models/cargo-shipment-allocation.model';
 import { CargoLoading } from '../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../logistics/models/logistics.model';
@@ -88,6 +91,99 @@ export class ShipmentService {
     @InjectConnection()
     private readonly sequelize: SequelizeConnection,
   ) {}
+
+  private stripRemovedContainerFields(
+    containers: Array<Record<string, unknown>> | null | undefined,
+  ): Array<Record<string, unknown>> {
+    return (containers || []).map(
+      ({ vehicleNumber, stuffingDate, warehouse, status, ...container }) =>
+        container,
+    );
+  }
+
+  private normalizeDowntimeRecords(records: unknown): ShipmentDowntime[] {
+    if (!Array.isArray(records)) return [];
+
+    return records.map((record, index) => {
+      if (
+        typeof record !== 'object' ||
+        record === null ||
+        Array.isArray(record)
+      ) {
+        throw new BadRequestException(
+          `Downtime record ${index + 1} must be an object.`,
+        );
+      }
+
+      const values = record as Record<string, unknown>;
+      const readText = (field: string) =>
+        typeof values[field] === 'string' ? values[field].trim() : '';
+      const rawPrice = values.price;
+      const price =
+        typeof rawPrice === 'number'
+          ? rawPrice
+          : typeof rawPrice === 'string' && rawPrice.trim()
+            ? Number(rawPrice.trim())
+            : Number.NaN;
+      const currency = readText('currency');
+      const reason = readText('reason');
+      const fromDate = readText('fromDate');
+      const toDate = readText('toDate');
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      const isValidDate = (value: string) => {
+        if (!datePattern.test(value)) return false;
+        const parsedDate = new Date(`${value}T00:00:00.000Z`);
+        return (
+          !Number.isNaN(parsedDate.getTime()) &&
+          parsedDate.toISOString().slice(0, 10) === value
+        );
+      };
+
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new BadRequestException(
+          `Downtime record ${index + 1}: Price must be greater than 0.`,
+        );
+      }
+      if (!currency) {
+        throw new BadRequestException(
+          `Downtime record ${index + 1}: Currency is required.`,
+        );
+      }
+      if (
+        (fromDate && !isValidDate(fromDate)) ||
+        (toDate && !isValidDate(toDate))
+      ) {
+        throw new BadRequestException(
+          `Downtime record ${index + 1} dates must use YYYY-MM-DD format.`,
+        );
+      }
+      if (fromDate && toDate && fromDate > toDate) {
+        throw new BadRequestException(
+          `Downtime record ${index + 1}: From Date cannot be later than To Date.`,
+        );
+      }
+
+      let duration = '';
+      if (fromDate && toDate) {
+        const totalDays =
+          (Date.parse(`${toDate}T00:00:00.000Z`) -
+            Date.parse(`${fromDate}T00:00:00.000Z`)) /
+          86400000;
+        duration = `${totalDays} ${totalDays === 1 ? 'day' : 'days'}`;
+      }
+
+      return {
+        price,
+        currency,
+        reason,
+        customReason: reason === 'Other' ? readText('customReason') : '',
+        fromDate,
+        toDate,
+        duration,
+        remarks: readText('remarks'),
+      };
+    });
+  }
 
   public async ensureExecutionRecordsForShipmentId(
     shipmentId: number,
@@ -2091,15 +2187,28 @@ export class ShipmentService {
 
     // 3. Freight Info
     let freightQuote: any = null;
+    let logistics: any = null;
     try {
-      if (shipment.logisticsId) {
-        freightQuote = await this.freightQuoteModel.findOne({
-          where: { logisticsId: shipment.logisticsId },
-          order: [['id', 'DESC']],
-        });
+      const freightQuoteWhere = shipment.logisticsId
+        ? {
+            [Op.or]: [
+              { shipmentId: shipment.id },
+              { logisticsId: shipment.logisticsId },
+            ],
+          }
+        : { shipmentId: shipment.id };
+      freightQuote = await this.freightQuoteModel.findOne({
+        where: freightQuoteWhere,
+        order: [['id', 'DESC']],
+      });
+
+      const transportRecordId =
+        freightQuote?.logisticsId || shipment.logisticsId;
+      if (transportRecordId) {
+        logistics = await this.logisticsModel.findByPk(transportRecordId);
       }
     } catch (err) {
-      console.warn('Could not fetch freight quote for stuffing:', err);
+      console.warn('Could not fetch freight transport data for stuffing:', err);
     }
 
     // 4. Extract Shipment & Contract Data
@@ -2218,6 +2327,12 @@ export class ShipmentService {
       paymentTerms: contract.paymentTerm?.name || '—',
       paymentTerm: contract.paymentTerm?.name || '—',
       shipmentDate: shipment.shipmentDate,
+      transportMode:
+        freightQuote?.transportMode ||
+        logistics?.transportMode ||
+        contract.transportMode ||
+        contract.originTransportMode ||
+        null,
       freightType: contract.shipmentType?.name || freightQuote?.mode || '—',
       shipmentType: contract.contractType || contract.shipmentType?.name || '—',
       route: route,
@@ -2310,15 +2425,29 @@ export class ShipmentService {
       console.warn('Readiness evaluate warning:', err);
     }
 
+    const existingStuffingData = existingStuffing
+      ? existingStuffing.get({ plain: true })
+      : null;
+    if (existingStuffingData?.containers) {
+      existingStuffingData.containers = this.stripRemovedContainerFields(
+        existingStuffingData.containers,
+      );
+    }
+    if (existingStuffingData) {
+      existingStuffingData.downtimes = Array.isArray(
+        existingStuffingData.downtimes,
+      )
+        ? existingStuffingData.downtimes
+        : [];
+    }
+
     return {
       shipmentId: shipment.id,
       shipmentStatus: shipment.status,
       readyForShipment,
       isManualOverride,
       autoPopulated,
-      existingStuffing: existingStuffing
-        ? existingStuffing.get({ plain: true })
-        : null,
+      existingStuffing: existingStuffingData,
     };
   }
 
@@ -2411,7 +2540,10 @@ export class ShipmentService {
           grossWeight: dto.grossWeight ? Number(dto.grossWeight) : 0,
           netWeight: dto.netWeight ? Number(dto.netWeight) : 0,
           freightOverrides: dto.freightOverrides || null,
-          containers: Array.isArray(dto.containers) ? dto.containers : [],
+          containers: this.stripRemovedContainerFields(
+            Array.isArray(dto.containers) ? dto.containers : [],
+          ),
+          downtimes: this.normalizeDowntimeRecords(dto.downtimes),
           trucks: Array.isArray(dto.trucks) ? dto.trucks : [],
           attachments: Array.isArray(dto.attachments) ? dto.attachments : [],
           remarks: dto.remarks || null,
@@ -2578,18 +2710,23 @@ export class ShipmentService {
         });
 
         // Also sync primary container / seal to cargo_loading if containers provided
-        if (stuffingData.containers && stuffingData.containers.length > 0) {
+        if (
+          stuffingData.containers.length > 0 ||
+          stuffingData.trucks.length > 0
+        ) {
           const loading = await this.cargoLoadingModel.findOne({
             where: { shipmentId: shipment.id },
             transaction,
           });
           if (loading) {
             const firstC = stuffingData.containers[0];
-            if (firstC.containerNo)
+            if (firstC?.containerNo)
               loading.containerNumber = firstC.containerNo;
-            if (firstC.sealNo) loading.sealNumber = firstC.sealNo;
-            if (firstC.vehicleNumber) loading.truckNo = firstC.vehicleNumber;
-            if (firstC.warehouse) loading.warehouseName = firstC.warehouse;
+            if (firstC?.sealNo) loading.sealNumber = firstC.sealNo;
+            const primaryTruck = stuffingData.trucks.find(
+              (truck: any) => truck.truckNo,
+            );
+            if (primaryTruck?.truckNo) loading.truckNo = primaryTruck.truckNo;
             if (stuffingData.actualLoadingWeight) {
               loading.loadedQty = stuffingData.actualLoadingWeight;
               loading.loadedWeight = stuffingData.actualLoadingWeight;

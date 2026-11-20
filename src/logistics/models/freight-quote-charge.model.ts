@@ -74,6 +74,10 @@ export class FreightQuoteCharge extends Model<FreightQuoteCharge> {
   declare amount: number;
 
   @AllowNull(true)
+  @Column({ field: 'charge_date', type: DataType.DATEONLY })
+  declare chargeDate: string;
+
+  @AllowNull(true)
   @Column({ type: DataType.TEXT })
   declare remarks: string;
 

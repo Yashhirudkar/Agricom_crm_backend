@@ -1,4 +1,5 @@
 import { ShipmentService } from './shipment.service';
+import { Op } from 'sequelize';
 
 describe('ShipmentService - Pending and Executed Tabs', () => {
   let service: ShipmentService;
@@ -234,6 +235,159 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       expect(stats.total).toBe(3);
       expect(stats.pendingCount).toBe(2);
       expect(stats.executedCount).toBe(1);
+    });
+  });
+
+  describe('getStuffingExecutionData', () => {
+    it('uses the shipment transport record mode in auto-populated data', async () => {
+      mockShipmentModel.findByPk = jest.fn().mockResolvedValue({
+        id: 77,
+        logisticsId: 12,
+        quantity: 10,
+        status: 'Scheduled',
+        salesContract: { id: 4, companyId: 1, items: [] },
+      });
+      mockFreightQuoteModel.findOne = jest.fn().mockResolvedValue({
+        id: 22,
+        logisticsId: 12,
+        transportMode: null,
+      });
+      mockLogisticsModel.findByPk = jest
+        .fn()
+        .mockResolvedValue({ transportMode: 'Rail' });
+      mockCargoAllocationModel.findAll = jest.fn().mockResolvedValue([]);
+      mockCargoLoadingModel.sum = jest.fn().mockResolvedValue(0);
+      mockStuffingModel.findOne = jest.fn().mockResolvedValue({
+        get: jest.fn().mockReturnValue({
+          containers: [
+            {
+              containerNo: 'CONT-1',
+              containerSize: '40 FT',
+              vehicleNumber: 'TRUCK-1',
+              sealNo: 'SEAL-1',
+              stuffingDate: '2026-11-20',
+              warehouse: 'Warehouse 1',
+              status: 'Pending',
+              remarks: 'Keep',
+              tareWeight: 1,
+              grossWeight: 10,
+              netWeight: 9,
+            },
+          ],
+          downtimes: [
+            {
+              price: 25.75,
+              currency: 'INR',
+              reason: 'Other',
+              customReason: 'Power outage',
+              fromDate: '2026-11-20',
+              toDate: '2026-11-21',
+              duration: '1 day',
+              remarks: '',
+            },
+          ],
+        }),
+      });
+      mockReadinessService.evaluate = jest.fn().mockResolvedValue({
+        readyForShipment: false,
+        isManualOverride: false,
+      });
+
+      const result = await service.getStuffingExecutionData(77);
+
+      expect(mockFreightQuoteModel.findOne).toHaveBeenCalledWith({
+        where: {
+          [Op.or]: [{ shipmentId: 77 }, { logisticsId: 12 }],
+        },
+        order: [['id', 'DESC']],
+      });
+      expect(result.autoPopulated.transportMode).toBe('Rail');
+      expect(result.existingStuffing.containers).toEqual([
+        {
+          containerNo: 'CONT-1',
+          containerSize: '40 FT',
+          sealNo: 'SEAL-1',
+          remarks: 'Keep',
+          tareWeight: 1,
+          grossWeight: 10,
+          netWeight: 9,
+        },
+      ]);
+      expect(result.existingStuffing.downtimes).toHaveLength(1);
+      expect(result.existingStuffing.downtimes[0].reason).toBe('Other');
+      expect(result.existingStuffing.downtimes[0].price).toBe(25.75);
+      expect(result.existingStuffing.downtimes[0].currency).toBe('INR');
+      expect(result.existingStuffing.downtimes[0].duration).toBe('1 day');
+    });
+  });
+
+  describe('normalizeDowntimeRecords', () => {
+    it('calculates elapsed days and rejects a From Date later than To Date', () => {
+      const normalize = (
+        service as unknown as {
+          normalizeDowntimeRecords: (
+            records: unknown,
+          ) => Record<string, unknown>[];
+        }
+      ).normalizeDowntimeRecords.bind(service);
+      const validDowntime = { price: 1, currency: 'USD' };
+
+      expect(
+        normalize([
+          {
+            ...validDowntime,
+            price: '12.50',
+            currency: 'USD',
+            fromDate: '2026-11-20',
+            toDate: '2026-11-22',
+            reason: 'Weather',
+          },
+        ]),
+      ).toEqual([
+        {
+          price: 12.5,
+          currency: 'USD',
+          reason: 'Weather',
+          customReason: '',
+          fromDate: '2026-11-20',
+          toDate: '2026-11-22',
+          duration: '2 days',
+          remarks: '',
+        },
+      ]);
+      expect(
+        normalize([
+          {
+            ...validDowntime,
+            fromDate: '2026-11-20',
+            toDate: '2026-11-20',
+          },
+        ])[0].duration,
+      ).toBe('0 days');
+      expect(() =>
+        normalize([
+          {
+            ...validDowntime,
+            fromDate: '2026-11-22',
+            toDate: '2026-11-20',
+          },
+        ]),
+      ).toThrow('From Date cannot be later than To Date');
+      expect(() =>
+        normalize([
+          {
+            ...validDowntime,
+            fromDate: '2026-02-30',
+            toDate: '2026-03-01',
+          },
+        ]),
+      ).toThrow('dates must use YYYY-MM-DD format');
+      expect(() =>
+        normalize([{ price: 0, currency: 'USD' }]),
+      ).toThrow('Price must be greater than 0');
+      expect(() => normalize([{ price: 1, currency: '' }])).toThrow(
+        'Currency is required',
+      );
     });
   });
 

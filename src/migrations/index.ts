@@ -78,6 +78,10 @@ import * as phase86 from './phase-86-dynamic-incoterm-sequence';
 import * as phase87 from './phase-87-freight-required-default-no';
 import * as phase88 from './phase-88-remove-freight-after-stage';
 import * as phase89 from './phase-89-optimize-currencies-and-indexes';
+import * as phase90 from './phase-90-normalize-truck-capacity';
+import * as phase91 from './phase-91-add-charge-date-to-freight-quote-charges';
+import * as phase92 from './phase-92-add-payment-term-id-to-freight-quotes';
+import * as phase93 from './phase-93-shipment-downtime-records';
 
 export interface MigrationPhase {
   phase: string;
@@ -171,4 +175,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase87,
   phase88,
   phase89,
+  phase90,
+  phase91,
+  phase92,
+  phase93,
 ];

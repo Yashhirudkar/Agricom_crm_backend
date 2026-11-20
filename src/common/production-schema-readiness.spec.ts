@@ -6,7 +6,7 @@ describe('validateProductionSchema', () => {
       query: jest
         .fn()
         .mockResolvedValueOnce({
-          rows: ['19', '53', '55', '57', '58', '76', '77', '78'].map(
+          rows: ['19', '53', '55', '57', '58', '76', '77', '78', '93'].map(
             (phase) => ({ phase }),
           ),
         })
@@ -35,7 +35,7 @@ describe('validateProductionSchema', () => {
       query: jest
         .fn()
         .mockResolvedValueOnce({
-          rows: ['19', '53', '55', '57', '58', '76', '77', '78'].map(
+          rows: ['19', '53', '55', '57', '58', '76', '77', '78', '93'].map(
             (phase) => ({ phase }),
           ),
         })

@@ -1983,13 +1983,12 @@ export class CargoAvailabilityService {
           );
           if (matchIdx >= 0) {
             containers[matchIdx] = {
-              ...containers[matchIdx],
-              status,
-              vehicleNumber:
-                loading.truckNo || containers[matchIdx].vehicleNumber,
+              containerNo: containers[matchIdx].containerNo,
+              containerSize: containers[matchIdx].containerSize,
               sealNo: loading.sealNumber || containers[matchIdx].sealNo,
-              warehouse:
-                loading.warehouseName || containers[matchIdx].warehouse,
+              remarks: containers[matchIdx].remarks,
+              tareWeight: containers[matchIdx].tareWeight,
+              grossWeight: containers[matchIdx].grossWeight,
               netWeight: Number(
                 loading.loadedWeight ||
                   loading.loadedQty ||
@@ -2003,11 +2002,7 @@ export class CargoAvailabilityService {
               {
                 containerNo: loading.containerNumber,
                 containerSize: '40 FT',
-                vehicleNumber: loading.truckNo || '',
                 sealNo: loading.sealNumber || '',
-                stuffingDate: loading.loadingDate || '',
-                warehouse: loading.warehouseName || '',
-                status,
                 remarks: loading.remarks || '',
                 tareWeight: 0,
                 grossWeight: Number(

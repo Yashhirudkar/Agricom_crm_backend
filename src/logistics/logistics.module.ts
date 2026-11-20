@@ -26,6 +26,7 @@ import { Attachment } from '../attachments/models/attachment.model';
 
 import { Partner } from '../masters/partner/partner.model';
 import { PartnerContact } from '../masters/partner/partner-contact.model';
+import { PaymentTerm } from '../masters/payment-term/payment-term.model';
 
 import { LogisticsService } from './services/logistics.service';
 import { LogisticsController } from './controllers/logistics.controller';
@@ -60,6 +61,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       Attachment,
       Partner,
       PartnerContact,
+      PaymentTerm,
     ]),
     AttachmentsModule,
     AuditModule,

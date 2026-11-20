@@ -11,8 +11,10 @@ import {
   UpdatedAt,
   ForeignKey,
   BelongsTo,
+  BeforeSave,
 } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
+import { normalizeTruckCapacity } from '../../common/utils/truck-capacity.util';
 
 @Table({
   tableName: 'equipment_options',
@@ -38,8 +40,35 @@ export class EquipmentOption extends Model<EquipmentOption> {
   declare category: string;
 
   @AllowNull(false)
-  @Column({ type: DataType.STRING(100) })
+  @Column({
+    type: DataType.STRING(100),
+    get() {
+      const val = this.getDataValue('value');
+      const category = this.getDataValue('category');
+      if (category === 'TRUCK_CAPACITY') {
+        return normalizeTruckCapacity(val);
+      }
+      return val;
+    },
+    set(val: string) {
+      const category = this.getDataValue('category');
+      if (category === 'TRUCK_CAPACITY') {
+        this.setDataValue('value', normalizeTruckCapacity(val));
+      } else {
+        this.setDataValue('value', val?.trim?.() ?? val);
+      }
+    },
+  })
   declare value: string;
+
+  @BeforeSave
+  static normalizeOptionValue(instance: EquipmentOption) {
+    if (instance.category?.toUpperCase() === 'TRUCK_CAPACITY') {
+      instance.value = normalizeTruckCapacity(instance.value);
+    } else if (instance.value) {
+      instance.value = instance.value.trim();
+    }
+  }
 
   @Default(0)
   @AllowNull(false)

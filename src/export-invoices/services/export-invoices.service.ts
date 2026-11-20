@@ -161,7 +161,6 @@ export class ExportInvoicesService {
       if (Array.isArray(stuffing.containers)) {
         stuffing.containers.forEach((c: any) => {
           if (c?.containerNo?.trim()) containerSet.add(c.containerNo.trim());
-          if (c?.vehicleNumber?.trim()) truckSet.add(c.vehicleNumber.trim());
         });
       }
     }
