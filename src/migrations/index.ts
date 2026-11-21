@@ -82,6 +82,7 @@ import * as phase90 from './phase-90-normalize-truck-capacity';
 import * as phase91 from './phase-91-add-charge-date-to-freight-quote-charges';
 import * as phase92 from './phase-92-add-payment-term-id-to-freight-quotes';
 import * as phase93 from './phase-93-shipment-downtime-records';
+import * as phase94 from './phase-94-bank-management';
 
 export interface MigrationPhase {
   phase: string;
@@ -179,4 +180,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase91,
   phase92,
   phase93,
+  phase94,
 ];

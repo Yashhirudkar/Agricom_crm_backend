@@ -40,6 +40,14 @@ export interface BankDetailsSnapshot {
   branch?: string;
   currency?: string;
   additionalDetails?: string;
+  formattedText?: string;
+  bankDetailsText?: string;
+  selectedDomesticBankId?: number;
+  selectedCurrency?: string;
+  resolvedNostroBankId?: number | null;
+  domesticBank?: any;
+  nostroBank?: any;
+  [key: string]: any;
 }
 
 @Table({

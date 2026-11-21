@@ -427,6 +427,15 @@ export class ExportInvoicesService {
       const opt = await this.bankProvider.getBankByKey(dto.bankKey);
       if (opt) bankDetails = opt.details;
     }
+    if (bankDetails) {
+      const formatted = bankDetails.formattedText || bankDetails.bankDetailsText || bankDetails.additionalDetails || '';
+      bankDetails = {
+        ...bankDetails,
+        formattedText: formatted,
+        bankDetailsText: formatted,
+        additionalDetails: formatted,
+      };
+    }
 
     // Contract number resolution for invoice number formatting
     let contractNumber = dto.sellerOrderNo;
@@ -862,6 +871,15 @@ export class ExportInvoicesService {
     if (dto.bankKey && !dto.bankDetails) {
       const bankOpt = await this.bankProvider.getBankByKey(dto.bankKey);
       if (bankOpt) dto.bankDetails = bankOpt.details;
+    }
+    if (dto.bankDetails) {
+      const formatted = dto.bankDetails.formattedText || dto.bankDetails.bankDetailsText || dto.bankDetails.additionalDetails || '';
+      dto.bankDetails = {
+        ...dto.bankDetails,
+        formattedText: formatted,
+        bankDetailsText: formatted,
+        additionalDetails: formatted,
+      };
     }
 
     const updatedMetadata = {

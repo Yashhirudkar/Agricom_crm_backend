@@ -4,6 +4,9 @@ import { SalesContractsModule } from './sales-contracts/sales-contracts.module';
 import { ExportInvoicesModule } from './export-invoices/export-invoices.module';
 import { ExportInvoice } from './export-invoices/models/export-invoice.model';
 import { ExportInvoiceSequence } from './export-invoices/models/export-invoice-sequence.model';
+import { DomesticBank } from './banks/models/domestic-bank.model';
+import { NostroBank } from './banks/models/nostro-bank.model';
+import { BanksModule } from './banks/banks.module';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -386,6 +389,8 @@ import {
             ExchangeRate,
             ExportInvoice,
             ExportInvoiceSequence,
+            DomesticBank,
+            NostroBank,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,
@@ -472,6 +477,7 @@ import {
     MonthlyTargetsModule,
     ExchangeRateModule,
     ExportInvoicesModule,
+    BanksModule,
   ],
   providers: [
     {

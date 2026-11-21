@@ -106,7 +106,7 @@ export class CompaniesController {
     return this.companiesService.deleteCompany(dto.id, clientId, actor);
   }
 
-  @Get('GetCompanies')
+  @Get(['GetCompanies', 'companies'])
   @RequirePermission('companies:read')
   getCompanies(
     @Request() req,

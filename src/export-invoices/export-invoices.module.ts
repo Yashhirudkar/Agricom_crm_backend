@@ -15,6 +15,7 @@ import { PurchaseContract } from '../purchase-contracts/models/purchase-contract
 import { PurchaseContractShipment } from '../purchase-contracts/models/purchase-contract-shipment.model';
 import { BusinessTransaction } from '../system/models/business-transaction.model';
 import { RbacModule } from '../rbac/modules/rbac.module';
+import { BanksModule } from '../banks/banks.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RbacModule } from '../rbac/modules/rbac.module';
       BusinessTransaction,
     ]),
     RbacModule,
+    BanksModule,
   ],
   controllers: [ExportInvoicesController],
   providers: [
