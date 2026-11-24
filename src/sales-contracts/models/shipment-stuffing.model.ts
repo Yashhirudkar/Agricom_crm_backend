@@ -76,6 +76,19 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
   @Column({ field: 'execution_status', type: DataType.STRING(50) })
   declare executionStatus: string;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ field: 'one_time_completed_edit_used', type: DataType.BOOLEAN })
+  declare oneTimeCompletedEditUsed: boolean;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_by', type: DataType.INTEGER })
+  declare oneTimeCompletedEditBy: number | null;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_at', type: DataType.DATE })
+  declare oneTimeCompletedEditAt: Date | null;
+
   @Default('Pending')
   @AllowNull(false)
   @Column({ field: 'warehouse_status', type: DataType.STRING(50) })

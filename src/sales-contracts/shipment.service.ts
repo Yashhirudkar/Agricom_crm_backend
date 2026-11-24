@@ -46,6 +46,7 @@ import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
 import { StockService } from '../stock/stock.service';
+import { assertCanModifyRecord } from '../rbac/utils/finalization-lock.util';
 
 function getContractDestination(contract: SalesContract): string | null {
   if (contract.destinationSelectionMode === 'enquiry') {
@@ -2469,9 +2470,50 @@ export class ShipmentService {
   }
 
   /**
+   * Checks if shipment stuffing execution is already finalized and enforces RBAC override.
+   */
+  async assertCanModifyStuffing(
+    shipmentId: number,
+    user?: any,
+    userPermissions?: Set<string>,
+  ) {
+    const existingStuffing = await this.stuffingModel.findOne({
+      where: { shipmentId },
+    });
+    const existingShipment = await this.shipmentModel.findByPk(shipmentId);
+    if (existingShipment) {
+      const isAlreadyCompleted =
+        existingStuffing?.stuffingStatus === 'Completed' ||
+        ['Executed', 'Dispatched', 'Completed'].includes(
+          existingShipment.status,
+        ) ||
+        existingStuffing?.executionStatus === 'Loading Completed' ||
+        existingStuffing?.executionStatus === 'Stuffed';
+
+      return assertCanModifyRecord({
+        isCompleted: isAlreadyCompleted,
+        oneTimeEditUsed: existingStuffing?.oneTimeCompletedEditUsed,
+        user,
+        userPermissions,
+        resource: 'shipment_stuffing_execution',
+        recordType: 'Shipment Stuffing Execution',
+        customMessage:
+          'Shipment stuffing execution is completed and the 1-time correction has already been used. You need the "shipment_stuffing_execution:edit_completed" permission to modify completed stuffing records.',
+      });
+    }
+    return { allowed: true, isCompleted: false, isOverride: false, isOneTimeEdit: false };
+  }
+
+  /**
    * Saves stuffing execution (Save as Draft OR Complete Stuffing)
    */
-  async saveStuffingExecution(shipmentId: number, dto: any, user?: any) {
+  async saveStuffingExecution(
+    shipmentId: number,
+    dto: any,
+    user?: any,
+    userPermissions?: Set<string>,
+  ) {
+    const access = await this.assertCanModifyStuffing(shipmentId, user, userPermissions);
     const userId = user?.userId ?? user?.id ?? null;
     const isComplete = dto.action === 'complete';
     const now = new Date();
@@ -2682,6 +2724,13 @@ export class ShipmentService {
           defaults: { ...stuffingData, createdBy: userId },
           transaction,
         });
+
+        if (access?.isOneTimeEdit) {
+          stuffingData.oneTimeCompletedEditUsed = true;
+          stuffingData.oneTimeCompletedEditBy = userId;
+          stuffingData.oneTimeCompletedEditAt = now;
+        }
+
         await record.update(stuffingData, { transaction });
 
         const effectiveExecutionStatus = isComplete

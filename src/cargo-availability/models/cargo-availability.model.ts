@@ -87,6 +87,19 @@ export class CargoAvailability extends Model<CargoAvailability> {
   @Column({ type: DataType.STRING(50) })
   declare status: string;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ field: 'one_time_completed_edit_used', type: DataType.BOOLEAN })
+  declare oneTimeCompletedEditUsed: boolean;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_by', type: DataType.INTEGER })
+  declare oneTimeCompletedEditBy: number | null;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_at', type: DataType.DATE })
+  declare oneTimeCompletedEditAt: Date | null;
+
   @CreatedAt
   @Column({ field: 'created_at' })
   declare createdAt: Date;

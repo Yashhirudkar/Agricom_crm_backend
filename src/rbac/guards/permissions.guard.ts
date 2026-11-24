@@ -31,6 +31,10 @@ export function standardizePermission(permKey: string): {
     action = 'update';
   }
 
+  if (action === 'edit-completed' || action === 'edit_completed') {
+    action = 'edit_completed';
+  }
+
   if (resource === 'partners') {
     resource = 'partner';
   }
@@ -290,12 +294,34 @@ export class PermissionsGuard implements CanActivate {
     // Build a Set of standardized "resource:action" strings the user holds
     // Normalize to lowercase — DB stores action names in UPPERCASE (READ, CREATE, etc.)
     // but @RequirePermission decorators pass lowercase (users:read, roles:create, etc.)
-    const grantedSet = new Set<string>(
-      rolePermissions.map((rp) => {
-        const rawPerm = `${rp.resourceAction.resource.name}:${rp.resourceAction.name.toLowerCase()}`;
-        return standardizePermission(rawPerm).name;
-      }),
-    );
+    const grantedSet = new Set<string>();
+    rolePermissions.forEach((rp) => {
+      const resourceName = rp.resourceAction?.resource?.name;
+      const actionName = rp.resourceAction?.name?.toLowerCase();
+      if (!resourceName || !actionName) return;
+
+      const rawPerm = `${resourceName}:${actionName}`;
+      const std = standardizePermission(rawPerm).name;
+      grantedSet.add(std);
+      grantedSet.add(rawPerm);
+
+      // Bi-directional aliases for Cargo & Freight modules
+      if (resourceName === 'cargo_allocation') {
+        grantedSet.add(`cargo_availability:${actionName}`);
+        grantedSet.add(standardizePermission(`cargo_availability:${actionName}`).name);
+      } else if (resourceName === 'cargo_availability') {
+        grantedSet.add(`cargo_allocation:${actionName}`);
+        grantedSet.add(standardizePermission(`cargo_allocation:${actionName}`).name);
+      }
+
+      if (resourceName === 'freight_allocation') {
+        grantedSet.add(`logistics:${actionName}`);
+        grantedSet.add(standardizePermission(`logistics:${actionName}`).name);
+      } else if (resourceName === 'logistics') {
+        grantedSet.add(`freight_allocation:${actionName}`);
+        grantedSet.add(standardizePermission(`freight_allocation:${actionName}`).name);
+      }
+    });
     request.userPermissions = grantedSet;
 
     // Check every required permission (AND logic)

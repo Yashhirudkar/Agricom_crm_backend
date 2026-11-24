@@ -51,6 +51,7 @@ import { Company } from '../../companies/models/company.model';
 import { TransportEnquiryHidden } from '../models/transport-enquiry-hidden.model';
 import { formatLogisticsLocation } from '../utils/logistics-location.util';
 import { isTransportAllocationComplete } from '../utils/transport-allocation.util';
+import { assertCanModifyRecord } from '../../rbac/utils/finalization-lock.util';
 
 @Injectable()
 export class LogisticsService {
@@ -3328,10 +3329,41 @@ export class LogisticsService {
     });
   }
 
+  private async isFreightQuoteFinalized(
+    quote: FreightQuote,
+    logistics?: Logistics | null,
+  ): Promise<boolean> {
+    if (quote.isPreferred) return true;
+    if (
+      logistics &&
+      (logistics.selectedFreightId ||
+        isTransportAllocationComplete(logistics.status))
+    ) {
+      return true;
+    }
+    if (quote.shipmentId) {
+      const preferredInShipment = await this.quoteModel.count({
+        where: { shipmentId: quote.shipmentId, isPreferred: true },
+      });
+      if (preferredInShipment > 0) return true;
+      const shipment = await this.shipmentModel.findByPk(quote.shipmentId, {
+        attributes: ['id', 'status', 'executionStatus'],
+      });
+      if (
+        shipment &&
+        ['Executed', 'Dispatched', 'Completed'].includes(shipment.status)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async deleteDirectFreightQuote(
     quoteId: number,
     user: any,
     companyId: number = 1,
+    userPermissions?: Set<string>,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, isDirect: true },
@@ -3340,7 +3372,18 @@ export class LogisticsService {
       throw new NotFoundException('Direct freight quote not found');
     }
 
-    if (quote.isPreferred) {
+    const isFinalized = await this.isFreightQuoteFinalized(quote);
+    assertCanModifyRecord({
+      isCompleted: isFinalized,
+      user,
+      userPermissions,
+      resource: 'freight_allocation',
+      recordType: 'Freight Allocation',
+      customMessage:
+        'Freight Allocation is finalized. You need the "freight_allocation:edit_completed" permission to delete finalized quotes.',
+    });
+
+    if (quote.isPreferred && !isFinalized) {
       throw new BadRequestException('Cannot delete preferred quote.');
     }
 
@@ -3390,11 +3433,24 @@ export class LogisticsService {
     dto: CreateFreightQuoteDto,
     user: any,
     companyId: number = 1,
+    userPermissions?: Set<string>,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, isDirect: true },
     });
     if (!quote) throw new NotFoundException('Direct freight quote not found');
+
+    const isFinalized = await this.isFreightQuoteFinalized(quote);
+    const access = assertCanModifyRecord({
+      isCompleted: isFinalized,
+      oneTimeEditUsed: quote.oneTimeCompletedEditUsed,
+      user,
+      userPermissions,
+      resource: 'freight_allocation',
+      recordType: 'Freight Allocation',
+      customMessage:
+        'Freight Allocation is finalized and the 1-time correction has already been used. You need the "freight_allocation:edit_completed" permission to modify finalized quotes.',
+    });
 
     return await this.sequelize.transaction(async (transaction) => {
       const resolvedPt = await this.resolvePaymentTerm(
@@ -3405,16 +3461,23 @@ export class LogisticsService {
       );
 
       // 1. Update quote basic details
+      const directUpdatePayload: any = {
+        productId: dto.productId,
+        quoteDate: dto.quoteDate,
+        origin: dto.origin || dto.loadingPoint || quote.origin,
+        destination: dto.destination || quote.destination,
+        paymentTermId: resolvedPt.paymentTermId,
+        paymentTerms: resolvedPt.paymentTerms,
+        updatedBy: user?.userId,
+      };
+      if (access.isOneTimeEdit) {
+        directUpdatePayload.oneTimeCompletedEditUsed = true;
+        directUpdatePayload.oneTimeCompletedEditBy = user?.id || user?.userId || null;
+        directUpdatePayload.oneTimeCompletedEditAt = new Date();
+      }
+
       await quote.update(
-        {
-          productId: dto.productId,
-          quoteDate: dto.quoteDate,
-          origin: dto.origin || dto.loadingPoint || quote.origin,
-          destination: dto.destination || quote.destination,
-          paymentTermId: resolvedPt.paymentTermId,
-          paymentTerms: resolvedPt.paymentTerms,
-          updatedBy: user?.userId,
-        } as any,
+        directUpdatePayload as any,
         { transaction },
       );
 
@@ -3509,6 +3572,7 @@ export class LogisticsService {
     dto: CreateFreightQuoteDto,
     user: any,
     companyId: number = 1,
+    userPermissions?: Set<string>,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId },
@@ -3516,6 +3580,19 @@ export class LogisticsService {
     if (!quote) {
       throw new NotFoundException('Freight quote not found');
     }
+
+    const logistics = await this.logisticsModel.findByPk(logisticsId);
+    const isFinalized = await this.isFreightQuoteFinalized(quote, logistics);
+    const access = assertCanModifyRecord({
+      isCompleted: isFinalized,
+      oneTimeEditUsed: quote.oneTimeCompletedEditUsed,
+      user,
+      userPermissions,
+      resource: 'freight_allocation',
+      recordType: 'Freight Allocation',
+      customMessage:
+        'Freight Allocation is finalized and the 1-time correction has already been used. You need the "freight_allocation:edit_completed" permission to modify finalized quotes.',
+    });
     if (
       dto.shipmentId &&
       Number(quote.shipmentId) !== Number(dto.shipmentId)
@@ -3589,16 +3666,23 @@ export class LogisticsService {
         companyId,
       );
 
+      const updatePayload: any = {
+        ...dto,
+        freightAmount: calculatedFreightAmount,
+        version: newVersion,
+        updatedBy: user?.userId,
+        routeId: dto.routeId || null,
+        paymentTermId: resolvedPt.paymentTermId,
+        paymentTerms: resolvedPt.paymentTerms,
+      };
+      if (access.isOneTimeEdit) {
+        updatePayload.oneTimeCompletedEditUsed = true;
+        updatePayload.oneTimeCompletedEditBy = user?.id || user?.userId || null;
+        updatePayload.oneTimeCompletedEditAt = new Date();
+      }
+
       await quote.update(
-        {
-          ...dto,
-          freightAmount: calculatedFreightAmount,
-          version: newVersion,
-          updatedBy: user?.userId,
-          routeId: dto.routeId || null,
-          paymentTermId: resolvedPt.paymentTermId,
-          paymentTerms: resolvedPt.paymentTerms,
-        } as any,
+        updatePayload as any,
         { transaction },
       );
 
@@ -3743,6 +3827,7 @@ export class LogisticsService {
     user: any,
     companyId: number = 1,
     shipmentId?: number,
+    userPermissions?: Set<string>,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId, ...(shipmentId ? { shipmentId } : {}) },
@@ -3751,7 +3836,19 @@ export class LogisticsService {
       throw new NotFoundException('Freight quote not found');
     }
 
-    if (quote.isPreferred) {
+    const logistics = await this.logisticsModel.findByPk(logisticsId);
+    const isFinalized = await this.isFreightQuoteFinalized(quote, logistics);
+    assertCanModifyRecord({
+      isCompleted: isFinalized,
+      user,
+      userPermissions,
+      resource: 'freight_allocation',
+      recordType: 'Freight Allocation',
+      customMessage:
+        'Freight Allocation is finalized. You need the "freight_allocation:edit_completed" permission to delete finalized quotes.',
+    });
+
+    if (quote.isPreferred && !isFinalized) {
       throw new BadRequestException(
         'Cannot delete preferred quote. Please mark another quote as preferred or clear preferred selection first.',
       );
@@ -3807,12 +3904,45 @@ export class LogisticsService {
     user: any,
     companyId: number = 1,
     shipmentId?: number,
+    userPermissions?: Set<string>,
   ) {
     const quote = await this.quoteModel.findOne({
       where: { id: quoteId, logisticsId, ...(shipmentId ? { shipmentId } : {}) },
     });
     if (!quote) {
       throw new NotFoundException('Freight quote not found');
+    }
+
+    const logistics = await this.logisticsModel.findByPk(logisticsId);
+    if (!logistics) {
+      throw new NotFoundException('Logistics record not found');
+    }
+
+    const alreadyHasPreferred = quote.shipmentId
+      ? (await this.quoteModel.count({
+          where: {
+            shipmentId: quote.shipmentId,
+            isPreferred: true,
+            id: { [Op.ne]: quote.id },
+          },
+        })) > 0
+      : Boolean(
+          (logistics.selectedFreightId && logistics.selectedFreightId !== quote.id) ||
+            isTransportAllocationComplete(logistics.status),
+        );
+
+    let access: any = null;
+    if (alreadyHasPreferred) {
+      access = assertCanModifyRecord({
+        isCompleted: true,
+        oneTimeEditUsed: quote.oneTimeCompletedEditUsed,
+        user,
+        userPermissions,
+        resource: 'freight_allocation',
+        recordType: 'Freight Allocation',
+        customMessage:
+          'Freight Allocation is finalized with a preferred quote and the 1-time correction has already been used. You need the "freight_allocation:edit_completed" permission to change the preferred quote.',
+      });
     }
 
     if (quote.shipmentId) {
@@ -3828,11 +3958,6 @@ export class LogisticsService {
       }
     }
 
-    const logistics = await this.logisticsModel.findByPk(logisticsId);
-    if (!logistics) {
-      throw new NotFoundException('Logistics record not found');
-    }
-
     await this.sequelize.transaction(async (transaction) => {
       const oldStatus = logistics.status;
       if (quote.shipmentId) {
@@ -3843,8 +3968,14 @@ export class LogisticsService {
         );
 
         // 2. Mark this quote as preferred
+        const preferredPayload: any = { isPreferred: true, isRejected: false };
+        if (access?.isOneTimeEdit) {
+          preferredPayload.oneTimeCompletedEditUsed = true;
+          preferredPayload.oneTimeCompletedEditBy = user?.id || user?.userId || null;
+          preferredPayload.oneTimeCompletedEditAt = new Date();
+        }
         await quote.update(
-          { isPreferred: true, isRejected: false },
+          preferredPayload,
           { transaction },
         );
 
@@ -3937,10 +4068,23 @@ export class LogisticsService {
     dto: UpdateLogisticsStatusDto,
     user: any,
     companyId: number = 1,
+    userPermissions?: Set<string>,
   ) {
     const logistics = await this.logisticsModel.findByPk(logisticsId);
     if (!logistics) {
       throw new NotFoundException('Logistics record not found');
+    }
+
+    if (isTransportAllocationComplete(logistics.status)) {
+      assertCanModifyRecord({
+        isCompleted: true,
+        user,
+        userPermissions,
+        resource: 'freight_allocation',
+        recordType: 'Freight Allocation',
+        customMessage:
+          'Freight Allocation is finalized. You need the "freight_allocation:edit_completed" permission to modify finalized logistics status.',
+      });
     }
 
     const completesAllocation = isTransportAllocationComplete(dto.status);

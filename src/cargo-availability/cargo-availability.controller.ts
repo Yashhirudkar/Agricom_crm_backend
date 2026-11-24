@@ -79,7 +79,13 @@ export class CargoAvailabilityController {
   @RequirePermission('cargo_availability:create')
   async createReadiness(@Body() dto: any, @Req() req: any) {
     const user = req.user;
-    return this.service.createReadiness(dto, user?.id, user?.companyId);
+    return this.service.createReadiness(
+      dto,
+      user?.id,
+      user?.companyId,
+      user,
+      req.userPermissions,
+    );
   }
 
   @Patch('readiness/:id/approve')
@@ -95,6 +101,8 @@ export class CargoAvailabilityController {
       status,
       user?.id,
       user?.companyId,
+      user,
+      req.userPermissions,
     );
   }
 
@@ -102,14 +110,26 @@ export class CargoAvailabilityController {
   @RequirePermission('cargo_availability:create')
   async createAllocation(@Body() dto: any, @Req() req: any) {
     const user = req.user;
-    return this.service.createAllocation(dto, user?.id, user?.companyId);
+    return this.service.createAllocation(
+      dto,
+      user?.id,
+      user?.companyId,
+      user,
+      req.userPermissions,
+    );
   }
 
   @Post('loading')
   @RequirePermission('cargo_availability:create')
   async createLoading(@Body() dto: any, @Req() req: any) {
     const user = req.user;
-    return this.service.createLoading(dto, user?.id, user?.companyId);
+    return this.service.createLoading(
+      dto,
+      user?.id,
+      user?.companyId,
+      user,
+      req.userPermissions,
+    );
   }
 
   @Put('loading/:id')
@@ -125,6 +145,8 @@ export class CargoAvailabilityController {
       dto,
       user?.id,
       user?.companyId,
+      user,
+      req.userPermissions,
     );
   }
 }

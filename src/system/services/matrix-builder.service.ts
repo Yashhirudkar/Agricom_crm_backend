@@ -26,6 +26,8 @@ export class MatrixBuilderService {
   async getRegistry() {
     await this.ensureStockManagementPermission();
     await this.ensureDocumentsPermission();
+    await this.ensureCargoAllocationPermission();
+    await this.ensureFreightAllocationPermission();
     await this.ensureSalesReportPermission();
     await this.ensureConfirmedOrdersPermission();
     await this.ensurePortMasterPermission();
@@ -254,12 +256,158 @@ export class MatrixBuilderService {
       } as any,
     });
 
+    const [editCompletedAction] = await this.resourceActionModel.findOrCreate({
+      where: { name: 'EDIT_COMPLETED', resource_id: stuffingResource.id },
+      defaults: {
+        name: 'EDIT_COMPLETED',
+        display_name: 'EDIT COMPLETED',
+        resource_id: stuffingResource.id,
+        sort_order: 20,
+      } as any,
+    });
+
     const clients = await this.clientModel.findAll({
       attributes: ['id'],
     });
 
     for (const client of clients) {
-      for (const action of [viewAction, updateAction]) {
+      for (const action of [viewAction, updateAction, editCompletedAction]) {
+        await this.clientActionAccessModel.findOrCreate({
+          where: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          },
+          defaults: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          } as any,
+        });
+      }
+    }
+  }
+
+  private async ensureCargoAllocationPermission(): Promise<void> {
+    const [cargoModule] = await this.appModuleModel.findOrCreate({
+      where: { name: 'Cargo Allocation' },
+      defaults: {
+        name: 'Cargo Allocation',
+        sort_order: 86,
+      } as any,
+    });
+
+    const [cargoResource, resourceCreated] =
+      await this.moduleResourceModel.findOrCreate({
+        where: { name: 'cargo_allocation' },
+        defaults: {
+          name: 'cargo_allocation',
+          display_name: 'Cargo Allocation',
+          module_id: cargoModule.id,
+          sort_order: 10,
+        } as any,
+      });
+
+    if (
+      !resourceCreated &&
+      (cargoResource.module_id !== cargoModule.id ||
+        cargoResource.display_name !== 'Cargo Allocation')
+    ) {
+      cargoResource.module_id = cargoModule.id;
+      cargoResource.display_name = 'Cargo Allocation';
+      await cargoResource.save();
+    }
+
+    const actionNames = [
+      'VIEW',
+      'CREATE',
+      'UPDATE',
+      'DELETE',
+      'EDIT_COMPLETED',
+    ];
+    const actions: ResourceAction[] = [];
+    for (let i = 0; i < actionNames.length; i++) {
+      const [action] = await this.resourceActionModel.findOrCreate({
+        where: { name: actionNames[i], resource_id: cargoResource.id },
+        defaults: {
+          name: actionNames[i],
+          display_name: actionNames[i].replace(/_/g, ' '),
+          resource_id: cargoResource.id,
+          sort_order: i * 10,
+        } as any,
+      });
+      actions.push(action);
+    }
+
+    const clients = await this.clientModel.findAll({ attributes: ['id'] });
+    for (const client of clients) {
+      for (const action of actions) {
+        await this.clientActionAccessModel.findOrCreate({
+          where: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          },
+          defaults: {
+            client_id: client.id,
+            resource_action_id: action.id,
+          } as any,
+        });
+      }
+    }
+  }
+
+  private async ensureFreightAllocationPermission(): Promise<void> {
+    const [freightModule] = await this.appModuleModel.findOrCreate({
+      where: { name: 'Freight Allocation' },
+      defaults: {
+        name: 'Freight Allocation',
+        sort_order: 87,
+      } as any,
+    });
+
+    const [freightResource, resourceCreated] =
+      await this.moduleResourceModel.findOrCreate({
+        where: { name: 'freight_allocation' },
+        defaults: {
+          name: 'freight_allocation',
+          display_name: 'Freight Allocation',
+          module_id: freightModule.id,
+          sort_order: 10,
+        } as any,
+      });
+
+    if (
+      !resourceCreated &&
+      (freightResource.module_id !== freightModule.id ||
+        freightResource.display_name !== 'Freight Allocation')
+    ) {
+      freightResource.module_id = freightModule.id;
+      freightResource.display_name = 'Freight Allocation';
+      await freightResource.save();
+    }
+
+    const actionNames = [
+      'VIEW',
+      'CREATE',
+      'UPDATE',
+      'DELETE',
+      'EDIT_COMPLETED',
+    ];
+    const actions: ResourceAction[] = [];
+    for (let i = 0; i < actionNames.length; i++) {
+      const [action] = await this.resourceActionModel.findOrCreate({
+        where: { name: actionNames[i], resource_id: freightResource.id },
+        defaults: {
+          name: actionNames[i],
+          display_name: actionNames[i].replace(/_/g, ' '),
+          resource_id: freightResource.id,
+          sort_order: i * 10,
+        } as any,
+      });
+      actions.push(action);
+    }
+
+    const clients = await this.clientModel.findAll({ attributes: ['id'] });
+    for (const client of clients) {
+      for (const action of actions) {
         await this.clientActionAccessModel.findOrCreate({
           where: {
             client_id: client.id,

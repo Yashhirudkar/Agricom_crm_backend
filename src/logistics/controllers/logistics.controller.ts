@@ -183,6 +183,7 @@ export class LogisticsController {
       dto,
       req.user,
       companyId,
+      req.userPermissions,
     );
   }
 
@@ -194,7 +195,12 @@ export class LogisticsController {
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.deleteDirectFreightQuote(quoteId, req.user, companyId);
+    return this.service.deleteDirectFreightQuote(
+      quoteId,
+      req.user,
+      companyId,
+      req.userPermissions,
+    );
   }
 
   // ─── Add Freight Quote ───────────────────────────────────────────────────────
@@ -226,6 +232,7 @@ export class LogisticsController {
       dto,
       req.user,
       companyId,
+      req.userPermissions,
     );
   }
 
@@ -252,6 +259,7 @@ export class LogisticsController {
       req.user,
       companyId,
       shipmentId,
+      req.userPermissions,
     );
   }
 
@@ -278,6 +286,7 @@ export class LogisticsController {
       req.user,
       companyId,
       shipmentId,
+      req.userPermissions,
     );
   }
 
@@ -290,7 +299,13 @@ export class LogisticsController {
     @Req() req: any,
   ) {
     const companyId = req.user?.companyId;
-    return this.service.updateStatus(id, dto, req.user, companyId);
+    return this.service.updateStatus(
+      id,
+      dto,
+      req.user,
+      companyId,
+      req.userPermissions,
+    );
   }
 
   // ─── Direct Shipment Transport Workspace ──────────────────────────────────

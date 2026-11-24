@@ -129,7 +129,12 @@ export class ShipmentController {
     @Body() dto: any,
     @Req() req: any,
   ) {
-    return await this.service.saveStuffingExecution(id, dto, req.user);
+    return await this.service.saveStuffingExecution(
+      id,
+      dto,
+      req.user,
+      req.userPermissions,
+    );
   }
 
   @Post(':id/stuffing-execution/attachments')
@@ -144,6 +149,11 @@ export class ShipmentController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
+    await this.service.assertCanModifyStuffing(
+      id,
+      req.user,
+      req.userPermissions,
+    );
     const attachment = await this.attachmentsService.createAttachment(
       file,
       req.user?.id || req.user?.userId,

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import {
@@ -29,6 +30,7 @@ import {
   isBusinessReferenceSearch,
   resolveBusinessTransactionId,
 } from '../system/utils/business-reference-query.util';
+import { assertCanModifyRecord } from '../rbac/utils/finalization-lock.util';
 
 @Injectable()
 export class CargoAvailabilityService {
@@ -215,6 +217,7 @@ export class CargoAvailabilityService {
     } else {
       const isCompleted =
         (loadedQty >= Number(plain.purchaseQty || 0) && loadedQty > 0) ||
+        (allocatedQty >= Number(plain.purchaseQty || 0) && allocatedQty > 0) ||
         plain.status === 'Completed';
       const isAllDispatched =
         dispatchedQty > 0 &&
@@ -240,6 +243,12 @@ export class CargoAvailabilityService {
     return {
       ...plain,
       isReady: Boolean(isReady),
+      hasExistingReadiness: Boolean(latestReadiness),
+      existingReadiness: latestReadiness
+        ? latestReadiness.get
+          ? latestReadiness.get({ plain: true })
+          : latestReadiness
+        : null,
       readyDate: latestReadiness?.readyDate || null,
       remarks: latestReadiness?.remarks || null,
       readyQty,
@@ -251,6 +260,9 @@ export class CargoAvailabilityService {
       noOfReadinessEntries: readinessCount,
       noOfTrucks: trucksCount,
       status: computedStatus,
+      oneTimeCompletedEditUsed: Boolean(plain.oneTimeCompletedEditUsed),
+      oneTimeCompletedEditBy: plain.oneTimeCompletedEditBy || null,
+      oneTimeCompletedEditAt: plain.oneTimeCompletedEditAt || null,
     };
   }
 
@@ -764,6 +776,8 @@ export class CargoAvailabilityService {
     dto: any,
     userId?: number,
     companyId?: number,
+    currentUser?: any,
+    userPermissions?: Set<string>,
   ): Promise<CargoReadiness> {
     let record: any = null;
     if (dto.cargoAvailabilityId && !isNaN(Number(dto.cargoAvailabilityId))) {
@@ -817,6 +831,48 @@ export class CargoAvailabilityService {
         `CargoAvailability record could not be resolved for ID #${dto.cargoAvailabilityId || 'null'} / Shipment #${dto.shipmentId}`,
       );
     }
+
+    const metrics = await this.attachCalculatedMetrics(record);
+
+    // Check if readiness record already exists for this cargo availability record
+    const existingEntry = await this.cargoReadinessModel.findOne({
+      where: { cargoAvailabilityId: record.id },
+    });
+
+    const hasExistingReadiness = Boolean(
+      existingEntry ||
+      metrics.hasExistingReadiness ||
+      record.status === 'Completed' ||
+      record.status === 'Ready',
+    );
+
+    if (hasExistingReadiness) {
+      const hasOverride =
+        userPermissions?.has('cargo_allocation:edit_completed') ||
+        userPermissions?.has('cargo_availability:edit_completed');
+
+      if (!hasOverride) {
+        throw new ForbiddenException(
+          'Cargo Readiness record already exists and is locked. You need the "cargo_allocation:edit_completed" permission to modify finalized readiness records.',
+        );
+      }
+    }
+
+    const isCompleted =
+      record.status === 'Completed' ||
+      (Number(metrics.allocatedQty || 0) >= Number(record.purchaseQty || 0) &&
+        Number(record.purchaseQty || 0) > 0);
+
+    const access = assertCanModifyRecord({
+      isCompleted,
+      oneTimeEditUsed: record.oneTimeCompletedEditUsed,
+      user: currentUser,
+      userPermissions,
+      resource: 'cargo_allocation',
+      recordType: 'Cargo Allocation',
+      customMessage:
+        'Cargo Allocation is completed and the 1-time correction has already been used. You need the "cargo_allocation:edit_completed" permission to modify finalized records.',
+    });
 
     const isReady = dto.status === 'Ready';
 
@@ -906,7 +962,18 @@ export class CargoAvailabilityService {
       });
     }
 
-    record.status = isReady ? 'Ready' : 'Not Ready';
+    record.status = isReady
+      ? 'Completed'
+      : 'Not Ready';
+
+    if (access.isOneTimeEdit) {
+      record.oneTimeCompletedEditUsed = true;
+      record.oneTimeCompletedEditBy = currentUser?.id || currentUser?.userId || userId || null;
+      record.oneTimeCompletedEditAt = new Date();
+      this.logger.log(
+        `One-time completed edit used for CargoAvailability #${record.id} by user #${record.oneTimeCompletedEditBy}`,
+      );
+    }
     await record.save();
 
     return entry;
@@ -917,6 +984,8 @@ export class CargoAvailabilityService {
     status: string,
     userId?: number,
     companyId?: number,
+    currentUser?: any,
+    userPermissions?: Set<string>,
   ): Promise<CargoReadiness> {
     const entryWhere: any = { id };
     if (companyId) entryWhere.companyId = companyId;
@@ -925,12 +994,45 @@ export class CargoAvailabilityService {
       throw new NotFoundException(`CargoReadiness #${id} not found`);
     }
 
+    let access: any = null;
+    let targetCargo: CargoAvailability | null = null;
+    if (entry.cargoAvailabilityId) {
+      targetCargo = await this.cargoAvailabilityModel.findByPk(
+        entry.cargoAvailabilityId,
+      );
+      if (targetCargo) {
+        const metrics = await this.attachCalculatedMetrics(targetCargo);
+        const isCompleted =
+          targetCargo.status === 'Completed' ||
+          (Number(metrics.allocatedQty || 0) >= Number(targetCargo.purchaseQty || 0) &&
+            Number(targetCargo.purchaseQty || 0) > 0);
+        access = assertCanModifyRecord({
+          isCompleted,
+          oneTimeEditUsed: targetCargo.oneTimeCompletedEditUsed,
+          user: currentUser,
+          userPermissions,
+          resource: 'cargo_allocation',
+          recordType: 'Cargo Allocation',
+          customMessage:
+            'Cargo Allocation is completed and the 1-time correction has already been used. You need the "cargo_allocation:edit_completed" permission to modify finalized records.',
+        });
+      }
+    }
+
     entry.status = status;
     if (status === 'Approved') {
       entry.approvedBy = userId || null;
       entry.approvedAt = new Date();
     }
     await entry.save();
+
+    if (access?.isOneTimeEdit && targetCargo) {
+      targetCargo.oneTimeCompletedEditUsed = true;
+      targetCargo.oneTimeCompletedEditBy = currentUser?.id || currentUser?.userId || userId || null;
+      targetCargo.oneTimeCompletedEditAt = new Date();
+      await targetCargo.save();
+    }
+
     return entry;
   }
 
@@ -939,6 +1041,8 @@ export class CargoAvailabilityService {
     dto: any,
     userId?: number,
     companyId?: number,
+    currentUser?: any,
+    userPermissions?: Set<string>,
   ): Promise<CargoShipmentAllocation> {
     await this.syncExecutedShipmentLoadings(companyId);
     const cargoWhere: any = { id: dto.cargoAvailabilityId };
@@ -951,6 +1055,25 @@ export class CargoAvailabilityService {
         `CargoAvailability #${dto.cargoAvailabilityId} not found`,
       );
     }
+
+    const metrics = await this.attachCalculatedMetrics(cargo);
+    const isCompleted =
+      cargo.status === 'Completed' ||
+      (Number(metrics.availableQty || 0) <= 0 &&
+        Number(metrics.allocatedQty || 0) > 0) ||
+      (Number(metrics.allocatedQty || 0) >= Number(cargo.purchaseQty || 0) &&
+        Number(cargo.purchaseQty || 0) > 0);
+
+    const access = assertCanModifyRecord({
+      isCompleted,
+      oneTimeEditUsed: cargo.oneTimeCompletedEditUsed,
+      user: currentUser,
+      userPermissions,
+      resource: 'cargo_allocation',
+      recordType: 'Cargo Allocation',
+      customMessage:
+        'Cargo Allocation is completed and the 1-time correction has already been used. You need the "cargo_allocation:edit_completed" permission to modify finalized records.',
+    });
 
     if (dto.shipmentId) {
       const shipment = await this.shipmentModel.findOne({
@@ -965,7 +1088,6 @@ export class CargoAvailabilityService {
         );
     }
 
-    const metrics = await this.attachCalculatedMetrics(cargo);
     if (Number(dto.allocatedQty) > Number(metrics.availableQty)) {
       throw new BadRequestException(
         `Cannot allocate ${dto.allocatedQty} MT. Available Ready Qty is only ${metrics.availableQty} MT.`,
@@ -981,6 +1103,25 @@ export class CargoAvailabilityService {
       allocatedAt: new Date(),
       companyId: cargo.companyId,
     });
+
+    const newAllocatedQty =
+      Number(metrics.allocatedQty || 0) + Number(dto.allocatedQty);
+    if (
+      newAllocatedQty >= Number(cargo.purchaseQty || 0) &&
+      Number(cargo.purchaseQty || 0) > 0
+    ) {
+      cargo.status = 'Completed';
+    }
+
+    if (access.isOneTimeEdit) {
+      cargo.oneTimeCompletedEditUsed = true;
+      cargo.oneTimeCompletedEditBy = currentUser?.id || currentUser?.userId || userId || null;
+      cargo.oneTimeCompletedEditAt = new Date();
+      this.logger.log(
+        `One-time completed edit used for CargoAllocation on CargoAvailability #${cargo.id} by user #${cargo.oneTimeCompletedEditBy}`,
+      );
+    }
+    await cargo.save();
 
     return allocation;
   }
@@ -1589,6 +1730,8 @@ export class CargoAvailabilityService {
     dto: any,
     userId?: number,
     companyId?: number,
+    currentUser?: any,
+    userPermissions?: Set<string>,
   ): Promise<CargoLoading> {
     await this.syncExecutedShipmentLoadings(companyId);
     // a. Hard block duplicate truck check on same date
@@ -1646,20 +1789,51 @@ export class CargoAvailabilityService {
       }
     }
 
-    // c. Validate Available Ready Stock (only if a cargo availability record is linked)
-    if (dto.cargoAvailabilityId) {
-      const cargoWhere: any = { id: dto.cargoAvailabilityId };
+    // c. Validate Available Ready Stock and Finalization Lock
+    let targetCargoAvailabilityId = dto.cargoAvailabilityId;
+    if (!targetCargoAvailabilityId && dto.shipmentId) {
+      const alloc = await this.cargoAllocationModel.findOne({
+        where: { shipmentId: Number(dto.shipmentId), status: 'Active' },
+      });
+      if (alloc) {
+        targetCargoAvailabilityId = alloc.cargoAvailabilityId;
+      }
+    }
+
+    if (targetCargoAvailabilityId) {
+      const cargoWhere: any = { id: targetCargoAvailabilityId };
       if (companyId) cargoWhere.companyId = companyId;
       const cargo = await this.cargoAvailabilityModel.findOne({
         where: cargoWhere,
       });
       if (!cargo) {
         throw new NotFoundException(
-          `CargoAvailability #${dto.cargoAvailabilityId} not found`,
+          `CargoAvailability #${targetCargoAvailabilityId} not found`,
         );
       }
 
       const metrics = await this.attachCalculatedMetrics(cargo);
+      const isCompleted =
+        cargo.status === 'Completed' ||
+        (Number(metrics.allocatedQty || 0) >= Number(cargo.purchaseQty || 0) &&
+          Number(cargo.purchaseQty || 0) > 0);
+      const access = assertCanModifyRecord({
+        isCompleted,
+        oneTimeEditUsed: cargo.oneTimeCompletedEditUsed,
+        user: currentUser,
+        userPermissions,
+        resource: 'cargo_allocation',
+        recordType: 'Cargo Allocation',
+        customMessage:
+          'Cargo Allocation is completed and the 1-time correction has already been used. You need the "cargo_allocation:edit_completed" permission to modify finalized records.',
+      });
+      if (access.isOneTimeEdit) {
+        cargo.oneTimeCompletedEditUsed = true;
+        cargo.oneTimeCompletedEditBy = currentUser?.id || currentUser?.userId || userId || null;
+        cargo.oneTimeCompletedEditAt = new Date();
+        await cargo.save();
+      }
+
       if (loadedQty > Number(metrics.availableQty)) {
         throw new BadRequestException(
           `Loaded Quantity (${loadedQty} MT) exceeds Available Ready Stock (${metrics.availableQty} MT).`,
@@ -1745,6 +1919,8 @@ export class CargoAvailabilityService {
     dto: any,
     userId?: number,
     companyId?: number,
+    currentUser?: any,
+    userPermissions?: Set<string>,
   ): Promise<CargoLoading> {
     await this.syncExecutedShipmentLoadings(companyId);
     const loadingWhere: any = { id };
@@ -1757,6 +1933,42 @@ export class CargoAvailabilityService {
       });
       if (!loading) {
         throw new NotFoundException(`CargoLoading #${id} not found`);
+      }
+
+      let access: any = null;
+      let targetCargo: CargoAvailability | null = null;
+      let targetCargoId = loading.cargoAvailabilityId;
+      if (!targetCargoId && loading.shipmentId) {
+        const alloc = await this.cargoAllocationModel.findOne({
+          where: { shipmentId: Number(loading.shipmentId), status: 'Active' },
+          transaction,
+        });
+        if (alloc) {
+          targetCargoId = alloc.cargoAvailabilityId;
+        }
+      }
+      if (targetCargoId) {
+        targetCargo = await this.cargoAvailabilityModel.findByPk(
+          targetCargoId,
+          { transaction },
+        );
+        if (targetCargo) {
+          const metrics = await this.attachCalculatedMetrics(targetCargo);
+          const isCompleted =
+            targetCargo.status === 'Completed' ||
+            (Number(metrics.allocatedQty || 0) >= Number(targetCargo.purchaseQty || 0) &&
+              Number(targetCargo.purchaseQty || 0) > 0);
+          access = assertCanModifyRecord({
+            isCompleted,
+            oneTimeEditUsed: targetCargo.oneTimeCompletedEditUsed,
+            user: currentUser,
+            userPermissions,
+            resource: 'cargo_allocation',
+            recordType: 'Cargo Allocation',
+            customMessage:
+              'Cargo Allocation is completed and the 1-time correction has already been used. You need the "cargo_allocation:edit_completed" permission to modify finalized records.',
+          });
+        }
       }
 
       const shipment = await this.shipmentModel.findByPk(loading.shipmentId, {
@@ -2021,6 +2233,17 @@ export class CargoAvailabilityService {
       if (status === 'Completed') shipment.status = 'Completed';
       else if (status === 'Dispatched') shipment.status = 'Dispatched';
       else if (shipment.status !== 'Completed') shipment.status = 'Executed';
+      if (access?.isOneTimeEdit && targetCargo) {
+        targetCargo.oneTimeCompletedEditUsed = true;
+        targetCargo.oneTimeCompletedEditBy =
+          currentUser?.id || currentUser?.userId || userId || null;
+        targetCargo.oneTimeCompletedEditAt = new Date();
+        await targetCargo.save({ transaction });
+        this.logger.log(
+          `One-time completed edit used for CargoAvailability #${targetCargo.id} via loading update by user #${targetCargo.oneTimeCompletedEditBy}`,
+        );
+      }
+
       await shipment.save({ transaction });
 
       return loading;

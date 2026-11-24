@@ -83,6 +83,8 @@ import * as phase91 from './phase-91-add-charge-date-to-freight-quote-charges';
 import * as phase92 from './phase-92-add-payment-term-id-to-freight-quotes';
 import * as phase93 from './phase-93-shipment-downtime-records';
 import * as phase94 from './phase-94-bank-management';
+import * as phase95 from './phase-95-finalization-locking-rbac';
+import * as phase96 from './phase-96-one-time-completed-edit';
 
 export interface MigrationPhase {
   phase: string;
@@ -181,4 +183,6 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase92,
   phase93,
   phase94,
+  phase95,
+  phase96,
 ];

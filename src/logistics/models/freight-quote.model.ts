@@ -288,6 +288,19 @@ export class FreightQuote extends BusinessReferenceEntity<FreightQuote> {
   @Column({ field: 'created_by', type: DataType.INTEGER })
   declare createdBy: number;
 
+  @Default(false)
+  @AllowNull(false)
+  @Column({ field: 'one_time_completed_edit_used', type: DataType.BOOLEAN })
+  declare oneTimeCompletedEditUsed: boolean;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_by', type: DataType.INTEGER })
+  declare oneTimeCompletedEditBy: number | null;
+
+  @AllowNull(true)
+  @Column({ field: 'one_time_completed_edit_at', type: DataType.DATE })
+  declare oneTimeCompletedEditAt: Date | null;
+
   @AllowNull(true)
   @Column({ field: 'updated_by', type: DataType.INTEGER })
   declare updatedBy: number;

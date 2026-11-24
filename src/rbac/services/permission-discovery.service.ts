@@ -81,6 +81,19 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     // Extra permissions used in service-layer logic (not tied to a specific endpoint)
     // These must be registered so they appear in the permission matrix UI
     const extraPermissions = [
+      'cargo_allocation:view',
+      'cargo_allocation:create',
+      'cargo_allocation:update',
+      'cargo_allocation:delete',
+      'cargo_allocation:edit_completed',
+      'freight_allocation:view',
+      'freight_allocation:create',
+      'freight_allocation:update',
+      'freight_allocation:delete',
+      'freight_allocation:edit_completed',
+      'shipment_stuffing_execution:view',
+      'shipment_stuffing_execution:update',
+      'shipment_stuffing_execution:edit_completed',
       'follow_up:view_all',
       'follow_up:read_all',
       'follow_up:update_all',
@@ -167,6 +180,16 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       else if (resourceName === 'shipments' || resourceName === 'shipment')
         moduleName = 'Shipments';
       else if (
+        resourceName === 'cargo_allocation' ||
+        resourceName === 'cargo_availability'
+      )
+        moduleName = 'Cargo Allocation';
+      else if (
+        resourceName === 'freight_allocation' ||
+        resourceName === 'logistics'
+      )
+        moduleName = 'Freight Allocation';
+      else if (
         resourceName === 'shipment_stuffing_execution' ||
         resourceName === 'documents'
       )
@@ -209,34 +232,26 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         { transaction },
       );
 
-      const [
-        adminRole,
-        clientAdminRole,
-        clients,
-        existingModules,
-        existingResources,
-      ] = await Promise.all([
-        this.roleModel.findOne({
-          where: { name: 'Admin', clientId: null },
-          transaction,
-        }),
-        this.roleModel.findOne({
-          where: { name: 'Client Admin', clientId: null },
-          transaction,
-        }),
-        this.clientModel.findAll({
-          attributes: ['id'],
-          transaction,
-        }),
-        this.appModuleModel.findAll({
-          where: { name: { [Op.in]: moduleNames } },
-          transaction,
-        }),
-        this.moduleResourceModel.findAll({
-          where: { name: { [Op.in]: resourceNames } },
-          transaction,
-        }),
-      ]);
+      const adminRole = await this.roleModel.findOne({
+        where: { name: 'Admin', clientId: null },
+        transaction,
+      });
+      const clientAdminRole = await this.roleModel.findOne({
+        where: { name: 'Client Admin', clientId: null },
+        transaction,
+      });
+      const clients = await this.clientModel.findAll({
+        attributes: ['id'],
+        transaction,
+      });
+      const existingModules = await this.appModuleModel.findAll({
+        where: { name: { [Op.in]: moduleNames } },
+        transaction,
+      });
+      const existingResources = await this.moduleResourceModel.findAll({
+        where: { name: { [Op.in]: resourceNames } },
+        transaction,
+      });
 
       const existingModuleNames = new Set(
         existingModules.map((module) => module.name),
@@ -278,6 +293,21 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         throw new Error('Permission sync could not resolve every resource module.');
       }
 
+      const getResourceDisplayName = (name: string, fallback?: string): string => {
+        switch (name) {
+          case 'shipment_stuffing_execution':
+            return 'Shipment Stuffing Execution';
+          case 'cargo_allocation':
+            return 'Cargo Allocation';
+          case 'freight_allocation':
+            return 'Freight Allocation';
+          case 'sales_report':
+            return 'Sales Report';
+          default:
+            return fallback || name;
+        }
+      };
+
       const existingResourceNames = new Set(
         existingResources.map((resource) => resource.name),
       );
@@ -285,12 +315,7 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         .filter((name) => !existingResourceNames.has(name))
         .map((name) => ({
           name,
-          display_name:
-            name === 'shipment_stuffing_execution'
-              ? 'Shipment Stuffing Execution'
-              : name === 'sales_report'
-                ? 'Sales Report'
-                : name,
+          display_name: getResourceDisplayName(name),
           module_id: moduleIdByResource.get(name),
           sort_order: 0,
         }));
@@ -311,20 +336,27 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         throw new Error('Permission sync could not resolve every resource ID.');
       }
       const resourcesToMove = resources
-        .filter(
-          (resource) =>
-            (moduleIdByResource.get(resource.name) !== undefined &&
-              resource.module_id !== moduleIdByResource.get(resource.name)) ||
-            (resource.name === 'shipment_stuffing_execution' &&
-              resource.display_name !== 'Shipment Stuffing Execution'),
-        )
+        .filter((resource) => {
+          const targetModuleId = moduleIdByResource.get(resource.name);
+          const targetDisplayName = getResourceDisplayName(
+            resource.name,
+            resource.display_name,
+          );
+          return (
+            (targetModuleId !== undefined &&
+              resource.module_id !== targetModuleId) ||
+            resource.display_name !== targetDisplayName
+          );
+        })
         .map((resource) => ({
           id: resource.id,
+          name: resource.name,
+          sort_order: resource.sort_order ?? 0,
           module_id: moduleIdByResource.get(resource.name),
-          display_name:
-            resource.name === 'shipment_stuffing_execution'
-              ? 'Shipment Stuffing Execution'
-              : resource.display_name,
+          display_name: getResourceDisplayName(
+            resource.name,
+            resource.display_name,
+          ),
         }));
       if (resourcesToMove.length > 0) {
         await bulkCreateInBatches(resourcesToMove, (batch) =>
