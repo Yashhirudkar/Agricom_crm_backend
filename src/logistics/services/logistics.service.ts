@@ -1124,10 +1124,10 @@ export class LogisticsService {
 
     const quoteWhereConditions: any[] = [{ companyId }];
 
-    if (businessReference) {
+    if (businessReference?.trim()) {
       quoteWhereConditions.push({
         businessTransactionId:
-          (await resolveBusinessTransactionId(businessReference, companyId)) ??
+          (await resolveBusinessTransactionId(businessReference.trim(), companyId)) ??
           -1,
       });
     }
@@ -1182,6 +1182,14 @@ export class LogisticsService {
       const searchConditions: any[] = [
         { quoteNumber: { [Op.iLike]: s } },
         { '$seller.entity_name$': { [Op.iLike]: s } },
+        { '$product.name$': { [Op.iLike]: s } },
+        { origin: { [Op.iLike]: s } },
+        { destination: { [Op.iLike]: s } },
+        {
+          '$businessTransaction.businessReference$': {
+            [Op.iLike]: s,
+          },
+        },
         { '$logistics.enquiry.enquiry_no$': { [Op.iLike]: s } },
         { '$logistics.enquiry.product.name$': { [Op.iLike]: s } },
         { '$logistics.enquiry.origin_city$': { [Op.iLike]: s } },
@@ -1202,9 +1210,6 @@ export class LogisticsService {
         [Op.or]: searchConditions,
       });
     }
-
-    const quoteWhere =
-      quoteWhereConditions.length > 0 ? { [Op.and]: quoteWhereConditions } : {};
 
     // ── 4. Transport Mode Filter ────────────────────────────────────────────
     const logisticsWhere: any = {};
@@ -1249,6 +1254,11 @@ export class LogisticsService {
         ],
       });
     }
+
+    const quoteWhere =
+      quoteWhereConditions.length > 0
+        ? { [Op.and]: quoteWhereConditions }
+        : {};
 
     // ── 7. Order Map ────────────────────────────────────────────────────────
     const orderMap: Record<string, string> = {
