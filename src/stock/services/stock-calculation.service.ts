@@ -11,6 +11,7 @@ import { QueryStockDto } from '../dto/query-stock.dto';
 
 export interface RawContractPayload {
   contractId: number;
+  salesContractId?: number;
   contractNo: string;
   supplier: string;
   supplierId?: number;

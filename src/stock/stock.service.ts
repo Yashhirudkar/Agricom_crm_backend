@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { col, Op, where } from 'sequelize';
+import { col, Op, Sequelize, where } from 'sequelize';
 import { PurchaseContract } from '../purchase-contracts/models/purchase-contract.model';
 import { PurchaseContractItem } from '../purchase-contracts/models/purchase-contract-item.model';
 import { PurchaseContractShipment } from '../purchase-contracts/models/purchase-contract-shipment.model';
@@ -54,15 +54,25 @@ export class StockService {
   /**
    * Dashboard API: Returns summary cards aggregated across the stock hierarchy.
    * Single source of truth dynamically calculated from active Purchase Contracts
-   * and executed Shipments.
+   * and shipments with completed stuffing.
    */
   async getDashboardSummary(
     companyId?: number,
   ): Promise<StockDashboardSummary> {
     const { portCountryMap, countrySet } = await this.loadPortAndCountryMaps();
+    const rawContractsPromise = this.fetchRawContracts({
+      companyId,
+      portCountryMap,
+      countrySet,
+    });
     const [rawContracts, rawShipments] = await Promise.all([
-      this.fetchRawContracts({ companyId, portCountryMap, countrySet }),
-      this.fetchExecutedShipments({ companyId, portCountryMap, countrySet }),
+      rawContractsPromise,
+      this.fetchExecutedShipments({
+        companyId,
+        portCountryMap,
+        countrySet,
+        stockContracts: rawContractsPromise,
+      }),
     ]);
     const hierarchy = this.calculationService.buildHierarchy(
       rawContracts,
@@ -74,7 +84,7 @@ export class StockService {
 
   /**
    * Stock List API: Returns hierarchical grouped data:
-   * Loading Country -> Product -> Purchase Contracts & Executed Shipments
+   * Loading Country -> Product -> Purchase Contracts & completed-stuffing shipments
    * Filters, Search, Sorting, and Pagination handled dynamically.
    */
   async getStockList(
@@ -82,13 +92,20 @@ export class StockService {
     companyId?: number,
   ): Promise<{ data: StockCountryGroup[]; totalCount: number }> {
     const { portCountryMap, countrySet } = await this.loadPortAndCountryMaps();
+    const rawContractsPromise = this.fetchRawContracts({
+      query,
+      companyId,
+      portCountryMap,
+      countrySet,
+    });
     const [rawContracts, rawShipments] = await Promise.all([
-      this.fetchRawContracts({ query, companyId, portCountryMap, countrySet }),
+      rawContractsPromise,
       this.fetchExecutedShipments({
         query,
         companyId,
         portCountryMap,
         countrySet,
+        stockContracts: rawContractsPromise,
       }),
     ]);
 
@@ -614,6 +631,7 @@ export class StockService {
 
         rawPayloads.push({
           contractId: pc.id,
+          salesContractId: pc.salesContractId || pc.salesContract?.id,
           contractNo,
           supplier: supplierName,
           supplierId: pc.sellerId,
@@ -639,34 +657,43 @@ export class StockService {
   }
 
   /**
-   * Fetches Executed Shipments to dynamically deduct (consume) stock.
-   * Shipments in status: Executed, Stuffed, Dispatched, Completed.
+   * Fetches shipments only after stuffing has been completed.
    */
   private async fetchExecutedShipments(params: {
     query?: QueryStockDto;
     companyId?: number;
     portCountryMap: Map<string, string>;
     countrySet: Map<string, string>;
+    stockContracts: Promise<RawContractPayload[]>;
   }): Promise<RawExecutedShipmentPayload[]> {
-    const { query, companyId, portCountryMap, countrySet } = params;
+    const {
+      query,
+      companyId,
+      portCountryMap,
+      countrySet,
+      stockContracts: stockContractsPromise,
+    } = params;
 
-    const whereClause = {
-      status: { [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] },
-      ...(companyId
-        ? {
-            [Op.or]: [
-              { companyId },
-              {
-                companyId: null,
-                [Op.and]: where(
-                  col('salesContract.company_id'),
-                  companyId,
-                ),
-              },
-            ],
-          }
-        : {}),
-    };
+    const andConditions: any[] = [
+      Sequelize.literal(`EXISTS (
+          SELECT 1 FROM shipment_stuffings ss
+          WHERE ss.shipment_id = "SalesContractShipment"."id"
+          AND ss.stuffing_status = 'Completed'
+        )`),
+    ];
+    if (companyId) {
+      andConditions.push({
+        [Op.or]: [
+          { companyId },
+          {
+            companyId: null,
+            [Op.and]: where(col('salesContract.company_id'), companyId),
+          },
+        ],
+      });
+    }
+
+    const whereClause = { [Op.and]: andConditions };
 
     const shipments = await this.shipmentModel.findAll({
       where: whereClause,
@@ -713,9 +740,12 @@ export class StockService {
       order: [['id', 'DESC']],
     });
 
-    const shipmentLinks = await this.fetchShipmentPurchaseContractLinks(
-      shipments.map((shipment) => shipment.id),
-    );
+    const [shipmentLinks, stockContracts] = await Promise.all([
+      this.fetchShipmentPurchaseContractLinks(
+        shipments.map((shipment) => shipment.id),
+      ),
+      stockContractsPromise,
+    ]);
     const shipmentLinksById = new Map<number, typeof shipmentLinks>();
     for (const link of shipmentLinks) {
       const links = shipmentLinksById.get(link.shipmentId) || [];
@@ -723,25 +753,57 @@ export class StockService {
       shipmentLinksById.set(link.shipmentId, links);
     }
 
+    const stockContractsBySalesContractId = new Map<
+      number,
+      RawContractPayload[]
+    >();
+    for (const contract of stockContracts) {
+      if (!contract.salesContractId) continue;
+      const contracts =
+        stockContractsBySalesContractId.get(contract.salesContractId) || [];
+      contracts.push(contract);
+      stockContractsBySalesContractId.set(contract.salesContractId, contracts);
+    }
+
     const rawPayloads: RawExecutedShipmentPayload[] = [];
 
     for (const sh of shipments) {
       const links = shipmentLinksById.get(sh.id) || [];
-      const canUseAllocationLinks =
-        links.length === 1 ||
-        (links.length > 1 &&
-          links.every((link) => link.allocatedQuantity != null));
-      const sourceLinks = canUseAllocationLinks ? links : [];
+      const hasCompleteAllocations =
+        links.length > 1 &&
+        links.every((link) => link.allocatedQuantity != null) &&
+        links.some((link) => Number(link.allocatedQuantity) > 0);
+      const sourceLinks =
+        links.length === 1
+          ? links
+          : hasCompleteAllocations
+            ? links.filter((link) => Number(link.allocatedQuantity) > 0)
+            : [];
+      const shipmentProductIds = (sh.salesContract?.items || [])
+        .map((item) => item.productId || item.product?.id)
+        .filter((id): id is number => Number.isFinite(Number(id)))
+        .map(Number);
+      const fallbackCandidates = links.length
+        ? []
+        : stockContractsBySalesContractId.get(sh.salesContractId) || [];
+      const productMatchedFallbacks = shipmentProductIds.length
+        ? fallbackCandidates.filter(
+            (contract) =>
+              contract.productId != null &&
+              shipmentProductIds.includes(Number(contract.productId)),
+          )
+        : fallbackCandidates;
+      const fallbackContract =
+        productMatchedFallbacks.length === 1 &&
+        new Set(productMatchedFallbacks.map((contract) => contract.contractId))
+          .size === 1
+          ? productMatchedFallbacks[0]
+          : null;
       const stockSources = sourceLinks.length
-        ? sourceLinks
-        : [
-            {
-              purchaseContract: null,
-              purchaseContractId: null,
-              purchaseContractItemId: null,
-              allocatedQuantity: null,
-            },
-          ];
+        ? sourceLinks.map((link) => ({ link, fallbackContract: null }))
+        : fallbackContract
+          ? [{ link: null, fallbackContract }]
+          : [{ link: null, fallbackContract: null }];
 
       // Check country filter
       const buyerName = sh.salesContract?.buyer?.entityName || '';
@@ -769,14 +831,18 @@ export class StockService {
         sh.salesContract?.businessTransaction?.businessReference ||
         '';
 
-      for (const link of stockSources) {
-        const purchaseContract = link.purchaseContract;
-        const resolvedCountry = this.resolveShipmentCountry(
-          sh,
-          portCountryMap,
-          countrySet,
-          purchaseContract,
-        );
+      for (const source of stockSources) {
+        const link = source.link;
+        const fallback = source.fallbackContract;
+        const purchaseContract = link?.purchaseContract || null;
+        const resolvedCountry =
+          fallback?.country ||
+          this.resolveShipmentCountry(
+            sh,
+            portCountryMap,
+            countrySet,
+            purchaseContract,
+          );
         if (!resolvedCountry || resolvedCountry === 'Unknown') {
           continue;
         }
@@ -786,15 +852,18 @@ export class StockService {
           continue;
         }
 
-        const resolvedProduct = this.resolveShipmentProduct(
-          sh,
-          purchaseContract,
-          link.purchaseContractItemId,
-        );
+        const resolvedProduct =
+          fallback?.product ||
+          this.resolveShipmentProduct(
+            sh,
+            purchaseContract,
+            link?.purchaseContractItemId,
+          );
         const linkedItem = purchaseContract?.items?.find(
-          (item) => item.id === link.purchaseContractItemId,
+          (item) => item.id === link?.purchaseContractItemId,
         );
         const productId =
+          fallback?.productId ||
           linkedItem?.productId ||
           linkedItem?.product?.id ||
           sh.salesContract?.items?.[0]?.productId ||
@@ -833,17 +902,19 @@ export class StockService {
           shipmentReference: shipmentRef,
           salesContractId: sh.salesContractId,
           salesContractNo: contractNo,
-          purchaseContractId: purchaseContract?.id || undefined,
-          purchaseContractNo: purchaseContract?.contractNumber || undefined,
+          purchaseContractId:
+            fallback?.contractId || purchaseContract?.id || undefined,
+          purchaseContractNo:
+            fallback?.contractNo || purchaseContract?.contractNumber || undefined,
           buyer: buyerName,
           buyerId: sh.salesContract?.buyerId,
-          supplier: supplierName,
+          supplier: fallback?.supplier || supplierName,
           country: resolvedCountry,
           product: resolvedProduct,
           productId,
           executedQty:
-            link.allocatedQuantity != null
-              ? Number(link.allocatedQuantity) || 0
+            Number(link?.allocatedQuantity) > 0
+              ? Number(link?.allocatedQuantity)
               : Number(sh.quantity) || 0,
           executionDate: sh.updatedAt || sh.shipmentDate || sh.createdAt,
           status: sh.status,

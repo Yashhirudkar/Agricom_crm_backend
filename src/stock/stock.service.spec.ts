@@ -434,6 +434,207 @@ describe('StockService', () => {
     );
   });
 
+  it('uses shipment quantity when allocation links have zero quantity without duplicating multi-linked shipments', async () => {
+    const purchaseContracts = [45, 46].map((id) => ({
+      id,
+      contractNumber: `PC-EE-0${id}`,
+      status: 'ACTIVE',
+      loadingCountry: 'Estonia',
+      items: [
+        {
+          id: id + 100,
+          productId: 12,
+          product: { id: 12, name: 'POPCORN' },
+          quantity: 220,
+        },
+      ],
+    }));
+    mockPurchaseContractModel.findAll.mockResolvedValue(purchaseContracts);
+    mockShipmentModel.findAll.mockResolvedValue([
+      {
+        id: 9,
+        shipmentNo: 1,
+        shipmentReference: 'REF-000009',
+        salesContractId: 30,
+        quantity: 22,
+        status: 'Executed',
+        salesContract: {
+          contractNumber: 'SC-EE-030',
+          originCountry: 'Estonia',
+          items: [{ productId: 12, product: { id: 12, name: 'POPCORN' } }],
+        },
+      },
+      {
+        id: 10,
+        shipmentNo: 2,
+        shipmentReference: 'REF-000010',
+        salesContractId: 30,
+        quantity: 22,
+        status: 'Executed',
+        salesContract: {
+          contractNumber: 'SC-EE-030',
+          originCountry: 'Estonia',
+          items: [{ productId: 12, product: { id: 12, name: 'POPCORN' } }],
+        },
+      },
+    ]);
+    mockShipmentLinkModel.findAll.mockResolvedValue([
+      {
+        shipmentId: 9,
+        purchaseContractId: 45,
+        purchaseContractItemId: 145,
+        allocatedQuantity: 0,
+        purchaseContract: purchaseContracts[0],
+      },
+      {
+        shipmentId: 10,
+        purchaseContractId: 45,
+        purchaseContractItemId: 145,
+        allocatedQuantity: 0,
+        purchaseContract: purchaseContracts[0],
+      },
+      {
+        shipmentId: 10,
+        purchaseContractId: 46,
+        purchaseContractItemId: 146,
+        allocatedQuantity: 0,
+        purchaseContract: purchaseContracts[1],
+      },
+    ]);
+
+    const result = await service.getStockList({});
+    const estonia = result.data.find((country) => country.country === 'Estonia');
+    const popcorn = estonia?.products.find(
+      (product) => product.product === 'POPCORN',
+    );
+
+    expect(popcorn?.executed).toBe(44);
+    expect(popcorn?.movements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reference: 'REF-000009', out: 22 }),
+        expect.objectContaining({ reference: 'REF-000010', out: 22 }),
+      ]),
+    );
+    expect(
+      popcorn?.movements.filter((movement) => movement.type === 'OUT'),
+    ).toHaveLength(2);
+  });
+
+  it('counts completed stuffing only and resolves unlinked shipments through their sole Purchase Contract', async () => {
+    mockPurchaseContractModel.findAll.mockResolvedValue([
+      {
+        id: 45,
+        contractNumber: 'PC-SAFFLOWER-045',
+        status: 'In Progress',
+        salesContractId: 30,
+        loadingCountry: 'Kazakhstan',
+        seller: { entityName: 'AGRICOM IMPEX' },
+        buyer: { entityName: 'BAK ROL SPOLKA Z O O' },
+        items: [
+          {
+            id: 70,
+            productId: 12,
+            product: { id: 12, name: 'SAFFLOWER SEED' },
+            quantity: 198,
+          },
+        ],
+      },
+    ]);
+    mockShipmentModel.findAll.mockResolvedValue(
+      [11, 49, 50].map((id) => ({
+        id,
+        salesContractId: 30,
+        shipmentNo: 1,
+        shipmentReference: `SH-${id}`,
+        companyId: 1,
+        quantity: 22,
+        status: 'Executed',
+        executionStatus: 'Loading Completed',
+        businessTransaction: { businessReference: 'REF-000001' },
+        updatedAt: new Date(`2026-11-23T16:00:00Z`),
+        origin: 'TASKALA , KAZAK',
+        salesContract: {
+          contractNumber: 'SC-SAFFLOWER-001',
+          companyId: 1,
+          originCountry: '',
+          buyerId: 2,
+          buyer: { entityName: 'BAK ROL SPOLKA Z O O' },
+          seller: { entityName: 'AGRICOM IMPEX' },
+          items: [
+            { productId: 12, product: { id: 12, name: 'SAFFLOWER SEED' } },
+          ],
+        },
+      })),
+    );
+    mockShipmentLinkModel.findAll.mockResolvedValue([
+      {
+        shipmentId: 11,
+        purchaseContractId: 45,
+        purchaseContractItemId: 70,
+        allocatedQuantity: 0,
+        purchaseContract: {
+          id: 45,
+          contractNumber: 'PC-SAFFLOWER-045',
+          loadingCountry: 'Kazakhstan',
+          items: [
+            {
+              id: 70,
+              productId: 12,
+              product: { id: 12, name: 'SAFFLOWER SEED' },
+              quantity: 198,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const result = await service.getStockList({}, 1);
+    const kazakhstan = result.data.find(
+      (country) => country.country === 'Kazakhstan',
+    );
+    const safflower = kazakhstan?.products.find(
+      (product) => product.product === 'SAFFLOWER SEED',
+    );
+    const shipmentQuery = mockShipmentModel.findAll.mock.calls[0][0];
+    const stuffingCompletionFilter = shipmentQuery.where[Op.and][0];
+
+    expect(String(stuffingCompletionFilter.val)).toContain(
+      "ss.stuffing_status = 'Completed'",
+    );
+    expect(shipmentQuery.where.status).toBeUndefined();
+    expect(shipmentQuery.where.executionStatus).toBeUndefined();
+    expect(shipmentQuery.where[Op.and][1][Op.or]).toEqual([
+      { companyId: 1 },
+      {
+        companyId: null,
+        [Op.and]: expect.objectContaining({
+          attribute: { col: 'salesContract.company_id' },
+          comparator: '=',
+          logic: 1,
+        }),
+      },
+    ]);
+    expect(safflower).toMatchObject({
+      purchased: 198,
+      executed: 66,
+      available: 132,
+    });
+    expect(
+      safflower?.movements.filter((movement) => movement.type === 'OUT'),
+    ).toHaveLength(3);
+    expect(
+      safflower?.movements
+        .filter((movement) => movement.type === 'OUT')
+        .map((movement) => movement.reference),
+    ).toEqual(['REF-000001', 'REF-000001', 'REF-000001']);
+    expect(
+      safflower?.movements
+        .filter((movement) => movement.type === 'OUT')
+        .map((movement) => movement.shipmentId)
+        .sort((a, b) => a - b),
+    ).toEqual([11, 49, 50]);
+  });
+
   it('includes legacy executed shipments with null companyId via their Sales Contract tenant', async () => {
     mockPurchaseContractModel.findAll.mockResolvedValue([
       {
@@ -498,9 +699,9 @@ describe('StockService', () => {
       (product) => product.product === 'POPCORN',
     );
 
-    expect(shipmentQuery.where[Op.or][0]).toEqual({ companyId: 1 });
-    expect(shipmentQuery.where[Op.or][1].companyId).toBeNull();
-    expect(shipmentQuery.where[Op.or][1][Op.and]).toMatchObject({
+    expect(shipmentQuery.where[Op.and][1][Op.or][0]).toEqual({ companyId: 1 });
+    expect(shipmentQuery.where[Op.and][1][Op.or][1].companyId).toBeNull();
+    expect(shipmentQuery.where[Op.and][1][Op.or][1][Op.and]).toMatchObject({
       attribute: { col: 'salesContract.company_id' },
       comparator: '=',
       logic: 1,
