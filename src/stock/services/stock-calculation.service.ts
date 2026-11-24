@@ -115,6 +115,7 @@ export class StockCalculationService {
 
       const contractItem: StockContractItem = {
         contractId: raw.contractId,
+        salesContractId: raw.salesContractId,
         contractNo: raw.contractNo,
         supplier: raw.supplier || 'N/A',
         supplierName: raw.supplier || '',
@@ -188,13 +189,16 @@ export class StockCalculationService {
 
         // Add IN movements (Approved Purchase Contracts)
         for (const c of bucket.contracts) {
+          const unsold = !c.salesContractId;
           movements.push({
             id: `PC-${c.contractId}`,
             date: c.contractDate,
             movement: 'Purchase Contract Created',
             movementType: 'Purchase Contract Created',
             type: 'IN',
-            reference: c.businessReference || c.contractNo,
+            reference: unsold
+              ? '- UNSOLD'
+              : (c.businessReference || c.contractNo),
             party: c.supplier || c.supplierName || '—',
             supplier: c.supplier || c.supplierName || null,
             buyer: c.buyer || c.buyerName || null,
@@ -203,6 +207,8 @@ export class StockCalculationService {
             out: 0,
             balance: 0,
             contractId: c.contractId,
+            salesContractId: c.salesContractId,
+            unsold,
           });
         }
 

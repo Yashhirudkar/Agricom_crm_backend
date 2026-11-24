@@ -2,6 +2,7 @@ export type StockAmountByCurrency = Record<string, number>;
 
 export interface StockContractItem {
   contractId: number;
+  salesContractId?: number;
   contractNo: string;
   supplier: string;
   supplierName?: string;
@@ -43,6 +44,8 @@ export interface StockMovementItem {
   user?: string | null;
   remarks?: string | null;
   contractId?: number;
+  salesContractId?: number;
+  unsold?: boolean;
   shipmentId?: number;
 }
 

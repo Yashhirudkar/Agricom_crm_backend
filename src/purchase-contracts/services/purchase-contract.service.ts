@@ -943,11 +943,13 @@ export class PurchaseContractService {
         }
       }
 
-      await this.businessTransactionService.ensureForPurchaseContract(
-        pc.id,
-        user?.userId,
-        t,
-      );
+      if (pc.salesContractId) {
+        await this.businessTransactionService.ensureForSalesContract(
+          pc.salesContractId,
+          user?.userId,
+          t,
+        );
+      }
       return pc.reload();
     });
 
@@ -1343,18 +1345,11 @@ export class PurchaseContractService {
           { transaction },
         );
         if (!pc.salesContractId) {
-          await this.businessTransactionService.ensureForPurchaseContract(
-            id,
-            user?.userId,
-            transaction,
-          );
+          // Standalone MTT contracts are not linked to a Sales Contract or Enquiry.
         }
       });
     } else {
-      await this.businessTransactionService.ensureForPurchaseContract(
-        id,
-        user?.userId,
-      );
+      // Standalone MTT updates do not create or attach an Enquiry.
     }
     await this.activityService.log(
       id,
@@ -1379,7 +1374,8 @@ export class PurchaseContractService {
         !pc ||
         pc.status === 'Draft' ||
         pc.status === 'Cancelled' ||
-        !pc.freightRequired
+        !pc.freightRequired ||
+        !pc.salesContractId
       ) {
         return;
       }
@@ -1800,11 +1796,7 @@ export class PurchaseContractService {
         );
       }
       if (!pc.salesContractId) {
-        await this.businessTransactionService.ensureForPurchaseContract(
-          id,
-          user?.userId,
-          transaction,
-        );
+        // Standalone MTT contracts are not linked to a Sales Contract or Enquiry.
       }
     });
 
