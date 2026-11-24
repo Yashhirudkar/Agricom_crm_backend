@@ -251,6 +251,52 @@ describe('EnquiriesService.findAll contract filters', () => {
   });
 
   describe('WhatsAppTemplates Annual Sales (Turnover)', () => {
+    it('shows Place of Loading and Incoterm from Transport Details', () => {
+      const msg = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-000046',
+        customerName: 'ETS BENCHAIB SA',
+        transportDetails: [{
+          sequence: 1,
+          origin: 'Sadas',
+          incoterm: 'FCA',
+          destination: 'wardha',
+        }],
+      });
+
+      expect(msg).toContain('*Place of Loading:* SADAS');
+      expect(msg).toContain('*Incoterm:* FCA');
+      expect(msg).toContain('*Destination:* WARDHA');
+      expect(msg).not.toContain('*Origin:*');
+    });
+
+    it('uppercases all dynamic WhatsApp enquiry values', () => {
+      const msg = WhatsAppTemplates.enquiryCreated({
+        enquiryNo: 'ENQ-000046',
+        customerName: 'ETS BENCHAIB SA',
+        partnerAnnualTurnover: 23200000,
+        product: 'black millet',
+        purity: '99%',
+        quantity: 23,
+        quantityUnit: 'MT',
+        packingType: '10 kg',
+        placeOfLoading: 'ashti',
+        incoterm: 'cnf',
+        destination: 'mer aman dsfsf',
+        shipmentType: 'vessel',
+        note: 'sazdassdasda',
+        createdByName: 'System',
+      });
+
+      expect(msg).toContain('*Customer:* ETS BENCHAIB SA');
+      expect(msg).toContain('*Product:* BLACK MILLET');
+      expect(msg).toContain('*Place of Loading:* ASHTI');
+      expect(msg).toContain('*Incoterm:* CNF');
+      expect(msg).toContain('*Destination:* MER AMAN DSFSF');
+      expect(msg).toContain('*Shipment Type:* VESSEL');
+      expect(msg).toContain('*Note:* SAZDASSDASDA');
+      expect(msg).toContain('*Created By:* SYSTEM');
+    });
+
     it('converts Annual Sales into Indian financial units with up to 2 decimal places and trailing zeros removed', () => {
       const msg1 = WhatsAppTemplates.enquiryCreated({
         enquiryNo: 'ENQ-001',
@@ -259,20 +305,20 @@ describe('EnquiriesService.findAll contract filters', () => {
         product: 'BLACK MILLET',
       });
       expect(msg1).toContain('*Customer:* ALBERT E JAMES & SON LTD');
-      expect(msg1).toContain('*Annual Sales (Turnover):* 145 Cr');
+      expect(msg1).toContain('*Annual Sales (Turnover):* 145 CR');
       expect(msg1).toContain('*Product:* BLACK MILLET');
 
       const msg2 = WhatsAppTemplates.enquiryCreated({
         enquiryNo: 'ENQ-002',
         partnerAnnualTurnover: 134567890,
       });
-      expect(msg2).toContain('*Annual Sales (Turnover):* 13.46 Cr');
+      expect(msg2).toContain('*Annual Sales (Turnover):* 13.46 CR');
 
       const msg3 = WhatsAppTemplates.enquiryCreated({
         enquiryNo: 'ENQ-003',
         partnerAnnualTurnover: 9500000,
       });
-      expect(msg3).toContain('*Annual Sales (Turnover):* 95 Lakh');
+      expect(msg3).toContain('*Annual Sales (Turnover):* 95 LAKH');
 
       const msg4 = WhatsAppTemplates.enquiryCreated({
         enquiryNo: 'ENQ-004',
@@ -301,7 +347,7 @@ describe('EnquiriesService.findAll contract filters', () => {
           partnerAnnualTurnover: 10000000,
         },
       });
-      expect(msg).toContain('*Annual Sales (Turnover):* 1 Cr');
+      expect(msg).toContain('*Annual Sales (Turnover):* 1 CR');
     });
   });
 });

@@ -29,6 +29,14 @@ export interface EnquiryNotificationData {
   packingType?: string;
   origin?: string;
   destination?: string;
+  placeOfLoading?: string;
+  incoterm?: string;
+  transportDetails?: Array<{
+    sequence?: number;
+    origin?: string;
+    incoterm?: string;
+    destination?: string;
+  }>;
   shipmentType?: string;
   shipmentDate?: string | Date;
   bid?: number | string;

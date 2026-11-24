@@ -96,7 +96,7 @@ export class BanksService {
     return { rows: mappedRows as any, count };
   }
 
-  async findOneDomestic(id: number): Promise<DomesticBank> {
+  async findOneDomestic(id: number): Promise<any> {
     const bank = await this.domesticBankModel.findByPk(id, {
       include: [
         {
@@ -119,11 +119,14 @@ export class BanksService {
     return {
       ...data,
       linkedNostroAccounts: data.nostroAccounts || [],
-    } as any;
+    };
   }
 
-  async updateDomestic(id: number, dto: UpdateDomesticBankDto): Promise<DomesticBank> {
-    const bank = await this.findOneDomestic(id);
+  async updateDomestic(id: number, dto: UpdateDomesticBankDto): Promise<any> {
+    const bank = await this.domesticBankModel.findByPk(id);
+    if (!bank) {
+      throw new NotFoundException(`Domestic bank with ID ${id} not found`);
+    }
 
     if (dto.companyId && dto.companyId !== bank.companyId) {
       const company = await this.companyModel.findByPk(dto.companyId);
@@ -146,7 +149,16 @@ export class BanksService {
   }
 
   async removeDomestic(id: number): Promise<{ success: boolean; message: string }> {
-    const bank = await this.findOneDomestic(id);
+    const bank = await this.domesticBankModel.findByPk(id);
+    if (!bank) {
+      throw new NotFoundException(`Domestic bank with ID ${id} not found`);
+    }
+
+    // Cascade delete linked Nostro accounts explicitly
+    await this.nostroBankModel.destroy({
+      where: { domesticBankId: id },
+    });
+
     await bank.destroy();
     return { success: true, message: 'Domestic bank and linked Nostro accounts deleted successfully' };
   }
@@ -275,7 +287,10 @@ export class BanksService {
   }
 
   async removeNostro(id: number): Promise<{ success: boolean; message: string }> {
-    const bank = await this.findOneNostro(id);
+    const bank = await this.nostroBankModel.findByPk(id);
+    if (!bank) {
+      throw new NotFoundException(`Nostro bank with ID ${id} not found`);
+    }
     await bank.destroy();
     return { success: true, message: 'Nostro bank deleted successfully' };
   }

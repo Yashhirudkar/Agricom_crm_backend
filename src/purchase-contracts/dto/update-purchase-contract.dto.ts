@@ -42,16 +42,6 @@ export class UpdatePurchaseContractDto {
   contractDate?: string;
 
   @IsOptional()
-  @IsDateString()
-  purchaseDate?: string;
-
-  @IsOptional()
-  specificationNo?: any;
-
-  @IsOptional()
-  specificationDate?: any;
-
-  @IsOptional()
   paymentTermId?: any;
 
   @IsOptional()

@@ -7,6 +7,7 @@ import { PurchaseContractShipment } from '../purchase-contracts/models/purchase-
 import { SalesContract } from '../sales-contracts/models/sales-contract.model';
 import { SalesContractItem } from '../sales-contracts/models/sales-contract-item.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
+import { ShipmentStuffing } from '../sales-contracts/models/shipment-stuffing.model';
 import { Product } from '../masters/product/product.model';
 import { Country } from '../masters/country/country.model';
 import { Port } from '../masters/port/port.model';
@@ -648,7 +649,8 @@ export class StockService {
           packing: item.packing,
           incoterm,
           businessReference: businessRef,
-          contractDate: pc.purchaseDate || pc.createdAt,
+          contractDate: pc.contractDate,
+          createdAt: pc.createdAt,
         });
       }
     }
@@ -703,6 +705,17 @@ export class StockService {
           as: 'businessTransaction',
           attributes: ['id', 'businessReference'],
           required: false,
+        },
+        {
+          model: ShipmentStuffing,
+          as: 'stuffingExecution',
+          attributes: [
+            'loadingDate',
+            'containers',
+            'trucks',
+            'autoPopulatedData',
+          ],
+          required: true,
         },
         {
           model: SalesContract,
@@ -768,6 +781,15 @@ export class StockService {
     const rawPayloads: RawExecutedShipmentPayload[] = [];
 
     for (const sh of shipments) {
+      if (
+        !this.isStuffingDispatched(
+          sh.stuffingExecution,
+          sh.salesContract?.transportMode,
+        )
+      ) {
+        continue;
+      }
+
       const links = shipmentLinksById.get(sh.id) || [];
       const hasCompleteAllocations =
         links.length > 1 &&
@@ -916,7 +938,7 @@ export class StockService {
             Number(link?.allocatedQuantity) > 0
               ? Number(link?.allocatedQuantity)
               : Number(sh.quantity) || 0,
-          executionDate: sh.updatedAt || sh.shipmentDate || sh.createdAt,
+          loadingDate: sh.stuffingExecution?.loadingDate,
           status: sh.status,
           businessReference: businessRef,
           remarks: sh.remarks,
@@ -925,6 +947,24 @@ export class StockService {
     }
 
     return rawPayloads;
+  }
+
+  private isStuffingDispatched(
+    stuffing: ShipmentStuffing | null | undefined,
+    contractTransportMode?: string,
+  ): boolean {
+    if (!stuffing) return false;
+    const transportMode =
+      stuffing.autoPopulatedData?.transportMode || contractTransportMode || '';
+    const usesContainers =
+      /\bSEA\b|CONTAINER|OCEAN|MARITIME/i.test(String(transportMode));
+    const rows = usesContainers ? stuffing.containers : stuffing.trucks;
+    return (
+      Array.isArray(rows) &&
+      rows.some(
+        (row) => String(row?.dispatch || '').trim().toLowerCase() === 'yes',
+      )
+    );
   }
 
   private resolveShipmentCountry(

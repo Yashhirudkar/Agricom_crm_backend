@@ -789,7 +789,7 @@ export class PurchaseContractService {
           buyerId: dto.buyerId || null,
           sellerId: dto.sellerId || null,
           sellerContractNo: dto.sellerContractNo || null,
-          purchaseDate: dto.purchaseDate || dto.contractDate || null,
+          contractDate: dto.contractDate || null,
           paymentTermId: dto.paymentTermId || null,
           shipmentTypeId: dto.shipmentTypeId || null,
           paymentTermsText: dto.paymentTermsText || null,
@@ -803,9 +803,7 @@ export class PurchaseContractService {
             dto.paymentDueDate ||
             (dto.contractDate
               ? this.calculatePaymentDueDate(dto.contractDate)
-              : dto.purchaseDate
-                ? this.calculatePaymentDueDate(dto.purchaseDate)
-                : null),
+              : null),
           unloadingDate: dto.unloadingDate || null,
           brokerId: dto.brokerId || null,
           brokerCommission: dto.brokerCommission || null,
@@ -823,8 +821,6 @@ export class PurchaseContractService {
             null,
           ).freightRequired,
           productQuality: dto.productQuality || null,
-          specificationNo: dto.specificationNo || null,
-          specificationDate: dto.specificationDate || null,
           notes: dto.notes || null,
           terms: Array.isArray(dto.terms) ? dto.terms : [],
           status: 'Draft',
@@ -843,6 +839,9 @@ export class PurchaseContractService {
 
       const scUpdates: any = {};
       if (dto.salesContractId) {
+        if (dto.contractDate !== undefined) {
+          scUpdates.contractDate = dto.contractDate || null;
+        }
         if (dto.shipmentTypeId !== undefined) {
           scUpdates.shipmentTypeId = dto.shipmentTypeId || null;
         }
@@ -926,10 +925,6 @@ export class PurchaseContractService {
             shipmentId: Number(shipmentId),
           });
         }
-      }
-
-      if (dto.purchaseDate !== undefined) {
-        await pc.update({ purchaseDate: dto.purchaseDate || null });
       }
 
       // Add required documents
@@ -1075,10 +1070,6 @@ export class PurchaseContractService {
       sanitizeData.sellerContractNo = updateData.sellerContractNo
         ? String(updateData.sellerContractNo)
         : null;
-    if (updateData.purchaseDate !== undefined)
-      sanitizeData.purchaseDate = updateData.purchaseDate
-        ? String(updateData.purchaseDate)
-        : null;
     if (updateData.paymentTermId !== undefined)
       sanitizeData.paymentTermId = updateData.paymentTermId
         ? Number(updateData.paymentTermId)
@@ -1106,23 +1097,10 @@ export class PurchaseContractService {
         updateData.penaltyPercent != null
           ? Number(updateData.penaltyPercent)
           : null;
-    if (updateData.contractDate !== undefined) {
-      if (pc.salesContractId) {
-        await this.salesContractModel.update(
-          {
-            contractDate: updateData.contractDate
-              ? new Date(updateData.contractDate)
-              : null,
-          },
-          { where: { id: pc.salesContractId } },
-        );
-      }
-      if (updateData.purchaseDate === undefined && !pc.purchaseDate) {
-        sanitizeData.purchaseDate = updateData.contractDate
-          ? String(updateData.contractDate)
-          : null;
-      }
-    }
+    if (updateData.contractDate !== undefined)
+      sanitizeData.contractDate = updateData.contractDate
+        ? String(updateData.contractDate)
+        : null;
     if (updateData.paymentDueDate !== undefined)
       sanitizeData.paymentDueDate = updateData.paymentDueDate
         ? String(updateData.paymentDueDate)
@@ -1235,14 +1213,6 @@ export class PurchaseContractService {
     if (updateData.loadingCountry !== undefined)
       sanitizeData.loadingCountry = updateData.loadingCountry
         ? String(updateData.loadingCountry)
-        : null;
-    if (updateData.specificationNo !== undefined)
-      sanitizeData.specificationNo = updateData.specificationNo
-        ? String(updateData.specificationNo)
-        : null;
-    if (updateData.specificationDate !== undefined)
-      sanitizeData.specificationDate = updateData.specificationDate
-        ? String(updateData.specificationDate)
         : null;
     if (
       sanitizeData.quantity === undefined &&
@@ -1503,7 +1473,7 @@ export class PurchaseContractService {
         const partner = await Partner.findByPk(pc.buyerId || pc.sellerId);
         const newEnq = await EnquiryModel.create({
           enquiryNo,
-          enquiryDate: pc.purchaseDate || new Date(),
+          enquiryDate: new Date(),
           companyId: pc.companyId || 1,
           partnerRoleId: partner?.partnerRoleId || 11,
           partnerId: pc.buyerId || pc.sellerId || 1,

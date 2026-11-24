@@ -435,5 +435,24 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       );
       expect(mockSequelize.transaction).not.toHaveBeenCalled();
     });
+
+    it('requires a Yes or No dispatch choice before completing stuffing', async () => {
+      await expect(
+        service.saveStuffingExecution(1, {
+          action: 'complete',
+          loadingDate: '2026-11-04',
+          actualLoadingWeight: 22,
+          grossWeight: 22,
+          netWeight: 22,
+          loadingStartTime: '12:00',
+          loadingEndTime: '14:30',
+          dispatchMode: 'container',
+          containers: [{ dispatch: '' }],
+        }),
+      ).rejects.toThrow(
+        'Select Dispatch (Yes or No) for every container or truck before completing stuffing.',
+      );
+      expect(mockSequelize.transaction).not.toHaveBeenCalled();
+    });
   });
 });

@@ -330,7 +330,8 @@ describe('StockService', () => {
       contractNumber: 'PC-EE-045',
       status: 'ACTIVE',
       loadingCountry: 'Estonia',
-      purchaseDate: new Date('2026-11-01T00:00:00Z'),
+      contractDate: '2026-10-31',
+      createdAt: new Date('2026-11-01T00:00:00Z'),
       seller: { entityName: 'Estonia Supplier' },
       buyer: { entityName: 'Agricom' },
       items: [
@@ -352,6 +353,11 @@ describe('StockService', () => {
         quantity: 22,
         status: 'Executed',
         updatedAt: new Date('2026-11-10T00:00:00Z'),
+        stuffingExecution: {
+          loadingDate: '2026-11-08',
+          autoPopulatedData: { transportMode: 'Sea' },
+          containers: [{ dispatch: 'Yes' }],
+        },
         salesContract: {
           contractNumber: 'SC-EE-030',
           originCountry: 'Ghana',
@@ -369,6 +375,11 @@ describe('StockService', () => {
         quantity: 22,
         status: 'Executed',
         updatedAt: new Date('2026-11-11T00:00:00Z'),
+        stuffingExecution: {
+          loadingDate: '2026-11-09',
+          autoPopulatedData: { transportMode: 'Truck' },
+          trucks: [{ dispatch: 'Yes' }],
+        },
         salesContract: {
           contractNumber: 'SC-EE-030',
           originCountry: 'Ghana',
@@ -410,14 +421,20 @@ describe('StockService', () => {
     expect(popcorn?.movements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          movement: 'Purchase Contract Created',
+          date: '2026-10-31',
+        }),
+        expect.objectContaining({
           type: 'OUT',
           reference: 'REF-000009',
+          date: '2026-11-08',
           out: 22,
           balance: 198,
         }),
         expect.objectContaining({
           type: 'OUT',
           reference: 'REF-000010',
+          date: '2026-11-09',
           out: 22,
           balance: 176,
         }),
@@ -458,6 +475,10 @@ describe('StockService', () => {
         salesContractId: 30,
         quantity: 22,
         status: 'Executed',
+        stuffingExecution: {
+          loadingDate: '2026-11-08',
+          trucks: [{ dispatch: 'Yes' }],
+        },
         salesContract: {
           contractNumber: 'SC-EE-030',
           originCountry: 'Estonia',
@@ -471,6 +492,10 @@ describe('StockService', () => {
         salesContractId: 30,
         quantity: 22,
         status: 'Executed',
+        stuffingExecution: {
+          loadingDate: '2026-11-09',
+          trucks: [{ dispatch: 'Yes' }],
+        },
         salesContract: {
           contractNumber: 'SC-EE-030',
           originCountry: 'Estonia',
@@ -520,7 +545,7 @@ describe('StockService', () => {
     ).toHaveLength(2);
   });
 
-  it('counts completed stuffing only and resolves unlinked shipments through their sole Purchase Contract', async () => {
+  it('deducts stock only for dispatched completed stuffing and resolves unlinked shipments', async () => {
     mockPurchaseContractModel.findAll.mockResolvedValue([
       {
         id: 45,
@@ -550,6 +575,10 @@ describe('StockService', () => {
         quantity: 22,
         status: 'Executed',
         executionStatus: 'Loading Completed',
+        stuffingExecution: {
+          loadingDate: '2026-11-22',
+          trucks: [{ dispatch: id === 49 ? 'No' : 'Yes' }],
+        },
         businessTransaction: { businessReference: 'REF-000001' },
         updatedAt: new Date(`2026-11-23T16:00:00Z`),
         origin: 'TASKALA , KAZAK',
@@ -601,6 +630,20 @@ describe('StockService', () => {
     expect(String(stuffingCompletionFilter.val)).toContain(
       "ss.stuffing_status = 'Completed'",
     );
+    expect(shipmentQuery.include).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          as: 'stuffingExecution',
+          attributes: [
+            'loadingDate',
+            'containers',
+            'trucks',
+            'autoPopulatedData',
+          ],
+          required: true,
+        }),
+      ]),
+    );
     expect(shipmentQuery.where.status).toBeUndefined();
     expect(shipmentQuery.where.executionStatus).toBeUndefined();
     expect(shipmentQuery.where[Op.and][1][Op.or]).toEqual([
@@ -616,23 +659,23 @@ describe('StockService', () => {
     ]);
     expect(safflower).toMatchObject({
       purchased: 198,
-      executed: 66,
-      available: 132,
+      executed: 44,
+      available: 154,
     });
     expect(
       safflower?.movements.filter((movement) => movement.type === 'OUT'),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     expect(
       safflower?.movements
         .filter((movement) => movement.type === 'OUT')
         .map((movement) => movement.reference),
-    ).toEqual(['REF-000001', 'REF-000001', 'REF-000001']);
+    ).toEqual(['REF-000001', 'REF-000001']);
     expect(
       safflower?.movements
         .filter((movement) => movement.type === 'OUT')
         .map((movement) => movement.shipmentId)
         .sort((a, b) => a - b),
-    ).toEqual([11, 49, 50]);
+    ).toEqual([11, 50]);
   });
 
   it('includes legacy executed shipments with null companyId via their Sales Contract tenant', async () => {
@@ -642,7 +685,7 @@ describe('StockService', () => {
         contractNumber: 'PC-EE-045',
         status: 'ACTIVE',
         loadingCountry: 'Estonia',
-        purchaseDate: new Date('2026-11-01T00:00:00Z'),
+        createdAt: new Date('2026-11-01T00:00:00Z'),
         items: [
           {
             id: 70,
@@ -662,6 +705,10 @@ describe('StockService', () => {
         companyId: null,
         quantity: 22,
         status: 'Executed',
+        stuffingExecution: {
+          loadingDate: '2026-11-08',
+          trucks: [{ dispatch: 'Yes' }],
+        },
         salesContract: {
           companyId: 1,
           contractNumber: 'SC-EE-030',

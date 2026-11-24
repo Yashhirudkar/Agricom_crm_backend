@@ -588,6 +588,15 @@ export class EnquiriesService {
       ]
         .filter(Boolean)
         .join(', ');
+    const transportDetailsPayload = Array.isArray(dto.transportDetails)
+      ? dto.transportDetails.map((route, index) => ({
+          sequence: route.sequence != null ? route.sequence : index + 1,
+          origin: route.origin,
+          incoterm: route.incoterm,
+          destination: route.destination,
+        }))
+      : [];
+    const firstTransportRoute = transportDetailsPayload[0];
 
     this.notificationDispatchService
       .send({
@@ -608,7 +617,14 @@ export class EnquiriesService {
           quantityUnit: 'MT',
           packingType: packingType?.name || undefined,
           origin: origin || undefined,
-          destination: destination || undefined,
+          placeOfLoading: firstTransportRoute?.origin || origin || undefined,
+          incoterm: firstTransportRoute?.incoterm || undefined,
+          destination:
+            firstTransportRoute?.destination || destination || undefined,
+          transportDetails:
+            transportDetailsPayload.length > 0
+              ? transportDetailsPayload
+              : undefined,
           shipmentType: enquiry.shipmentType || undefined,
           shipmentDate: enquiry.shipmentDate || undefined,
           bid:

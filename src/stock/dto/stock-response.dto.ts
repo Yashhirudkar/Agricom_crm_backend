@@ -16,7 +16,8 @@ export interface StockContractItem {
   packing?: string;
   incoterm?: string;
   businessReference?: string;
-  contractDate?: string | Date;
+  contractDate?: string | null;
+  createdAt?: string | Date;
   originalCurrency?: string;
   originalAmount?: number;
   exchangeRate?: number | null;
@@ -27,7 +28,7 @@ export interface StockContractItem {
 
 export interface StockMovementItem {
   id: string | number;
-  date: string | Date;
+  date?: string | Date;
   movement: string;
   movementType?: string;
   type: 'IN' | 'OUT';

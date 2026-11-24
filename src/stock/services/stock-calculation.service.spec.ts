@@ -220,7 +220,7 @@ describe('StockCalculationService', () => {
           country: 'Kazakhstan',
           product: 'Golden Linseed',
           executedQty: 120,
-          executionDate: new Date('2026-02-01'),
+          loadingDate: '2026-02-01',
           status: 'Executed',
         },
       ];
@@ -253,7 +253,7 @@ describe('StockCalculationService', () => {
       expect(outMove?.out).toBe(120);
       expect(outMove?.movement).toBe('Shipment Executed');
       expect(outMove?.movementType).toBe('Shipment Executed');
-      expect(outMove?.date).toEqual(new Date('2026-02-01'));
+      expect(outMove?.date).toBe('2026-02-01');
 
       // Verify dashboard summary
       const dashboard = service.calculateDashboardSummary(hierarchy);
@@ -286,7 +286,7 @@ describe('StockCalculationService', () => {
           country: 'India',
           product: 'Mustard',
           executedQty: 50,
-          executionDate: new Date('2026-01-15'),
+          loadingDate: '2026-01-15',
           status: 'Executed',
         },
       ];

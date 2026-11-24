@@ -57,7 +57,6 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
         place_of_loading: 'Nagpur',
         loading_country: 'India',
         delivery_place: 'Qingdao',
-        purchase_date: '2026-11-17',
         created_at: new Date(),
         seller_name: 'Nagpur Farmers Ltd',
         buyer_name: 'Agricom Global',
@@ -122,6 +121,7 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
     expect(mockSequelize.query).toHaveBeenCalledTimes(1);
     const selectSql = mockSequelize.query.mock.calls[0][0];
     expect(selectSql).not.toContain('st.transport_mode');
+    expect(selectSql).not.toContain('pc.purchase_date');
     expect(selectSql).not.toContain('sc.delivery_place');
     expect(selectSql).toContain('COALESCE(log.transport_mode, sc.transport_mode, \'ROAD\') AS transport_mode');
     expect(selectSql).toContain('COALESCE(sc.destination_location_name, sc.port_of_discharge, sc.enquiry_destination) AS sc_delivery_place');

@@ -171,6 +171,7 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
     containerSize?: '20 FT' | '40 FT' | '40 HC';
     sealNo: string;
     remarks?: string;
+    dispatch?: 'Yes' | 'No' | '';
     tareWeight?: number;
     grossWeight?: number;
     netWeight?: number;
@@ -192,6 +193,7 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
     transporter?: string;
     remark?: string;
     remarks?: string;
+    dispatch?: 'Yes' | 'No' | '';
   }>;
 
   // Dynamic Attachments

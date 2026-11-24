@@ -163,8 +163,8 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   declare sellerContractNo: string;
 
   @AllowNull(true)
-  @Column({ field: 'purchase_date', type: DataType.DATEONLY })
-  declare purchaseDate: string;
+  @Column({ field: 'contract_date', type: DataType.DATEONLY })
+  declare contractDate: string | null;
 
   /** Additional contract notes / conditions */
   @AllowNull(true)
@@ -215,14 +215,6 @@ export class PurchaseContract extends BusinessReferenceEntity<PurchaseContract> 
   @AllowNull(true)
   @Column({ field: 'loading_country', type: DataType.STRING(100) })
   declare loadingCountry: string;
-
-  @AllowNull(true)
-  @Column({ field: 'specification_no', type: DataType.STRING(100) })
-  declare specificationNo: string;
-
-  @AllowNull(true)
-  @Column({ field: 'specification_date', type: DataType.DATEONLY })
-  declare specificationDate: string;
 
   @AllowNull(true)
   @Column({ field: 'dispatch_date', type: DataType.DATEONLY })

@@ -28,7 +28,8 @@ export interface RawContractPayload {
   packing?: string;
   incoterm?: string;
   businessReference?: string;
-  contractDate?: string | Date;
+  contractDate?: string | null;
+  createdAt?: string | Date;
 }
 
 export interface RawExecutedShipmentPayload {
@@ -46,7 +47,7 @@ export interface RawExecutedShipmentPayload {
   product: string;
   productId?: number | null;
   executedQty: number;
-  executionDate: string | Date;
+  loadingDate?: string | Date;
   status: string;
   businessReference?: string;
   remarks?: string;
@@ -132,6 +133,7 @@ export class StockCalculationService {
         incoterm: raw.incoterm,
         businessReference: raw.businessReference,
         contractDate: raw.contractDate,
+        createdAt: raw.createdAt,
       };
 
       const bucket = getOrCreateProductBucket(
@@ -188,7 +190,7 @@ export class StockCalculationService {
         for (const c of bucket.contracts) {
           movements.push({
             id: `PC-${c.contractId}`,
-            date: c.contractDate || new Date(),
+            date: c.contractDate,
             movement: 'Purchase Contract Created',
             movementType: 'Purchase Contract Created',
             type: 'IN',
@@ -208,7 +210,7 @@ export class StockCalculationService {
         for (const s of bucket.shipments) {
           movements.push({
             id: `SH-${s.shipmentId}`,
-            date: s.executionDate || new Date(),
+            date: s.loadingDate,
             movement: 'Shipment Executed',
             movementType: 'Shipment Executed',
             type: 'OUT',

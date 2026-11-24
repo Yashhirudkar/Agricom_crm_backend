@@ -85,6 +85,8 @@ import * as phase93 from './phase-93-shipment-downtime-records';
 import * as phase94 from './phase-94-bank-management';
 import * as phase95 from './phase-95-finalization-locking-rbac';
 import * as phase96 from './phase-96-one-time-completed-edit';
+import * as phase97 from './phase-97-remove-purchase-contract-dates-and-specifications';
+import * as phase98 from './phase-98-add-contract-date-to-purchase-contracts';
 
 export interface MigrationPhase {
   phase: string;
@@ -185,4 +187,6 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase94,
   phase95,
   phase96,
+  phase97,
+  phase98,
 ];

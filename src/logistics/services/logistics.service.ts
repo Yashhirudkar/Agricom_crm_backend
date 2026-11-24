@@ -677,7 +677,6 @@ export class LogisticsService {
         pc.place_of_loading,
         pc.loading_country,
         pc.delivery_place,
-        pc.purchase_date,
         pc.created_at,
         pc.sales_contract_id,
         pc.business_transaction_id,
@@ -789,7 +788,6 @@ export class LogisticsService {
           placeOfLoading: pc.place_of_loading || null,
           loadingCountry: pc.loading_country || null,
           deliveryPlace: pc.delivery_place || null,
-          purchaseDate: pc.purchase_date || null,
           productName: pc.product_name || null,
           productId: pc.product_id || null,
           buyerName: pc.buyer_name || null,
@@ -817,8 +815,6 @@ export class LogisticsService {
         incoterm,
         shipmentMode: pc.transport_mode ? pc.transport_mode.toUpperCase() : 'ROAD',
         quantity: pc.quantity ? Number(pc.quantity) : 0,
-        purchaseDate: pc.purchase_date || null,
-        enquiryDate: pc.purchase_date || null,
         partner: {
           entityName: pc.seller_name || pc.buyer_name || '—',
         },
@@ -879,7 +875,6 @@ export class LogisticsService {
             pc.place_of_loading,
             pc.loading_country,
             pc.delivery_place,
-            pc.purchase_date,
             pc.sales_contract_id,
             pc.business_transaction_id,
             pc.shipment_type_id,
@@ -1027,7 +1022,6 @@ export class LogisticsService {
           sellerName: matchedPc.seller_name || null,
           productName: matchedPc.product_name || null,
           productId: matchedPc.pci_product_id || null,
-          purchaseDate: matchedPc.purchase_date || null,
         }
         : null;
 
@@ -2006,7 +2000,6 @@ export class LogisticsService {
         businessReference: pc.business_reference || null,
         buyerId: pc.buyer_id || null,
         sellerId: pc.seller_id || null,
-        purchaseDate: pc.purchase_date || null,
       };
 
       const linkedSalesContract = pc.salesContract || null;
@@ -2530,7 +2523,6 @@ export class LogisticsService {
              pc.place_of_loading,
              pc.loading_country,
              pc.delivery_place,
-             pc.purchase_date,
              pc.sales_contract_id,
              pc.business_transaction_id,
              pc.shipment_type_id,
@@ -2587,7 +2579,6 @@ export class LogisticsService {
             buyerName: pc.buyer_name || null,
             productName: pc.product_name || null,
             productId: pc.pci_product_id || null,
-            purchaseDate: pc.purchase_date || null,
             sellerId: pc.seller_id || null,
             sellerName: pc.seller_name || null,
           };

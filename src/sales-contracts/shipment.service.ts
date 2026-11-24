@@ -2594,6 +2594,33 @@ export class ShipmentService {
           `Enter valid numbers for: ${invalidWeightFields.join(', ')}.`,
         );
       }
+
+      const dispatchMode =
+        dto.dispatchMode === 'container'
+          ? 'container'
+          : dto.dispatchMode === 'truck'
+            ? 'truck'
+            : /\bSEA\b|CONTAINER|OCEAN|MARITIME/i.test(
+                  String(dto.autoPopulated?.transportMode || ''),
+                )
+              ? 'container'
+              : 'truck';
+      const dispatchRows =
+        dispatchMode === 'container' ? dto.containers : dto.trucks;
+      if (
+        !Array.isArray(dispatchRows) ||
+        dispatchRows.length === 0 ||
+        dispatchRows.some(
+          (row) =>
+            !['yes', 'no'].includes(
+              String(row?.dispatch || '').toLowerCase(),
+            ),
+        )
+      ) {
+        throw new BadRequestException(
+          'Select Dispatch (Yes or No) for every container or truck before completing stuffing.',
+        );
+      }
     }
 
     const { shipment, record, stuffingData } = await this.sequelize.transaction(

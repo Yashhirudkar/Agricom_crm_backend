@@ -65,7 +65,7 @@ export class WhatsAppTemplates {
   ): string {
     const displayValue =
       value === null || value === undefined || value === '' ? 'None' : value;
-    return `*${label}:* ${displayValue}\n`;
+    return `*${label}:* ${String(displayValue).toUpperCase()}\n`;
   }
 
   private static formatNumber(
@@ -142,7 +142,9 @@ export class WhatsAppTemplates {
    * ```
    */
   static enquiryCreated(data: EnquiryNotificationData): string {
-    const title = data.enquiryNo ? `*${data.enquiryNo}*\n\n` : '';
+    const title = data.enquiryNo
+      ? `*${data.enquiryNo.toUpperCase()}*\n\n`
+      : '';
     const lines: string[] = title ? [title] : [];
 
     lines.push(WhatsAppTemplates.line('Customer', data.customerName));
@@ -171,8 +173,41 @@ export class WhatsAppTemplates {
     lines.push(WhatsAppTemplates.line('Quantity', qty));
 
     lines.push(WhatsAppTemplates.line('Packing Type', data.packingType));
-    lines.push(WhatsAppTemplates.line('Origin', data.origin));
-    lines.push(WhatsAppTemplates.line('Destination', data.destination));
+    if (data.transportDetails && data.transportDetails.length > 0) {
+      data.transportDetails
+        .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+        .forEach((route, index) => {
+          const routePrefix =
+            data.transportDetails!.length > 1 ? ` ${index + 1}` : '';
+          lines.push(
+            WhatsAppTemplates.line(
+              `Place of Loading${routePrefix}`,
+              route.origin || data.placeOfLoading,
+            ),
+          );
+          lines.push(
+            WhatsAppTemplates.line(
+              `Incoterm${routePrefix}`,
+              route.incoterm || data.incoterm,
+            ),
+          );
+          lines.push(
+            WhatsAppTemplates.line(
+              `Destination${routePrefix}`,
+              route.destination || data.destination,
+            ),
+          );
+        });
+    } else {
+      lines.push(
+        WhatsAppTemplates.line(
+          'Place of Loading',
+          data.placeOfLoading || data.origin,
+        ),
+      );
+      lines.push(WhatsAppTemplates.line('Incoterm', data.incoterm));
+      lines.push(WhatsAppTemplates.line('Destination', data.destination));
+    }
     lines.push(WhatsAppTemplates.line('Shipment Type', data.shipmentType));
     lines.push(
       WhatsAppTemplates.line(
@@ -245,8 +280,14 @@ export class WhatsAppTemplates {
         n = formatter(n);
       }
       if (o !== n) {
-        const displayO = o === null || o === undefined || o === '' ? 'None' : o;
-        const displayN = n === null || n === undefined || n === '' ? 'None' : n;
+        const displayO =
+          o === null || o === undefined || o === ''
+            ? 'NONE'
+            : String(o).toUpperCase();
+        const displayN =
+          n === null || n === undefined || n === ''
+            ? 'NONE'
+            : String(n).toUpperCase();
         changes.push(`*${label}:*\n${displayO} → ${displayN}\n`);
       }
     };
@@ -269,20 +310,35 @@ export class WhatsAppTemplates {
       v !== null && v !== undefined ? `${v} MT` : null;
     diff('Quantity', oldData.quantity, newData.quantity, qtyFormatter);
 
+    const getTransportDetails = (d: any) =>
+      Array.isArray(d?.transportDetails)
+        ? d.transportDetails
+            .slice()
+            .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0))
+        : [];
     const getOrigin = (d: any) =>
+      getTransportDetails(d)[0]?.origin ||
       d?.originPort ||
       [d?.originCity, d?.originState, d?.originCountryId]
         .filter(Boolean)
         .join(', ') ||
       null;
-    diff('Origin', getOrigin(oldData), getOrigin(newData));
+    const getIncoterm = (d: any) =>
+      getTransportDetails(d)[0]?.incoterm || d?.incoterm || null;
 
     const getDest = (d: any) =>
+      getTransportDetails(d)[0]?.destination ||
       d?.destinationPort ||
       [d?.destinationCity, d?.destinationState, d?.destinationCountry]
         .filter(Boolean)
         .join(', ') ||
       null;
+    diff(
+      'Place of Loading',
+      getOrigin(oldData),
+      getOrigin(newData),
+    );
+    diff('Incoterm', getIncoterm(oldData), getIncoterm(newData));
     diff('Destination', getDest(oldData), getDest(newData));
 
     diff('Shipment Type', oldData.shipmentType, newData.shipmentType);
@@ -323,7 +379,15 @@ export class WhatsAppTemplates {
       quantityUnit: 'MT',
       packingType: newData.packingType?.name,
       origin: getOrigin(newData) || undefined,
+      placeOfLoading: getOrigin(newData) || undefined,
+      incoterm: getIncoterm(newData) || undefined,
       destination: getDest(newData) || undefined,
+      transportDetails: getTransportDetails(newData).map((route: any) => ({
+        sequence: route.sequence,
+        origin: route.origin,
+        incoterm: route.incoterm,
+        destination: route.destination,
+      })),
       shipmentType: newData.shipmentType,
       shipmentDate: newData.shipmentDate,
       bid: newData.buyingInterest,
