@@ -47,6 +47,7 @@ import { PackingType } from '../masters/bag-specs/models/packing-type.model';
 import { BagSpecification } from '../masters/bag-specs/models/bag-specification.model';
 import { StockService } from '../stock/stock.service';
 import { assertCanModifyRecord } from '../rbac/utils/finalization-lock.util';
+import { Attachment } from '../attachments/models/attachment.model';
 
 function getContractDestination(contract: SalesContract): string | null {
   if (contract.destinationSelectionMode === 'enquiry') {
@@ -81,6 +82,8 @@ export class ShipmentService {
     private readonly auditService: AuditService,
     @InjectModel(ShipmentStuffing)
     private readonly stuffingModel: typeof ShipmentStuffing,
+    @InjectModel(Attachment)
+    private readonly attachmentModel: typeof Attachment,
     @InjectModel(CargoShipmentAllocation)
     private readonly cargoAllocationModel: typeof CargoShipmentAllocation,
     @InjectModel(CargoLoading)
@@ -2457,6 +2460,42 @@ export class ShipmentService {
       )
         ? existingStuffingData.downtimes
         : [];
+
+      const attachments = Array.isArray(existingStuffingData.attachments)
+        ? existingStuffingData.attachments
+        : [];
+      const attachmentIds = [
+        ...new Set<number>(
+          attachments
+            .map((attachment): number => Number(attachment?.attachmentId))
+            .filter((id): id is number => Number.isInteger(id) && id > 0),
+        ),
+      ];
+
+      if (attachmentIds.length > 0) {
+        const storedAttachments = await this.attachmentModel.findAll({
+          where: { id: { [Op.in]: attachmentIds } },
+          attributes: ['id', 'originalName', 'fileSize', 'mimeType'],
+        });
+        const storedById = new Map(
+          storedAttachments.map((attachment) => [attachment.id, attachment]),
+        );
+
+        existingStuffingData.attachments = attachments.map((attachment) => {
+          const stored = storedById.get(Number(attachment?.attachmentId));
+          if (!stored) return attachment;
+
+          const downloadUrl = `/attachments/${stored.id}/download`;
+          return {
+            ...attachment,
+            fileName: attachment.fileName || stored.originalName,
+            fileUrl: attachment.fileUrl || downloadUrl,
+            downloadUrl: attachment.downloadUrl || downloadUrl,
+            fileSize: Number(attachment.fileSize) || stored.fileSize,
+            mimeType: attachment.mimeType || stored.mimeType,
+          };
+        });
+      }
     }
 
     return {

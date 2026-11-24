@@ -23,6 +23,7 @@ import { TransportDetail } from '../enquiries/models/transport-detail.model';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StockModule } from '../stock/stock.module';
 import { LogisticsModule } from '../logistics/logistics.module';
+import { Attachment } from '../attachments/models/attachment.model';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { LogisticsModule } from '../logistics/logistics.module';
       Logistics,
       FreightQuote,
       ShipmentStuffing,
+      Attachment,
       TransportDetail,
     ]),
     RbacModule,

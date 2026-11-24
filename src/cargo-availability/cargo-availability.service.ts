@@ -763,9 +763,113 @@ export class CargoAvailabilityService {
       }
     }
 
+    // Reconcile Ready cargo with this shipment.
+    // Readiness may have been confirmed earlier in the Cargo Availability workspace
+    // without a shipmentId, so the shipment allocation was not created.  A
+    // Ready/Approved record must still appear as Cargo Allocated in Shipments.
+    for (const cargoRecord of cargoAvailabilityRecords) {
+      const recordId = Number(cargoRecord?.id || 0);
+      if (!recordId) continue;
+
+      const readiness = await this.cargoReadinessModel.findOne({
+        where: { cargoAvailabilityId: recordId },
+        order: [['created_at', 'DESC']],
+      });
+      if (
+        !readiness ||
+        !['Ready', 'Approved'].includes(String(readiness.status))
+      ) {
+        continue;
+      }
+
+      let allocation = await this.cargoAllocationModel.findOne({
+        where: {
+          cargoAvailabilityId: recordId,
+          shipmentId,
+        },
+      });
+
+      if (allocation) {
+        if (allocation.status !== 'Active') {
+          allocation.status = 'Active';
+          await allocation.save();
+        }
+      } else {
+        const shipmentQuantity = Number(
+          shipmentInfo.shipment?.quantity ||
+          shipmentInfo.remainingShipmentQty ||
+          0,
+        );
+        const purchaseQuantity = Number(
+          cargoRecord.purchaseQty ||
+          0,
+        );
+        const allocQty = Math.min(shipmentQuantity, purchaseQuantity);
+        if (allocQty > 0) {
+          allocation = await this.cargoAllocationModel.create({
+            cargoAvailabilityId: recordId,
+            shipmentId,
+            allocatedQty: allocQty,
+            status: 'Active',
+            allocatedAt: new Date(),
+            companyId: cargoRecord.companyId || companyId,
+          });
+        }
+      }
+
+      if (allocation) {
+        cargoRecord.status =
+          cargoRecord.status === 'Completed'
+            ? 'Completed'
+            : cargoRecord.status || 'Ready';
+      }
+    }
+
+    const reconciledAllocations = await this.cargoAllocationModel.findAll({
+      where: { shipmentId, status: 'Active' },
+      include: [
+        {
+          model: CargoAvailability,
+          include: [
+            {
+              model: PurchaseContract,
+              include: [
+                { model: Partner, as: 'buyer' },
+                { model: Partner, as: 'seller' },
+              ],
+            },
+            { model: PurchaseContractItem },
+            { model: Product },
+            {
+              model: CargoReadiness,
+              include: [{ model: Partner, as: 'warehouse' }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const reconciledAllocationsPlain = await Promise.all(
+      reconciledAllocations.map(async (alloc) => {
+        const plain = alloc.get({ plain: true });
+        if (alloc.cargoAvailability) {
+          plain.cargoAvailability = await this.attachCalculatedMetrics(
+            alloc.cargoAvailability,
+          );
+        }
+        return plain;
+      }),
+    );
+
+    if (reconciledAllocationsPlain.length > 0) {
+      cargoAvailabilityRecords = reconciledAllocationsPlain
+        .map((a) => a.cargoAvailability)
+        .filter(Boolean);
+    }
+
     return {
       shipmentInfo,
-      allocations: enrichedAllocations,
+      allocations: reconciledAllocationsPlain,
       cargoAvailabilityRecords,
       loadingEntries,
     };
@@ -847,6 +951,46 @@ export class CargoAvailabilityService {
     );
 
     if (hasExistingReadiness) {
+      if (
+        dto.shipmentId &&
+        dto.status === 'Ready' &&
+        existingEntry &&
+        ['Ready', 'Approved'].includes(String(existingEntry.status))
+      ) {
+        const existingAllocation = await this.cargoAllocationModel.findOne({
+          where: {
+            cargoAvailabilityId: record.id,
+            shipmentId: Number(dto.shipmentId),
+          },
+        });
+        if (existingAllocation) {
+          if (existingAllocation.status !== 'Active') {
+            existingAllocation.status = 'Active';
+            await existingAllocation.save();
+          }
+        } else {
+          const shipment = await this.shipmentModel.findByPk(
+            Number(dto.shipmentId),
+          );
+          const allocQty = Math.min(
+            Number(shipment?.quantity || record.purchaseQty || 0),
+            Number(record.purchaseQty || 0),
+          );
+          if (allocQty > 0) {
+            await this.cargoAllocationModel.create({
+              cargoAvailabilityId: record.id,
+              shipmentId: Number(dto.shipmentId),
+              allocatedQty: allocQty,
+              status: 'Active',
+              allocatedBy: userId,
+              allocatedAt: new Date(),
+              companyId: record.companyId,
+            });
+          }
+        }
+        return existingEntry;
+      }
+
       const hasOverride =
         userPermissions?.has('cargo_allocation:edit_completed') ||
         userPermissions?.has('cargo_availability:edit_completed');

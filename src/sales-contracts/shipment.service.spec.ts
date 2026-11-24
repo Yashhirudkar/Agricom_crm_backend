@@ -13,6 +13,7 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
   let mockReadinessService: any;
   let mockAuditService: any;
   let mockStuffingModel: any;
+  let mockAttachmentModel: any;
   let mockCargoAllocationModel: any;
   let mockCargoLoadingModel: any;
   let mockLogisticsModel: any;
@@ -24,6 +25,7 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       findAndCountAll: jest.fn().mockResolvedValue({ rows: [], count: 0 }),
       count: jest.fn().mockResolvedValue(0),
       findAll: jest.fn().mockResolvedValue([]),
+      findByPk: jest.fn().mockResolvedValue(null),
     };
     mockContractModel = {};
     mockItemModel = { findAll: jest.fn().mockResolvedValue([]) };
@@ -33,7 +35,8 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
     mockStockService = { validateShipmentStock: jest.fn() };
     mockReadinessService = { evaluateBatch: jest.fn().mockResolvedValue(new Map()) };
     mockAuditService = {};
-    mockStuffingModel = {};
+    mockStuffingModel = { findOne: jest.fn().mockResolvedValue(null) };
+    mockAttachmentModel = { findAll: jest.fn().mockResolvedValue([]) };
     mockCargoAllocationModel = {};
     mockCargoLoadingModel = {};
     mockLogisticsModel = {};
@@ -54,6 +57,7 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       mockReadinessService,
       mockAuditService,
       mockStuffingModel,
+      mockAttachmentModel,
       mockCargoAllocationModel,
       mockCargoLoadingModel,
       mockLogisticsModel,
@@ -286,8 +290,26 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
               remarks: '',
             },
           ],
+          attachments: [
+            {
+              documentName: 'Loading Photos',
+              attachmentId: 73,
+              fileName: '',
+              fileUrl: '',
+              fileSize: 0,
+              mimeType: '',
+            },
+          ],
         }),
       });
+      mockAttachmentModel.findAll.mockResolvedValue([
+        {
+          id: 73,
+          originalName: '1.pdf',
+          fileSize: 364271,
+          mimeType: 'application/pdf',
+        },
+      ]);
       mockReadinessService.evaluate = jest.fn().mockResolvedValue({
         readyForShipment: false,
         isManualOverride: false,
@@ -318,6 +340,19 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       expect(result.existingStuffing.downtimes[0].price).toBe(25.75);
       expect(result.existingStuffing.downtimes[0].currency).toBe('INR');
       expect(result.existingStuffing.downtimes[0].duration).toBe('1 day');
+      expect(mockAttachmentModel.findAll).toHaveBeenCalledWith({
+        where: { id: { [Op.in]: [73] } },
+        attributes: ['id', 'originalName', 'fileSize', 'mimeType'],
+      });
+      expect(result.existingStuffing.attachments[0]).toMatchObject({
+        documentName: 'Loading Photos',
+        attachmentId: 73,
+        fileName: '1.pdf',
+        fileUrl: '/attachments/73/download',
+        downloadUrl: '/attachments/73/download',
+        fileSize: 364271,
+        mimeType: 'application/pdf',
+      });
     });
   });
 
