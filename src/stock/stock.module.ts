@@ -10,8 +10,6 @@ import { SalesContract } from '../sales-contracts/models/sales-contract.model';
 import { SalesContractItem } from '../sales-contracts/models/sales-contract-item.model';
 import { SalesContractShipment } from '../sales-contracts/models/sales-contract-shipment.model';
 import { ShipmentStuffing } from '../sales-contracts/models/shipment-stuffing.model';
-import { CargoShipmentAllocation } from '../cargo-availability/models/cargo-shipment-allocation.model';
-import { CargoAvailability } from '../cargo-availability/models/cargo-availability.model';
 import { Product } from '../masters/product/product.model';
 import { Country } from '../masters/country/country.model';
 import { Port } from '../masters/port/port.model';
@@ -30,8 +28,6 @@ import { ExchangeRateModule } from '../exchange-rates/exchange-rate.module';
       SalesContractItem,
       SalesContractShipment,
       ShipmentStuffing,
-      CargoShipmentAllocation,
-      CargoAvailability,
       Product,
       Country,
       Port,

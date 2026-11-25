@@ -41,7 +41,10 @@ import {
 } from './dto/update-sales-contract.dto';
 import { QuerySalesContractDto } from './dto/query-sales-contract.dto';
 import { generateShipmentReference } from './utils/shipment-reference.util';
-import { generateQuantityDescription, getContractItemQuantityDescription } from './utils/quantity-description.util';
+import {
+  generateQuantityDescription,
+  getContractItemQuantityDescription,
+} from './utils/quantity-description.util';
 import {
   distributeShipmentQuantities,
   isDivisible,
@@ -300,7 +303,11 @@ export class SalesContractService implements OnModuleInit {
       // 2. Create Header
       if (dto.transportDetails && Array.isArray(dto.transportDetails)) {
         for (const [idx, item] of dto.transportDetails.entries()) {
-          if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+          if (
+            !item.origin?.trim() ||
+            !item.incoterm?.trim() ||
+            !item.destination?.trim()
+          ) {
             throw new BadRequestException(
               `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
             );
@@ -336,7 +343,11 @@ export class SalesContractService implements OnModuleInit {
 
       // 3. Create Items
       if (dto.items && dto.items.length > 0) {
-        const mode = contract.transportMode || contract.originTransportMode || contract.destinationTransportMode || 'sea';
+        const mode =
+          contract.transportMode ||
+          contract.originTransportMode ||
+          contract.destinationTransportMode ||
+          'sea';
         const contractContainerType = contract.containerType || '40 FT';
         const contractTolerance = contract.tolerancePercentage ?? 5;
 
@@ -453,14 +464,18 @@ export class SalesContractService implements OnModuleInit {
             freightRequired: isFreightRequired,
             freightAllocationStatus: 'No',
             freight: isFreightRequired
-              ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+              ? shipment.freight !== undefined &&
+                shipment.freight !== null &&
+                (shipment.freight as any) !== ''
                 ? parseFloat(shipment.freight as any)
-                : null)
+                : null
               : null,
             freightCurrency: isFreightRequired
-              ? (shipment.freightCurrency || contract.currencyCode || null)
+              ? shipment.freightCurrency || contract.currencyCode || null
               : null,
-            freightDescription: isFreightRequired ? (shipment.freightDescription || null) : null,
+            freightDescription: isFreightRequired
+              ? shipment.freightDescription || null
+              : null,
             shipmentDate: new Date(shipment.shipmentDate),
             salesContractId: contract.id,
             companyId: contract.companyId || user?.companyId || null,
@@ -788,7 +803,9 @@ export class SalesContractService implements OnModuleInit {
     if (item.items && Array.isArray(item.items)) {
       const printOverrides = item.printOverrides || {};
       item.items.forEach((it: any, idx: number) => {
-        const curQuality = it.getDataValue ? it.getDataValue('quality') : it.quality;
+        const curQuality = it.getDataValue
+          ? it.getDataValue('quality')
+          : it.quality;
         if (!curQuality || !String(curQuality).trim()) {
           const overrideQuality =
             printOverrides[`quality_${idx}`] ||
@@ -802,7 +819,9 @@ export class SalesContractService implements OnModuleInit {
           }
         }
 
-        const curDesc = it.getDataValue ? it.getDataValue('quantityDescription') : it.quantityDescription;
+        const curDesc = it.getDataValue
+          ? it.getDataValue('quantityDescription')
+          : it.quantityDescription;
         if (!curDesc || !String(curDesc).trim()) {
           const generatedDesc = getContractItemQuantityDescription(item, it);
           if (it.setDataValue) {
@@ -930,7 +949,9 @@ export class SalesContractService implements OnModuleInit {
       }
       const effectiveShipmentTypeId =
         dto.shipmentTypeId !== undefined
-          ? (dto.shipmentTypeId ? Number(dto.shipmentTypeId) : null)
+          ? dto.shipmentTypeId
+            ? Number(dto.shipmentTypeId)
+            : null
           : contract.shipmentTypeId;
       let destLocName = dto.destinationLocationName;
       let st: any = null;
@@ -975,7 +996,9 @@ export class SalesContractService implements OnModuleInit {
 
       const updateData: any = {
         ...dto,
-        ...(destLocName !== undefined ? { destinationLocationName: destLocName } : {}),
+        ...(destLocName !== undefined
+          ? { destinationLocationName: destLocName }
+          : {}),
         totalQuantity: calculatedTotalQty,
         totalAmount: calculatedTotalAmt,
         updatedBy: user?.userId,
@@ -986,7 +1009,10 @@ export class SalesContractService implements OnModuleInit {
 
       // Synchronize printOverrides with items' quality so View mode and Print templates match
       if (dto.items && dto.items.length > 0) {
-        const currentOverrides = { ...(contract.printOverrides || {}), ...(dto.printOverrides || {}) };
+        const currentOverrides = {
+          ...(contract.printOverrides || {}),
+          ...(dto.printOverrides || {}),
+        };
         let overridesModified = false;
         dto.items.forEach((it: any, idx: number) => {
           if (it.quality && String(it.quality).trim()) {
@@ -1026,7 +1052,11 @@ export class SalesContractService implements OnModuleInit {
         });
         const updatedItemIds: number[] = [];
 
-        const mode = contract.transportMode || contract.originTransportMode || contract.destinationTransportMode || 'sea';
+        const mode =
+          contract.transportMode ||
+          contract.originTransportMode ||
+          contract.destinationTransportMode ||
+          'sea';
         const contractContainerType = contract.containerType || '40 FT';
         const contractTolerance = contract.tolerancePercentage ?? 5;
 
@@ -1037,8 +1067,14 @@ export class SalesContractService implements OnModuleInit {
             existing = existingItems[index];
           }
 
-          const itemContainerType = item.containerType || existing?.containerType || contractContainerType;
-          const itemTolerance = item.tolerancePercentage ?? existing?.tolerancePercentage ?? contractTolerance;
+          const itemContainerType =
+            item.containerType ||
+            existing?.containerType ||
+            contractContainerType;
+          const itemTolerance =
+            item.tolerancePercentage ??
+            existing?.tolerancePercentage ??
+            contractTolerance;
           const itemUnitCount = item.unitCount ?? existing?.unitCount;
           const itemQtyPerCount = item.qtyPerCount ?? existing?.qtyPerCount;
           const itemQuantity = item.quantity ?? existing?.quantity;
@@ -1062,7 +1098,9 @@ export class SalesContractService implements OnModuleInit {
 
           if (existing) {
             const qualityToSave =
-              item.quality !== undefined && item.quality !== null && String(item.quality).trim() !== ''
+              item.quality !== undefined &&
+              item.quality !== null &&
+              String(item.quality).trim() !== ''
                 ? String(item.quality).trim()
                 : existing.quality;
             await existing.update(
@@ -1115,17 +1153,13 @@ export class SalesContractService implements OnModuleInit {
           dto.contractNumber || contract.contractNumber
         )?.trim();
 
-        // Check which shipments are referenced by purchase_contract_shipments or cargo tables
+        // Check which shipments are referenced by purchase contract links.
         const existingIds = existingShipments.map((s) => s.id);
         let referencedShipmentIds = new Set<number>();
         if (existingIds.length > 0) {
           const referencedRows: any[] = await this.sequelize.query(
             `SELECT DISTINCT shipment_id FROM (
               SELECT shipment_id FROM purchase_contract_shipments WHERE shipment_id IN (:ids)
-              UNION
-              SELECT shipment_id FROM cargo_shipment_allocations WHERE shipment_id IN (:ids)
-              UNION
-              SELECT shipment_id FROM cargo_loading WHERE shipment_id IN (:ids)
             ) ref`,
             {
               replacements: { ids: existingIds },
@@ -1282,15 +1316,22 @@ export class SalesContractService implements OnModuleInit {
                 freightAllocationStatus:
                   existing.freightAllocationStatus || 'No',
                 freight: shipmentFreightRequired
-                  ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+                  ? shipment.freight !== undefined &&
+                    shipment.freight !== null &&
+                    (shipment.freight as any) !== ''
                     ? parseFloat(shipment.freight as any)
-                    : (existing.freight ?? null))
+                    : (existing.freight ?? null)
                   : null,
                 freightCurrency: shipmentFreightRequired
-                  ? (shipment.freightCurrency || (existing as any).freightCurrency || contract.currencyCode || null)
+                  ? shipment.freightCurrency ||
+                    (existing as any).freightCurrency ||
+                    contract.currencyCode ||
+                    null
                   : null,
                 freightDescription: shipmentFreightRequired
-                  ? (shipment.freightDescription !== undefined ? shipment.freightDescription : ((existing as any).freightDescription ?? null))
+                  ? shipment.freightDescription !== undefined
+                    ? shipment.freightDescription
+                    : ((existing as any).freightDescription ?? null)
                   : null,
               },
               { transaction: t },
@@ -1326,14 +1367,18 @@ export class SalesContractService implements OnModuleInit {
                 freightRequired: isFreightRequired,
                 freightAllocationStatus: 'No',
                 freight: isFreightRequired
-                  ? (shipment.freight !== undefined && shipment.freight !== null && (shipment.freight as any) !== ''
+                  ? shipment.freight !== undefined &&
+                    shipment.freight !== null &&
+                    (shipment.freight as any) !== ''
                     ? parseFloat(shipment.freight as any)
-                    : null)
+                    : null
                   : null,
                 freightCurrency: isFreightRequired
-                  ? (shipment.freightCurrency || contract.currencyCode || null)
+                  ? shipment.freightCurrency || contract.currencyCode || null
                   : null,
-                freightDescription: isFreightRequired ? (shipment.freightDescription || null) : null,
+                freightDescription: isFreightRequired
+                  ? shipment.freightDescription || null
+                  : null,
               },
               { transaction: t },
             );
@@ -1437,28 +1482,28 @@ export class SalesContractService implements OnModuleInit {
           Array.isArray(dto.transportDetails) &&
           dto.transportDetails.length > 0
         ) {
-        const tdFreightCache = new Map<string, boolean>();
-        const detailsToCreate = dto.transportDetails.map((td, index) => {
-          const incoterm = td.incoterm.trim();
-          let freightRequired = tdFreightCache.get(incoterm);
-          if (freightRequired === undefined) {
-            freightRequired = evaluateFreightRequired(
-              pcShipmentType,
+          const tdFreightCache = new Map<string, boolean>();
+          const detailsToCreate = dto.transportDetails.map((td, index) => {
+            const incoterm = td.incoterm.trim();
+            let freightRequired = tdFreightCache.get(incoterm);
+            if (freightRequired === undefined) {
+              freightRequired = evaluateFreightRequired(
+                pcShipmentType,
+                incoterm,
+              ).freightRequired;
+              tdFreightCache.set(incoterm, freightRequired);
+            }
+            return {
+              companyId: contract.companyId || user?.companyId,
+              salesContractId: contract.id,
+              parentId: String(contract.id),
+              sequence: td.sequence != null ? td.sequence : index + 1,
+              origin: td.origin.trim(),
               incoterm,
-            ).freightRequired;
-            tdFreightCache.set(incoterm, freightRequired);
-          }
-          return {
-            companyId: contract.companyId || user?.companyId,
-            salesContractId: contract.id,
-            parentId: String(contract.id),
-            sequence: td.sequence != null ? td.sequence : index + 1,
-            origin: td.origin.trim(),
-            incoterm,
-            destination: td.destination.trim(),
-            freightRequired,
-          };
-        });
+              destination: td.destination.trim(),
+              freightRequired,
+            };
+          });
           await this.transportDetailModel.bulkCreate(detailsToCreate, {
             transaction: t,
           });

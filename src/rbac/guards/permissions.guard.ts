@@ -305,21 +305,15 @@ export class PermissionsGuard implements CanActivate {
       grantedSet.add(std);
       grantedSet.add(rawPerm);
 
-      // Bi-directional aliases for Cargo & Freight modules
-      if (resourceName === 'cargo_allocation') {
-        grantedSet.add(`cargo_availability:${actionName}`);
-        grantedSet.add(standardizePermission(`cargo_availability:${actionName}`).name);
-      } else if (resourceName === 'cargo_availability') {
-        grantedSet.add(`cargo_allocation:${actionName}`);
-        grantedSet.add(standardizePermission(`cargo_allocation:${actionName}`).name);
-      }
-
+      // Freight allocation and logistics are aliases for the same workflow.
       if (resourceName === 'freight_allocation') {
         grantedSet.add(`logistics:${actionName}`);
         grantedSet.add(standardizePermission(`logistics:${actionName}`).name);
       } else if (resourceName === 'logistics') {
         grantedSet.add(`freight_allocation:${actionName}`);
-        grantedSet.add(standardizePermission(`freight_allocation:${actionName}`).name);
+        grantedSet.add(
+          standardizePermission(`freight_allocation:${actionName}`).name,
+        );
       }
     });
     request.userPermissions = grantedSet;

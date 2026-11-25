@@ -50,8 +50,6 @@ describe('BusinessTransactionService enquiry allocation', () => {
       FreightQuote: model(),
       SalesContractShipment: model(),
       PurchaseContract: model(),
-      CargoLoading: model(),
-      CargoAvailability: model(),
     };
     const sequelize = {
       models,

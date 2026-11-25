@@ -22,8 +22,6 @@ describe('ShipmentReadinessService', () => {
     };
 
     service = new ShipmentReadinessService(
-      mockCargoAllocationModel,
-      mockCargoLoadingModel,
       mockLogisticsModel,
       mockFreightQuoteModel,
     );
@@ -50,6 +48,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 1,
         quantity: 50,
+        cargoReadyConfirmed: true,
         freightRequired: true,
         purchaseContract: { shipmentType: { code: 'EXW' } },
         salesContract: { shipmentType: { code: 'FOB' } },
@@ -66,6 +65,43 @@ describe('ShipmentReadinessService', () => {
       expect(result.reasons.length).toBe(0);
     });
 
+    it('keeps cargo ready after an explicit confirmation when allocations are no longer active', async () => {
+      const shipment = {
+        id: 20,
+        quantity: 50,
+        cargoReadyConfirmed: true,
+        freightRequired: false,
+        manualReadyOverride: null,
+      };
+
+      const result = await service.evaluate(shipment);
+
+      expect(result.cargoReady).toBe(true);
+      expect(result.systemReady).toBe(true);
+      expect(result.readyForShipment).toBe(true);
+    });
+
+    it('honors an explicit Not Ready selection even when loading data exists', async () => {
+      mockCargoAllocationModel.findAll.mockResolvedValue([
+        { shipmentId: 21, allocatedQty: 50, status: 'Active' },
+      ]);
+      mockCargoLoadingModel.findAll.mockResolvedValue([
+        { shipmentId: 21, loadedQty: 50 },
+      ]);
+
+      const result = await service.evaluate({
+        id: 21,
+        quantity: 50,
+        cargoReadyConfirmed: false,
+        freightRequired: false,
+        manualReadyOverride: null,
+      });
+
+      expect(result.cargoReady).toBe(false);
+      expect(result.systemReady).toBe(false);
+      expect(result.readyForShipment).toBe(false);
+    });
+
     it('should return System Ready = NO, Final Ready = NO when freight is pending', async () => {
       mockCargoAllocationModel.findAll.mockResolvedValue([
         { shipmentId: 2, allocatedQty: 100, status: 'Active' },
@@ -77,6 +113,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 2,
         quantity: 100,
+        cargoReadyConfirmed: true,
         freightRequired: true,
         purchaseContract: { shipmentType: { code: 'EXW' } },
         salesContract: { shipmentType: { code: 'FOB' } },
@@ -139,7 +176,9 @@ describe('ShipmentReadinessService', () => {
       expect(result.readyForShipment).toBe(false);
       expect(result.isManualOverride).toBe(false);
       expect(result.readySource).toBe('System');
-      expect(result.reasons).toEqual(['Cargo and Freight allocations are pending.']);
+      expect(result.reasons).toEqual([
+        'Cargo and Freight allocations are pending.',
+      ]);
     });
   });
 
@@ -191,6 +230,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 6,
         quantity: 100,
+        cargoReadyConfirmed: true,
         freightRequired: true,
         purchaseContract: { shipmentType: { code: 'EXW' } },
         salesContract: { shipmentType: { code: 'FOB' } },
@@ -206,7 +246,9 @@ describe('ShipmentReadinessService', () => {
       expect(result.isManualOverride).toBe(true);
       expect(result.readySource).toBe('Manual');
       expect(result.manualReadyOverride).toBe(false);
-      expect(result.reasons).toEqual(['Manual override blocked: Customs hold on commodity port']);
+      expect(result.reasons).toEqual([
+        'Manual override blocked: Customs hold on commodity port',
+      ]);
     });
 
     it('System Ready = YES, Manual Override = NULL -> Final Ready = YES (System)', async () => {
@@ -229,6 +271,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 7,
         quantity: 100,
+        cargoReadyConfirmed: true,
         freightRequired: true,
         purchaseContract: { shipmentType: { code: 'EXW' } },
         salesContract: { shipmentType: { code: 'FOB' } },
@@ -286,6 +329,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 99,
         quantity: 50,
+        cargoReadyConfirmed: true,
         freightRequired: true,
         purchaseContract: { shipmentType: { code: 'EXW' } },
         salesContract: { shipmentType: { code: 'FOB' } },
@@ -359,10 +403,30 @@ describe('ShipmentReadinessService', () => {
       ]);
 
       const shipments = [
-        { id: 1, purchaseContractId: 20, logisticsId: 50, freightRequired: true },
-        { id: 2, purchaseContractId: 20, logisticsId: 50, freightRequired: true },
-        { id: 3, purchaseContractId: 20, logisticsId: 50, freightRequired: true },
-        { id: 4, purchaseContractId: 20, logisticsId: 50, freightRequired: true },
+        {
+          id: 1,
+          purchaseContractId: 20,
+          logisticsId: 50,
+          freightRequired: true,
+        },
+        {
+          id: 2,
+          purchaseContractId: 20,
+          logisticsId: 50,
+          freightRequired: true,
+        },
+        {
+          id: 3,
+          purchaseContractId: 20,
+          logisticsId: 50,
+          freightRequired: true,
+        },
+        {
+          id: 4,
+          purchaseContractId: 20,
+          logisticsId: 50,
+          freightRequired: true,
+        },
       ];
 
       const batchMap = await service.evaluateBatch(shipments);
@@ -421,6 +485,7 @@ describe('ShipmentReadinessService', () => {
       const shipment = {
         id: 101,
         quantity: 50,
+        cargoReadyConfirmed: true,
         purchaseContract: { shipmentType: { sequence: 2, code: 'FCA' } },
         salesContract: { shipmentType: { sequence: 2, code: 'FCA' } },
       };
@@ -463,7 +528,7 @@ describe('ShipmentReadinessService', () => {
       expect(result.freightReady).toBe(false);
       expect(result.freightAllocationStatus).toBe('No');
       expect(result.systemReady).toBe(false);
-      expect(result.reasons).toContain('Freight allocation is pending.');
+      expect(result.reasons).toContain('Cargo and Freight allocations are pending.');
     });
 
     it('does not mark Freight Allocation YES when the Sales Contract term is FCA before assignment', async () => {
@@ -528,8 +593,6 @@ describe('ShipmentReadinessService', () => {
         ]),
       };
       service = new ShipmentReadinessService(
-        mockCargoAllocationModel,
-        mockCargoLoadingModel,
         mockLogisticsModel,
         mockFreightQuoteModel,
         sequelize as any,

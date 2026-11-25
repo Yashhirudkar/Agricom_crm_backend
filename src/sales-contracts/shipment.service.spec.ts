@@ -14,8 +14,6 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
   let mockAuditService: any;
   let mockStuffingModel: any;
   let mockAttachmentModel: any;
-  let mockCargoAllocationModel: any;
-  let mockCargoLoadingModel: any;
   let mockLogisticsModel: any;
   let mockFreightQuoteModel: any;
   let mockSequelize: any;
@@ -33,12 +31,15 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
     mockDocFileModel = { findAll: jest.fn().mockResolvedValue([]) };
     mockPurchaseContractService = { ensureExists: jest.fn() };
     mockStockService = { validateShipmentStock: jest.fn() };
-    mockReadinessService = { evaluateBatch: jest.fn().mockResolvedValue(new Map()) };
-    mockAuditService = {};
-    mockStuffingModel = { findOne: jest.fn().mockResolvedValue(null) };
+    mockReadinessService = {
+      evaluateBatch: jest.fn().mockResolvedValue(new Map()),
+    };
+    mockAuditService = { writeLog: jest.fn().mockResolvedValue(undefined) };
+    mockStuffingModel = {
+      findOne: jest.fn().mockResolvedValue(null),
+      sum: jest.fn().mockResolvedValue(0),
+    };
     mockAttachmentModel = { findAll: jest.fn().mockResolvedValue([]) };
-    mockCargoAllocationModel = {};
-    mockCargoLoadingModel = {};
     mockLogisticsModel = {};
     mockFreightQuoteModel = {};
     mockSequelize = {
@@ -58,12 +59,81 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       mockAuditService,
       mockStuffingModel,
       mockAttachmentModel,
-      mockCargoAllocationModel,
-      mockCargoLoadingModel,
       mockLogisticsModel,
       mockFreightQuoteModel,
       mockSequelize,
     );
+  });
+
+  describe('Cargo readiness permissions', () => {
+    it('saves an initial cargo confirmation for a user with create permission', async () => {
+      const shipment = {
+        id: 25,
+        cargoReadyConfirmed: null,
+        cargoReadyDate: null,
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+      mockShipmentModel.findByPk.mockResolvedValue(shipment);
+      jest.spyOn(service, 'findOne').mockResolvedValue({ id: 25 } as any);
+
+      await service.updateCargoReadiness(
+        25,
+        { cargoReadyConfirmed: true, cargoReadyDate: '2026-11-25' },
+        { id: 7 },
+        new Set(['cargo_allocation:create']),
+      );
+
+      expect(shipment.cargoReadyConfirmed).toBe(true);
+      expect(shipment.cargoReadyDate).toBe('2026-11-25');
+      expect(shipment.save).toHaveBeenCalledTimes(1);
+      expect(mockAuditService.writeLog).toHaveBeenCalledTimes(1);
+    });
+
+    it('locks saved readiness unless the user has edit completed permission', async () => {
+      const shipment = {
+        id: 26,
+        cargoReadyConfirmed: true,
+        cargoReadyDate: '2026-11-25',
+        save: jest.fn(),
+      };
+      mockShipmentModel.findByPk.mockResolvedValue(shipment);
+
+      await expect(
+        service.updateCargoReadiness(
+          26,
+          { cargoReadyConfirmed: false },
+          { id: 7 },
+          new Set(['cargo_allocation:create', 'cargo_allocation:update']),
+        ),
+      ).rejects.toThrow(
+        'Cargo readiness is already saved and can only be changed by users with Cargo Allocation Edit Completed permission.',
+      );
+
+      expect(shipment.save).not.toHaveBeenCalled();
+    });
+
+    it('allows repeated edits for a user with edit completed permission', async () => {
+      const shipment = {
+        id: 27,
+        cargoReadyConfirmed: true,
+        cargoReadyDate: '2026-11-25',
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+      mockShipmentModel.findByPk.mockResolvedValue(shipment);
+      jest.spyOn(service, 'findOne').mockResolvedValue({ id: 27 } as any);
+
+      await service.updateCargoReadiness(
+        27,
+        { cargoReadyConfirmed: false },
+        { id: 8 },
+        new Set(['cargo_allocation:edit_completed']),
+      );
+
+      expect(shipment.cargoReadyConfirmed).toBe(false);
+      expect(shipment.cargoReadyDate).toBeNull();
+      expect(shipment.save).toHaveBeenCalledTimes(1);
+      expect(mockAuditService.writeLog).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('findAll Tab Filtering and Counts', () => {
@@ -74,7 +144,11 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
             id: 1,
             shipmentDate: '2026-11-20',
             status: 'Scheduled',
-            toJSON: () => ({ id: 1, shipmentDate: '2026-11-20', status: 'Scheduled' }),
+            toJSON: () => ({
+              id: 1,
+              shipmentDate: '2026-11-20',
+              status: 'Scheduled',
+            }),
           },
         ],
         count: 24,
@@ -183,14 +257,22 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
             id: 2,
             shipmentDate: '2026-11-10',
             status: 'Executed',
-            toJSON: () => ({ id: 2, shipmentDate: '2026-11-10', status: 'Executed' }),
+            toJSON: () => ({
+              id: 2,
+              shipmentDate: '2026-11-10',
+              status: 'Executed',
+            }),
           },
         ],
         count: 5,
       });
       mockShipmentModel.count.mockResolvedValue(20);
 
-      const result = await service.findAll({ tab: 'executed', page: 1, limit: 10 });
+      const result = await service.findAll({
+        tab: 'executed',
+        page: 1,
+        limit: 10,
+      });
 
       expect(result.pendingCount).toBe(20);
       expect(result.executedCount).toBe(5);
@@ -204,7 +286,11 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       });
       mockShipmentModel.count.mockResolvedValue(4);
 
-      const result = await service.findAll({ status: 'pending', page: 1, limit: 10 });
+      const result = await service.findAll({
+        status: 'pending',
+        page: 1,
+        limit: 10,
+      });
 
       expect(result.pendingCount).toBe(15);
       expect(result.executedCount).toBe(4);
@@ -218,7 +304,11 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       });
       mockShipmentModel.count.mockResolvedValue(12);
 
-      const result = await service.findAll({ status: 'executed', page: 1, limit: 10 });
+      const result = await service.findAll({
+        status: 'executed',
+        page: 1,
+        limit: 10,
+      });
 
       expect(result.pendingCount).toBe(12);
       expect(result.executedCount).toBe(8);
@@ -229,9 +319,28 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
   describe('getStats', () => {
     it('returns pendingCount and executedCount in stats', async () => {
       mockShipmentModel.findAll.mockResolvedValue([
-        { id: 1, shipmentDate: '2026-11-20', status: 'Scheduled', noOfContainers: 2, quantity: 50 },
-        { id: 2, shipmentDate: '2026-11-20', status: 'Scheduled', noOfContainers: 1, quantity: 25 },
-        { id: 3, shipmentDate: '2026-11-10', status: 'Executed', executionStatus: 'Loading Completed', noOfContainers: 3, quantity: 75 },
+        {
+          id: 1,
+          shipmentDate: '2026-11-20',
+          status: 'Scheduled',
+          noOfContainers: 2,
+          quantity: 50,
+        },
+        {
+          id: 2,
+          shipmentDate: '2026-11-20',
+          status: 'Scheduled',
+          noOfContainers: 1,
+          quantity: 25,
+        },
+        {
+          id: 3,
+          shipmentDate: '2026-11-10',
+          status: 'Executed',
+          executionStatus: 'Loading Completed',
+          noOfContainers: 3,
+          quantity: 75,
+        },
       ]);
 
       const stats = await service.getStats({});
@@ -259,8 +368,6 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       mockLogisticsModel.findByPk = jest
         .fn()
         .mockResolvedValue({ transportMode: 'Rail' });
-      mockCargoAllocationModel.findAll = jest.fn().mockResolvedValue([]);
-      mockCargoLoadingModel.sum = jest.fn().mockResolvedValue(0);
       mockStuffingModel.findOne = jest.fn().mockResolvedValue({
         get: jest.fn().mockReturnValue({
           containers: [
@@ -354,6 +461,43 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
         mimeType: 'application/pdf',
       });
     });
+
+    describe('Stuffing execution cargo confirmation guard', () => {
+      it.each(['complete', 'dispatch'])(
+        'rejects %s when cargo has not been confirmed ready',
+        async (action) => {
+          jest.spyOn(service, 'assertCanModifyStuffing').mockResolvedValue({
+            allowed: true,
+            isCompleted: false,
+            isOverride: false,
+            isOneTimeEdit: false,
+          });
+          mockShipmentModel.findByPk.mockResolvedValue({
+            id: 42,
+            cargoReadyConfirmed: false,
+          });
+          mockSequelize.transaction.mockImplementation((callback: any) =>
+            callback({ LOCK: { UPDATE: 'UPDATE' } }),
+          );
+
+          await expect(
+            service.saveStuffingExecution(42, {
+              action,
+              loadingDate: '2026-11-25',
+              actualLoadingWeight: 10,
+              grossWeight: 10,
+              netWeight: 10,
+              loadingStartTime: '09:00',
+              loadingEndTime: '10:00',
+              dispatchMode: 'truck',
+              trucks: [{ dispatch: 'Yes' }],
+            }),
+          ).rejects.toThrow(
+            'Cargo Allocation must be marked Yes before completing shipment stuffing.',
+          );
+        },
+      );
+    });
   });
 
   describe('normalizeDowntimeRecords', () => {
@@ -417,9 +561,9 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
           },
         ]),
       ).toThrow('dates must use YYYY-MM-DD format');
-      expect(() =>
-        normalize([{ price: 0, currency: 'USD' }]),
-      ).toThrow('Price must be greater than 0');
+      expect(() => normalize([{ price: 0, currency: 'USD' }])).toThrow(
+        'Price must be greater than 0',
+      );
       expect(() => normalize([{ price: 1, currency: '' }])).toThrow(
         'Currency is required',
       );

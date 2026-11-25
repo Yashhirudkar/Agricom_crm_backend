@@ -2,8 +2,6 @@ import { Injectable, Optional } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/sequelize';
 import { Op, QueryTypes } from 'sequelize';
 import { Sequelize as SequelizeConnection } from 'sequelize';
-import { CargoShipmentAllocation } from '../../cargo-availability/models/cargo-shipment-allocation.model';
-import { CargoLoading } from '../../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../../logistics/models/logistics.model';
 import { FreightQuote } from '../../logistics/models/freight-quote.model';
 import { evaluateFreightRequired } from '../../masters/shipment-type/freight-rule-engine.service';
@@ -47,10 +45,6 @@ export interface ShipmentReadinessResult {
 @Injectable()
 export class ShipmentReadinessService {
   constructor(
-    @InjectModel(CargoShipmentAllocation)
-    private readonly cargoAllocationModel: typeof CargoShipmentAllocation,
-    @InjectModel(CargoLoading)
-    private readonly cargoLoadingModel: typeof CargoLoading,
     @InjectModel(Logistics)
     private readonly logisticsModel: typeof Logistics,
     @InjectModel(FreightQuote)
@@ -62,8 +56,8 @@ export class ShipmentReadinessService {
 
   /**
    * Evaluates readiness for a batch of shipments to avoid N+1 queries.
-   * A shipment is ready for execution when Cargo Allocation is completed
-   * and Freight Allocation is completed (or automatically set to Yes).
+   * A shipment is ready for execution when its explicit cargo confirmation
+   * and required freight allocation are complete.
    */
   async evaluateBatch(
     shipments: any[],
@@ -186,28 +180,13 @@ export class ShipmentReadinessService {
       }
     }
 
-    // Batch fetch allocations and logistics records for the linked contracts.
-    const [allocations, loadings, logisticsRecords] = await Promise.all([
-      this.cargoAllocationModel.findAll({
-        where: {
-          shipmentId: { [Op.in]: shipmentIds },
-          status: 'Active',
-        },
-        attributes: ['id', 'shipmentId', 'allocatedQty', 'status'],
-      }),
-      this.cargoLoadingModel.findAll({
-        where: {
-          shipmentId: { [Op.in]: shipmentIds },
-          status: { [Op.ne]: 'Cancelled' },
-        },
-        attributes: ['id', 'shipmentId', 'loadedQty'],
-      }),
+    const logisticsRecords =
       logisticsIds.length > 0 ||
       businessTxIds.length > 0 ||
       Array.from(purchaseContractIdsByShipment.values()).some(
         (ids) => ids.size > 0,
       )
-        ? this.logisticsModel.findAll({
+        ? await this.logisticsModel.findAll({
             where: {
               [Op.or]: [
                 ...(logisticsIds.length > 0
@@ -232,8 +211,7 @@ export class ShipmentReadinessService {
               'status',
             ],
           })
-        : Promise.resolve([]),
-    ]);
+        : [];
 
     const logisticsRecordIds = logisticsRecords.map((record) => record.id);
     const purchaseContractIds = Array.from(
@@ -274,26 +252,6 @@ export class ShipmentReadinessService {
           })
         : [];
 
-    // Index allocations by shipmentId
-    const allocationsByShipment = new Map<number, number>();
-    for (const alloc of allocations) {
-      const current = allocationsByShipment.get(alloc.shipmentId) || 0;
-      allocationsByShipment.set(
-        alloc.shipmentId,
-        current + Number(alloc.allocatedQty || 0),
-      );
-    }
-
-    // Index loadings by shipmentId
-    const loadingsByShipment = new Map<number, number>();
-    for (const load of loadings) {
-      const current = loadingsByShipment.get(load.shipmentId) || 0;
-      loadingsByShipment.set(
-        load.shipmentId,
-        current + Number(load.loadedQty || 0),
-      );
-    }
-
     const freightQuotesById = new Map<number, FreightQuote>();
     for (const quote of freightQuotes) {
       freightQuotesById.set(Number(quote.id), quote);
@@ -301,11 +259,7 @@ export class ShipmentReadinessService {
 
     // 2. Evaluate each shipment
     for (const s of shipments) {
-      const allocatedQty = allocationsByShipment.get(s.id) || 0;
-      const loadedQty = loadingsByShipment.get(s.id) || 0;
-
-      // Cargo is Ready if active allocation exists with allocatedQty > 0 or loading is active
-      const cargoReady = allocatedQty > 0 || loadedQty > 0;
+      const cargoReady = s.cargoReadyConfirmed === true;
 
       // Dynamic Master-driven Freight Allocation:
       const directScSt =

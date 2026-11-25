@@ -104,6 +104,14 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
   declare freightRequired: boolean | null;
 
   @AllowNull(true)
+  @Column({ field: 'cargo_ready_confirmed', type: DataType.BOOLEAN })
+  declare cargoReadyConfirmed: boolean | null;
+
+  @AllowNull(true)
+  @Column({ field: 'cargo_ready_date', type: DataType.DATEONLY })
+  declare cargoReadyDate: string | null;
+
+  @AllowNull(true)
   @Column({ field: 'freight_currency', type: DataType.STRING(10) })
   declare freightCurrency: string | null;
 

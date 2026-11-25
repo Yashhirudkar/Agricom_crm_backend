@@ -87,6 +87,10 @@ import * as phase95 from './phase-95-finalization-locking-rbac';
 import * as phase96 from './phase-96-one-time-completed-edit';
 import * as phase97 from './phase-97-remove-purchase-contract-dates-and-specifications';
 import * as phase98 from './phase-98-add-contract-date-to-purchase-contracts';
+import * as phase99 from './phase-99-sticky-shipment-cargo-readiness';
+import * as phase100 from './phase-100-shipment-cargo-readiness-fields';
+import * as phase101 from './phase-101-remove-cargo-availability-operations';
+import * as phase102 from './phase-102-restore-shipment-cargo-allocation-permissions';
 
 export interface MigrationPhase {
   phase: string;
@@ -189,4 +193,8 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase96,
   phase97,
   phase98,
+  phase99,
+  phase100,
+  phase101,
+  phase102,
 ];

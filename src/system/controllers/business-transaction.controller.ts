@@ -23,7 +23,6 @@ export class BusinessTransactionController {
     'purchase-contracts:view',
     'logistics:view',
     'shipments:view',
-    'cargo_availability:view',
   )
   findByReference(@Param('reference') reference: string, @Req() req: any) {
     const companyId = Number(req.user?.companyId);

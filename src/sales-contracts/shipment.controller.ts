@@ -97,6 +97,26 @@ export class ShipmentController {
     return await this.service.update(id, dto, req.user);
   }
 
+  @Patch(':id/cargo-readiness')
+  @RequireAnyPermission(
+    'cargo_allocation:create',
+    'cargo_allocation:update',
+    'cargo_allocation:edit_completed',
+  )
+  @HttpCode(HttpStatus.OK)
+  async updateCargoReadiness(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { cargoReadyConfirmed?: unknown; cargoReadyDate?: unknown },
+    @Req() req: any,
+  ) {
+    return await this.service.updateCargoReadiness(
+      id,
+      dto,
+      req.user,
+      req.userPermissions,
+    );
+  }
+
   @Patch(':id/manual-readiness')
   @RequirePermission('shipments:update')
   @HttpCode(HttpStatus.OK)

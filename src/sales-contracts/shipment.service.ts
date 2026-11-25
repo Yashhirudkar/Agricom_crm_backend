@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -33,8 +34,6 @@ import {
   ShipmentDowntime,
   ShipmentStuffing,
 } from './models/shipment-stuffing.model';
-import { CargoShipmentAllocation } from '../cargo-availability/models/cargo-shipment-allocation.model';
-import { CargoLoading } from '../cargo-availability/models/cargo-loading.model';
 import { Logistics } from '../logistics/models/logistics.model';
 import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { Company } from '../companies/models/company.model';
@@ -84,10 +83,6 @@ export class ShipmentService {
     private readonly stuffingModel: typeof ShipmentStuffing,
     @InjectModel(Attachment)
     private readonly attachmentModel: typeof Attachment,
-    @InjectModel(CargoShipmentAllocation)
-    private readonly cargoAllocationModel: typeof CargoShipmentAllocation,
-    @InjectModel(CargoLoading)
-    private readonly cargoLoadingModel: typeof CargoLoading,
     @InjectModel(Logistics)
     private readonly logisticsModel: typeof Logistics,
     @InjectModel(FreightQuote)
@@ -192,11 +187,6 @@ export class ShipmentService {
   public async ensureExecutionRecordsForShipmentId(
     shipmentId: number,
     userId?: number | null,
-    loadingData?: {
-      loadingDate?: string | null;
-      loadedQty?: number;
-      status?: string;
-    },
   ): Promise<void> {
     await this.sequelize.transaction(async (transaction) => {
       // Lock shipment row first to prevent race conditions
@@ -244,12 +234,7 @@ export class ShipmentService {
       shipment.executionStatus = shipment.executionStatus || 'Pending';
       await shipment.save({ transaction });
 
-      await this.ensureExecutionRecords(
-        shipment,
-        transaction,
-        userId ?? null,
-        loadingData,
-      );
+      await this.ensureExecutionRecords(shipment, transaction, userId ?? null);
     });
   }
 
@@ -257,11 +242,6 @@ export class ShipmentService {
     shipment: SalesContractShipment,
     transaction: Transaction,
     userId: number | null,
-    loadingData?: {
-      loadingDate?: string | null;
-      loadedQty?: number;
-      status?: string;
-    },
   ): Promise<void> {
     // 1. Resolve Company ID and Business Transaction ID
     let resolvedCompanyId =
@@ -298,15 +278,7 @@ export class ShipmentService {
       shipment.businessTransactionId = resolvedBusinessTxId;
     }
 
-    // 2. Resolve Active Cargo Allocation
-    const allocations = await this.cargoAllocationModel.findAll({
-      where: { shipmentId: shipment.id, status: 'Active' },
-      order: [['createdAt', 'ASC']],
-      transaction,
-    });
-    const allocation = allocations[0];
-
-    // 3. Prepare Auto-Populated Snapshot
+    // 2. Prepare Auto-Populated Snapshot
     const salesContract = shipment.salesContract;
     const firstItem = salesContract?.items?.[0];
     const autoPopulatedData: any = {
@@ -328,14 +300,8 @@ export class ShipmentService {
         firstItem?.remarks ||
         'Standard Export Grade',
       packingType: firstItem?.packingType?.name || 'Standard Bags',
-      allocatedWeight: allocation
-        ? Number(allocation.allocatedQty || 0)
-        : Number(shipment.quantity || 0),
-      balanceWeight: Math.max(
-        0,
-        Number(shipment.quantity || 0) -
-          (allocation ? Number(allocation.allocatedQty || 0) : 0),
-      ),
+      allocatedWeight: Number(shipment.quantity || 0),
+      balanceWeight: 0,
       warehouse: 'Main Warehouse',
       ratePerMt: Number(shipment.ratePerMt || 0),
       freight: Number(shipment.freight || 0),
@@ -393,91 +359,6 @@ export class ShipmentService {
         await stuffing.save({ transaction });
       }
     }
-
-    // 5. Ensure CargoLoading Record
-    let loading = await this.cargoLoadingModel.findOne({
-      where: { shipmentId: shipment.id, truckNo: null },
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!loading) {
-      loading = await this.cargoLoadingModel.findOne({
-        where: { shipmentId: shipment.id },
-        transaction,
-        order: [['createdAt', 'ASC']],
-      });
-    }
-
-    if (!loading) {
-      loading = await this.cargoLoadingModel.create(
-        {
-          companyId: resolvedCompanyId,
-          businessTransactionId: resolvedBusinessTxId,
-          cargoAvailabilityId: allocation?.cargoAvailabilityId ?? null,
-          shipmentAllocationId: allocation?.id ?? null,
-          shipmentId: shipment.id,
-          truckNo: null,
-          warehouseName: autoPopulatedData.warehouse || 'Warehouse',
-          loadingDate: loadingData?.loadingDate ?? null,
-          loadedQty: loadingData?.loadedQty ?? 0,
-          loadedWeight: loadingData?.loadedQty ?? 0,
-          status: loadingData?.status ?? 'Pending',
-          warehouseStatus:
-            loadingData?.status === 'Loading Completed'
-              ? 'Completed'
-              : 'Pending',
-          timeline: [
-            {
-              stage: loadingData?.status ?? 'Pending',
-              timestamp: new Date().toISOString(),
-              user: userId ?? 'System',
-              remarks: 'Created automatically from shipment execution.',
-            },
-          ],
-          remarks: 'Created automatically from shipment execution.',
-        },
-        { transaction },
-      );
-    } else {
-      let loadingUpdated = false;
-      if (!loading.companyId && resolvedCompanyId) {
-        loading.companyId = resolvedCompanyId;
-        loadingUpdated = true;
-      }
-      if (!loading.businessTransactionId && resolvedBusinessTxId) {
-        loading.businessTransactionId = resolvedBusinessTxId;
-        loadingUpdated = true;
-      }
-      if (!loading.shipmentAllocationId && allocation?.id) {
-        loading.shipmentAllocationId = allocation.id;
-        loading.cargoAvailabilityId = allocation.cargoAvailabilityId;
-        loadingUpdated = true;
-      }
-      if (loadingData && ['Draft', 'Pending'].includes(loading.status)) {
-        loading.status = loadingData.status ?? 'Loading Completed';
-        loading.loadingDate = loadingData.loadingDate ?? loading.loadingDate;
-        loading.loadedQty = loadingData.loadedQty ?? loading.loadedQty;
-        loading.loadedWeight = loadingData.loadedQty ?? loading.loadedWeight;
-        loading.warehouseStatus =
-          loadingData.status === 'Loading Completed'
-            ? 'Completed'
-            : 'In Progress';
-        loading.timeline = [
-          ...(loading.timeline ?? []),
-          {
-            stage: loading.status,
-            timestamp: new Date().toISOString(),
-            user: userId ?? 'System',
-            remarks: 'Updated from completed shipment stuffing execution.',
-          },
-        ];
-        loadingUpdated = true;
-      }
-      if (loadingUpdated) {
-        await loading.save({ transaction });
-      }
-    }
   }
 
   private calculateTimeline(shipmentDateStr: string | Date, status: string) {
@@ -533,7 +414,11 @@ export class ShipmentService {
   private getExecutedCondition() {
     return {
       [Op.or]: [
-        { status: { [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] } },
+        {
+          status: {
+            [Op.in]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'],
+          },
+        },
         {
           executionStatus: {
             [Op.in]: [
@@ -560,7 +445,11 @@ export class ShipmentService {
         {
           [Op.or]: [
             { status: null },
-            { status: { [Op.notIn]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'] } },
+            {
+              status: {
+                [Op.notIn]: ['Executed', 'Stuffed', 'Dispatched', 'Completed'],
+              },
+            },
           ],
         },
         {
@@ -894,10 +783,8 @@ export class ShipmentService {
     const rows = listResult.rows;
     const count = listResult.count;
 
-    const pendingCount =
-      requestedTab === 'executed' ? oppositeCount : count;
-    const executedCount =
-      requestedTab === 'executed' ? count : oppositeCount;
+    const pendingCount = requestedTab === 'executed' ? oppositeCount : count;
+    const executedCount = requestedTab === 'executed' ? count : oppositeCount;
 
     const contractIds = Array.from(
       new Set(
@@ -965,8 +852,23 @@ export class ShipmentService {
     const shipmentIds = rows.map((s) => s.id).filter(Boolean);
     const pcByShipment = new Map<number, Set<string>>();
     const pcBySc = new Map<number, Set<string>>();
+    const pcByBusinessTransaction = new Map<number, Set<string>>();
     const pcDataByShipment = new Map<number, any>();
     const pcDataBySc = new Map<number, any>();
+    const pcDataByBusinessTransaction = new Map<number, any>();
+    const businessTransactionIds = Array.from(
+      new Set(
+        rows
+          .flatMap((shipment) => [
+            shipment.businessTransactionId,
+            shipment.businessTransaction?.id,
+            shipment.salesContract?.businessTransactionId,
+            shipment.salesContract?.businessTransaction?.id,
+          ])
+          .filter((id) => id !== null && id !== undefined)
+          .map(Number),
+      ),
+    );
 
     if (shipmentIds.length > 0) {
       try {
@@ -975,6 +877,7 @@ export class ShipmentService {
              pcs.shipment_id,
              pc.id AS pc_id,
              pc.contract_number,
+             pc.quantity AS pc_quantity,
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
@@ -1017,13 +920,15 @@ export class ShipmentService {
       }
     }
 
-    if (contractIds.length > 0) {
+    if (contractIds.length > 0 || businessTransactionIds.length > 0) {
       try {
         const [scPcRows]: any = await this.sequelize.query(
           `SELECT 
              pc.sales_contract_id,
              pc.id AS pc_id,
              pc.contract_number,
+             pc.quantity AS pc_quantity,
+             pc.business_transaction_id,
              pc.place_of_loading,
              pc.delivery_place,
              pc.seller_id,
@@ -1043,9 +948,10 @@ export class ShipmentService {
            ) pci ON true
            LEFT JOIN products prod ON pci.product_id = prod.id
            WHERE pc.sales_contract_id IN (:contractIds)
+              OR pc.business_transaction_id IN (:businessTransactionIds)
            ORDER BY pc.updated_at DESC, pc.id DESC`,
           {
-            replacements: { contractIds },
+            replacements: { contractIds, businessTransactionIds },
           },
         );
 
@@ -1059,6 +965,19 @@ export class ShipmentService {
           }
           if (scId && !pcDataBySc.has(scId)) {
             pcDataBySc.set(scId, row);
+          }
+          const businessTransactionId = Number(row.business_transaction_id);
+          if (businessTransactionId && cNum) {
+            if (!pcByBusinessTransaction.has(businessTransactionId)) {
+              pcByBusinessTransaction.set(businessTransactionId, new Set());
+            }
+            pcByBusinessTransaction.get(businessTransactionId).add(cNum);
+          }
+          if (
+            businessTransactionId &&
+            !pcDataByBusinessTransaction.has(businessTransactionId)
+          ) {
+            pcDataByBusinessTransaction.set(businessTransactionId, row);
           }
         }
       } catch (err) {
@@ -1192,6 +1111,14 @@ export class ShipmentService {
 
       let purchaseContractNo = '-';
       const linkedPcs = pcByShipment.get(json.id);
+      const businessTransactionId =
+        json.businessTransactionId ||
+        json.businessTransaction?.id ||
+        json.salesContract?.businessTransactionId ||
+        json.salesContract?.businessTransaction?.id;
+      const transactionPcs = businessTransactionId
+        ? pcByBusinessTransaction.get(Number(businessTransactionId))
+        : undefined;
       if (linkedPcs && linkedPcs.size > 0) {
         purchaseContractNo = Array.from(linkedPcs)
           .map((num) => {
@@ -1205,6 +1132,13 @@ export class ShipmentService {
         pcBySc.get(contractId).size > 0
       ) {
         purchaseContractNo = Array.from(pcBySc.get(contractId))
+          .map((num) => {
+            const s = String(num).trim();
+            return s.toUpperCase().startsWith('PC-') ? s : `PC-${s}`;
+          })
+          .join(', ');
+      } else if (transactionPcs && transactionPcs.size > 0) {
+        purchaseContractNo = Array.from(transactionPcs)
           .map((num) => {
             const s = String(num).trim();
             return s.toUpperCase().startsWith('PC-') ? s : `PC-${s}`;
@@ -1225,7 +1159,10 @@ export class ShipmentService {
       // Auto Route Source Mapping (Purchase Contract → Sales Contract)
       const pcData =
         pcDataByShipment.get(json.id) ||
-        (contractId ? pcDataBySc.get(contractId) : null);
+        (contractId ? pcDataBySc.get(contractId) : null) ||
+        (businessTransactionId
+          ? pcDataByBusinessTransaction.get(Number(businessTransactionId))
+          : null);
       const sc = json.salesContract || {};
 
       // Origin: ALWAYS Purchase Contract → Place of Loading
@@ -1270,8 +1207,10 @@ export class ShipmentService {
           sellerId: pcData.seller_id,
           sellerName: pcData.seller_name,
           productName: pcData.product_name,
+          quantity: pcData.pc_quantity,
         };
       }
+      json.purchaseContractQuantity = pcData?.pc_quantity ?? null;
 
       return json;
     });
@@ -1588,7 +1527,8 @@ export class ShipmentService {
       );
     }
 
-    const targetStatus = dto.status !== undefined ? dto.status : shipment.status;
+    const targetStatus =
+      dto.status !== undefined ? dto.status : shipment.status;
     const isExecutionTransition =
       targetStatus === 'Executed' && shipment.status !== 'Executed';
 
@@ -1652,7 +1592,7 @@ export class ShipmentService {
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
-          { model: ShipmentType, as: 'shipmentType' },
+            { model: ShipmentType, as: 'shipmentType' },
             {
               model: SalesContractItem,
               as: 'items',
@@ -1771,7 +1711,7 @@ export class ShipmentService {
           include: [
             { model: Partner, as: 'buyer', attributes: ['id', 'entityName'] },
             { model: Partner, as: 'seller', attributes: ['id', 'entityName'] },
-          { model: ShipmentType, as: 'shipmentType' },
+            { model: ShipmentType, as: 'shipmentType' },
           ],
         },
         {
@@ -1960,22 +1900,14 @@ export class ShipmentService {
       );
     }
 
-    // ── CARGO ALLOCATION GUARD ──────────────────────────────────────────────
-    // If manually marking as Ready (Yes), cargo allocation MUST exist first.
-    // This prevents shipments from being executed without cargo allocation,
-    // which would result in Cargo Allocation showing "No" after execution.
-    if (dto.manualReadyOverride === true) {
-      const activeCargoAlloc = await this.cargoAllocationModel.findOne({
-        where: { shipmentId: id, status: 'Active' },
-        attributes: ['id'],
-      });
-      if (!activeCargoAlloc) {
-        throw new BadRequestException(
-          'Cargo Allocation is required before marking this shipment as Ready. Please complete Cargo Allocation first.',
-        );
-      }
+    if (
+      dto.manualReadyOverride === true &&
+      shipment.cargoReadyConfirmed !== true
+    ) {
+      throw new BadRequestException(
+        'Cargo Allocation must be marked Yes before marking this shipment as Ready.',
+      );
     }
-    // ────────────────────────────────────────────────────────────────────────
 
     const previousValue = {
       manualReadyOverride: shipment.manualReadyOverride,
@@ -2028,6 +1960,103 @@ export class ShipmentService {
         reason: shipment.manualReadyReason,
         changedBy: user?.name || user?.email || `User #${userId}`,
         changedAt: now,
+      },
+    });
+
+    return await this.findOne(id, user);
+  }
+
+  async updateCargoReadiness(
+    id: number,
+    dto: { cargoReadyConfirmed?: unknown; cargoReadyDate?: unknown },
+    user?: any,
+    userPermissions?: Set<string>,
+  ) {
+    if (typeof dto.cargoReadyConfirmed !== 'boolean') {
+      throw new BadRequestException(
+        'Cargo readiness must be explicitly Yes or No.',
+      );
+    }
+
+    let readyDate: string | null = null;
+    if (dto.cargoReadyConfirmed) {
+      const requestedDate = dto.cargoReadyDate;
+      const requestedTimestamp =
+        typeof requestedDate === 'string' ? Date.parse(requestedDate) : NaN;
+      if (
+        typeof requestedDate !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ||
+        !Number.isFinite(requestedTimestamp) ||
+        new Date(requestedTimestamp).toISOString().slice(0, 10) !==
+          requestedDate
+      ) {
+        throw new BadRequestException(
+          'A valid Ready Date is required when Cargo Allocation is Yes.',
+        );
+      }
+      readyDate = requestedDate;
+    }
+
+    const shipment = await this.shipmentModel.findByPk(id, {
+      include: [{ model: SalesContract, as: 'salesContract' }],
+    });
+    if (!shipment) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+    if (
+      user?.companyId &&
+      shipment.salesContract?.companyId !== user.companyId
+    ) {
+      throw new NotFoundException(`Shipment #${id} not found`);
+    }
+
+    const isSuperAdmin = user?.type === 'super_admin';
+    const hasPermission = (permission: string) =>
+      userPermissions?.has(permission) === true;
+    const hasSavedReadiness =
+      shipment.cargoReadyConfirmed !== null &&
+      shipment.cargoReadyConfirmed !== undefined;
+
+    if (
+      hasSavedReadiness &&
+      !isSuperAdmin &&
+      !hasPermission('cargo_allocation:edit_completed')
+    ) {
+      throw new ForbiddenException(
+        'Cargo readiness is already saved and can only be changed by users with Cargo Allocation Edit Completed permission.',
+      );
+    }
+
+    if (
+      !hasSavedReadiness &&
+      !isSuperAdmin &&
+      !hasPermission('cargo_allocation:create') &&
+      !hasPermission('cargo_allocation:update')
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to create Cargo Allocation readiness.',
+      );
+    }
+
+    const previousValue = {
+      cargoReadyConfirmed: shipment.cargoReadyConfirmed,
+      cargoReadyDate: shipment.cargoReadyDate,
+    };
+    shipment.cargoReadyConfirmed = dto.cargoReadyConfirmed;
+    shipment.cargoReadyDate = readyDate;
+    await shipment.save();
+
+    await this.auditService.writeLog({
+      clientId: user?.clientId ?? null,
+      companyId: user?.companyId ?? null,
+      userId: user?.userId ?? user?.id ?? null,
+      entityType: 'SalesContractShipment',
+      entityId: shipment.id,
+      action: 'CARGO_READINESS_CHANGED',
+      oldValue: previousValue,
+      newValue: {
+        cargoReadyConfirmed: shipment.cargoReadyConfirmed,
+        cargoReadyDate: shipment.cargoReadyDate,
       },
     });
 
@@ -2131,69 +2160,13 @@ export class ShipmentService {
       console.warn('Could not fetch linked Purchase Contract:', err);
     }
 
-    // 2. Cargo Allocation
-    let cargoAllocations: any[] = [];
-    try {
-      const caModel = this.shipmentModel.sequelize?.models['CargoAvailability'];
-      cargoAllocations = await this.cargoAllocationModel.findAll({
-        where: { shipmentId: shipment.id, status: 'Active' },
-        include: caModel
-          ? [
-              {
-                model: caModel as any,
-                as: 'cargoAvailability',
-                required: false,
-              },
-            ]
-          : [],
-      });
-    } catch (err) {
-      console.warn('Could not fetch cargo allocations for stuffing:', err);
-    }
-
-    const cargoLots = cargoAllocations
-      .map(
-        (a: any) =>
-          a.cargoAvailability?.lotNumber || a.cargoAvailability?.batchNumber,
-      )
-      .filter(Boolean);
-    const allocatedCargoLotsStr =
-      cargoLots.length > 0
-        ? Array.from(new Set(cargoLots)).join(', ')
-        : `LOT-${shipment.id}`;
-
-    const warehouseName =
-      cargoAllocations[0]?.cargoAvailability?.loadingLocation ||
-      'Main Cargo Warehouse';
-
-    const availableWeight = Number(
-      cargoAllocations[0]?.cargoAvailability?.availableQuantity ||
-        cargoAllocations[0]?.cargoAvailability?.receivedQuantity ||
-        shipment.quantity ||
-        0,
-    );
-
-    const allocatedWeight =
-      cargoAllocations.reduce(
-        (sum, a: any) => sum + Number(a.allocatedQty || 0),
-        0,
-      ) || Number(shipment.quantity || 0);
+    const allocatedCargoLotsStr = '—';
+    const warehouseName = '—';
+    const availableWeight = Number(shipment.quantity || 0);
+    const allocatedWeight = allocatedQuantity;
     const loadedQuantity = Number(
-      (await this.cargoLoadingModel.sum('loadedQty', {
-        where: {
-          shipmentId: shipment.id,
-          status: {
-            [Op.in]: [
-              'Loaded',
-              'Loading Completed',
-              'Dispatched',
-              'Reached Destination',
-              'Unloaded',
-              'Verified',
-              'Completed',
-            ],
-          },
-        },
+      (await this.stuffingModel.sum('actualLoadingWeight', {
+        where: { shipmentId: shipment.id },
       })) || 0,
     );
     const remainingQuantity = Math.max(
@@ -2540,7 +2513,12 @@ export class ShipmentService {
           'Shipment stuffing execution is completed and the 1-time correction has already been used. You need the "shipment_stuffing_execution:edit_completed" permission to modify completed stuffing records.',
       });
     }
-    return { allowed: true, isCompleted: false, isOverride: false, isOneTimeEdit: false };
+    return {
+      allowed: true,
+      isCompleted: false,
+      isOverride: false,
+      isOneTimeEdit: false,
+    };
   }
 
   /**
@@ -2552,11 +2530,25 @@ export class ShipmentService {
     user?: any,
     userPermissions?: Set<string>,
   ) {
-    const access = await this.assertCanModifyStuffing(shipmentId, user, userPermissions);
+    const access = await this.assertCanModifyStuffing(
+      shipmentId,
+      user,
+      userPermissions,
+    );
     const userId = user?.userId ?? user?.id ?? null;
     const isComplete = dto.action === 'complete';
+    const isExecutionTransition =
+      isComplete ||
+      dto.action === 'dispatch' ||
+      [
+        'Executed',
+        'Stuffed',
+        'Loading Completed',
+        'Dispatched',
+        'Completed',
+      ].includes(String(dto.executionStatus || ''));
     const now = new Date();
-    if (isComplete) {
+    if (isExecutionTransition) {
       const requiredLoadingFields: Array<[string, string]> = [
         ['loadingDate', 'Date of Loading'],
         ['actualLoadingWeight', 'Actual Loading Weight (MT)'],
@@ -2612,9 +2604,7 @@ export class ShipmentService {
         dispatchRows.length === 0 ||
         dispatchRows.some(
           (row) =>
-            !['yes', 'no'].includes(
-              String(row?.dispatch || '').toLowerCase(),
-            ),
+            !['yes', 'no'].includes(String(row?.dispatch || '').toLowerCase()),
         )
       ) {
         throw new BadRequestException(
@@ -2631,6 +2621,14 @@ export class ShipmentService {
         });
         if (!shipment) {
           throw new NotFoundException(`Shipment #${shipmentId} not found`);
+        }
+
+        if (isExecutionTransition) {
+          if (shipment.cargoReadyConfirmed !== true) {
+            throw new BadRequestException(
+              'Cargo Allocation must be marked Yes before completing shipment stuffing.',
+            );
+          }
         }
 
         const stuffingData: any = {
@@ -2690,17 +2688,6 @@ export class ShipmentService {
             `Loaded quantity (${loadedQty} MT) exceeds shipment quantity (${shipment.quantity} MT).`,
           );
         }
-        const allocatedQuantity = Number(
-          (await this.cargoAllocationModel.sum('allocatedQty', {
-            where: { shipmentId: shipment.id, status: 'Active' },
-            transaction,
-          })) || 0,
-        );
-        if (allocatedQuantity > 0 && loadedQty > allocatedQuantity) {
-          throw new BadRequestException(
-            `Loaded quantity (${loadedQty} MT) exceeds cargo allocated quantity (${allocatedQuantity} MT).`,
-          );
-        }
         const containerNumbers = stuffingData.containers
           .map((container: any) =>
             String(container.containerNo || '')
@@ -2757,32 +2744,6 @@ export class ShipmentService {
               );
             }
           }
-          if (isComplete) {
-            const pendingLoading = await this.cargoLoadingModel.findOne({
-              where: { shipmentId: shipment.id, truckNo: null },
-              transaction,
-              lock: transaction.LOCK.UPDATE,
-            });
-            const otherLoadedQuantity = Number(
-              (await this.cargoLoadingModel.sum('loadedQty', {
-                where: {
-                  shipmentId: shipment.id,
-                  ...(pendingLoading
-                    ? { id: { [Op.ne]: pendingLoading.id } }
-                    : {}),
-                },
-                transaction,
-              })) || 0,
-            );
-            if (
-              otherLoadedQuantity + loadedQty >
-              Number(shipment.quantity || 0)
-            ) {
-              throw new BadRequestException(
-                `Total loaded quantity cannot exceed shipment quantity (${shipment.quantity} MT).`,
-              );
-            }
-          }
         }
 
         const [record] = await this.stuffingModel.findOrCreate({
@@ -2833,40 +2794,6 @@ export class ShipmentService {
         } else {
           shipment.executionStatus = effectiveExecutionStatus;
           await shipment.save({ transaction });
-        }
-
-        await this.ensureExecutionRecords(shipment, transaction, userId, {
-          loadingDate: stuffingData.loadingDate,
-          loadedQty: stuffingData.actualLoadingWeight,
-          status: effectiveExecutionStatus,
-        });
-
-        // Also sync primary container / seal to cargo_loading if containers provided
-        if (
-          stuffingData.containers.length > 0 ||
-          stuffingData.trucks.length > 0
-        ) {
-          const loading = await this.cargoLoadingModel.findOne({
-            where: { shipmentId: shipment.id },
-            transaction,
-          });
-          if (loading) {
-            const firstC = stuffingData.containers[0];
-            if (firstC?.containerNo)
-              loading.containerNumber = firstC.containerNo;
-            if (firstC?.sealNo) loading.sealNumber = firstC.sealNo;
-            const primaryTruck = stuffingData.trucks.find(
-              (truck: any) => truck.truckNo,
-            );
-            if (primaryTruck?.truckNo) loading.truckNo = primaryTruck.truckNo;
-            if (stuffingData.actualLoadingWeight) {
-              loading.loadedQty = stuffingData.actualLoadingWeight;
-              loading.loadedWeight = stuffingData.actualLoadingWeight;
-            }
-            loading.status = effectiveExecutionStatus;
-            loading.warehouseStatus = stuffingData.warehouseStatus;
-            await loading.save({ transaction });
-          }
         }
 
         return { shipment, record, stuffingData };

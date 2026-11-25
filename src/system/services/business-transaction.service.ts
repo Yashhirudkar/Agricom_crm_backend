@@ -212,46 +212,6 @@ export class BusinessTransactionService {
       businessTransactionId,
       transaction,
     );
-
-    const purchaseContracts = await this.getModel('PurchaseContract').findAll({
-      where: { salesContractId },
-      attributes: ['id'],
-      transaction,
-    });
-    for (const contract of purchaseContracts) {
-      await this.propagatePurchaseContract(
-        Number(contract.get('id')),
-        businessTransactionId,
-        transaction,
-      );
-    }
-
-    const shipments = await this.getModel('SalesContractShipment').findAll({
-      where: { salesContractId },
-      attributes: ['id'],
-      transaction,
-    });
-    for (const shipment of shipments) {
-      await this.setRelatedRecords(
-        'CargoLoading',
-        { shipmentId: shipment.get('id') },
-        businessTransactionId,
-        transaction,
-      );
-    }
-  }
-
-  private async propagatePurchaseContract(
-    purchaseContractId: number,
-    businessTransactionId: number,
-    transaction: Transaction,
-  ): Promise<void> {
-    await this.setRelatedRecords(
-      'CargoAvailability',
-      { purchaseContractId },
-      businessTransactionId,
-      transaction,
-    );
   }
 
   async ensureForEnquiry(
@@ -365,11 +325,6 @@ export class BusinessTransactionService {
             businessTransaction.id,
             tx,
           );
-          await this.propagatePurchaseContract(
-            purchaseContractId,
-            businessTransaction.id,
-            tx,
-          );
           return businessTransaction;
         }
         return null;
@@ -383,11 +338,6 @@ export class BusinessTransactionService {
         purchaseContractId,
         values.companyId ?? null,
         userId ?? null,
-        tx,
-      );
-      await this.propagatePurchaseContract(
-        purchaseContractId,
-        businessTransaction.id,
         tx,
       );
       return businessTransaction;
@@ -454,8 +404,6 @@ export class BusinessTransactionService {
       ['shipments', 'SalesContractShipment'],
       ['logistics', 'Logistics'],
       ['freightQuotes', 'FreightQuote'],
-      ['cargoAvailability', 'CargoAvailability'],
-      ['cargoLoading', 'CargoLoading'],
     ] as const;
     const records: Record<string, unknown> = {};
     for (const [key, modelName] of modelGroups) {
@@ -473,8 +421,6 @@ export class BusinessTransactionService {
     const purchaseContractIds = ids('purchaseContracts');
     const logisticsIds = ids('logistics');
     const freightQuoteIds = ids('freightQuotes');
-    const cargoAvailabilityIds = ids('cargoAvailability');
-    const cargoLoadingIds = ids('cargoLoading');
 
     const childGroups = [
       [
@@ -528,19 +474,6 @@ export class BusinessTransactionService {
         freightQuoteIds,
       ],
       ['freightRoutes', 'FreightRoute', 'quoteId', freightQuoteIds],
-      [
-        'cargoReadiness',
-        'CargoReadiness',
-        'cargoAvailabilityId',
-        cargoAvailabilityIds,
-      ],
-      [
-        'cargoShipmentAllocations',
-        'CargoShipmentAllocation',
-        'cargoAvailabilityId',
-        cargoAvailabilityIds,
-      ],
-      ['cargoDocuments', 'CargoDocument', 'cargoLoadingId', cargoLoadingIds],
     ] as const;
     for (const [key, modelName, foreignKey, parentIds] of childGroups) {
       records[key] = await this.findByForeignKey(
@@ -556,13 +489,6 @@ export class BusinessTransactionService {
       'routeId',
       freightRouteIds,
     );
-    const cargoReadinessIds = ids('cargoReadiness');
-    records.cargoReadinessDocuments = await this.findByForeignKey(
-      'CargoDocument',
-      'cargoReadinessId',
-      cargoReadinessIds,
-    );
-
     return {
       businessTransaction,
       ...records,

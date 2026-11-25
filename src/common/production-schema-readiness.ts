@@ -15,6 +15,9 @@ const REQUIRED_MIGRATIONS = [
   '77',
   '78',
   '93',
+  '100',
+  '101',
+  '102',
 ];
 
 const REQUIRED_COLUMNS = [
@@ -31,11 +34,9 @@ const REQUIRED_COLUMNS = [
   'sales_contract_shipments.manual_ready_by',
   'sales_contract_shipments.manual_ready_at',
   'sales_contract_shipments.manual_ready_reason',
+  'sales_contract_shipments.cargo_ready_confirmed',
+  'sales_contract_shipments.cargo_ready_date',
   'sales_contract_shipments.execution_status',
-  'cargo_loading.warehouse_status',
-  'cargo_loading.loading_start_time',
-  'cargo_loading.loading_end_time',
-  'cargo_loading.operator',
   'shipment_stuffings.shipment_id',
   'shipment_stuffings.warehouse_status',
   'shipment_stuffings.loading_status',
@@ -48,7 +49,6 @@ const REQUIRED_COLUMNS = [
 ];
 
 const REQUIRED_INDEXES = [
-  'uq_cargo_loading_pending_shipment',
   'idx_app_modules_name',
   'idx_module_resources_name',
   'idx_module_resources_module_id',

@@ -81,11 +81,6 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     // Extra permissions used in service-layer logic (not tied to a specific endpoint)
     // These must be registered so they appear in the permission matrix UI
     const extraPermissions = [
-      'cargo_allocation:view',
-      'cargo_allocation:create',
-      'cargo_allocation:update',
-      'cargo_allocation:delete',
-      'cargo_allocation:edit_completed',
       'freight_allocation:view',
       'freight_allocation:create',
       'freight_allocation:update',
@@ -127,8 +122,9 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
     ];
     extraPermissions.forEach((p) => discoveredPermissions.add(p));
 
-    await measureStartupStep('PermissionDiscoveryService.syncPermissions()', () =>
-      this.syncPermissions(Array.from(discoveredPermissions)),
+    await measureStartupStep(
+      'PermissionDiscoveryService.syncPermissions()',
+      () => this.syncPermissions(Array.from(discoveredPermissions)),
     );
   }
 
@@ -159,7 +155,8 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         moduleName = 'Chat';
       else if (resourceName === 'sales_contract') moduleName = 'Sales Contract';
       else if (resourceName === 'sales_report') moduleName = 'Sales Report';
-      else if (resourceName === 'confirmed_orders') moduleName = 'Confirmed Orders';
+      else if (resourceName === 'confirmed_orders')
+        moduleName = 'Confirmed Orders';
       else if (resourceName === 'ports') moduleName = 'Port Master';
       else if (resourceName === 'shipping_lines') moduleName = 'Shipping Lines';
       else if (
@@ -179,11 +176,6 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         moduleName = 'Attendance';
       else if (resourceName === 'shipments' || resourceName === 'shipment')
         moduleName = 'Shipments';
-      else if (
-        resourceName === 'cargo_allocation' ||
-        resourceName === 'cargo_availability'
-      )
-        moduleName = 'Cargo Allocation';
       else if (
         resourceName === 'freight_allocation' ||
         resourceName === 'logistics'
@@ -209,7 +201,9 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
 
     if (discovered.length === 0) return;
 
-    const moduleNames = [...new Set(discovered.map(({ moduleName }) => moduleName))];
+    const moduleNames = [
+      ...new Set(discovered.map(({ moduleName }) => moduleName)),
+    ];
     const resourceNames = [
       ...new Set(discovered.map(({ resourceName }) => resourceName)),
     ];
@@ -290,15 +284,18 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         }
       }
       if (moduleIdByResource.size !== resourceNames.length) {
-        throw new Error('Permission sync could not resolve every resource module.');
+        throw new Error(
+          'Permission sync could not resolve every resource module.',
+        );
       }
 
-      const getResourceDisplayName = (name: string, fallback?: string): string => {
+      const getResourceDisplayName = (
+        name: string,
+        fallback?: string,
+      ): string => {
         switch (name) {
           case 'shipment_stuffing_execution':
             return 'Shipment Stuffing Execution';
-          case 'cargo_allocation':
-            return 'Cargo Allocation';
           case 'freight_allocation':
             return 'Freight Allocation';
           case 'sales_report':
@@ -481,9 +478,7 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
             const key = `${client.id}:${actionId}`;
             if (accessKeys.has(key)) return [];
             accessKeys.add(key);
-            return [
-              { client_id: client.id, resource_action_id: actionId },
-            ];
+            return [{ client_id: client.id, resource_action_id: actionId }];
           }),
         );
         if (missingAccess.length > 0) {

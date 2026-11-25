@@ -35,19 +35,7 @@ export function hasEditCompletedOverride(
   const target = `${resource.toLowerCase()}:edit_completed`;
   if (userPermissions.has(target)) return true;
 
-  // Handle aliases
-  if (
-    resource === 'cargo_allocation' &&
-    userPermissions.has('cargo_availability:edit_completed')
-  ) {
-    return true;
-  }
-  if (
-    resource === 'cargo_availability' &&
-    userPermissions.has('cargo_allocation:edit_completed')
-  ) {
-    return true;
-  }
+  // Handle freight allocation and logistics aliases.
   if (
     resource === 'freight_allocation' &&
     userPermissions.has('logistics:edit_completed')
