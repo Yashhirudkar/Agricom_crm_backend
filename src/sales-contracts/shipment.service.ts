@@ -94,7 +94,7 @@ export class ShipmentService {
     private readonly freightQuoteModel: typeof FreightQuote,
     @InjectConnection()
     private readonly sequelize: SequelizeConnection,
-  ) {}
+  ) { }
 
   private stripRemovedContainerFields(
     containers: Array<Record<string, unknown>> | null | undefined,
@@ -482,6 +482,16 @@ export class ShipmentService {
     };
   }
 
+  private formatSqlStringLiteral(value: string): string {
+    const sequelizeAny = this.sequelize as unknown as {
+      escape?: (val: unknown) => string;
+    };
+    if (typeof sequelizeAny?.escape === 'function') {
+      return sequelizeAny.escape(value);
+    }
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+
   private async buildQueryOptions(
     query: any,
     options?: { tabOverride?: string; ignoreTab?: boolean },
@@ -570,13 +580,13 @@ export class ShipmentService {
       options?.tabOverride !== undefined
         ? options.tabOverride
         : tab ||
-          (['pending', 'executed', 'stuffed'].includes(
-            String(status || '').toLowerCase(),
-          )
-            ? String(status).toLowerCase() === 'stuffed'
-              ? 'executed'
-              : String(status).toLowerCase()
-            : undefined);
+        (['pending', 'executed', 'stuffed'].includes(
+          String(status || '').toLowerCase(),
+        )
+          ? String(status).toLowerCase() === 'stuffed'
+            ? 'executed'
+            : String(status).toLowerCase()
+          : undefined);
 
     if (isDocOnly) {
       rawTab = 'executed';
@@ -657,15 +667,60 @@ export class ShipmentService {
     }
 
     // 6. Search across multiple tables
-    if (search) {
+    const searchTerm = typeof search === 'string' ? search.trim() : '';
+    if (searchTerm) {
+      const escapedProductPattern = this.formatSqlStringLiteral(
+        `%${searchTerm}%`,
+      );
       const searchConditions: any[] = [
-        { shipmentReference: { [Op.iLike]: `%${search}%` } },
-        { '$salesContract.contract_number$': { [Op.iLike]: `%${search}%` } },
-        { '$salesContract.buyer.entity_name$': { [Op.iLike]: `%${search}%` } },
+        { shipmentReference: { [Op.iLike]: `%${searchTerm}%` } },
+        {
+          '$businessTransaction.business_reference$': {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+        { '$salesContract.contract_number$': { [Op.iLike]: `%${searchTerm}%` } },
+        {
+          '$salesContract.buyer.entity_name$': {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+        {
+          '$salesContract.seller.entity_name$': {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+        {
+          '$salesContract.origin_country$': { [Op.iLike]: `%${searchTerm}%` },
+        },
+        {
+          '$salesContract.destination_country$': {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+        Sequelize.literal(`EXISTS (
+          SELECT 1
+          FROM sales_contract_items sci
+          INNER JOIN products p ON p.id = sci.product_id
+          WHERE sci.sales_contract_id = "SalesContractShipment"."sales_contract_id"
+            AND p.name ILIKE ${escapedProductPattern}
+        )`),
       ];
-      if (isBusinessReferenceSearch(search)) {
+
+      if (/^sc-/i.test(searchTerm) && searchTerm.slice(3).trim()) {
+        searchConditions.push({
+          '$salesContract.contract_number$': {
+            [Op.iLike]: `%${searchTerm.slice(3).trim()}%`,
+          },
+        });
+      }
+
+      if (
+        isBusinessReferenceSearch(searchTerm) &&
+        BusinessTransaction.isInitialized
+      ) {
         const transactionId = await resolveBusinessTransactionId(
-          search,
+          searchTerm,
           companyId,
         );
         if (transactionId !== null) {
@@ -1490,7 +1545,7 @@ export class ShipmentService {
         },
       );
       if (pcRow && pcRow[0]) pcShipmentType = pcRow[0];
-    } catch (e) {}
+    } catch (e) { }
 
     const scShipmentType = shipment.salesContract?.shipmentType || null;
     const freightRule = evaluateFreightRequired(
@@ -1993,7 +2048,7 @@ export class ShipmentService {
         !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ||
         !Number.isFinite(requestedTimestamp) ||
         new Date(requestedTimestamp).toISOString().slice(0, 10) !==
-          requestedDate
+        requestedDate
       ) {
         throw new BadRequestException(
           'A valid Ready Date is required when Cargo Allocation is Yes.',
@@ -2206,11 +2261,11 @@ export class ShipmentService {
     try {
       const freightQuoteWhere = shipment.logisticsId
         ? {
-            [Op.or]: [
-              { shipmentId: shipment.id },
-              { logisticsId: shipment.logisticsId },
-            ],
-          }
+          [Op.or]: [
+            { shipmentId: shipment.id },
+            { logisticsId: shipment.logisticsId },
+          ],
+        }
         : { shipmentId: shipment.id };
       freightQuote = await this.freightQuoteModel.findOne({
         where: freightQuoteWhere,
@@ -2628,8 +2683,8 @@ export class ShipmentService {
           : dto.dispatchMode === 'truck'
             ? 'truck'
             : /\bSEA\b|CONTAINER|OCEAN|MARITIME/i.test(
-                  String(dto.autoPopulated?.transportMode || ''),
-                )
+              String(dto.autoPopulated?.transportMode || ''),
+            )
               ? 'container'
               : 'truck';
       const dispatchRows =
@@ -2994,8 +3049,8 @@ export class ShipmentService {
         : dto.dispatchMode === 'truck'
           ? 'truck'
           : /\bSEA\b|CONTAINER|OCEAN|MARITIME/i.test(
-                String(dto.autoPopulated?.transportMode || ''),
-              )
+            String(dto.autoPopulated?.transportMode || ''),
+          )
             ? 'container'
             : 'truck';
     const dispatchRows =
@@ -3379,9 +3434,9 @@ export class ShipmentService {
         modeCategory === 'rail'
           ? 'Rail'
           : primaryLogistics?.transportMode ||
-            contract.originTransportMode ||
-            contract.transportMode ||
-            'Truck',
+          contract.originTransportMode ||
+          contract.transportMode ||
+          'Truck',
       freightType:
         contract.shipmentType?.name || freightQuoteForDisplay?.mode || '—',
       shipmentType:
@@ -3634,9 +3689,9 @@ export class ShipmentService {
         const isolatedFreightOverrides =
           modeCategory === 'truck'
             ? {
-                shipmentMode:
-                  dto.freightOverrides?.shipmentMode || 'Truck',
-              }
+              shipmentMode:
+                dto.freightOverrides?.shipmentMode || 'Truck',
+            }
             : dto.freightOverrides || null;
 
         const saved: any[] = [];

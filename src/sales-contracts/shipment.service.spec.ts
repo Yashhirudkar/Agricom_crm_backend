@@ -316,6 +316,85 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
     });
   });
 
+  describe('findAll Global Search', () => {
+    it('searches across Shipment Ref, Business Ref, Contract No, Buyer, Seller, Country, and Product', async () => {
+      await service.findAll({
+        search: '  Black Millet  ',
+        page: 1,
+        limit: 10,
+      });
+
+      const callArg = mockShipmentModel.findAndCountAll.mock.calls[0][0];
+      const orConditions = callArg.where[Op.or];
+
+      expect(orConditions).toEqual(
+        expect.arrayContaining([
+          { shipmentReference: { [Op.iLike]: '%Black Millet%' } },
+          {
+            '$businessTransaction.business_reference$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+          {
+            '$salesContract.contract_number$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+          {
+            '$salesContract.buyer.entity_name$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+          {
+            '$salesContract.seller.entity_name$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+          {
+            '$salesContract.origin_country$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+          {
+            '$salesContract.destination_country$': {
+              [Op.iLike]: '%Black Millet%',
+            },
+          },
+        ]),
+      );
+
+      const literalClause = orConditions.find(
+        (cond: any) => typeof cond?.val === 'string',
+      );
+      expect(literalClause).toBeDefined();
+      expect(literalClause.val).toContain('FROM sales_contract_items sci');
+      expect(literalClause.val).toContain('INNER JOIN products p');
+      expect(literalClause.val).toContain("'%Black Millet%'");
+    });
+
+    it('supports SC- prefixed contract searches and safely escapes quotes in product subquery', async () => {
+      await service.findAll({
+        search: "SC-00125'O",
+        page: 1,
+        limit: 10,
+      });
+
+      const callArg = mockShipmentModel.findAndCountAll.mock.calls[0][0];
+      const orConditions = callArg.where[Op.or];
+
+      expect(orConditions).toEqual(
+        expect.arrayContaining([
+          { '$salesContract.contract_number$': { [Op.iLike]: "%00125'O%" } },
+        ]),
+      );
+
+      const literalClause = orConditions.find(
+        (cond: any) => typeof cond?.val === 'string',
+      );
+      expect(literalClause.val).toContain("'%SC-00125''O%'");
+    });
+  });
+
   describe('getStats', () => {
     it('returns pendingCount and executedCount in stats', async () => {
       mockShipmentModel.findAll.mockResolvedValue([
