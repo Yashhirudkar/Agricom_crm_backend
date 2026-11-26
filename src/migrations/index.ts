@@ -91,6 +91,7 @@ import * as phase99 from './phase-99-sticky-shipment-cargo-readiness';
 import * as phase100 from './phase-100-shipment-cargo-readiness-fields';
 import * as phase101 from './phase-101-remove-cargo-availability-operations';
 import * as phase102 from './phase-102-restore-shipment-cargo-allocation-permissions';
+import * as phase103 from './phase-103-currency-accounts';
 
 export interface MigrationPhase {
   phase: string;
@@ -197,4 +198,5 @@ export const ALL_PHASES: MigrationPhase[] = [
   phase100,
   phase101,
   phase102,
+  phase103,
 ];

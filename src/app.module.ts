@@ -6,6 +6,7 @@ import { ExportInvoice } from './export-invoices/models/export-invoice.model';
 import { ExportInvoiceSequence } from './export-invoices/models/export-invoice-sequence.model';
 import { DomesticBank } from './banks/models/domestic-bank.model';
 import { NostroBank } from './banks/models/nostro-bank.model';
+import { CurrencyAccount } from './banks/models/currency-account.model';
 import { BanksModule } from './banks/banks.module';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -378,6 +379,7 @@ import {
             ExportInvoiceSequence,
             DomesticBank,
             NostroBank,
+            CurrencyAccount,
           ],
           autoLoadModels: true,
           synchronize: shouldSync,

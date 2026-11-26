@@ -25,5 +25,21 @@ export class TransportDetailDto {
   @IsNotEmpty({ message: 'Destination is required' })
   @IsString()
   destination: string;
+
+  @IsOptional()
+  @IsString()
+  destinationCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationCity?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationPlace?: string;
+
+  @IsOptional()
+  @IsString()
+  destinationZipCode?: string;
 }
 

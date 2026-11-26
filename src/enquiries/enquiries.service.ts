@@ -110,6 +110,19 @@ const INCLUDE_RELATIONS = [
   },
 ];
 
+function getDestinationCountry(item: any): string {
+  const explicitCountry = String(item?.destinationCountry || '').trim();
+  if (explicitCountry) return explicitCountry;
+
+  const destination = String(item?.destination || '').trim();
+  const beforeZip = destination.split(' - ')[0]?.trim();
+  const chunks = beforeZip
+    .split(',')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+  return chunks.length >= 2 ? chunks[chunks.length - 1] : '';
+}
+
 @Injectable()
 export class EnquiriesService {
   private readonly logger = new Logger(EnquiriesService.name);
@@ -440,9 +453,14 @@ export class EnquiriesService {
 
     if (dto.transportDetails && Array.isArray(dto.transportDetails)) {
       for (const [idx, item] of dto.transportDetails.entries()) {
-        if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+        if (
+          !item.origin?.trim() ||
+          !item.incoterm?.trim() ||
+          !item.destination?.trim() ||
+          !getDestinationCountry(item)
+        ) {
           throw new BadRequestException(
-            `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
+            `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, Destination, and Destination Country.`,
           );
         }
       }
@@ -1034,9 +1052,14 @@ export class EnquiriesService {
 
     if (dto.transportDetails !== undefined && Array.isArray(dto.transportDetails)) {
       for (const [idx, item] of dto.transportDetails.entries()) {
-        if (!item.origin?.trim() || !item.incoterm?.trim() || !item.destination?.trim()) {
+        if (
+          !item.origin?.trim() ||
+          !item.incoterm?.trim() ||
+          !item.destination?.trim() ||
+          !getDestinationCountry(item)
+        ) {
           throw new BadRequestException(
-            `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
+            `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, Destination, and Destination Country.`,
           );
         }
       }
@@ -1282,10 +1305,11 @@ export class EnquiriesService {
       if (
         !item.origin?.trim() ||
         !item.incoterm?.trim() ||
-        !item.destination?.trim()
+        !item.destination?.trim() ||
+        !getDestinationCountry(item)
       ) {
         throw new BadRequestException(
-          `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, and Destination.`,
+          `Transport Details row ${idx + 1} must contain Place of Loading (POL), Incoterm, Destination, and Destination Country.`,
         );
       }
     }

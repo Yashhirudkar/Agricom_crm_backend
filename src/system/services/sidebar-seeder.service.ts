@@ -34,6 +34,7 @@ export class SidebarSeederService implements OnApplicationBootstrap {
         await this.syncRemoveOrdersSidebarItem();
         await this.syncReportsSidebarItem();
         await this.syncDocumentsSidebarItem();
+        await this.syncAccountsSidebarItems();
       } catch (error) {
         this.logger.error('Failed to seed or sync sidebar structure', error);
       }
@@ -1137,6 +1138,95 @@ export class SidebarSeederService implements OnApplicationBootstrap {
       }
     } catch (err) {
       this.logger.error('Failed to sync Documents sidebar item', err);
+    }
+  }
+
+  private async syncAccountsSidebarItems() {
+    try {
+      let accountsFolder = await this.sidebarFolderModel.findOne({
+        where: { name: 'Accounts' },
+      });
+
+      if (!accountsFolder) {
+        accountsFolder = await this.sidebarFolderModel.create({
+          name: 'Accounts',
+          icon_name: 'Landmark',
+          sort_order: 88,
+          is_active: true,
+          isCollapsible: true,
+        } as any);
+      }
+
+      const item = await this.sidebarItemModel.findOne({
+        where: { route: '/accounts/bank-management' },
+      });
+      if (!item) {
+        await this.sidebarItemModel.create({
+          name: 'Bank Management',
+          route: '/accounts/bank-management',
+          icon_name: 'Building2',
+          folder_id: accountsFolder.id,
+          sort_order: 10,
+          is_active: true,
+          permission_link: 'bank_management:view',
+        });
+        this.logger.log('Created /accounts/bank-management sidebar item under Accounts');
+      }
+
+      // Currency Accounts is managed inside Domestic Bank Detail Drawer only (no standalone sidebar item)
+      const legacyCurrencyItems = await this.sidebarItemModel.findAll({
+        where: { route: '/accounts/currency-accounts' },
+      });
+      for (const legacyItem of legacyCurrencyItems) {
+        if (legacyItem.is_active !== false) {
+          legacyItem.is_active = false;
+          await legacyItem.save();
+          this.logger.log('Disabled standalone /accounts/currency-accounts sidebar item');
+        }
+      }
+
+      const seq = this.sidebarItemModel.sequelize;
+      const refreshedItem = await this.sidebarItemModel.findOne({
+        where: { route: '/accounts/bank-management' },
+      });
+      if (seq && refreshedItem) {
+        const clients = (await seq.query(`SELECT id FROM clients;`, {
+          type: 'SELECT',
+        })) as any[];
+
+        for (const client of clients) {
+          await seq
+            .query(
+              `INSERT INTO client_folder_access (client_id, folder_id, created_at)
+               SELECT :clientId, :folderId, NOW()
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM client_folder_access
+                 WHERE client_id = :clientId AND folder_id = :folderId
+               );`,
+              {
+                replacements: {
+                  clientId: client.id,
+                  folderId: accountsFolder.id,
+                },
+              },
+            )
+            .catch(() => {});
+
+          await seq
+            .query(
+              `INSERT INTO client_item_access (client_id, item_id, created_at)
+               SELECT :clientId, :itemId, NOW()
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM client_item_access
+                 WHERE client_id = :clientId AND item_id = :itemId
+               );`,
+              { replacements: { clientId: client.id, itemId: refreshedItem.id } },
+            )
+            .catch(() => {});
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync Accounts sidebar items', err);
     }
   }
 }

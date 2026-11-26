@@ -547,6 +547,7 @@ export class PurchaseContractService {
           'brokerId',
           'shipmentTypeId',
           'paymentTermId',
+          'currencyCode',
         ],
         include: [
           {
@@ -644,6 +645,7 @@ export class PurchaseContractService {
         placeOfLoading: null,
         loadingCountry: null,
         quantity: purchaseQty > 0 ? String(purchaseQty) : null,
+        currencyCode: (salesContract as any).currencyCode || null,
         paymentDueDate: salesContract.contractDate
           ? this.calculatePaymentDueDate(salesContract.contractDate)
           : null,
@@ -816,6 +818,7 @@ export class PurchaseContractService {
           dispatchDate: dto.dispatchDate || null,
           dispatchToDate: dto.dispatchToDate || null,
           quantity: dto.quantity ? String(dto.quantity) : null,
+          currencyCode: dto.currencyCode || null,
           freightRequired: evaluateFreightRequired(
             pcShipmentType,
             null,
@@ -864,6 +867,9 @@ export class PurchaseContractService {
         scUpdates.brokerCommission = dto.brokerCommission
           ? String(dto.brokerCommission)
           : null;
+      }
+      if (dto.salesContractId && dto.currencyCode !== undefined) {
+        scUpdates.currencyCode = dto.currencyCode ? String(dto.currencyCode) : null;
       }
       if (Object.keys(scUpdates).length > 0) {
         await pc.update(scUpdates, { transaction: t });
@@ -1163,6 +1169,10 @@ export class PurchaseContractService {
     if (updateData.marking !== undefined)
       sanitizeData.marking = updateData.marking
         ? String(updateData.marking)
+        : null;
+    if (updateData.currencyCode !== undefined)
+      sanitizeData.currencyCode = updateData.currencyCode
+        ? String(updateData.currencyCode)
         : null;
     if (updateData.deliveryPlace !== undefined)
       sanitizeData.deliveryPlace = updateData.deliveryPlace

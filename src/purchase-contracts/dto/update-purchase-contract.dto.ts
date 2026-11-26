@@ -107,6 +107,10 @@ export class UpdatePurchaseContractDto {
   marking?: any;
 
   @IsOptional()
+  @IsString()
+  currencyCode?: string;
+
+  @IsOptional()
   deliveryPlace?: any;
 
   @IsOptional()

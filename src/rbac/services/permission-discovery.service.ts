@@ -119,6 +119,10 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
       'financial-year:update',
       'financial-year:delete',
       'financial-year:force_delete',
+      'bank_management:view',
+      'bank_management:create',
+      'bank_management:update',
+      'bank_management:delete',
     ];
     extraPermissions.forEach((p) => discoveredPermissions.add(p));
 
@@ -186,6 +190,11 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
         resourceName === 'documents'
       )
         moduleName = 'Documents';
+      else if (
+        resourceName === 'currency_accounts' ||
+        resourceName === 'bank_management'
+      )
+        moduleName = 'Accounts';
 
       const isSystemLevel =
         ['clients', 'subscriptions', 'system'].includes(resourceName) ||
@@ -300,6 +309,10 @@ export class PermissionDiscoveryService implements OnApplicationBootstrap {
             return 'Freight Allocation';
           case 'sales_report':
             return 'Sales Report';
+          case 'currency_accounts':
+            return 'Currency Accounts';
+          case 'bank_management':
+            return 'Bank Management';
           default:
             return fallback || name;
         }

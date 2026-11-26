@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op } from 'sequelize';
 import { DomesticBank } from './models/domestic-bank.model';
 import { NostroBank } from './models/nostro-bank.model';
+import { CurrencyAccount } from './models/currency-account.model';
 import { Company } from '../companies/models/company.model';
 import { CreateDomesticBankDto } from './dto/create-domestic-bank.dto';
 import { UpdateDomesticBankDto } from './dto/update-domestic-bank.dto';
@@ -25,6 +26,8 @@ export class BanksService {
     private readonly domesticBankModel: typeof DomesticBank,
     @InjectModel(NostroBank)
     private readonly nostroBankModel: typeof NostroBank,
+    @InjectModel(CurrencyAccount)
+    private readonly currencyAccountModel: typeof CurrencyAccount,
     @InjectModel(Company)
     private readonly companyModel: typeof Company,
   ) {}
@@ -81,6 +84,11 @@ export class BanksService {
           as: 'nostroAccounts',
           attributes: ['id', 'currency', 'bankName', 'accountName', 'accountNumber', 'swiftCode', 'bankAddress', 'status'],
         },
+        {
+          model: CurrencyAccount,
+          as: 'currencyAccounts',
+          attributes: ['id', 'currency', 'accountName', 'accountNumber', 'swiftCode', 'iban', 'branchName', 'address', 'status', 'remarks'],
+        },
       ],
       order: [['id', 'DESC']],
     });
@@ -90,6 +98,7 @@ export class BanksService {
       return {
         ...data,
         linkedNostroAccounts: data.nostroAccounts || [],
+        currencyAccounts: data.currencyAccounts || [],
       };
     });
 
@@ -108,6 +117,11 @@ export class BanksService {
           as: 'nostroAccounts',
           order: [['currency', 'ASC']],
         },
+        {
+          model: CurrencyAccount,
+          as: 'currencyAccounts',
+          order: [['currency', 'ASC']],
+        },
       ],
     });
 
@@ -119,6 +133,7 @@ export class BanksService {
     return {
       ...data,
       linkedNostroAccounts: data.nostroAccounts || [],
+      currencyAccounts: data.currencyAccounts || [],
     };
   }
 
@@ -154,13 +169,16 @@ export class BanksService {
       throw new NotFoundException(`Domestic bank with ID ${id} not found`);
     }
 
-    // Cascade delete linked Nostro accounts explicitly
+    // Cascade delete linked Nostro and Currency accounts explicitly
     await this.nostroBankModel.destroy({
+      where: { domesticBankId: id },
+    });
+    await this.currencyAccountModel.destroy({
       where: { domesticBankId: id },
     });
 
     await bank.destroy();
-    return { success: true, message: 'Domestic bank and linked Nostro accounts deleted successfully' };
+    return { success: true, message: 'Domestic bank and linked accounts deleted successfully' };
   }
 
   // ─── Nostro Banks ──────────────────────────────────────────────────────────

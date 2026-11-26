@@ -218,11 +218,15 @@ export class WhatsAppTemplates {
 
     const amountLabel = data.bidType === 'BID' ? 'Bid Amount' : 'Target';
     const amountValNum = WhatsAppTemplates.formatNumber(data.bid);
+    const routeIncoterm =
+      data.transportDetails?.[0]?.incoterm || data.incoterm;
     const amountVal =
-      amountValNum !== null
-        ? data.bidCurrency
-          ? `${amountValNum} ${data.bidCurrency}`
-          : amountValNum
+      amountValNum !== null && Number(amountValNum) !== 0
+        ? [
+            amountValNum,
+            data.bidCurrency,
+            routeIncoterm,
+          ].filter(Boolean).join(' ')
         : null;
     lines.push(WhatsAppTemplates.line(amountLabel, amountVal));
 
@@ -230,14 +234,14 @@ export class WhatsAppTemplates {
       data.offer !== undefined ? data.offer : data.offerAmount,
     );
     const offerVal =
-      offerValNum !== null
-        ? data.bidCurrency
-          ? `${offerValNum} ${data.bidCurrency}`
-          : offerValNum
+      offerValNum !== null && Number(offerValNum) !== 0
+        ? [
+            offerValNum,
+            data.bidCurrency,
+            routeIncoterm,
+          ].filter(Boolean).join(' ')
         : null;
-    if (offerVal) {
-      lines.push(WhatsAppTemplates.line('Offer', offerVal));
-    }
+    lines.push(WhatsAppTemplates.line('Offer', offerVal));
 
     lines.push(WhatsAppTemplates.line('Note', data.note));
 
@@ -350,17 +354,37 @@ export class WhatsAppTemplates {
       WhatsAppTemplates.formatDate,
     );
 
-    const bidFormatter = (v: any, currency: any) =>
-      v !== null && v !== undefined ? `${v} ${currency || ''}`.trim() : null;
+    const bidFormatter = (v: any, currency: any, incoterm: any) => {
+      if (v === null || v === undefined || v === '' || Number(v) === 0) {
+        return null;
+      }
+      return [String(v), currency, incoterm].filter(Boolean).join(' ');
+    };
     diff(
       'Bid / Target',
-      bidFormatter(oldData.buyingInterest, oldData.bidCurrency),
-      bidFormatter(newData.buyingInterest, newData.bidCurrency),
+      bidFormatter(
+        oldData.buyingInterest,
+        oldData.bidCurrency,
+        getIncoterm(oldData),
+      ),
+      bidFormatter(
+        newData.buyingInterest,
+        newData.bidCurrency,
+        getIncoterm(newData),
+      ),
     );
     diff(
       'Offer',
-      bidFormatter(oldData.offerAmount, oldData.bidCurrency),
-      bidFormatter(newData.offerAmount, newData.bidCurrency),
+      bidFormatter(
+        oldData.offerAmount,
+        oldData.bidCurrency,
+        getIncoterm(oldData),
+      ),
+      bidFormatter(
+        newData.offerAmount,
+        newData.bidCurrency,
+        getIncoterm(newData),
+      ),
     );
     diff('Note', oldData.note, newData.note);
 

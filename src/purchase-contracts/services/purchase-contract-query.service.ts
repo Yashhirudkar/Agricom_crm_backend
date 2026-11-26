@@ -469,7 +469,7 @@ export class PurchaseContractQueryService {
         contractNumber: `PC-${pc.salesContract?.contractNumber}`,
         status: pc.status,
         financialYear: pc.salesContract?.financialYear,
-        currency: pc.salesContract?.currencyCode,
+        currency: pc.currencyCode || pc.salesContract?.currencyCode,
       },
       commercialInfo: {
         buyer: pc.salesContract?.buyer,

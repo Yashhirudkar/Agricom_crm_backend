@@ -15,6 +15,7 @@ import {
 } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
 import { NostroBank } from './nostro-bank.model';
+import { CurrencyAccount } from './currency-account.model';
 
 @Table({
   tableName: 'domestic_banks',
@@ -65,8 +66,19 @@ export class DomesticBank extends Model<DomesticBank> {
   @Column({ type: DataType.STRING(20) })
   declare status: 'Active' | 'Inactive';
 
-  @HasMany(() => NostroBank, { foreignKey: 'domesticBankId', as: 'nostroAccounts', onDelete: 'CASCADE' })
+  @HasMany(() => NostroBank, {
+    foreignKey: 'domesticBankId',
+    as: 'nostroAccounts',
+    onDelete: 'CASCADE',
+  })
   declare nostroAccounts: NostroBank[];
+
+  @HasMany(() => CurrencyAccount, {
+    foreignKey: 'domesticBankId',
+    as: 'currencyAccounts',
+    onDelete: 'CASCADE',
+  })
+  declare currencyAccounts: CurrencyAccount[];
 
   @CreatedAt
   declare createdAt: Date;
