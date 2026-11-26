@@ -17,6 +17,11 @@ describe('isFreightRequiredForIncoterm', () => {
     expect(isFreightRequiredForIncoterm('FOB', 'EXW')).toBe(true);
     expect(isFreightRequiredForIncoterm('FCA', 'FCA')).toBe(false);
     expect(isFreightRequiredForIncoterm('CFR', 'CFR')).toBe(false);
+    expect(isFreightRequiredForIncoterm('CIF', 'CFR')).toBe(false);
+    expect(isFreightRequiredForIncoterm('CFR', 'CIF')).toBe(false);
+    expect(isFreightRequiredForIncoterm('CIF', 'CIF')).toBe(false);
+    expect(isFreightRequiredForIncoterm('CIF', 'CNF')).toBe(false);
+    expect(isFreightRequiredForIncoterm('CNF', 'CIF')).toBe(false);
   });
 
   it('returns false for null, undefined or empty string', () => {

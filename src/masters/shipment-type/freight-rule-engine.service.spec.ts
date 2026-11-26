@@ -57,17 +57,19 @@ describe('Freight Compatibility Matrix Rule Engine', () => {
   });
 
   describe('Complete Freight Compatibility Matrix Verification (11 x 11 Combinations)', () => {
-    it('Exact lookup verification across all 121 combinations', () => {
+    it('Exact lookup verification across all 121 combinations (with isolated CFR/CIF rule)', () => {
       for (const sc of SUPPORTED_INCOTERMS) {
         for (const pc of SUPPORTED_INCOTERMS) {
-          const expected = FREIGHT_COMPATIBILITY_MATRIX[sc][pc];
+          const matrixExpected = FREIGHT_COMPATIBILITY_MATRIX[sc][pc];
+          const expected =
+            sc === 'CIF' && pc === 'CFR' ? false : matrixExpected;
           // evaluate(pc, sc) -> Row = sc, Col = pc
           const evalResult = service.evaluate({ code: pc }, { code: sc });
           expect(evalResult.freightRequired).toBe(expected);
 
-          // Direct lookup helper
+          // Direct lookup helper stays 100% bound to FREIGHT_COMPATIBILITY_MATRIX
           const lookupResult = lookupFreightMatrix(sc, pc);
-          expect(lookupResult).toBe(expected);
+          expect(lookupResult).toBe(matrixExpected);
         }
       }
     });
@@ -87,9 +89,9 @@ describe('Freight Compatibility Matrix Rule Engine', () => {
       expect(result.freightRequired).toBe(true);
     });
 
-    it('SC = CIF, PC = CFR -> Freight Required = YES', () => {
+    it('SC = CIF, PC = CFR -> Freight Required = NO (both contracts already include freight)', () => {
       const result = service.evaluate(CFR, CIF);
-      expect(result.freightRequired).toBe(true);
+      expect(result.freightRequired).toBe(false);
     });
 
     it('SC = DAP, PC = CIP -> Freight Required = YES', () => {
@@ -115,8 +117,12 @@ describe('Freight Compatibility Matrix Rule Engine', () => {
 
   describe('Aliases and String Formats', () => {
     it('Handles CNF as CFR', () => {
-      // SC = CIF, PC = CNF -> YES
-      expect(service.evaluate('CNF', 'CIF').freightRequired).toBe(true);
+      // SC = DAP, PC = CNF -> YES
+      expect(service.evaluate('CNF', 'DAP').freightRequired).toBe(true);
+      // SC = CNF, PC = FOB -> YES
+      expect(service.evaluate('FOB', 'CNF').freightRequired).toBe(true);
+      // SC = CIF, PC = CNF -> NO (both contracts already include freight)
+      expect(service.evaluate('CNF', 'CIF').freightRequired).toBe(false);
       // SC = CNF, PC = CNF -> NO
       expect(service.evaluate('CNF', 'CNF').freightRequired).toBe(false);
     });
@@ -208,6 +214,39 @@ describe('Freight Compatibility Matrix Rule Engine', () => {
           { code: 'CUSTOM-PC', sequence: 2 } as any,
         ).freightRequired,
       ).toBe(false);
+    });
+  });
+
+  describe('Both Contracts Include Freight (CFR / CNF / CIF Rule)', () => {
+    it('returns Freight Required = false when both Purchase and Sales Incoterms are CFR/CNF/CIF', () => {
+      const pairs: Array<[string, string]> = [
+        ['CFR', 'CIF'],
+        ['CIF', 'CFR'],
+        ['CFR', 'CFR'],
+        ['CIF', 'CIF'],
+        ['CNF', 'CIF'],
+        ['CIF', 'CNF'],
+        ['CNF', 'CNF'],
+        ['CNF', 'CFR'],
+        ['CFR', 'CNF'],
+      ];
+
+      for (const [pc, sc] of pairs) {
+        const result = evaluateFreightRequired(pc, sc);
+        expect(result.freightRequired).toBe(false);
+        expect(result.matrixResult).toBe(false);
+      }
+    });
+
+    it('keeps standalone Enquiry flow and all non-CFR/CIF combinations unchanged', () => {
+      expect(evaluateFreightRequired(null, 'CIF').freightRequired).toBe(true);
+      expect(evaluateFreightRequired(null, 'CFR').freightRequired).toBe(true);
+      expect(evaluateFreightRequired(null, 'CNF').freightRequired).toBe(true);
+      expect(evaluateFreightRequired('CFR', 'DAP').freightRequired).toBe(true);
+      expect(evaluateFreightRequired('CIF', 'DDP').freightRequired).toBe(true);
+      expect(evaluateFreightRequired('FOB', 'CIF').freightRequired).toBe(true);
+      expect(evaluateFreightRequired('FOB', 'CFR').freightRequired).toBe(true);
+      expect(evaluateFreightRequired('CIF', 'FOB').freightRequired).toBe(false);
     });
   });
 });

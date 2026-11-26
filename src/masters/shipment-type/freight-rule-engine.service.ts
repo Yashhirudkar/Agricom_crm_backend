@@ -186,6 +186,12 @@ export function lookupFreightMatrix(
  * - Scenario B (Enquiry Flow): SC exists, PC is missing -> Evaluate standalone Enquiry Incoterm
  * - Scenario C: Neither defined, or only PC defined -> freightRequired = false
  */
+export const FREIGHT_INCLUDED_BOTH_CONTRACTS_INCOTERMS = [
+  'CFR',
+  'CNF',
+  'CIF',
+] as const;
+
 export function evaluateFreightRequired(
   pcShipmentType?: ShipmentTypeRuleInput | string | number | null,
   scShipmentType?: ShipmentTypeRuleInput | string | number | null,
@@ -196,6 +202,20 @@ export function evaluateFreightRequired(
 
   // Scenario A – Contract Flow: Both Sales and Purchase Incoterms exist
   if (scCode && pcCode) {
+    // Isolated rule: if both Purchase and Sales contracts already include freight (CFR/CNF/CIF), freight is not required.
+    if (
+      (FREIGHT_INCLUDED_BOTH_CONTRACTS_INCOTERMS as readonly string[]).includes(pcCode) &&
+      (FREIGHT_INCLUDED_BOTH_CONTRACTS_INCOTERMS as readonly string[]).includes(scCode)
+    ) {
+      return {
+        matrixResult: false,
+        freightRequired: false,
+        salesIncoterm: scCode,
+        purchaseIncoterm: pcCode,
+        reason: `Both contracts already include freight: SC ${scCode} x PC ${pcCode} = NO.`,
+      };
+    }
+
     const matrixResult = lookupFreightMatrix(scCode, pcCode);
     const reason = `Compatibility Matrix: SC ${scCode} x PC ${pcCode} = ${matrixResult ? 'YES' : 'NO'}.`;
 
