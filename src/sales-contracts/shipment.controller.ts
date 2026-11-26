@@ -22,7 +22,7 @@ import { PermissionsGuard } from '../rbac/guards/permissions.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
-@Controller('shipments')
+@Controller(['shipments', 'sales-contracts/shipments'])
 export class ShipmentController {
   constructor(private readonly shipmentService: ShipmentService) {}
 
