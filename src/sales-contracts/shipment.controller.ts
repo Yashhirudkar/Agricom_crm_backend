@@ -1,17 +1,21 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
   Query,
-  Req,
-  Res,
   UseGuards,
   ParseIntPipe,
-  HttpCode,
   HttpStatus,
+  HttpCode,
+  Req,
+  Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ShipmentService } from './shipment.service';
 import { UpdateShipmentDto } from './dto/update-shipment.dto';
@@ -20,28 +24,51 @@ import { QueryShipmentDto } from './dto/query-shipment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard';
 import { RequirePermission } from '../rbac/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../rbac/decorators/require-any-permission.decorator';
+import { AttachmentsService } from '../attachments/services/attachments.service';
+import { getAttachmentMulterConfig } from '../attachments/config/multer.config';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller(['shipments', 'sales-contracts/shipments'])
 export class ShipmentController {
-  constructor(private readonly shipmentService: ShipmentService) {}
+  constructor(
+    private readonly service: ShipmentService,
+    private readonly attachmentsService: AttachmentsService,
+  ) {}
 
   @Get()
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async findAll(@Query() query: QueryShipmentDto, @Req() req: any) {
-    return this.shipmentService.findAll(query);
+    return await this.service.findAll({
+      ...query,
+      companyId: req.user?.companyId,
+      userPermissions: req.userPermissions,
+      userType: req.user?.type,
+    } as any);
   }
 
   @Get('stats')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async getStats(@Query() query: QueryShipmentDto, @Req() req: any) {
-    return this.shipmentService.getStats(query);
+    return await this.service.getStats({
+      ...query,
+      companyId: req.user?.companyId,
+    } as any);
   }
 
-  @Get('export')
-  @RequirePermission('shipments:view')
-  async exportExcel(@Query() query: QueryShipmentDto, @Res() res: Response) {
-    const buffer = await this.shipmentService.exportExcel(query);
+  @Get(['export', 'export/excel'])
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
+  async exportExcel(
+    @Query() query: QueryShipmentDto,
+    @Req() req: any,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.exportExcel({
+      ...query,
+      companyId: req.user?.companyId,
+      userPermissions: req.userPermissions,
+      userType: req.user?.type,
+    });
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -54,19 +81,40 @@ export class ShipmentController {
   }
 
   @Get(':id')
-  @RequirePermission('shipments:view')
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
   async findOne(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    return this.shipmentService.findOne(id, req.user);
+    return await this.service.findOne(id, req.user);
   }
 
   @Patch(':id')
   @RequirePermission('shipments:update')
+  @HttpCode(HttpStatus.OK)
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShipmentDto,
     @Req() req: any,
   ) {
-    return this.shipmentService.update(id, dto, req.user);
+    return await this.service.update(id, dto, req.user);
+  }
+
+  @Patch(':id/cargo-readiness')
+  @RequireAnyPermission(
+    'cargo_allocation:create',
+    'cargo_allocation:update',
+    'cargo_allocation:edit_completed',
+  )
+  @HttpCode(HttpStatus.OK)
+  async updateCargoReadiness(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { cargoReadyConfirmed?: unknown; cargoReadyDate?: unknown },
+    @Req() req: any,
+  ) {
+    return await this.service.updateCargoReadiness(
+      id,
+      dto,
+      req.user,
+      req.userPermissions,
+    );
   }
 
   @Patch(':id/manual-readiness')
@@ -77,37 +125,95 @@ export class ShipmentController {
     @Body() dto: UpdateManualReadinessDto,
     @Req() req: any,
   ) {
-    return this.shipmentService.updateManualReadiness(id, dto, req.user);
-  }
-
-  @Patch(':id/cargo-readiness')
-  @RequirePermission('shipments:update')
-  @HttpCode(HttpStatus.OK)
-  async updateCargoReadiness(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
-    @Req() req: any,
-  ) {
-    return this.shipmentService.updateCargoReadiness(id, body, req.user);
+    return await this.service.updateManualReadiness(id, dto, req.user);
   }
 
   @Get(':id/stuffing-execution')
-  @RequirePermission('shipments:view')
-  async getStuffingExecutionData(
+  @RequireAnyPermission('shipments:view', 'shipment_stuffing_execution:view')
+  async getStuffingExecution(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: any,
+    @Query('shipmentIds') shipmentIdsQuery?: string,
   ) {
-    return this.shipmentService.getStuffingExecutionData(id, req.user);
+    if (
+      shipmentIdsQuery !== undefined &&
+      String(shipmentIdsQuery).trim() !== ''
+    ) {
+      return await this.service.getStuffingExecutionData(
+        id,
+        req.user,
+        shipmentIdsQuery,
+      );
+    }
+    return await this.service.getStuffingExecutionData(id, req.user);
   }
 
-  @Patch(':id/stuffing-execution')
-  @RequirePermission('shipments:update')
+  @Post(':id/stuffing-execution')
+  @RequireAnyPermission(
+    'shipments:update',
+    'shipment_stuffing_execution:update',
+    'shipment_stuffing_execution:view',
+  )
   @HttpCode(HttpStatus.OK)
   async saveStuffingExecution(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any,
+    @Body() dto: any,
     @Req() req: any,
   ) {
-    return this.shipmentService.saveStuffingExecution(id, body, req.user);
+    return await this.service.saveStuffingExecution(
+      id,
+      dto,
+      req.user,
+      req.userPermissions,
+    );
+  }
+
+  @Patch(':id/stuffing-execution')
+  @RequireAnyPermission(
+    'shipments:update',
+    'shipment_stuffing_execution:update',
+    'shipment_stuffing_execution:view',
+  )
+  @HttpCode(HttpStatus.OK)
+  async patchStuffingExecution(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @Req() req: any,
+  ) {
+    return await this.saveStuffingExecution(id, dto, req);
+  }
+
+  @Post(':id/stuffing-execution/attachments')
+  @RequireAnyPermission(
+    'shipments:update',
+    'shipment_stuffing_execution:update',
+    'shipment_stuffing_execution:view',
+  )
+  @UseInterceptors(FileInterceptor('file', getAttachmentMulterConfig()))
+  async uploadStuffingAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    await this.service.assertCanModifyStuffing(
+      id,
+      req.user,
+      req.userPermissions,
+    );
+    const attachment = await this.attachmentsService.createAttachment(
+      file,
+      req.user?.id || req.user?.userId,
+      req.user?.companyId ?? req.activeCompanyId,
+    );
+    return {
+      id: attachment.id,
+      attachmentId: attachment.id,
+      originalName: attachment.originalName,
+      fileName: attachment.storedName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+      storagePath: attachment.storagePath,
+      downloadUrl: `/attachments/${attachment.id}/download`,
+    };
   }
 }

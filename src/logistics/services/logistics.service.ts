@@ -52,6 +52,16 @@ import { TransportEnquiryHidden } from '../models/transport-enquiry-hidden.model
 import { formatLogisticsLocation } from '../utils/logistics-location.util';
 import { isTransportAllocationComplete } from '../utils/transport-allocation.util';
 import { assertCanModifyRecord } from '../../rbac/utils/finalization-lock.util';
+import {
+  SHIPMENTS_MANAGEMENT_SYNC_SOURCE,
+  RailFreightSyncSummary,
+  buildSiblingFreightQuotePayload,
+  capturePreUpdateQuoteSnapshot,
+  extractUniqueSiblingShipmentIds,
+  findMatchingSiblingQuote,
+  isRailOriginTransportMode,
+  stripRailSyncControlFields,
+} from '../utils/rail-freight-quote-sync.util';
 
 @Injectable()
 export class LogisticsService {
@@ -431,6 +441,12 @@ export class LogisticsService {
         { model: Partner, as: 'partner', attributes: ['id', 'entityName'] },
         { model: Product, as: 'product', attributes: ['id', 'name'] },
         {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'name'],
+          required: false,
+        },
+        {
           model: BusinessTransaction,
           as: 'businessTransaction',
           attributes: ['id', 'businessReference'],
@@ -701,7 +717,9 @@ export class LogisticsService {
         COALESCE(pci.product_name, prod.name) AS product_name,
         log.id AS logistics_id,
         log.status AS logistics_status,
-        log.is_viewed AS logistics_is_viewed
+        log.is_viewed AS logistics_is_viewed,
+        enq_info.creator_id AS enquiry_creator_id,
+        enq_info.creator_name AS enquiry_creator_name
       FROM purchase_contracts pc
       LEFT JOIN partners seller ON pc.seller_id = seller.id
       LEFT JOIN partners buyer ON pc.buyer_id = buyer.id
@@ -710,6 +728,18 @@ export class LogisticsService {
       LEFT JOIN partners sc_buyer ON sc.buyer_id = sc_buyer.id
       LEFT JOIN shipment_types st ON pc.shipment_type_id = st.id
       LEFT JOIN business_transactions bt ON pc.business_transaction_id = bt.id
+      LEFT JOIN LATERAL (
+        SELECT e.created_by AS creator_id, u.name AS creator_name
+        FROM enquiries e
+        LEFT JOIN users u ON e.created_by = u.id
+        WHERE e.deleted_at IS NULL
+          AND (
+            (sc.enquiry_id IS NOT NULL AND e.id = sc.enquiry_id)
+            OR (sc.enquiry_id IS NULL AND pc.business_transaction_id IS NOT NULL AND e.business_transaction_id = pc.business_transaction_id)
+          )
+        ORDER BY CASE WHEN sc.enquiry_id IS NOT NULL AND e.id = sc.enquiry_id THEN 0 ELSE 1 END, e.created_at ASC
+        LIMIT 1
+      ) enq_info ON true
       LEFT JOIN LATERAL (
         SELECT product_id, product_name 
         FROM purchase_contract_items 
@@ -772,6 +802,14 @@ export class LogisticsService {
         enquiryId: pc.sc_enquiry_id || null,
         purchaseContractId: Number(pc.id),
         enquiryNo: null, // As requested: Example: PC-EA.2632627, No Enquiry records should be returned
+        createdBy: pc.enquiry_creator_id ?? null,
+        createdByName: pc.enquiry_creator_name || null,
+        creator: pc.enquiry_creator_name
+          ? {
+              id: pc.enquiry_creator_id ?? null,
+              name: pc.enquiry_creator_name,
+            }
+          : null,
         businessReference: pc.business_reference || null,
         businessTransaction: pc.business_transaction_id
           ? {
@@ -952,6 +990,7 @@ export class LogisticsService {
         typeof enquiry.toJSON === 'function'
           ? enquiry.toJSON()
           : { ...enquiry };
+      plain.createdByName = plain.createdByName ?? plain.creator?.name ?? null;
       const pcIdFromLogistics =
         plain.logistics?.purchaseContractId ||
         plain.logistics?.purchase_contract_id;
@@ -2866,8 +2905,9 @@ export class LogisticsService {
         );
     }
 
+    let sourceShipment: any = null;
     if (dto.shipmentId) {
-      const targetShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
+      sourceShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
         include: [
           {
             model: this.salesContractModel,
@@ -2876,8 +2916,8 @@ export class LogisticsService {
           },
         ],
       });
-      if (targetShipment) {
-        const readiness = await this.readinessService.evaluate(targetShipment);
+      if (sourceShipment) {
+        const readiness = await this.readinessService.evaluate(sourceShipment);
         const isFreightReq = readiness?.freightRequired ?? false;
         if (!isFreightReq) {
           throw new BadRequestException(
@@ -2887,7 +2927,16 @@ export class LogisticsService {
       }
     }
 
-    return await this.sequelize.transaction(async (transaction) => {
+    let calculatedFreightAmountForSync = dto.freightAmount || 0;
+    let resolvedPaymentTermForSync: {
+      paymentTermId: number | null;
+      paymentTerms: string | null;
+    } = {
+      paymentTermId: null,
+      paymentTerms: null,
+    };
+
+    const createdSourceQuote = await this.sequelize.transaction(async (transaction) => {
       // Calculate overall freight amount from containerRates or legacy charges
       let calculatedFreightAmount = dto.freightAmount || 0;
       if (dto.containerRates && dto.containerRates.length > 0) {
@@ -2911,6 +2960,7 @@ export class LogisticsService {
           'At least one freight charge or container rate is required.',
         );
       }
+      calculatedFreightAmountForSync = calculatedFreightAmount;
 
       // Generate FQ/YYYY/###### number via sequence
       await this.sequelize.query(
@@ -2934,10 +2984,12 @@ export class LogisticsService {
         user,
         companyId,
       );
+      resolvedPaymentTermForSync = resolvedPt;
 
+      const cleanDto = stripRailSyncControlFields(dto);
       const quote = await this.quoteModel.create(
         {
-          ...dto,
+          ...cleanDto,
           origin: dto.origin || dto.loadingPoint || null,
           sellerId: dto.sellerId,
           freightAmount: calculatedFreightAmount,
@@ -3080,6 +3132,35 @@ export class LogisticsService {
         transaction,
       });
     });
+
+    const siblingIds =
+      dto.syncWorkflowSource === SHIPMENTS_MANAGEMENT_SYNC_SOURCE
+        ? extractUniqueSiblingShipmentIds(dto.syncShipmentIds, dto.shipmentId)
+        : [];
+    if (
+      siblingIds.length > 0 &&
+      dto.shipmentId &&
+      sourceShipment?.salesContract &&
+      isRailOriginTransportMode(sourceShipment.salesContract)
+    ) {
+      const syncSummary = await this.syncCreatedFreightQuoteToRailSiblings({
+        logistics,
+        sourceShipment,
+        sourceQuote: createdSourceQuote,
+        siblingIds,
+        dto,
+        calculatedFreightAmount: calculatedFreightAmountForSync,
+        resolvedPaymentTerm: resolvedPaymentTermForSync,
+        user,
+        companyId,
+      });
+      const serializedQuote = createdSourceQuote?.toJSON
+        ? createdSourceQuote.toJSON()
+        : createdSourceQuote;
+      return { ...serializedQuote, syncSummary };
+    }
+
+    return createdSourceQuote;
   }
 
   async createDirectFreightQuote(
@@ -3611,8 +3692,9 @@ export class LogisticsService {
         );
     }
 
+    let sourceShipment: any = null;
     if (dto.shipmentId) {
-      const targetShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
+      sourceShipment = await this.shipmentModel.findByPk(dto.shipmentId, {
         include: [
           {
             model: this.salesContractModel,
@@ -3621,8 +3703,8 @@ export class LogisticsService {
           },
         ],
       });
-      if (targetShipment) {
-        const readiness = await this.readinessService.evaluate(targetShipment);
+      if (sourceShipment) {
+        const readiness = await this.readinessService.evaluate(sourceShipment);
         const isFreightReq = readiness?.freightRequired ?? false;
         if (!isFreightReq) {
           throw new BadRequestException(
@@ -3631,6 +3713,62 @@ export class LogisticsService {
         }
       }
     }
+
+    const effectiveSourceShipmentId = dto.shipmentId || quote.shipmentId;
+    const siblingIds =
+      dto.syncWorkflowSource === SHIPMENTS_MANAGEMENT_SYNC_SOURCE
+        ? extractUniqueSiblingShipmentIds(
+            dto.syncShipmentIds,
+            effectiveSourceShipmentId,
+          )
+        : [];
+    const isSyncCandidate = siblingIds.length > 0 && Boolean(effectiveSourceShipmentId);
+
+    if (!sourceShipment && isSyncCandidate && effectiveSourceShipmentId) {
+      sourceShipment = await this.shipmentModel.findByPk(
+        effectiveSourceShipmentId,
+        {
+          include: [
+            {
+              model: this.salesContractModel,
+              as: 'salesContract',
+              include: [
+                { model: this.sequelize.models.ShipmentType, as: 'shipmentType' },
+              ],
+            },
+          ],
+        },
+      );
+    }
+
+    let preUpdateSnapshot: any = null;
+    if (
+      isSyncCandidate &&
+      sourceShipment?.salesContract &&
+      isRailOriginTransportMode(sourceShipment.salesContract)
+    ) {
+      const existingSourceCharges =
+        (await this.quoteChargeModel.findAll({
+          where: { quoteId: quote.id },
+          order: [
+            ['displayOrder', 'ASC'],
+            ['id', 'ASC'],
+          ],
+        })) || [];
+      preUpdateSnapshot = capturePreUpdateQuoteSnapshot(
+        quote,
+        existingSourceCharges,
+      );
+    }
+
+    let calculatedFreightAmountForSync = dto.freightAmount || 0;
+    let resolvedPaymentTermForSync: {
+      paymentTermId: number | null;
+      paymentTerms: string | null;
+    } = {
+      paymentTermId: null,
+      paymentTerms: null,
+    };
 
     await this.sequelize.transaction(async (transaction) => {
       // Calculate overall freight amount from containerRates or legacy charges
@@ -3656,6 +3794,7 @@ export class LogisticsService {
           'At least one freight charge or container rate is required.',
         );
       }
+      calculatedFreightAmountForSync = calculatedFreightAmount;
 
       // Increment version placeholder
       const newVersion = (quote.version || 1) + 1;
@@ -3666,9 +3805,11 @@ export class LogisticsService {
         user,
         companyId,
       );
+      resolvedPaymentTermForSync = resolvedPt;
 
+      const cleanDto = stripRailSyncControlFields(dto);
       const updatePayload: any = {
-        ...dto,
+        ...cleanDto,
         freightAmount: calculatedFreightAmount,
         version: newVersion,
         updatedBy: user?.userId,
@@ -3765,7 +3906,7 @@ export class LogisticsService {
       });
     });
 
-    return quote.reload({
+    const updatedSourceQuote = await quote.reload({
       include: [
         { model: Partner, as: 'seller' },
         {
@@ -3777,6 +3918,499 @@ export class LogisticsService {
         { model: PaymentTerm, as: 'paymentTerm' },
       ],
     });
+
+    if (
+      preUpdateSnapshot &&
+      siblingIds.length > 0 &&
+      sourceShipment?.salesContract &&
+      isRailOriginTransportMode(sourceShipment.salesContract)
+    ) {
+      const syncSummary = await this.syncUpdatedFreightQuoteToRailSiblings({
+        logistics,
+        sourceShipment,
+        updatedSourceQuote,
+        preUpdateSnapshot,
+        siblingIds,
+        dto,
+        calculatedFreightAmount: calculatedFreightAmountForSync,
+        resolvedPaymentTerm: resolvedPaymentTermForSync,
+        user,
+        companyId,
+        userPermissions,
+      });
+      const serializedQuote = updatedSourceQuote?.toJSON
+        ? updatedSourceQuote.toJSON()
+        : updatedSourceQuote;
+      return { ...serializedQuote, syncSummary };
+    }
+
+    return updatedSourceQuote;
+  }
+
+  private async generateNextFreightQuoteNumber(transaction: any): Promise<string> {
+    await this.sequelize.query(
+      `CREATE SEQUENCE IF NOT EXISTS freight_quotes_no_seq START 1;`,
+      { transaction },
+    );
+    const [seqRes]: any = await this.sequelize.query(
+      `SELECT nextval('freight_quotes_no_seq')`,
+      { type: QueryTypes.SELECT, transaction } as any,
+    );
+    const nextVal = parseInt(
+      seqRes?.nextval ?? seqRes?.[0]?.nextval ?? '1',
+      10,
+    );
+    const currentYear = new Date().getFullYear();
+    return `FQ/${currentYear}/${String(nextVal).padStart(6, '0')}`;
+  }
+
+  private async persistSyncedQuoteLineItems(
+    quoteId: number,
+    dto: CreateFreightQuoteDto,
+    transaction: any,
+  ): Promise<void> {
+    if (dto.containerRates && dto.containerRates.length > 0) {
+      for (const cr of dto.containerRates) {
+        const crSum =
+          cr.charges?.reduce(
+            (sum, item) => sum + Number(item.amount || 0),
+            0,
+          ) || 0;
+        const createdCr = await this.containerRateModel.create(
+          {
+            quoteId,
+            containerType: cr.containerType,
+            containerSize: cr.containerSize,
+            freightAmount: crSum,
+          },
+          { transaction },
+        );
+
+        if (cr.charges && cr.charges.length > 0) {
+          const chargeRows = cr.charges.map((c, idx) => ({
+            quoteId,
+            containerRateId: createdCr.id,
+            chargeMasterId: c.chargeMasterId || null,
+            chargeName: c.chargeName,
+            amount: c.amount,
+            chargeDate: c.chargeDate || null,
+            remarks: c.remarks || null,
+            displayOrder: c.displayOrder ?? idx + 1,
+          }));
+          await this.quoteChargeModel.bulkCreate(chargeRows, {
+            transaction,
+          });
+        }
+      }
+    } else if (dto.charges && dto.charges.length > 0) {
+      const chargeRows = dto.charges.map((c, idx) => ({
+        quoteId,
+        containerRateId: null,
+        chargeMasterId: c.chargeMasterId || null,
+        chargeName: c.chargeName,
+        amount: c.amount,
+        chargeDate: c.chargeDate || null,
+        remarks: c.remarks || null,
+        displayOrder: c.displayOrder ?? idx + 1,
+      }));
+      await this.quoteChargeModel.bulkCreate(chargeRows, {
+        transaction,
+      });
+    }
+  }
+
+  private async resolvePurchaseContractIdForShipment(
+    shipmentId: number,
+    fallbackPurchaseContractId: number | null,
+    transaction: any,
+  ): Promise<number | null> {
+    try {
+      const [rows]: any = await this.sequelize.query(
+        `SELECT purchase_contract_id
+         FROM purchase_contract_shipments
+         WHERE shipment_id = :shipmentId
+         ORDER BY id DESC
+         LIMIT 1`,
+        {
+          replacements: { shipmentId },
+          type: QueryTypes.SELECT,
+          transaction,
+        } as any,
+      );
+      const pcId = Number(rows?.purchase_contract_id ?? rows?.[0]?.purchase_contract_id);
+      if (Number.isSafeInteger(pcId) && pcId > 0) return pcId;
+    } catch {
+      // Fallback safely if purchase_contract_shipments lookup is unavailable
+    }
+    return fallbackPurchaseContractId;
+  }
+
+  private async loadValidatedRailSiblingShipment(
+    destShipmentId: number,
+    sourceSalesContractId: number | null,
+    companyId: number,
+    transaction: any,
+  ): Promise<any> {
+    const shipmentTypeInclude = this.sequelize?.models?.ShipmentType
+      ? [{ model: this.sequelize.models.ShipmentType, as: 'shipmentType' }]
+      : [];
+
+    const destShipment = await this.shipmentModel.findByPk(destShipmentId, {
+      include: [
+        {
+          model: this.salesContractModel,
+          as: 'salesContract',
+          include: shipmentTypeInclude,
+        },
+      ],
+      transaction,
+    });
+
+    if (!destShipment) {
+      throw new NotFoundException(`Destination shipment #${destShipmentId} not found`);
+    }
+
+    if (
+      companyId &&
+      destShipment.companyId &&
+      Number(destShipment.companyId) !== Number(companyId)
+    ) {
+      throw new BadRequestException(
+        `Destination shipment #${destShipmentId} belongs to a different company`,
+      );
+    }
+
+    if (
+      !sourceSalesContractId ||
+      Number(destShipment.salesContractId) !== Number(sourceSalesContractId)
+    ) {
+      console.warn('[RailFreightSync] Multi-shipment Sales Contract validation failed:', {
+        sourceSalesContractId: Number(sourceSalesContractId || 0),
+        destShipmentId,
+        destShipmentReference: destShipment.shipmentReference ?? null,
+        destSalesContractId: Number(destShipment.salesContractId || 0),
+        destSalesContractNo: destShipment.salesContract?.contractNumber ?? null,
+      });
+      throw new BadRequestException(
+        `Destination shipment #${destShipmentId} does not belong to the same Sales Contract`,
+      );
+    }
+
+    if (!isRailOriginTransportMode(destShipment.salesContract)) {
+      throw new BadRequestException(
+        `Destination shipment #${destShipmentId} is not a Rail Freight / Wagon contract`,
+      );
+    }
+
+    const readiness = await this.readinessService.evaluate(destShipment);
+    if (!readiness?.freightRequired) {
+      throw new BadRequestException(
+        `Freight is not required for destination shipment #${destShipmentId}`,
+      );
+    }
+
+    return destShipment;
+  }
+
+  private async syncCreatedFreightQuoteToRailSiblings(params: {
+    logistics: Logistics;
+    sourceShipment: any;
+    sourceQuote: any;
+    siblingIds: number[];
+    dto: CreateFreightQuoteDto;
+    calculatedFreightAmount: number;
+    resolvedPaymentTerm: {
+      paymentTermId: number | null;
+      paymentTerms: string | null;
+    };
+    user: any;
+    companyId: number;
+  }): Promise<RailFreightSyncSummary> {
+    const {
+      logistics,
+      sourceShipment,
+      sourceQuote,
+      siblingIds,
+      dto,
+      calculatedFreightAmount,
+      resolvedPaymentTerm,
+      user,
+      companyId,
+    } = params;
+
+    const syncedShipmentIds: number[] = [];
+    const failedShipments: Array<{ shipmentId: number; message: string }> = [];
+
+    for (const destShipmentId of siblingIds) {
+      try {
+        await this.sequelize.transaction(async (transaction) => {
+          const destShipment = await this.loadValidatedRailSiblingShipment(
+            destShipmentId,
+            sourceShipment?.salesContractId ?? null,
+            companyId,
+            transaction,
+          );
+
+          const destLogisticsId = destShipment.logisticsId || logistics.id;
+          const destPurchaseContractId = await this.resolvePurchaseContractIdForShipment(
+            destShipmentId,
+            destLogisticsId === logistics.id
+              ? dto.purchaseContractId || logistics.purchaseContractId || null
+              : null,
+            transaction,
+          );
+
+          const quoteNumber = await this.generateNextFreightQuoteNumber(transaction);
+          const payload = buildSiblingFreightQuotePayload({
+            dto,
+            calculatedFreightAmount,
+            resolvedPaymentTerm,
+            sourceQuote,
+            isUpdate: false,
+            userId: user?.userId,
+            companyId: destShipment.companyId ?? companyId ?? null,
+            destShipment,
+            destLogisticsId,
+            destPurchaseContractId,
+            quoteNumber,
+          });
+
+          const createdSiblingQuote = await this.quoteModel.create(
+            payload as any,
+            { transaction },
+          );
+
+          await destShipment.update(
+            {
+              logisticsId: destLogisticsId,
+              freightAllocationStatus: 'Yes',
+              freight: destShipment.freight || calculatedFreightAmount,
+            },
+            { transaction },
+          );
+
+          await this.persistSyncedQuoteLineItems(
+            createdSiblingQuote.id,
+            dto,
+            transaction,
+          );
+
+          if (destLogisticsId && destLogisticsId !== logistics.id) {
+            const destLogistics = await this.logisticsModel.findByPk(
+              destLogisticsId,
+              { transaction },
+            );
+            if (destLogistics && destLogistics.status === 'Pending') {
+              await destLogistics.update(
+                { status: 'Quotes Received' },
+                { transaction },
+              );
+            }
+          }
+
+          await this.auditService.writeLog({
+            clientId: null,
+            companyId,
+            userId: user?.userId,
+            entityType: 'Logistics',
+            entityId: destLogisticsId,
+            action: 'QUOTE_ADDED',
+            newValue: {
+              quoteNumber,
+              shipmentId: destShipmentId,
+              sellerId: dto.sellerId,
+              freightAmount: calculatedFreightAmount,
+              autoAppliedFromShipmentId: sourceShipment?.id,
+            },
+          });
+        });
+
+        syncedShipmentIds.push(destShipmentId);
+      } catch (err: any) {
+        console.error(
+          `[LogisticsService] Failed to auto-apply Rail freight quote to Shipment #${destShipmentId}:`,
+          err?.message || err,
+        );
+        failedShipments.push({
+          shipmentId: destShipmentId,
+          message: err?.message || 'Failed to apply freight quote',
+        });
+      }
+    }
+
+    return {
+      workflowSource: SHIPMENTS_MANAGEMENT_SYNC_SOURCE,
+      totalSelectedCount: siblingIds.length + 1,
+      appliedCount: syncedShipmentIds.length,
+      syncedShipmentIds,
+      skippedShipmentIds: [],
+      failedShipments,
+      failedCount: failedShipments.length,
+    };
+  }
+
+  private async syncUpdatedFreightQuoteToRailSiblings(params: {
+    logistics: Logistics;
+    sourceShipment: any;
+    updatedSourceQuote: any;
+    preUpdateSnapshot: any;
+    siblingIds: number[];
+    dto: CreateFreightQuoteDto;
+    calculatedFreightAmount: number;
+    resolvedPaymentTerm: {
+      paymentTermId: number | null;
+      paymentTerms: string | null;
+    };
+    user: any;
+    companyId: number;
+    userPermissions?: Set<string>;
+  }): Promise<RailFreightSyncSummary> {
+    const {
+      logistics,
+      sourceShipment,
+      updatedSourceQuote,
+      preUpdateSnapshot,
+      siblingIds,
+      dto,
+      calculatedFreightAmount,
+      resolvedPaymentTerm,
+      user,
+      companyId,
+      userPermissions,
+    } = params;
+
+    const syncedShipmentIds: number[] = [];
+    const skippedShipmentIds: number[] = [];
+    const failedShipments: Array<{ shipmentId: number; message: string }> = [];
+
+    for (const destShipmentId of siblingIds) {
+      try {
+        let updatedThisSibling = false;
+        await this.sequelize.transaction(async (transaction) => {
+          const destShipment = await this.loadValidatedRailSiblingShipment(
+            destShipmentId,
+            sourceShipment?.salesContractId ?? null,
+            companyId,
+            transaction,
+          );
+
+          const candidateQuotes =
+            (await this.quoteModel.findAll({
+              where: { shipmentId: destShipmentId, isRejected: false },
+              include: [{ model: FreightQuoteCharge, as: 'charges' }],
+              order: [['id', 'ASC']],
+              transaction,
+            })) || [];
+
+          const matchingQuote = findMatchingSiblingQuote(
+            candidateQuotes,
+            preUpdateSnapshot,
+          );
+          if (!matchingQuote) {
+            return;
+          }
+
+          const destLogistics =
+            matchingQuote.logisticsId === logistics?.id || !matchingQuote.logisticsId
+              ? logistics
+              : await this.logisticsModel.findByPk(matchingQuote.logisticsId, {
+                  transaction,
+                });
+
+          const isDestFinalized = await this.isFreightQuoteFinalized(
+            matchingQuote,
+            destLogistics,
+          );
+          const destAccess = assertCanModifyRecord({
+            isCompleted: isDestFinalized,
+            oneTimeEditUsed: matchingQuote.oneTimeCompletedEditUsed,
+            user,
+            userPermissions,
+            resource: 'freight_allocation',
+            recordType: 'Freight Allocation',
+            customMessage:
+              'Freight Allocation is finalized and the 1-time correction has already been used. You need the "freight_allocation:edit_completed" permission to modify finalized quotes.',
+          });
+
+          const newVersion = (matchingQuote.version || 1) + 1;
+          const updatePayload = buildSiblingFreightQuotePayload({
+            dto,
+            calculatedFreightAmount,
+            resolvedPaymentTerm,
+            sourceQuote: updatedSourceQuote,
+            isUpdate: true,
+            userId: user?.userId,
+            destShipment,
+            newVersion,
+          });
+          if (destAccess.isOneTimeEdit) {
+            updatePayload.oneTimeCompletedEditUsed = true;
+            updatePayload.oneTimeCompletedEditBy =
+              user?.id || user?.userId || null;
+            updatePayload.oneTimeCompletedEditAt = new Date();
+          }
+
+          await matchingQuote.update(updatePayload as any, { transaction });
+
+          await this.quoteChargeModel.destroy({
+            where: { quoteId: matchingQuote.id },
+            transaction,
+          });
+          await this.containerRateModel.destroy({
+            where: { quoteId: matchingQuote.id },
+            transaction,
+          });
+
+          await this.persistSyncedQuoteLineItems(
+            matchingQuote.id,
+            dto,
+            transaction,
+          );
+
+          await this.auditService.writeLog({
+            clientId: null,
+            companyId,
+            userId: user?.userId,
+            entityType: 'Logistics',
+            entityId: matchingQuote.logisticsId || logistics?.id,
+            action: 'QUOTE_EDITED',
+            newValue: {
+              quoteNumber: matchingQuote.quoteNumber,
+              shipmentId: destShipmentId,
+              version: newVersion,
+              syncedFromShipmentId: sourceShipment?.id,
+            },
+          });
+
+          updatedThisSibling = true;
+        });
+
+        if (updatedThisSibling) {
+          syncedShipmentIds.push(destShipmentId);
+        } else {
+          skippedShipmentIds.push(destShipmentId);
+        }
+      } catch (err: any) {
+        console.error(
+          `[LogisticsService] Failed to sync edited Rail freight quote to Shipment #${destShipmentId}:`,
+          err?.message || err,
+        );
+        failedShipments.push({
+          shipmentId: destShipmentId,
+          message: err?.message || 'Failed to sync freight quote edit',
+        });
+      }
+    }
+
+    return {
+      workflowSource: SHIPMENTS_MANAGEMENT_SYNC_SOURCE,
+      totalSelectedCount: siblingIds.length + 1,
+      appliedCount: syncedShipmentIds.length,
+      syncedShipmentIds,
+      skippedShipmentIds,
+      failedShipments,
+      failedCount: failedShipments.length,
+    };
   }
 
   /**

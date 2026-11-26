@@ -26,6 +26,15 @@ export function normalizeTransportMode(mode?: string | null): 'ROAD' | 'SEA' | '
   return 'OTHER';
 }
 
+export function getContractTransportMode(contract: any = {}): 'ROAD' | 'SEA' | 'BULK' | 'RAIL' | 'AIR' | 'OTHER' {
+  return normalizeTransportMode(
+    contract?.originTransportMode ||
+      contract?.destinationTransportMode ||
+      contract?.transportMode ||
+      'SEA',
+  );
+}
+
 /**
  * Normalizes container type (e.g. '40 FT', '20 FT', '40 HC')
  */
@@ -156,13 +165,10 @@ export function generateQuantityDescription(options: QuantityDescriptionOptions)
  * strictly without requiring manual input or extra fields.
  */
 export function getContractItemQuantityDescription(contract: any = {}, item: any = {}): string {
-  const mode = normalizeTransportMode(
-    contract.originTransportMode ||
-    contract.destinationTransportMode ||
-    contract.transportMode ||
-    item.transportMode ||
-    'SEA',
-  );
+  const mode = getContractTransportMode({
+    ...contract,
+    transportMode: contract.transportMode || item.transportMode,
+  });
 
   const totalQuantity =
     parseFloat(item.quantity) ||

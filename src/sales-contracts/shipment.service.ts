@@ -47,6 +47,11 @@ import { BagSpecification } from '../masters/bag-specs/models/bag-specification.
 import { StockService } from '../stock/stock.service';
 import { assertCanModifyRecord } from '../rbac/utils/finalization-lock.util';
 import { Attachment } from '../attachments/models/attachment.model';
+import {
+  distributeMultiShipmentWeights,
+  getMultiExecutionTransportCategory,
+  parseMultiExecutionShipmentIds,
+} from './utils/multi-stuffing-execution.util';
 
 function getContractDestination(contract: SalesContract): string | null {
   if (contract.destinationSelectionMode === 'enquiry') {
@@ -2067,7 +2072,23 @@ export class ShipmentService {
    * Auto-populates 80-90% read-only data for Shipment Stuffing Execution
    * Fetches data from Shipment, Sales Contract, Items, Cargo Allocation, Freight, Company, and Buyer.
    */
-  async getStuffingExecutionData(shipmentId: number, user?: any) {
+  async getStuffingExecutionData(
+    shipmentId: number,
+    user?: any,
+    multiShipmentIdsInput?: unknown,
+  ) {
+    const multiIds = parseMultiExecutionShipmentIds(
+      multiShipmentIdsInput,
+      shipmentId,
+    );
+    if (multiIds.length > 1) {
+      return await this.getMultiStuffingExecutionData(
+        shipmentId,
+        multiIds,
+        user,
+      );
+    }
+
     const shipment = await this.shipmentModel.findByPk(shipmentId, {
       include: [
         {
@@ -2530,6 +2551,20 @@ export class ShipmentService {
     user?: any,
     userPermissions?: Set<string>,
   ) {
+    const multiIds = parseMultiExecutionShipmentIds(
+      dto?.shipmentIds,
+      shipmentId,
+    );
+    if (multiIds.length > 1) {
+      return await this.saveMultiStuffingExecution(
+        shipmentId,
+        multiIds,
+        dto,
+        user,
+        userPermissions,
+      );
+    }
+
     const access = await this.assertCanModifyStuffing(
       shipmentId,
       user,
@@ -2841,5 +2876,937 @@ export class ShipmentService {
       shipmentStatus: shipment.status,
       readyForShipment: true,
     };
+  }
+
+  private async hydrateExistingStuffingRecord(existingStuffing: any) {
+    const existingStuffingData = existingStuffing
+      ? existingStuffing.get({ plain: true })
+      : null;
+    if (existingStuffingData?.containers) {
+      existingStuffingData.containers = this.stripRemovedContainerFields(
+        existingStuffingData.containers,
+      );
+    }
+    if (existingStuffingData) {
+      existingStuffingData.downtimes = Array.isArray(
+        existingStuffingData.downtimes,
+      )
+        ? existingStuffingData.downtimes
+        : [];
+
+      const attachments = Array.isArray(existingStuffingData.attachments)
+        ? existingStuffingData.attachments
+        : [];
+      const attachmentIds = [
+        ...new Set<number>(
+          attachments
+            .map((attachment): number => Number(attachment?.attachmentId))
+            .filter((id): id is number => Number.isInteger(id) && id > 0),
+        ),
+      ];
+
+      if (attachmentIds.length > 0) {
+        const storedAttachments = await this.attachmentModel.findAll({
+          where: { id: { [Op.in]: attachmentIds } },
+          attributes: ['id', 'originalName', 'fileSize', 'mimeType'],
+        });
+        const storedById = new Map(
+          storedAttachments.map((attachment) => [attachment.id, attachment]),
+        );
+
+        existingStuffingData.attachments = attachments.map((attachment) => {
+          const stored = storedById.get(Number(attachment?.attachmentId));
+          if (!stored) return attachment;
+
+          const downloadUrl = `/attachments/${stored.id}/download`;
+          return {
+            ...attachment,
+            fileName: attachment.fileName || stored.originalName,
+            fileUrl: attachment.fileUrl || downloadUrl,
+            downloadUrl: attachment.downloadUrl || downloadUrl,
+            fileSize: Number(attachment.fileSize) || stored.fileSize,
+            mimeType: attachment.mimeType || stored.mimeType,
+          };
+        });
+      }
+    }
+    return existingStuffingData;
+  }
+
+  private validateExecutionTransitionDto(dto: any): boolean {
+    const isComplete = dto.action === 'complete';
+    const isExecutionTransition =
+      isComplete ||
+      dto.action === 'dispatch' ||
+      [
+        'Executed',
+        'Stuffed',
+        'Loading Completed',
+        'Dispatched',
+        'Completed',
+      ].includes(String(dto.executionStatus || ''));
+
+    if (!isExecutionTransition) {
+      return false;
+    }
+
+    const requiredLoadingFields: Array<[string, string]> = [
+      ['loadingDate', 'Date of Loading'],
+      ['actualLoadingWeight', 'Actual Loading Weight (MT)'],
+      ['grossWeight', 'Gross Weight (MT)'],
+      ['netWeight', 'Net Weight (MT)'],
+      ['loadingStartTime', 'Loading Start Time'],
+      ['loadingEndTime', 'Loading End Time'],
+    ];
+    const missingFields = requiredLoadingFields
+      .filter(([field]) => {
+        const value = dto[field];
+        return (
+          value === undefined ||
+          value === null ||
+          (typeof value === 'string' && value.trim() === '')
+        );
+      })
+      .map(([, label]) => label);
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(
+        `Complete all required Loading & Weights fields before completing stuffing: ${missingFields.join(', ')}.`,
+      );
+    }
+
+    const invalidWeightFields = requiredLoadingFields
+      .filter(([field]) =>
+        ['actualLoadingWeight', 'grossWeight', 'netWeight'].includes(field),
+      )
+      .filter(([field]) => !Number.isFinite(Number(dto[field])))
+      .map(([, label]) => label);
+
+    if (invalidWeightFields.length > 0) {
+      throw new BadRequestException(
+        `Enter valid numbers for: ${invalidWeightFields.join(', ')}.`,
+      );
+    }
+
+    const dispatchMode =
+      dto.dispatchMode === 'container'
+        ? 'container'
+        : dto.dispatchMode === 'truck'
+          ? 'truck'
+          : /\bSEA\b|CONTAINER|OCEAN|MARITIME/i.test(
+                String(dto.autoPopulated?.transportMode || ''),
+              )
+            ? 'container'
+            : 'truck';
+    const dispatchRows =
+      dispatchMode === 'container' ? dto.containers : dto.trucks;
+    if (
+      !Array.isArray(dispatchRows) ||
+      dispatchRows.length === 0 ||
+      dispatchRows.some(
+        (row) =>
+          !['yes', 'no'].includes(String(row?.dispatch || '').toLowerCase()),
+      )
+    ) {
+      throw new BadRequestException(
+        'Select Dispatch (Yes or No) for every container or truck before completing stuffing.',
+      );
+    }
+
+    return true;
+  }
+
+  private async getMultiStuffingExecutionData(
+    primaryShipmentId: number,
+    multiIds: number[],
+    user?: any,
+  ) {
+    const fetchedShipments = await this.shipmentModel.findAll({
+      where: { id: { [Op.in]: multiIds } },
+      include: [
+        {
+          model: SalesContract,
+          as: 'salesContract',
+          required: false,
+          include: [
+            { model: Partner, as: 'buyer', required: false },
+            { model: Partner, as: 'seller', required: false },
+            {
+              model: SalesContractItem,
+              as: 'items',
+              required: false,
+              include: [
+                { model: Product, as: 'product', required: false },
+                { model: PackingType, as: 'packingType', required: false },
+                {
+                  model: BagSpecification,
+                  as: 'bagSpecification',
+                  required: false,
+                },
+              ],
+            },
+            { model: Company, as: 'company', required: false },
+            { model: Enquiry, as: 'enquiry', required: false },
+            { model: ShipmentType, as: 'shipmentType', required: false },
+            { model: PaymentTerm, as: 'paymentTerm', required: false },
+          ],
+        },
+        {
+          model: BusinessTransaction,
+          as: 'businessTransaction',
+          attributes: ['id', 'businessReference'],
+          required: false,
+        },
+        {
+          model: Company,
+          as: 'company',
+          required: false,
+        },
+      ],
+    });
+
+    const shipmentById = new Map<number, SalesContractShipment>(
+      fetchedShipments.map((s) => [Number(s.id), s]),
+    );
+    const orderedShipments = multiIds
+      .map((id) => shipmentById.get(id))
+      .filter((s): s is SalesContractShipment => Boolean(s));
+
+    if (orderedShipments.length !== multiIds.length) {
+      const missingId = multiIds.find((id) => !shipmentById.has(id));
+      throw new NotFoundException(`Shipment #${missingId ?? primaryShipmentId} not found`);
+    }
+
+    for (const s of orderedShipments) {
+      if (
+        user?.companyId &&
+        s.salesContract?.companyId &&
+        s.salesContract.companyId !== user.companyId
+      ) {
+        throw new NotFoundException(`Shipment #${s.id} not found`);
+      }
+    }
+
+    const contractIds = new Set(
+      orderedShipments.map((s) => Number(s.salesContractId || 0)),
+    );
+    if (contractIds.has(0) || contractIds.size !== 1) {
+      this.logMultiExecutionContractMismatch(
+        'getMultiStuffingExecutionData',
+        orderedShipments,
+        contractIds,
+      );
+      throw new BadRequestException(
+        'Multi-shipment execution is allowed only for shipments belonging to the same Sales Contract.',
+      );
+    }
+
+    const primaryShipment = orderedShipments[0];
+    const contract = primaryShipment.salesContract || ({} as any);
+    const modeCategory = getMultiExecutionTransportCategory(contract);
+    if (!modeCategory) {
+      throw new BadRequestException(
+        'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
+      );
+    }
+
+    // 1. Purchase Contracts & allocated quantities across selected shipments
+    const pcNumbers = new Set<string>();
+    let purchaseContractQuantity = 0;
+    const allocatedByShipment = new Map<number, number>(
+      orderedShipments.map((s) => [Number(s.id), Number(s.quantity || 0)]),
+    );
+
+    try {
+      const pcShipmentModel =
+        this.shipmentModel.sequelize?.models?.['PurchaseContractShipment'];
+      const pcModel =
+        this.shipmentModel.sequelize?.models?.['PurchaseContract'];
+      if (pcShipmentModel && pcModel) {
+        const pcLinks: any[] = await pcShipmentModel.findAll({
+          where: { shipmentId: { [Op.in]: multiIds } },
+        });
+        const pcIds = Array.from(
+          new Set(
+            pcLinks
+              .map((l) => Number(l?.purchaseContractId))
+              .filter((id) => Number.isSafeInteger(id) && id > 0),
+          ),
+        );
+        for (const link of pcLinks) {
+          if (link?.shipmentId && link?.allocatedQuantity != null) {
+            allocatedByShipment.set(
+              Number(link.shipmentId),
+              Number(link.allocatedQuantity) || 0,
+            );
+          }
+        }
+        if (pcIds.length > 0 && typeof pcModel.findAll === 'function') {
+          const pcs: any[] = await pcModel.findAll({
+            where: { id: { [Op.in]: pcIds } },
+          });
+          for (const pc of pcs) {
+            if (pc?.contractNumber) pcNumbers.add(String(pc.contractNumber));
+            purchaseContractQuantity += Number(pc?.quantity || 0);
+          }
+        } else if (primaryShipment.salesContractId) {
+          const directPc: any = await pcModel.findOne({
+            where: { salesContractId: primaryShipment.salesContractId },
+          });
+          if (directPc) {
+            if (directPc.contractNumber) {
+              pcNumbers.add(String(directPc.contractNumber));
+            }
+            purchaseContractQuantity = Number(directPc.quantity || 0);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch linked Purchase Contracts:', err);
+    }
+
+    const purchaseContractNo =
+      pcNumbers.size > 0 ? Array.from(pcNumbers).join(', ') : 'N/A';
+
+    const totalQuantityMt = orderedShipments.reduce(
+      (sum, s) => sum + Number(s.quantity || 0),
+      0,
+    );
+    const totalAllocatedWeight = orderedShipments.reduce(
+      (sum, s) => sum + Number(allocatedByShipment.get(Number(s.id)) || 0),
+      0,
+    );
+
+    let loadedQuantity = 0;
+    try {
+      loadedQuantity = Number(
+        (await this.stuffingModel.sum('actualLoadingWeight', {
+          where: { shipmentId: { [Op.in]: multiIds } },
+        })) || 0,
+      );
+    } catch {
+      loadedQuantity = 0;
+    }
+
+    const remainingQuantity = Math.max(0, totalQuantityMt - loadedQuantity);
+    const balanceWeight = Math.max(
+      0,
+      parseFloat((purchaseContractQuantity - totalAllocatedWeight).toFixed(2)),
+    );
+
+    // 2. Fetch Freight Quotes independently per shipment (never share Truck freight between shipments)
+    const quoteByShipment = new Map<number, any>();
+    let primaryLogistics: any = null;
+    try {
+      if (typeof this.freightQuoteModel?.findAll === 'function') {
+        const quotes: any[] = await this.freightQuoteModel.findAll({
+          where: { shipmentId: { [Op.in]: multiIds } },
+          order: [['id', 'DESC']],
+        });
+        for (const q of quotes || []) {
+          const sId = Number(q?.shipmentId);
+          if (sId && !quoteByShipment.has(sId)) {
+            quoteByShipment.set(sId, q);
+          }
+        }
+      } else if (typeof this.freightQuoteModel?.findOne === 'function') {
+        for (const s of orderedShipments) {
+          const q = await this.freightQuoteModel.findOne({
+            where: { shipmentId: s.id },
+            order: [['id', 'DESC']],
+          });
+          if (q) quoteByShipment.set(Number(s.id), q);
+        }
+      }
+
+      const primaryFreightQuote = quoteByShipment.get(Number(primaryShipment.id));
+      const logisticsId =
+        primaryFreightQuote?.logisticsId || primaryShipment.logisticsId;
+      if (logisticsId && typeof this.logisticsModel?.findByPk === 'function') {
+        primaryLogistics = await this.logisticsModel.findByPk(logisticsId);
+      }
+    } catch (err) {
+      console.warn('Could not fetch multi-shipment freight data:', err);
+    }
+
+    const primaryFreightQuote = quoteByShipment.get(Number(primaryShipment.id)) || null;
+    const perShipmentFreights = orderedShipments.map((s) => {
+      const q = quoteByShipment.get(Number(s.id)) || null;
+      return {
+        shipmentId: s.id,
+        shipmentReference: s.shipmentReference || `SHP-${s.id}`,
+        quoteNumber: q?.quoteNumber || null,
+        freightForwarder:
+          q?.seller?.entityName || q?.carrierReferenceNo || null,
+        freightAmount: q?.freightAmount ?? s.freight ?? null,
+        currency: q?.currency || s.freightCurrency || null,
+        freightAllocationStatus: s.freightAllocationStatus || (q ? 'Yes' : 'No'),
+      };
+    });
+
+    // 3. Common master data (once per Sales Contract)
+    const item = contract.items?.[0] || {};
+    const product = item.product || {};
+    const buyer = contract.buyer || {};
+    const seller = contract.seller || {};
+    const company = primaryShipment.company || contract.company || {};
+    const bagSizeKg = Number(item.bagSpecification?.size || 0);
+    const totalBags = bagSizeKg
+      ? Math.round((totalQuantityMt * 1000) / bagSizeKg)
+      : 0;
+
+    let pcLoadingPlace: string | null = null;
+    try {
+      const [pcLoadingRows]: any = await this.sequelize.query(
+        `SELECT pc.place_of_loading
+         FROM purchase_contracts pc
+         LEFT JOIN purchase_contract_shipments pcs ON pcs.purchase_contract_id = pc.id
+         WHERE pcs.shipment_id IN (:multiIds)
+            OR pc.sales_contract_id = :salesContractId
+         ORDER BY CASE WHEN pcs.shipment_id IN (:multiIds) THEN 1 ELSE 2 END, pc.updated_at DESC
+         LIMIT 1`,
+        {
+          replacements: {
+            multiIds,
+            salesContractId: contract.id || -1,
+          },
+        },
+      );
+      if (pcLoadingRows?.[0]?.place_of_loading) {
+        pcLoadingPlace = pcLoadingRows[0].place_of_loading;
+      }
+    } catch {
+      // ignore
+    }
+
+    const originPort =
+      pcLoadingPlace ||
+      primaryShipment.origin ||
+      contract.portOfLoading ||
+      contract.originLocationName ||
+      primaryFreightQuote?.pol ||
+      '—';
+    const destPort =
+      getContractDestination(contract) ||
+      contract.deliveryPlace ||
+      primaryShipment.destination ||
+      primaryFreightQuote?.pod ||
+      '—';
+    const originCountry = contract.originCountry || '—';
+    const destCountry = contract.destinationCountry || '—';
+    const route = `${originPort} ➔ ${destPort}`;
+
+    const sellerCompanyName =
+      company.legalName || company.name || seller.entityName || '—';
+    const sellerAddress =
+      [
+        company.address,
+        company.city,
+        company.state,
+        company.country,
+        company.pincode,
+      ]
+        .filter(Boolean)
+        .join(', ') ||
+      seller.address ||
+      '—';
+    const sellerGst = company.taxNumber || seller.taxId || '—';
+    const sellerIec = company.registrationNumber || seller.panNo || '—';
+    const sellerContact =
+      [company.phone, company.email].filter(Boolean).join(' | ') ||
+      seller.contactEmail ||
+      '—';
+
+    const buyerName = buyer.entityName || '—';
+    const buyerAddress = buyer.address
+      ? `${buyer.address}, ${buyer.city || ''}, ${buyer.country || ''}`
+      : buyer.loadingAddress || '—';
+    const buyerCountry = buyer.country || destCountry;
+    const buyerContactPerson = buyer.contacts?.[0]
+      ? `${buyer.contacts[0].contactName || ''} (${buyer.contacts[0].contactNumber || buyer.contacts[0].email || ''})`
+      : buyer.contactEmail || '—';
+
+    const selectedShipmentsSummary = orderedShipments.map((s) => ({
+      id: s.id,
+      shipmentNo: s.shipmentNo,
+      shipmentReference: s.shipmentReference || `SHP-${s.id}`,
+      shipmentDate: s.shipmentDate,
+      quantity: Number(s.quantity || 0),
+      allocatedWeight: Number(allocatedByShipment.get(Number(s.id)) || 0),
+      status: s.status,
+      executionStatus: s.executionStatus || 'Pending',
+      freightAllocationStatus: s.freightAllocationStatus || 'No',
+    }));
+
+    const isTruckMode = modeCategory === 'truck';
+    const freightQuoteForDisplay = isTruckMode ? null : primaryFreightQuote;
+
+    const autoPopulated = {
+      isMultiShipment: true,
+      multiShipmentMode: modeCategory,
+      shipmentIds: multiIds,
+      selectedShipments: selectedShipmentsSummary,
+      perShipmentFreights,
+      shipmentRef: selectedShipmentsSummary
+        .map((s) => s.shipmentReference)
+        .join(', '),
+      businessRefNo: primaryShipment.businessTransaction?.businessReference || '—',
+      salesContractNo: contract.contractNumber || '—',
+      purchaseContractNo,
+      enquiryRef:
+        contract.enquiry?.enquiryReference ||
+        (contract.enquiryId
+          ? `ENQ-${String(contract.enquiryId).slice(0, 8)}`
+          : '—'),
+      buyer: buyerName,
+      seller: sellerCompanyName,
+      product: product.name || '—',
+      commodityGrade:
+        product.grade || product.commodityGrade || item.remarks || '—',
+      quantityMt: totalQuantityMt,
+      packingType: item.packingType?.name || '—',
+      bagSize: bagSizeKg ? `${bagSizeKg} Kg` : '—',
+      totalBags,
+      incoterm:
+        contract.shipmentType?.code ||
+        contract.shipmentType?.name ||
+        contract.contractType ||
+        '—',
+      paymentTerms: contract.paymentTerm?.name || '—',
+      paymentTerm: contract.paymentTerm?.name || '—',
+      shipmentDate: primaryShipment.shipmentDate,
+      transportMode:
+        modeCategory === 'rail'
+          ? 'Rail'
+          : primaryLogistics?.transportMode ||
+            contract.originTransportMode ||
+            contract.transportMode ||
+            'Truck',
+      freightType:
+        contract.shipmentType?.name || freightQuoteForDisplay?.mode || '—',
+      shipmentType:
+        contract.contractType || contract.shipmentType?.name || '—',
+      route,
+      originCountry,
+      destinationCountry: destCountry,
+      originPort,
+      destinationPort: destPort,
+      allocatedCargoLots: '—',
+      warehouse: '—',
+      availableWeight: totalQuantityMt,
+      allocatedWeight: totalAllocatedWeight,
+      balanceWeight,
+      loadedQuantity,
+      remainingQuantity,
+      shippingLine: freightQuoteForDisplay?.shippingLine || '',
+      vessel: freightQuoteForDisplay?.vessel || '',
+      voyage: freightQuoteForDisplay?.voyage || '',
+      containerType: '—',
+      freightForwarder:
+        freightQuoteForDisplay?.seller?.entityName ||
+        freightQuoteForDisplay?.carrierReferenceNo ||
+        '',
+      etd: freightQuoteForDisplay?.etd
+        ? new Date(freightQuoteForDisplay.etd).toISOString().split('T')[0]
+        : primaryShipment.shipmentDate
+          ? new Date(primaryShipment.shipmentDate).toISOString().split('T')[0]
+          : '',
+      eta: freightQuoteForDisplay?.eta
+        ? new Date(freightQuoteForDisplay.eta).toISOString().split('T')[0]
+        : '',
+      pol: freightQuoteForDisplay?.pol || originPort,
+      pod: freightQuoteForDisplay?.pod || destPort,
+      sellerCompany: sellerCompanyName,
+      sellerAddress,
+      gst: sellerGst,
+      iec: sellerIec,
+      contactDetails: sellerContact,
+      buyerName,
+      buyerAddress,
+      buyerCountry,
+      buyerContactPerson,
+    };
+
+    let existingStuffing = null;
+    try {
+      existingStuffing = await this.stuffingModel.findOne({
+        where: { shipmentId: primaryShipment.id },
+      });
+    } catch (err) {
+      console.warn('Could not query existing stuffing:', err);
+    }
+
+    const existingStuffingData = await this.hydrateExistingStuffingRecord(
+      existingStuffing,
+    );
+    const savedBatchMeta =
+      existingStuffingData?.autoPopulatedData?.multiShipmentExecution;
+    if (
+      existingStuffingData &&
+      savedBatchMeta?.combinedActualLoadingWeight != null
+    ) {
+      existingStuffingData.actualLoadingWeight =
+        savedBatchMeta.combinedActualLoadingWeight;
+      existingStuffingData.grossWeight =
+        savedBatchMeta.combinedGrossWeight ?? existingStuffingData.grossWeight;
+      existingStuffingData.netWeight =
+        savedBatchMeta.combinedNetWeight ?? existingStuffingData.netWeight;
+    }
+
+    let readyForShipment = false;
+    let isManualOverride = false;
+    try {
+      const readinessMap =
+        await this.readinessService.evaluateBatch(orderedShipments);
+      readyForShipment = orderedShipments.every(
+        (s) => readinessMap.get(s.id)?.readyForShipment === true,
+      );
+      isManualOverride = orderedShipments.some(
+        (s) => readinessMap.get(s.id)?.isManualOverride === true,
+      );
+    } catch (err) {
+      console.warn('Multi readiness evaluate warning:', err);
+    }
+
+    return {
+      shipmentId: primaryShipment.id,
+      shipmentIds: multiIds,
+      isMultiShipment: true,
+      multiShipmentMode: modeCategory,
+      selectedShipments: selectedShipmentsSummary,
+      perShipmentFreights,
+      shipmentStatus: primaryShipment.status,
+      readyForShipment,
+      isManualOverride,
+      autoPopulated,
+      existingStuffing: existingStuffingData,
+    };
+  }
+
+  private async saveMultiStuffingExecution(
+    primaryShipmentId: number,
+    multiIds: number[],
+    dto: any,
+    user?: any,
+    userPermissions?: Set<string>,
+  ) {
+    const accessByShipmentId = new Map<number, any>();
+    for (const sId of multiIds) {
+      const access = await this.assertCanModifyStuffing(
+        sId,
+        user,
+        userPermissions,
+      );
+      accessByShipmentId.set(sId, access);
+    }
+
+    const userId = user?.userId ?? user?.id ?? null;
+    const isComplete = dto.action === 'complete';
+    const isExecutionTransition = this.validateExecutionTransitionDto(dto);
+    const now = new Date();
+
+    const loadedQty = Number(dto.actualLoadingWeight ? Number(dto.actualLoadingWeight) : 0);
+    if (!Number.isFinite(loadedQty) || loadedQty < 0) {
+      throw new BadRequestException('Loaded quantity cannot be negative.');
+    }
+    if (isComplete && loadedQty <= 0) {
+      throw new BadRequestException(
+        'Enter a positive loaded quantity before completing stuffing.',
+      );
+    }
+
+    const normalizedDowntimes = this.normalizeDowntimeRecords(dto.downtimes);
+    const sanitizedContainers = this.stripRemovedContainerFields(
+      Array.isArray(dto.containers) ? dto.containers : [],
+    );
+    const cleanedTrucks = Array.isArray(dto.trucks) ? dto.trucks : [];
+    const cleanedAttachments = Array.isArray(dto.attachments)
+      ? dto.attachments
+      : [];
+
+    const { orderedShipments, savedRecords, salesContractId } =
+      await this.sequelize.transaction(async (transaction) => {
+        const sortedIds = [...multiIds].sort((a, b) => a - b);
+        const lockedShipments = await this.shipmentModel.findAll({
+          where: { id: { [Op.in]: sortedIds } },
+          order: [['id', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+
+        const byId = new Map<number, SalesContractShipment>(
+          lockedShipments.map((s) => [Number(s.id), s]),
+        );
+        const ordered = multiIds
+          .map((id) => byId.get(id))
+          .filter((s): s is SalesContractShipment => Boolean(s));
+
+        if (ordered.length !== multiIds.length) {
+          const missingId = multiIds.find((id) => !byId.has(id));
+          throw new NotFoundException(
+            `Shipment #${missingId ?? primaryShipmentId} not found`,
+          );
+        }
+
+        const contractIds = new Set(
+          ordered.map((s) => Number(s.salesContractId || 0)),
+        );
+        if (contractIds.has(0) || contractIds.size !== 1) {
+          this.logMultiExecutionContractMismatch(
+            'saveMultiStuffingExecution',
+            ordered,
+            contractIds,
+          );
+          throw new BadRequestException(
+            'Multi-shipment execution is allowed only for shipments belonging to the same Sales Contract.',
+          );
+        }
+
+        const contractId = Number(ordered[0].salesContractId);
+        const salesContract = await this.contractModel.findByPk(contractId, {
+          attributes: ['id', 'originTransportMode', 'transportMode', 'companyId'],
+          transaction,
+        });
+
+        if (
+          user?.companyId &&
+          salesContract?.companyId &&
+          salesContract.companyId !== user.companyId
+        ) {
+          throw new NotFoundException(`Shipment #${primaryShipmentId} not found`);
+        }
+
+        const modeCategory = getMultiExecutionTransportCategory(salesContract);
+        if (!modeCategory) {
+          throw new BadRequestException(
+            'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
+          );
+        }
+
+        if (isExecutionTransition) {
+          for (const s of ordered) {
+            if (s.cargoReadyConfirmed !== true) {
+              throw new BadRequestException(
+                'Cargo Allocation must be marked Yes before completing shipment stuffing.',
+              );
+            }
+          }
+        }
+
+        const totalContractedQty = ordered.reduce(
+          (sum, s) => sum + Number(s.quantity || 0),
+          0,
+        );
+        if (loadedQty > totalContractedQty) {
+          throw new BadRequestException(
+            `Loaded quantity (${loadedQty} MT) exceeds combined selected shipment quantity (${totalContractedQty} MT).`,
+          );
+        }
+
+        const totalGross = dto.grossWeight ? Number(dto.grossWeight) : 0;
+        const totalNet = dto.netWeight ? Number(dto.netWeight) : 0;
+        const allocations = distributeMultiShipmentWeights(
+          loadedQty,
+          totalGross,
+          totalNet,
+          ordered,
+        );
+        const allocationById = new Map(
+          allocations.map((a) => [a.shipmentId, a]),
+        );
+
+        const multiMeta = {
+          isMultiShipment: true,
+          shipmentIds: multiIds,
+          primaryShipmentId,
+          transportCategory: modeCategory,
+          combinedActualLoadingWeight: loadedQty,
+          combinedGrossWeight: totalGross,
+          combinedNetWeight: totalNet,
+          shipmentBreakdown: allocations,
+        };
+
+        const effectiveExecutionStatus = isComplete
+          ? 'Loading Completed'
+          : dto.executionStatus || 'Pending';
+
+        // Keep Truck freight completely independent (never copy freight overrides across Truck shipments)
+        const isolatedFreightOverrides =
+          modeCategory === 'truck'
+            ? {
+                shipmentMode:
+                  dto.freightOverrides?.shipmentMode || 'Truck',
+              }
+            : dto.freightOverrides || null;
+
+        const saved: any[] = [];
+        for (const s of ordered) {
+          const alloc = allocationById.get(Number(s.id))!;
+          const access = accessByShipmentId.get(Number(s.id));
+
+          const perShipmentData: any = {
+            companyId: s.companyId || user?.companyId || null,
+            shipmentId: s.id,
+            salesContractId: s.salesContractId,
+            stuffingStatus: isComplete
+              ? 'Completed'
+              : dto.stuffingStatus || 'Draft',
+            executionStatus: effectiveExecutionStatus,
+            warehouseStatus: isComplete
+              ? 'Completed'
+              : dto.warehouseStatus || 'Pending',
+            loadingStatus: isComplete
+              ? 'Loading Completed'
+              : dto.loadingStatus || 'Pending',
+            autoPopulatedData: {
+              ...(dto.autoPopulated || {}),
+              multiShipmentExecution: multiMeta,
+            },
+            stuffingDate: dto.stuffingDate || null,
+            stuffingStartTime: dto.stuffingStartTime || null,
+            stuffingEndTime: dto.stuffingEndTime || null,
+            stuffingLocation: dto.stuffingLocation || null,
+            supervisor: dto.supervisor || null,
+            operator: dto.operator || null,
+            loadingDate: dto.loadingDate || null,
+            loadingStartTime: dto.loadingStartTime || null,
+            loadingEndTime: dto.loadingEndTime || null,
+            actualLoadingWeight: alloc.actualLoadingWeight,
+            grossWeight: alloc.grossWeight,
+            netWeight: alloc.netWeight,
+            freightOverrides: isolatedFreightOverrides,
+            containers: sanitizedContainers,
+            downtimes: normalizedDowntimes,
+            trucks: cleanedTrucks,
+            attachments: cleanedAttachments,
+            remarks: dto.remarks || null,
+            updatedBy: userId,
+            ...(isComplete ? { completedAt: now } : {}),
+          };
+
+          const [record] = await this.stuffingModel.findOrCreate({
+            where: { shipmentId: s.id },
+            defaults: { ...perShipmentData, createdBy: userId },
+            transaction,
+          });
+
+          if (access?.isOneTimeEdit) {
+            perShipmentData.oneTimeCompletedEditUsed = true;
+            perShipmentData.oneTimeCompletedEditBy = userId;
+            perShipmentData.oneTimeCompletedEditAt = now;
+          }
+
+          await record.update(perShipmentData, { transaction });
+          saved.push(record);
+
+          if (
+            effectiveExecutionStatus === 'Dispatched' ||
+            dto.action === 'dispatch'
+          ) {
+            s.status = 'Dispatched';
+            s.executionStatus = 'Dispatched';
+            s.manualReadyOverride = true;
+            s.manualReadyReason = 'Dispatched';
+            s.manualReadyAt = now;
+            s.manualReadyBy = userId;
+          } else if (effectiveExecutionStatus === 'Completed') {
+            s.status = 'Completed';
+            s.executionStatus = 'Completed';
+            s.manualReadyOverride = true;
+            s.manualReadyReason = 'Completed';
+            s.manualReadyAt = now;
+            s.manualReadyBy = userId;
+          } else if (isComplete) {
+            s.status = 'Executed';
+            s.executionStatus = 'Loading Completed';
+            s.manualReadyOverride = true;
+            s.manualReadyReason = 'Stuffing Completed';
+            s.manualReadyAt = now;
+            s.manualReadyBy = userId;
+          } else {
+            s.executionStatus = effectiveExecutionStatus;
+          }
+          await s.save({ transaction });
+        }
+
+        return {
+          orderedShipments: ordered,
+          savedRecords: saved,
+          salesContractId: contractId,
+        };
+      });
+
+    if (isComplete) {
+      if (salesContractId) {
+        await Promise.resolve(
+          this.purchaseContractService?.ensureExists?.(salesContractId, userId),
+        ).catch((err) => {
+          console.warn(
+            '[ShipmentService] ensureExists non-fatal warning:',
+            err?.message,
+          );
+        });
+      }
+
+      for (let i = 0; i < orderedShipments.length; i++) {
+        const s = orderedShipments[i];
+        const rec = savedRecords[i];
+        await this.auditService.writeLog({
+          clientId: user?.clientId ?? null,
+          companyId: user?.companyId ?? null,
+          userId,
+          entityType: 'SalesContractShipment',
+          entityId: s.id,
+          action: 'STUFFING_EXECUTION_COMPLETED',
+          oldValue: null,
+          newValue: {
+            stuffingId: rec?.id,
+            stuffingStatus: 'Completed',
+            executionStatus: 'Stuffed',
+            multiShipmentIds: multiIds,
+            actualLoadingWeight: rec?.actualLoadingWeight ?? loadedQty,
+            trucksCount: cleanedTrucks.length,
+            completedAt: now,
+          },
+        });
+      }
+    }
+
+    const primaryShipment = orderedShipments[0];
+    return {
+      success: true,
+      isMultiShipment: true,
+      shipmentIds: multiIds,
+      message: isComplete
+        ? `Stuffing completed successfully for ${orderedShipments.length} shipments`
+        : `Stuffing draft saved successfully for ${orderedShipments.length} shipments`,
+      record: savedRecords[0],
+      records: savedRecords,
+      shipmentStatus: primaryShipment?.status,
+      shipmentStatuses: orderedShipments.map((s) => ({
+        id: s.id,
+        status: s.status,
+      })),
+      readyForShipment: true,
+    };
+  }
+
+  private logMultiExecutionContractMismatch(
+    operation: string,
+    shipments: SalesContractShipment[],
+    comparedContractIds: Set<number>,
+  ): void {
+    console.warn(`[MultiStuffingExecution:${operation}] Sales Contract validation failed:`, {
+      comparedContractIds: Array.from(comparedContractIds),
+      shipments: shipments.map((s) => ({
+        shipmentId: s.id,
+        shipmentReference: s.shipmentReference ?? null,
+        salesContractId: s.salesContractId ?? null,
+        salesContractObjId: s.salesContract?.id ?? null,
+        comparedSalesContractId: Number(s.salesContractId || 0),
+        salesContractNo: s.salesContract?.contractNumber ?? null,
+        businessTransactionId: s.businessTransactionId ?? null,
+      })),
+    });
   }
 }

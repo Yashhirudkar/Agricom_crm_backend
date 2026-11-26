@@ -44,6 +44,7 @@ import { generateShipmentReference } from './utils/shipment-reference.util';
 import {
   generateQuantityDescription,
   getContractItemQuantityDescription,
+  getContractTransportMode,
 } from './utils/quantity-description.util';
 import {
   distributeShipmentQuantities,
@@ -279,11 +280,14 @@ export class SalesContractService implements OnModuleInit {
       }
 
       // Enforce Data Integrity: Recalculate Totals
+      const isRailFreight = getContractTransportMode(dto) === 'RAIL';
       let calculatedTotalQty = 0;
       let calculatedTotalAmt = 0;
       if (dto.items && dto.items.length > 0) {
         dto.items.forEach((item) => {
-          if (
+          if (isRailFreight) {
+            // Skip exact multiple validation for Rail Freight / Wagon
+          } else if (
             item.qtyPerCount != null &&
             Number(item.qtyPerCount) > 0 &&
             item.quantity != null &&
@@ -427,6 +431,7 @@ export class SalesContractService implements OnModuleInit {
               (dto.items || []).find(
                 (i) => i.qtyPerCount != null && Number(i.qtyPerCount) > 0,
               )?.qtyPerCount || dto.items?.[0]?.qtyPerCount,
+              { allowRemainder: isRailFreight },
             )
           : [];
 
@@ -443,11 +448,12 @@ export class SalesContractService implements OnModuleInit {
 
         const shipmentsToCreate = dto.shipments.map((shipment, index) => {
           const sNo = shipment.shipmentNo || index + 1;
-          const finalQty = shouldDistribute
-            ? autoQuantities[index]
-            : shipment.quantity != null
-              ? Number(shipment.quantity)
-              : 0;
+          const finalQty =
+            shouldDistribute && autoQuantities[index] !== undefined
+              ? autoQuantities[index]
+              : shipment.quantity != null
+                ? Number(shipment.quantity)
+                : 0;
           const finalContainers =
             shipment.noOfContainers != null && shipment.noOfContainers >= 1
               ? shipment.noOfContainers
@@ -1032,9 +1038,27 @@ export class SalesContractService implements OnModuleInit {
       await contract.update(updateData, { transaction: t });
 
       // 2. Update Items
+      const isRailFreight =
+        getContractTransportMode({
+          originTransportMode:
+            dto.originTransportMode !== undefined
+              ? dto.originTransportMode
+              : contract.originTransportMode,
+          destinationTransportMode:
+            dto.destinationTransportMode !== undefined
+              ? dto.destinationTransportMode
+              : contract.destinationTransportMode,
+          transportMode:
+            dto.transportMode !== undefined
+              ? dto.transportMode
+              : contract.transportMode,
+        }) === 'RAIL';
+
       if (dto.items) {
         dto.items.forEach((item) => {
-          if (
+          if (isRailFreight) {
+            // Skip exact multiple validation for Rail Freight / Wagon
+          } else if (
             item.qtyPerCount != null &&
             Number(item.qtyPerCount) > 0 &&
             item.quantity != null &&
@@ -1244,6 +1268,7 @@ export class SalesContractService implements OnModuleInit {
               (dto.items || []).find(
                 (i) => i.qtyPerCount != null && Number(i.qtyPerCount) > 0,
               )?.qtyPerCount || dto.items?.[0]?.qtyPerCount,
+              { allowRemainder: isRailFreight },
             )
           : [];
 
@@ -1274,11 +1299,12 @@ export class SalesContractService implements OnModuleInit {
         for (let index = 0; index < dto.shipments.length; index++) {
           const shipment = dto.shipments[index] as any;
           const sNo = shipment.shipmentNo || index + 1;
-          const finalQty = shouldDistribute
-            ? autoQuantities[index]
-            : shipment.quantity != null
-              ? Number(shipment.quantity)
-              : 0;
+          const finalQty =
+            shouldDistribute && autoQuantities[index] !== undefined
+              ? autoQuantities[index]
+              : shipment.quantity != null
+                ? Number(shipment.quantity)
+                : 0;
           const finalContainers =
             shipment.noOfContainers != null && shipment.noOfContainers >= 1
               ? shipment.noOfContainers

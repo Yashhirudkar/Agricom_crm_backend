@@ -231,6 +231,16 @@ export class CreateFreightQuoteDto {
   @IsOptional()
   @IsInt()
   purchaseContractId?: number;
+
+  @IsOptional()
+  @IsString()
+  syncWorkflowSource?: string;
+
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  syncShipmentIds?: number[];
 }
 
 export class FreightRateDto {

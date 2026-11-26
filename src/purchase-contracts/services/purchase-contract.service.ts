@@ -34,6 +34,7 @@ import {
 } from './purchase-contract-activity.service';
 import { BusinessTransactionService } from '../../system/services/business-transaction.service';
 import { formatLogisticsLocation } from '../../logistics/utils/logistics-location.util';
+import { getContractTransportMode } from '../../sales-contracts/utils/quantity-description.util';
 
 // Status transition rules
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -429,7 +430,13 @@ export class PurchaseContractService {
     const salesContract = await this.salesContractModel.findByPk(
       salesContractId,
       {
-        attributes: ['id', 'totalQuantity'],
+        attributes: [
+          'id',
+          'totalQuantity',
+          'originTransportMode',
+          'destinationTransportMode',
+          'transportMode',
+        ],
         include: [
           {
             model: SalesContractItem,
@@ -439,6 +446,8 @@ export class PurchaseContractService {
       },
     );
     if (!salesContract) throw new NotFoundException('Sales Contract not found');
+
+    const isRailFreight = getContractTransportMode(salesContract) === 'RAIL';
 
     const scTotalQty =
       Number(salesContract.totalQuantity) ||
@@ -467,7 +476,9 @@ export class PurchaseContractService {
       }
     }
 
-    if (qtyPerCount > 0 && requestedQty > 0) {
+    if (isRailFreight) {
+      // Skip exact multiple validation for Rail Freight / Wagon
+    } else if (qtyPerCount > 0 && requestedQty > 0) {
       const remainder = requestedQty % qtyPerCount;
       const isMultiple =
         Math.abs(remainder) < 0.0001 ||

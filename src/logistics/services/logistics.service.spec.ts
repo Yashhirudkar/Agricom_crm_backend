@@ -69,6 +69,8 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
         logistics_id: null,
         logistics_status: null,
         logistics_is_viewed: null,
+        enquiry_creator_id: 7,
+        enquiry_creator_name: 'PRIYA SHARMA',
       },
     ];
 
@@ -79,6 +81,9 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
     expect(result.total).toBe(1);
     expect(result.data).toHaveLength(1);
     expect(result.data[0].enquiryNo).toBeNull();
+    expect(result.data[0].createdBy).toBe(7);
+    expect(result.data[0].createdByName).toBe('PRIYA SHARMA');
+    expect(result.data[0].creator).toEqual({ id: 7, name: 'PRIYA SHARMA' });
     expect(result.data[0].purchaseContract.contractNumber).toBe('PC-EA.2632627');
     expect(result.data[0].isPurchaseContract).toBe(true);
     expect(result.data[0].sourceType).toBe('PurchaseContract');
@@ -86,6 +91,63 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
     expect(result.data[0].origin).toBe('Nagpur, India');
     expect(result.data[0].destination).toBe('Qingdao');
     expect(mockEnquiryModel.findAndCountAll).not.toHaveBeenCalled();
+  });
+
+  it('includes enquiry creator on active queue rows', async () => {
+    const enquiryRow = {
+      id: 'enq-uuid-1',
+      enquiryNo: 'ENQ-000098',
+      shipmentType: 'DAP',
+      freightRequired: true,
+      creator: { id: 7, name: 'PRIYA SHARMA' },
+      transportDetails: [
+        {
+          id: 11,
+          sequence: 1,
+          origin: 'kostenay',
+          incoterm: 'DAP',
+          destination: 'AUGSBURG',
+        },
+      ],
+      toJSON: jest.fn().mockReturnValue({
+        id: 'enq-uuid-1',
+        enquiryNo: 'ENQ-000098',
+        shipmentType: 'DAP',
+        freightRequired: true,
+        creator: { id: 7, name: 'PRIYA SHARMA' },
+        transportDetails: [
+          {
+            id: 11,
+            sequence: 1,
+            origin: 'kostenay',
+            incoterm: 'DAP',
+            destination: 'AUGSBURG',
+          },
+        ],
+      }),
+      setDataValue: jest.fn(),
+    };
+    mockEnquiryModel.findAndCountAll.mockResolvedValueOnce({
+      rows: [enquiryRow],
+      count: 1,
+    });
+    mockSequelize.query.mockResolvedValueOnce([]);
+
+    const result = await service.findQueue({ tab: 'active', page: 1, limit: 10 }, 1);
+
+    const options = mockEnquiryModel.findAndCountAll.mock.calls[0][0];
+    expect(options.include).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          as: 'creator',
+          attributes: ['id', 'name'],
+          required: false,
+        }),
+      ]),
+    );
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].createdByName).toBe('PRIYA SHARMA');
+    expect(result.data[0].creator).toEqual({ id: 7, name: 'PRIYA SHARMA' });
   });
 
   it('searches active enquiries by Business Reference in the unified search', async () => {
@@ -624,6 +686,482 @@ describe('LogisticsService - Purchase Contracts Queue & Tab Routing', () => {
       'Select a valid preferred freight quote before assigning transport.',
     );
     expect(logistics.update).not.toHaveBeenCalled();
+  });
+
+  describe('Shipments Management Rail Freight Quote Multi-Shipment Auto-Apply & Edit Sync', () => {
+    const buildSyncTestHarness = (originTransportMode: string = 'rail') => {
+      const shipmentRecords: Record<number, any> = {
+        101: {
+          id: 101,
+          companyId: 1,
+          salesContractId: 50,
+          logisticsId: 9,
+          shipmentNo: 1,
+          shipmentSequence: 1,
+          businessTransactionId: 700,
+          freight: null,
+          status: 'Scheduled',
+          salesContract: {
+            id: 50,
+            originTransportMode,
+            shipmentType: { code: 'CIF' },
+          },
+          update: jest.fn(function (vals: any) {
+            Object.assign(this, vals);
+            return Promise.resolve(this);
+          }),
+        },
+        102: {
+          id: 102,
+          companyId: 1,
+          salesContractId: 50,
+          logisticsId: null,
+          shipmentNo: 2,
+          shipmentSequence: 2,
+          businessTransactionId: 700,
+          freight: null,
+          status: 'Scheduled',
+          salesContract: {
+            id: 50,
+            originTransportMode,
+            shipmentType: { code: 'CIF' },
+          },
+          update: jest.fn(function (vals: any) {
+            Object.assign(this, vals);
+            return Promise.resolve(this);
+          }),
+        },
+        103: {
+          id: 103,
+          companyId: 1,
+          salesContractId: 50,
+          logisticsId: null,
+          shipmentNo: 3,
+          shipmentSequence: 3,
+          businessTransactionId: 700,
+          freight: null,
+          status: 'Scheduled',
+          salesContract: {
+            id: 50,
+            originTransportMode,
+            shipmentType: { code: 'CIF' },
+          },
+          update: jest.fn(function (vals: any) {
+            Object.assign(this, vals);
+            return Promise.resolve(this);
+          }),
+        },
+      };
+
+      const createdQuotes: any[] = [];
+      const createdCharges: any[] = [];
+      let quoteIdSeq = 500;
+      let fqSeq = 10;
+
+      const quoteModel = {
+        create: jest.fn((data: any) => {
+          const id = ++quoteIdSeq;
+          const record = {
+            id,
+            ...data,
+            toJSON() {
+              return { ...this };
+            },
+          };
+          createdQuotes.push(record);
+          return Promise.resolve(record);
+        }),
+        findByPk: jest.fn((id: number) =>
+          Promise.resolve(createdQuotes.find((q) => q.id === id) || null),
+        ),
+        findOne: jest.fn(),
+        findAll: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
+      };
+
+      const quoteChargeModel = {
+        bulkCreate: jest.fn((rows: any[]) => {
+          createdCharges.push(...rows);
+          return Promise.resolve(rows);
+        }),
+        findAll: jest.fn().mockResolvedValue([]),
+        destroy: jest.fn().mockResolvedValue(0),
+      };
+
+      const containerRateModel = {
+        create: jest.fn(),
+        destroy: jest.fn().mockResolvedValue(0),
+      };
+
+      const logisticsRecord = {
+        id: 9,
+        status: 'Pending',
+        purchaseContractId: 80,
+        businessTransactionId: 700,
+        selectedFreightId: null,
+        update: jest.fn(function (vals: any) {
+          Object.assign(this, vals);
+          return Promise.resolve(this);
+        }),
+      };
+
+      const testSequelize: any = {
+        models: {},
+        transaction: jest.fn((cb: any) => cb({ id: 'tx' })),
+        query: jest.fn((sql: string) => {
+          if (sql.includes("nextval('freight_quotes_no_seq')")) {
+            fqSeq += 1;
+            return Promise.resolve([{ nextval: String(fqSeq) }]);
+          }
+          return Promise.resolve([[]]);
+        }),
+      };
+
+      const auditService = { writeLog: jest.fn().mockResolvedValue(undefined) };
+
+      const paymentTermModel = {
+        findByPk: jest.fn().mockResolvedValue({ id: 4, name: 'Net 30' }),
+        findOne: jest.fn().mockResolvedValue(null),
+      };
+
+      const localService = new LogisticsService(
+        { findByPk: jest.fn().mockResolvedValue(logisticsRecord) } as any,
+        quoteModel as any,
+        {} as any,
+        quoteChargeModel as any,
+        containerRateModel as any,
+        {} as any,
+        mockEnquiryModel,
+        {} as any,
+        {
+          findByPk: jest.fn((id: number) =>
+            Promise.resolve(shipmentRecords[id] || null),
+          ),
+        } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        mockTransportEnquiryHiddenModel,
+        {} as any,
+        auditService as any,
+        testSequelize,
+        {} as any,
+        {
+          evaluate: jest.fn().mockResolvedValue({ freightRequired: true }),
+        } as any,
+        paymentTermModel as any,
+      );
+
+      return {
+        localService,
+        shipmentRecords,
+        createdQuotes,
+        createdCharges,
+        quoteModel,
+        quoteChargeModel,
+        containerRateModel,
+        auditService,
+        logisticsRecord,
+      };
+    };
+
+    it('auto-applies Freight Quote to all other selected Rail shipments from Shipments Management without copying IDs or quoteNumber', async () => {
+      const {
+        localService,
+        shipmentRecords,
+        createdQuotes,
+        createdCharges,
+      } = buildSyncTestHarness('rail');
+
+      const result: any = await localService.createFreightQuote(
+        9,
+        {
+          shipmentId: 101,
+          quoteDate: '2026-06-01',
+          currency: 'USD',
+          wagonType: 'Covered Wagon',
+          wagonCapacity: '60 MT',
+          vehicleType: 'Covered Wagon',
+          transitDays: 5,
+          validityDate: '2026-06-20',
+          paymentTermId: 4,
+          remarks: 'Rail rate per rake',
+          charges: [{ chargeName: 'Basic Freight', amount: 1500, displayOrder: 1 }],
+          syncWorkflowSource: 'shipments_management',
+          syncShipmentIds: [101, 102, 103],
+        } as any,
+        { userId: 42 },
+        1,
+      );
+
+      expect(createdQuotes).toHaveLength(3);
+      expect(createdQuotes.map((q) => q.shipmentId)).toEqual([101, 102, 103]);
+      expect(new Set(createdQuotes.map((q) => q.quoteNumber)).size).toBe(3);
+      expect(new Set(createdQuotes.map((q) => q.id)).size).toBe(3);
+
+      expect(createdQuotes[1].wagonType).toBe('Covered Wagon');
+      expect(createdQuotes[1].wagonCapacity).toBe('60 MT');
+      expect(createdQuotes[1].freightAmount).toBe(1500);
+      expect(createdQuotes[1].remarks).toBe('Rail rate per rake');
+      expect(createdQuotes[1].paymentTermId).toBe(4);
+      expect(createdQuotes[1].paymentTerms).toBe('Net 30');
+
+      expect(createdCharges).toHaveLength(3);
+      expect(createdCharges.map((c) => c.quoteId)).toEqual([501, 502, 503]);
+
+      expect(shipmentRecords[102].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logisticsId: 9,
+          freightAllocationStatus: 'Yes',
+          freight: 1500,
+        }),
+        expect.any(Object),
+      );
+      expect(shipmentRecords[103].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logisticsId: 9,
+          freightAllocationStatus: 'Yes',
+          freight: 1500,
+        }),
+        expect.any(Object),
+      );
+
+      expect(result.syncSummary).toEqual({
+        workflowSource: 'shipments_management',
+        totalSelectedCount: 3,
+        appliedCount: 2,
+        syncedShipmentIds: [102, 103],
+        skippedShipmentIds: [],
+        failedShipments: [],
+        failedCount: 0,
+      });
+    });
+
+    it('syncs edited Rail Freight Quote updates across matching sibling quotes from Shipments Management', async () => {
+      const {
+        localService,
+        quoteModel,
+        quoteChargeModel,
+        createdCharges,
+      } = buildSyncTestHarness('Rail Freight / Wagon');
+
+      const sourceQuote: any = {
+        id: 501,
+        logisticsId: 9,
+        shipmentId: 101,
+        sellerId: null,
+        quoteNumber: 'FQ/2026/000011',
+        quoteDate: '2026-06-01',
+        freightAmount: 1500,
+        currency: 'USD',
+        wagonType: 'Covered Wagon',
+        wagonCapacity: '60 MT',
+        transitDays: 5,
+        validityDate: '2026-06-20',
+        paymentTermId: 4,
+        remarks: 'Initial note',
+        version: 1,
+        isPreferred: false,
+        isRejected: false,
+        update: jest.fn(function (vals: any) {
+          Object.assign(this, vals);
+          return Promise.resolve(this);
+        }),
+        reload: jest.fn(function () {
+          return Promise.resolve({
+            ...this,
+            toJSON: () => ({ ...this }),
+          });
+        }),
+      };
+
+      const siblingQuote102: any = {
+        id: 502,
+        logisticsId: 9,
+        shipmentId: 102,
+        sellerId: null,
+        quoteNumber: 'FQ/2026/000012',
+        quoteDate: '2026-06-01',
+        freightAmount: 1500,
+        currency: 'USD',
+        wagonType: 'Covered Wagon',
+        wagonCapacity: '60 MT',
+        transitDays: 5,
+        validityDate: '2026-06-20',
+        paymentTermId: 4,
+        remarks: 'Initial note',
+        version: 1,
+        isPreferred: false,
+        isRejected: false,
+        oneTimeCompletedEditUsed: false,
+        charges: [{ chargeName: 'Basic Freight', amount: 1500, displayOrder: 1 }],
+        update: jest.fn(function (vals: any) {
+          Object.assign(this, vals);
+          return Promise.resolve(this);
+        }),
+      };
+
+      quoteModel.findOne.mockResolvedValue(sourceQuote);
+      quoteChargeModel.findAll.mockResolvedValue([
+        { chargeName: 'Basic Freight', amount: 1500, displayOrder: 1 },
+      ]);
+      quoteModel.findAll.mockResolvedValue([siblingQuote102]);
+
+      const result: any = await localService.updateFreightQuote(
+        9,
+        501,
+        {
+          shipmentId: 101,
+          quoteDate: '2026-06-02',
+          currency: 'USD',
+          wagonType: 'Flat Wagon',
+          wagonCapacity: '60 MT',
+          vehicleType: 'Flat Wagon',
+          transitDays: 4,
+          validityDate: '2026-06-25',
+          paymentTermId: 4,
+          remarks: 'Revised Rail rate',
+          charges: [{ chargeName: 'Basic Freight', amount: 1850, displayOrder: 1 }],
+          syncWorkflowSource: 'shipments_management',
+          syncShipmentIds: [101, 102],
+        } as any,
+        { userId: 42 },
+        1,
+      );
+
+      expect(sourceQuote.freightAmount).toBe(1850);
+      expect(sourceQuote.version).toBe(2);
+
+      expect(siblingQuote102.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          wagonType: 'Flat Wagon',
+          freightAmount: 1850,
+          remarks: 'Revised Rail rate',
+          version: 2,
+          updatedBy: 42,
+        }),
+        expect.any(Object),
+      );
+      expect(siblingQuote102.quoteNumber).toBe('FQ/2026/000012');
+      expect(siblingQuote102.shipmentId).toBe(102);
+
+      expect(quoteChargeModel.destroy).toHaveBeenCalledWith({
+        where: { quoteId: 502 },
+        transaction: expect.any(Object),
+      });
+      expect(createdCharges.some((c) => c.quoteId === 502 && c.amount === 1850)).toBe(true);
+      expect(result.syncSummary?.syncedShipmentIds).toEqual([102]);
+    });
+
+    it('does NOT auto-apply for non-Rail modes (Sea, Road, Bulk, Air) or single shipment or outside Shipments Management', async () => {
+      for (const nonRailMode of ['sea', 'road', 'bulk', 'air', 'Courier']) {
+        const harness = buildSyncTestHarness(nonRailMode);
+        const res: any = await harness.localService.createFreightQuote(
+          9,
+          {
+            shipmentId: 101,
+            quoteDate: '2026-06-01',
+            currency: 'USD',
+            transitDays: 5,
+            validityDate: '2026-06-20',
+            charges: [{ chargeName: 'Ocean Freight', amount: 2000, displayOrder: 1 }],
+            syncWorkflowSource: 'shipments_management',
+            syncShipmentIds: [101, 102, 103],
+          } as any,
+          { userId: 42 },
+          1,
+        );
+        expect(harness.createdQuotes).toHaveLength(1);
+        expect(res.syncSummary).toBeUndefined();
+      }
+
+      // Single Rail shipment selected
+      const singleHarness = buildSyncTestHarness('rail');
+      const singleRes: any = await singleHarness.localService.createFreightQuote(
+        9,
+        {
+          shipmentId: 101,
+          quoteDate: '2026-06-01',
+          currency: 'INR',
+          transitDays: 3,
+          validityDate: '2026-06-15',
+          charges: [{ chargeName: 'Basic Freight', amount: 900, displayOrder: 1 }],
+          syncWorkflowSource: 'shipments_management',
+          syncShipmentIds: [101],
+        } as any,
+        { userId: 42 },
+        1,
+      );
+      expect(singleHarness.createdQuotes).toHaveLength(1);
+      expect(singleRes.syncSummary).toBeUndefined();
+
+      // Outside Shipments Management (no syncWorkflowSource)
+      const globalHarness = buildSyncTestHarness('rail');
+      const globalRes: any = await globalHarness.localService.createFreightQuote(
+        9,
+        {
+          shipmentId: 101,
+          quoteDate: '2026-06-01',
+          currency: 'INR',
+          transitDays: 3,
+          validityDate: '2026-06-15',
+          charges: [{ chargeName: 'Basic Freight', amount: 900, displayOrder: 1 }],
+          syncShipmentIds: [101, 102],
+        } as any,
+        { userId: 42 },
+        1,
+      );
+      expect(globalHarness.createdQuotes).toHaveLength(1);
+      expect(globalRes.syncSummary).toBeUndefined();
+    });
+
+    it('isolates per-shipment failures so source quote and other valid Rail siblings remain saved', async () => {
+      const harness = buildSyncTestHarness('rail');
+      harness.shipmentRecords[103].update.mockRejectedValueOnce(
+        new Error('Simulated failure on shipment 103'),
+      );
+      const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const result: any = await harness.localService.createFreightQuote(
+          9,
+          {
+            shipmentId: 101,
+            quoteDate: '2026-06-01',
+            currency: 'USD',
+            wagonType: 'Covered Wagon',
+            wagonCapacity: '60 MT',
+            transitDays: 5,
+            validityDate: '2026-06-20',
+            charges: [{ chargeName: 'Basic Freight', amount: 1500, displayOrder: 1 }],
+            syncWorkflowSource: 'shipments_management',
+            syncShipmentIds: [101, 102, 103],
+          } as any,
+          { userId: 42 },
+          1,
+        );
+
+        expect(result.id).toBe(501);
+        expect(harness.shipmentRecords[101].freightAllocationStatus).toBe('Yes');
+        expect(harness.shipmentRecords[102].freightAllocationStatus).toBe('Yes');
+        expect(result.syncSummary).toEqual({
+          workflowSource: 'shipments_management',
+          totalSelectedCount: 3,
+          appliedCount: 1,
+          syncedShipmentIds: [102],
+          skippedShipmentIds: [],
+          failedShipments: [
+            {
+              shipmentId: 103,
+              message: 'Simulated failure on shipment 103',
+            },
+          ],
+          failedCount: 1,
+        });
+      } finally {
+        errSpy.mockRestore();
+      }
+    });
   });
 });
 

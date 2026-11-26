@@ -378,6 +378,31 @@ describe('PurchaseContractAllocationEngine (Dynamic Shipment Reallocation)', () 
     expect(pc1.quantity).toEqual('88');
   });
 
+  it('should allow non-multiple Purchase Contract quantity when Sales Contract is Rail Freight / Wagon', async () => {
+    const scModelFindByPk = (service as any).salesContractModel.findByPk as jest.Mock;
+    const scShipmentFindAll = (service as any).salesShipmentModel.findAll as jest.Mock;
+    const railSc = {
+      ...mockSalesContract,
+      totalQuantity: 90,
+      originTransportMode: 'rail',
+      items: [{ productId: 1, quantity: 90, qtyPerCount: 22, unitPrice: 500 }],
+    };
+    scModelFindByPk.mockResolvedValue(railSc);
+    scShipmentFindAll.mockResolvedValue([
+      ...mockSalesShipments,
+      { id: 5, salesContractId: 1, quantity: 2, shipmentSequence: 5, shipmentNo: 'S5', status: 'Pending' },
+    ]);
+
+    try {
+      const pc1 = await service.ensureExists(1, 1, undefined, true, 90);
+      expect(pc1.quantity).toEqual('90');
+      expect(shipmentLinksStore.filter((l) => l.purchaseContractId === pc1.id).map((l) => l.shipmentId)).toEqual([1, 2, 3, 4, 5]);
+    } finally {
+      scModelFindByPk.mockResolvedValue(mockSalesContract);
+      scShipmentFindAll.mockResolvedValue(mockSalesShipments);
+    }
+  });
+
   it('should release links on delete/cancel and reallocate them on reactivation', async () => {
     const pc1 = await service.ensureExists(1, 1, undefined, true, 44);
     const pc2 = await service.ensureExists(1, 1, undefined, true, 44);

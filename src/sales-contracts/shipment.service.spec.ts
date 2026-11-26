@@ -599,4 +599,239 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       expect(mockSequelize.transaction).not.toHaveBeenCalled();
     });
   });
+
+  describe('Multi-Shipment Stuffing Execution (Truck & Rail Freight / Wagon)', () => {
+    const buildShipments = (originTransportMode: string) =>
+      [101, 102, 103].map((id, idx) => ({
+        id,
+        companyId: 1,
+        salesContractId: 50,
+        shipmentNo: idx + 1,
+        shipmentReference: `SHP-${id}`,
+        shipmentDate: '2026-11-26',
+        quantity: 22,
+        status: 'Scheduled',
+        executionStatus: 'Pending',
+        cargoReadyConfirmed: true,
+        freightAllocationStatus: 'Yes',
+        salesContract: {
+          id: 50,
+          companyId: 1,
+          contractNumber: 'SC-50',
+          originTransportMode,
+          items: [],
+          buyer: { entityName: 'Buyer Ltd' },
+          seller: { entityName: 'Seller Ltd' },
+        },
+        save: jest.fn(function () {
+          return Promise.resolve(this);
+        }),
+      }));
+
+    it('loads combined multi-shipment data for Truck while keeping per-shipment freight quotes separate', async () => {
+      const shipments = buildShipments('road');
+      mockShipmentModel.findAll.mockResolvedValue(shipments);
+      mockFreightQuoteModel.findAll = jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          shipmentId: 101,
+          quoteNumber: 'FQ-101',
+          freightAmount: 1000,
+          currency: 'INR',
+          carrierReferenceNo: 'Transporter A',
+        },
+        {
+          id: 2,
+          shipmentId: 102,
+          quoteNumber: 'FQ-102',
+          freightAmount: 1100,
+          currency: 'INR',
+          carrierReferenceNo: 'Transporter B',
+        },
+      ]);
+      mockReadinessService.evaluateBatch.mockResolvedValue(
+        new Map([
+          [101, { readyForShipment: true, isManualOverride: false }],
+          [102, { readyForShipment: true, isManualOverride: false }],
+          [103, { readyForShipment: true, isManualOverride: false }],
+        ]),
+      );
+
+      const res: any = await service.getStuffingExecutionData(
+        101,
+        { userId: 7, companyId: 1 },
+        '101,102,103',
+      );
+
+      expect(res.isMultiShipment).toBe(true);
+      expect(res.multiShipmentMode).toBe('truck');
+      expect(res.autoPopulated.quantityMt).toBe(66);
+      expect(res.autoPopulated.freightForwarder).toBe('');
+      expect(res.perShipmentFreights).toHaveLength(3);
+      expect(res.perShipmentFreights[0].quoteNumber).toBe('FQ-101');
+      expect(res.perShipmentFreights[1].quoteNumber).toBe('FQ-102');
+      expect(res.readyForShipment).toBe(true);
+    });
+
+    it('rejects multi-shipment stuffing load for non-Truck/non-Rail modes such as Sea or Air', async () => {
+      for (const mode of ['sea', 'air', 'bulk']) {
+        mockShipmentModel.findAll.mockResolvedValue(buildShipments(mode));
+        await expect(
+          service.getStuffingExecutionData(101, { userId: 7 }, '101,102'),
+        ).rejects.toThrow(
+          'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
+        );
+      }
+    });
+
+    it('completes all selected Rail Freight / Wagon shipments in one shared execution session without altering Truck/other modes', async () => {
+      const shipments = buildShipments('Rail Freight / Wagon');
+      jest.spyOn(service, 'assertCanModifyStuffing').mockResolvedValue({
+        allowed: true,
+        isCompleted: false,
+        isOverride: false,
+        isOneTimeEdit: false,
+      });
+      mockContractModel.findByPk = jest.fn().mockResolvedValue({
+        id: 50,
+        companyId: 1,
+        originTransportMode: 'rail',
+      });
+      mockShipmentModel.findAll.mockResolvedValue(shipments);
+      mockSequelize.transaction.mockImplementation((cb: any) =>
+        cb({ LOCK: { UPDATE: 'UPDATE' } }),
+      );
+
+      const savedPayloads: any[] = [];
+      let stuffingSeq = 900;
+      mockStuffingModel.findOrCreate = jest.fn(({ defaults }: any) => {
+        const rec: any = {
+          id: ++stuffingSeq,
+          ...defaults,
+          update: jest.fn((vals: any) => {
+            Object.assign(rec, vals);
+            savedPayloads.push(vals);
+            return Promise.resolve(rec);
+          }),
+        };
+        return Promise.resolve([rec, true]);
+      });
+
+      const result: any = await service.saveStuffingExecution(
+        101,
+        {
+          shipmentIds: [101, 102, 103],
+          action: 'complete',
+          loadingDate: '2026-11-26',
+          loadingStartTime: '09:00',
+          loadingEndTime: '15:00',
+          actualLoadingWeight: 66,
+          grossWeight: 68,
+          netWeight: 66,
+          dispatchMode: 'truck',
+          freightOverrides: { freightForwarder: 'Rail Corp', shipmentMode: 'Wagon' },
+          trucks: [
+            {
+              truckNo: 'WGN-01',
+              driver: 'Covered Wagon',
+              mobile: 'BOXN-9001',
+              remark: 'Sealed',
+              dispatch: 'Yes',
+            },
+          ],
+          attachments: [],
+          autoPopulated: { transportMode: 'Rail' },
+        },
+        { id: 7, userId: 7, companyId: 1 },
+      );
+
+      expect(result.isMultiShipment).toBe(true);
+      expect(result.shipmentIds).toEqual([101, 102, 103]);
+      expect(savedPayloads).toHaveLength(3);
+      expect(savedPayloads.map((p) => p.actualLoadingWeight)).toEqual([22, 22, 22]);
+      expect(savedPayloads[0].trucks[0]).toMatchObject({
+        truckNo: 'WGN-01',
+        driver: 'Covered Wagon',
+        mobile: 'BOXN-9001',
+        dispatch: 'Yes',
+      });
+      expect(shipments.every((s) => s.status === 'Executed')).toBe(true);
+      expect(mockAuditService.writeLog).toHaveBeenCalledTimes(3);
+    });
+
+    it('rejects completion when combined actualLoadingWeight exceeds combined selected shipment quantity', async () => {
+      const shipments = buildShipments('road');
+      jest.spyOn(service, 'assertCanModifyStuffing').mockResolvedValue({
+        allowed: true,
+        isCompleted: false,
+        isOverride: false,
+        isOneTimeEdit: false,
+      });
+      mockContractModel.findByPk = jest.fn().mockResolvedValue({
+        id: 50,
+        companyId: 1,
+        originTransportMode: 'road',
+      });
+      mockShipmentModel.findAll.mockResolvedValue(shipments);
+      mockSequelize.transaction.mockImplementation((cb: any) =>
+        cb({ LOCK: { UPDATE: 'UPDATE' } }),
+      );
+
+      await expect(
+        service.saveStuffingExecution(101, {
+          shipmentIds: [101, 102, 103],
+          action: 'complete',
+          loadingDate: '2026-11-26',
+          loadingStartTime: '09:00',
+          loadingEndTime: '15:00',
+          actualLoadingWeight: 67,
+          grossWeight: 69,
+          netWeight: 67,
+          dispatchMode: 'truck',
+          trucks: [{ truckNo: 'TRK-1', dispatch: 'Yes' }],
+        }),
+      ).rejects.toThrow(
+        'Loaded quantity (67 MT) exceeds combined selected shipment quantity (66 MT).',
+      );
+    });
+
+    it('logs compared Sales Contract values and rejects multi-shipment execution when selected shipments belong to different Sales Contracts', async () => {
+      const shipments = buildShipments('road');
+      shipments[1].salesContractId = 99;
+      shipments[1].salesContract = {
+        ...shipments[1].salesContract,
+        id: 99,
+        contractNumber: 'SC-OTHER',
+      };
+      mockShipmentModel.findAll.mockResolvedValue(shipments);
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        await expect(
+          service.getStuffingExecutionData(101, { userId: 7 }, '101,102'),
+        ).rejects.toThrow(
+          'Multi-shipment execution is allowed only for shipments belonging to the same Sales Contract.',
+        );
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          '[MultiStuffingExecution:getMultiStuffingExecutionData] Sales Contract validation failed:',
+          expect.objectContaining({
+            comparedContractIds: [50, 99],
+            shipments: expect.arrayContaining([
+              expect.objectContaining({
+                shipmentId: 101,
+                comparedSalesContractId: 50,
+              }),
+              expect.objectContaining({
+                shipmentId: 102,
+                comparedSalesContractId: 99,
+              }),
+            ]),
+          }),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
 });
