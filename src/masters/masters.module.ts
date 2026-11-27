@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { HttpModule } from '@nestjs/axios';
+import { ExchangeRateModule } from '../exchange-rates/exchange-rate.module';
 
 import { Currency } from './currency/currency.model';
 import { CurrencyController } from './currency/currency.controller';
@@ -32,9 +34,12 @@ import { PartnerDnbReport } from './partner/partner-dnb-report.model';
 import { PartnerController } from './partner/partner.controller';
 import { PartnerFollowUpController } from './partner/partner-followup.controller';
 import { PartnerDnbReportController } from './partner/partner-dnb-report.controller';
+import { DnbImportController } from './partner/dnb-import/dnb-import.controller';
 import { PartnerService } from './partner/partner.service';
 import { PartnerFollowUpService } from './partner/partner-followup.service';
 import { PartnerDnbReportService } from './partner/partner-dnb-report.service';
+import { DnbImportService } from './partner/dnb-import/dnb-import.service';
+import { DnbOcrService } from './partner/dnb-import/dnb-ocr.service';
 import { RbacModule } from '../rbac/modules/rbac.module';
 import { DeletionValidatorService } from './deletion-validator.service';
 import { AuditModule } from '../audit/modules/audit.module';
@@ -112,6 +117,8 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     RbacModule,
     AuditModule,
     FollowUpManagementModule,
+    HttpModule,
+    ExchangeRateModule,
   ],
   controllers: [
     CategoryController,
@@ -121,6 +128,7 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     PartnerController,
     PartnerFollowUpController,
     PartnerDnbReportController,
+    DnbImportController,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigController,
     PartnerDynamicValuesController,
@@ -145,6 +153,8 @@ import { ShippingLineService } from './shipping-line/shipping-line.service';
     PartnerService,
     PartnerFollowUpService,
     PartnerDnbReportService,
+    DnbOcrService,
+    DnbImportService,
     DeletionValidatorService,
     // Dynamic Additional Information Engine
     PartnerRoleDynamicConfigService,

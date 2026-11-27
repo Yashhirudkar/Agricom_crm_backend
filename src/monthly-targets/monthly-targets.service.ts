@@ -38,8 +38,10 @@ export class MonthlyTargetsService {
 
   /**
    * Dynamically calculate Completed MT for a user in a specific month and year.
-   * Completed MT = SUM of Total Qty (MT) of all Sales Contracts created by that user
-   * within that month and year, excluding Cancelled contracts.
+   * Completed MT = SUM of Total Qty (MT) of all non-Cancelled Sales Contracts
+   * belonging to that user (via the linked Enquiry's creator when converted from
+   * an Enquiry, or the Sales Contract's creator for direct contracts) within
+   * that month and year.
    */
   async calculateCompletedMT(
     userId: number,
@@ -48,12 +50,13 @@ export class MonthlyTargetsService {
   ): Promise<number> {
     const result: any[] = await this.salesContractModel.sequelize.query(
       `
-      SELECT COALESCE(SUM(total_quantity), 0) AS "completedMT"
-      FROM sales_contracts
-      WHERE created_by = :userId
-        AND status != 'Cancelled'
-        AND EXTRACT(MONTH FROM COALESCE(contract_date, created_at::date)) = :month
-        AND EXTRACT(YEAR FROM COALESCE(contract_date, created_at::date)) = :year
+      SELECT COALESCE(SUM(sc.total_quantity), 0) AS "completedMT"
+      FROM sales_contracts sc
+      LEFT JOIN enquiries e ON e.id::text = sc.enquiry_id::text
+      WHERE COALESCE(e.created_by, sc.created_by) = :userId
+        AND COALESCE(sc.status, '') != 'Cancelled'
+        AND EXTRACT(MONTH FROM COALESCE(sc.contract_date, (sc.created_at AT TIME ZONE 'Asia/Kolkata')::date)) = :month
+        AND EXTRACT(YEAR FROM COALESCE(sc.contract_date, (sc.created_at AT TIME ZONE 'Asia/Kolkata')::date)) = :year
       `,
       {
         replacements: { userId, month, year },
@@ -66,6 +69,21 @@ export class MonthlyTargetsService {
   }
 
   /**
+   * Resolve the current month (1-12) and year in IST ('Asia/Kolkata')
+   * so monthly resets trigger promptly at midnight on the 1st of every month.
+   */
+  private getCurrentISTMonthYear(): { month: number; year: number } {
+    const todayStr = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Kolkata',
+    }); // YYYY-MM-DD
+    const [yearStr, monthStr] = todayStr.split('-');
+    return {
+      year: parseInt(yearStr, 10),
+      month: parseInt(monthStr, 10),
+    };
+  }
+
+  /**
    * Get current or specific month target and stats for the logged-in sales user.
    */
   async getTargetWithStats(
@@ -73,9 +91,9 @@ export class MonthlyTargetsService {
     month?: number,
     year?: number,
   ) {
-    const now = new Date();
-    const resolvedMonth = month || now.getMonth() + 1;
-    const resolvedYear = year || now.getFullYear();
+    const istNow = this.getCurrentISTMonthYear();
+    const resolvedMonth = month || istNow.month;
+    const resolvedYear = year || istNow.year;
 
     const target = await this.monthlyTargetModel.findOne({
       where: {
@@ -92,6 +110,9 @@ export class MonthlyTargetsService {
     );
 
     const targetMT = target ? parseFloat(target.targetMT as any) : 0;
+    const isValidLockedTarget = Boolean(
+      target && Number.isFinite(targetMT) && targetMT > 0 && target.isLocked,
+    );
     // Over-achievement rule: Remaining MT must never become negative
     const remainingMT = targetMT > 0 ? Math.max(0, targetMT - completedMT) : 0;
     const progressPercentage =
@@ -100,8 +121,8 @@ export class MonthlyTargetsService {
     const monthName = MONTH_NAMES[resolvedMonth - 1] || `Month ${resolvedMonth}`;
 
     return {
-      hasTarget: !!target,
-      target: target
+      hasTarget: isValidLockedTarget,
+      target: isValidLockedTarget
         ? {
             id: target.id,
             userId: target.userId,
@@ -131,9 +152,9 @@ export class MonthlyTargetsService {
    * Once confirmed/saved, permanently locked and cannot be edited.
    */
   async createTarget(userId: number, dto: CreateMonthlyTargetDto) {
-    const now = new Date();
-    const month = dto.month || now.getMonth() + 1;
-    const year = dto.year || now.getFullYear();
+    const istNow = this.getCurrentISTMonthYear();
+    const month = dto.month || istNow.month;
+    const year = dto.year || istNow.year;
 
     // Check if target already exists for this month/year
     const existing = await this.monthlyTargetModel.findOne({

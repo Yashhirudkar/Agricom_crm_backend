@@ -28,6 +28,16 @@ interface HttpErrorResponse {
   data?: unknown;
 }
 
+export interface CurrencyToInrConversionResult {
+  originalAmount: number;
+  currency: string;
+  exchangeRate: number;
+  convertedAmountInr: number;
+  effectiveDate: string;
+  source: string;
+  isFallbackRate: boolean;
+}
+
 const API_URL = 'https://api.exchangerate.host/live';
 const TARGET_CURRENCY = 'INR';
 const SOURCE = 'ExchangeRate.host';
@@ -296,6 +306,160 @@ export class ExchangeRateService {
     }
 
     return apiKey ? serialized.split(apiKey).join('[REDACTED]') : serialized;
+  }
+
+  async convertAmountToInr(
+    amount: number,
+    currency: string,
+  ): Promise<CurrencyToInrConversionResult> {
+    const normalizedAmount = Number(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
+      throw new ServiceUnavailableException(
+        'Invalid numeric amount provided for currency conversion.',
+      );
+    }
+
+    const code = String(currency || '')
+      .trim()
+      .toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code)) {
+      throw new ServiceUnavailableException(
+        `Unrecognized currency code: ${currency || 'unknown'}.`,
+      );
+    }
+
+    const today = this.getTodayInIndia();
+    const roundTwoDecimals = (val: number) => Math.round(val * 100) / 100;
+
+    if (code === TARGET_CURRENCY) {
+      const rounded = roundTwoDecimals(normalizedAmount);
+      return {
+        originalAmount: rounded,
+        currency: TARGET_CURRENCY,
+        exchangeRate: 1,
+        convertedAmountInr: rounded,
+        effectiveDate: today,
+        source: 'Base Currency (INR)',
+        isFallbackRate: false,
+      };
+    }
+
+    const stored = await this.repository.findLatestRate(code);
+    if (
+      stored &&
+      stored.effectiveDate === today &&
+      Number.isFinite(Number(stored.exchangeRate)) &&
+      Number(stored.exchangeRate) > 0
+    ) {
+      const rate = Number(stored.exchangeRate);
+      return {
+        originalAmount: normalizedAmount,
+        currency: code,
+        exchangeRate: rate,
+        convertedAmountInr: roundTwoDecimals(normalizedAmount * rate),
+        effectiveDate: stored.effectiveDate,
+        source: stored.source || SOURCE,
+        isFallbackRate: false,
+      };
+    }
+
+    const apiKey = this.configService.get<string>('EXCHANGE_RATE_API_KEY')?.trim();
+    if (apiKey) {
+      try {
+        const { data, status } = await firstValueFrom(
+          this.httpService.get<ExchangeRateHostResponse>(API_URL, {
+            params: {
+              access_key: apiKey,
+              source: TARGET_CURRENCY,
+              currencies: code,
+            },
+            headers: { Accept: 'application/json' },
+            timeout: 10000,
+          }),
+        );
+
+        const quotes = data?.quotes || data?.rates;
+        if (
+          status >= 200 &&
+          status < 300 &&
+          data?.success !== false &&
+          quotes &&
+          (!data.source || data.source.toUpperCase() === TARGET_CURRENCY)
+        ) {
+          const quote = quotes[`${TARGET_CURRENCY}${code}`] ?? quotes[code];
+          const currencyPerInr = Number(quote);
+          if (Number.isFinite(currencyPerInr) && currencyPerInr > 0) {
+            const effectiveDate =
+              data.date ||
+              (data.timestamp
+                ? new Date(data.timestamp * 1000).toISOString().slice(0, 10)
+                : today);
+            const rate = Number((1 / currencyPerInr).toFixed(10));
+
+            if (/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
+              try {
+                await this.repository.upsertRates([
+                  {
+                    baseCurrency: code,
+                    targetCurrency: TARGET_CURRENCY,
+                    exchangeRate: rate,
+                    effectiveDate,
+                    source: SOURCE,
+                  },
+                ]);
+              } catch (upsertError) {
+                this.logger.warn(
+                  `Failed to cache on-demand exchange rate for ${code}: ${
+                    upsertError instanceof Error
+                      ? upsertError.message
+                      : 'unknown error'
+                  }`,
+                );
+              }
+            }
+
+            return {
+              originalAmount: normalizedAmount,
+              currency: code,
+              exchangeRate: rate,
+              convertedAmountInr: roundTwoDecimals(normalizedAmount * rate),
+              effectiveDate: /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)
+                ? effectiveDate
+                : today,
+              source: SOURCE,
+              isFallbackRate: false,
+            };
+          }
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Exchange API request failed';
+        this.logger.warn(
+          `On-demand exchange rate lookup failed for ${code}: ${this.serializeApiBody(message, apiKey)}`,
+        );
+      }
+    }
+
+    if (
+      stored &&
+      Number.isFinite(Number(stored.exchangeRate)) &&
+      Number(stored.exchangeRate) > 0
+    ) {
+      const rate = Number(stored.exchangeRate);
+      return {
+        originalAmount: normalizedAmount,
+        currency: code,
+        exchangeRate: rate,
+        convertedAmountInr: roundTwoDecimals(normalizedAmount * rate),
+        effectiveDate: stored.effectiveDate,
+        source: stored.source || SOURCE,
+        isFallbackRate: true,
+      };
+    }
+
+    throw new ServiceUnavailableException(
+      `Exchange rate is currently unavailable for ${code} to INR.`,
+    );
   }
 
   private getTodayInIndia(): string {

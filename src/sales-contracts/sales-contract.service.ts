@@ -94,6 +94,53 @@ export class SalesContractService implements OnModuleInit {
     // Schema modifications are handled by database migrations (phase-06-sales & phase-07-shipments)
   }
 
+  /**
+   * Notify all relevant users (contract creator, acting user, and linked
+   * enquiry creator) so their Monthly Sales Target widget refreshes in real time.
+   */
+  private async emitSalesTargetUpdated(
+    contract: {
+      id: number;
+      createdBy?: number | null;
+      enquiryId?: string | null;
+      enquiry?: { createdBy?: number | null } | null;
+    },
+    actingUserId: number | undefined,
+    action: string,
+  ): Promise<void> {
+    if (!this.notificationsGateway) return;
+
+    const targetUserIds = new Set<number>();
+    if (actingUserId) targetUserIds.add(actingUserId);
+    if (contract.createdBy) targetUserIds.add(contract.createdBy);
+    if (contract.enquiry?.createdBy) {
+      targetUserIds.add(contract.enquiry.createdBy);
+    } else if (contract.enquiryId) {
+      try {
+        const enquiry = await Enquiry.findByPk(contract.enquiryId, {
+          attributes: ['createdBy'],
+          paranoid: false,
+        });
+        if (enquiry?.createdBy) {
+          targetUserIds.add(enquiry.createdBy);
+        }
+      } catch (err) {}
+    }
+
+    for (const targetUserId of targetUserIds) {
+      try {
+        this.notificationsGateway.emitToUser(
+          targetUserId,
+          'sales-target:updated',
+          {
+            contractId: contract.id,
+            action,
+          },
+        );
+      } catch (err) {}
+    }
+  }
+
   private async validateForeignKeys(companyId: number, dto: any) {
     if (dto.buyerId) {
       const buyer = await Partner.findOne({
@@ -552,18 +599,11 @@ export class SalesContractService implements OnModuleInit {
       return contract;
     });
 
-    if (user?.userId) {
-      try {
-        this.notificationsGateway?.emitToUser(
-          user.userId,
-          'sales-target:updated',
-          {
-            contractId: createdContract.id,
-            action: 'contract_created',
-          },
-        );
-      } catch (err) {}
-    }
+    await this.emitSalesTargetUpdated(
+      createdContract,
+      user?.userId,
+      'contract_created',
+    );
 
     if (createdContract.enquiryId && this.logisticsService) {
       await this.logisticsService
@@ -1556,31 +1596,11 @@ export class SalesContractService implements OnModuleInit {
         .catch(() => {});
     }
 
-    const creatorId = updated.createdBy;
-    if (creatorId) {
-      try {
-        this.notificationsGateway?.emitToUser(
-          creatorId,
-          'sales-target:updated',
-          {
-            contractId: updated.id,
-            action: 'contract_updated',
-          },
-        );
-      } catch (err) {}
-    }
-    if (user?.userId && user.userId !== creatorId) {
-      try {
-        this.notificationsGateway?.emitToUser(
-          user.userId,
-          'sales-target:updated',
-          {
-            contractId: updated.id,
-            action: 'contract_updated',
-          },
-        );
-      } catch (err) {}
-    }
+    await this.emitSalesTargetUpdated(
+      updated,
+      user?.userId,
+      'contract_updated',
+    );
 
     return updated;
   }
@@ -1637,6 +1657,13 @@ export class SalesContractService implements OnModuleInit {
         );
       }
     });
+
+    await this.emitSalesTargetUpdated(
+      contract,
+      user?.userId,
+      'contract_status_updated',
+    );
+
     return contract.reload();
   }
 
@@ -1857,31 +1884,11 @@ export class SalesContractService implements OnModuleInit {
     }
     await contract.update({ status: 'Cancelled', updatedBy: user?.userId });
 
-    const creatorId = contract.createdBy;
-    if (creatorId) {
-      try {
-        this.notificationsGateway?.emitToUser(
-          creatorId,
-          'sales-target:updated',
-          {
-            contractId: contract.id,
-            action: 'contract_deleted',
-          },
-        );
-      } catch (err) {}
-    }
-    if (user?.userId && user.userId !== creatorId) {
-      try {
-        this.notificationsGateway?.emitToUser(
-          user.userId,
-          'sales-target:updated',
-          {
-            contractId: contract.id,
-            action: 'contract_deleted',
-          },
-        );
-      } catch (err) {}
-    }
+    await this.emitSalesTargetUpdated(
+      contract,
+      user?.userId,
+      'contract_deleted',
+    );
 
     return contract.reload();
   }

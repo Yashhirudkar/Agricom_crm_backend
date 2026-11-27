@@ -8,6 +8,7 @@ import { PaymentTerm } from '../masters/payment-term/payment-term.model';
 import { Product } from '../masters/product/product.model';
 import { BagType } from '../masters/bag-specs/models/bag-type.model';
 import { PackingType } from '../masters/bag-specs/models/packing-type.model';
+import { Enquiry } from '../enquiries/models/enquiry.model';
 
 describe('SalesContractService - Rail Freight / Wagon divisibility exception', () => {
   let service: SalesContractService;
@@ -234,5 +235,49 @@ describe('SalesContractService - Rail Freight / Wagon divisibility exception', (
         { companyId: 1, userId: 1 },
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('create() emits sales-target:updated to linked enquiry creator when contract is created from enquiry', async () => {
+    const mockNotificationsGateway = { emitToUser: jest.fn() };
+    const serviceWithGateway = new SalesContractService(
+      mockContractModel,
+      mockItemModel,
+      mockShipmentModel,
+      mockDocumentModel,
+      mockDocumentFileModel,
+      mockTransportDetailModel,
+      {} as any,
+      mockSequelize,
+      { ensureForSalesContract: jest.fn() } as any,
+      mockNotificationsGateway as any,
+      undefined,
+    );
+
+    jest.spyOn(Enquiry, 'findByPk').mockResolvedValue({
+      id: 'enq-uuid-1',
+      partnerId: 1,
+      brokerId: null,
+      createdBy: 10,
+    } as any);
+
+    const dto = {
+      ...baseDto('sea', 88, 22, [
+        { shipmentNo: 1, shipmentDate: '2026-11-27', quantity: 88, noOfContainers: 4 },
+      ]),
+      enquiryId: 'enq-uuid-1',
+    };
+
+    await serviceWithGateway.create(dto, { companyId: 1, userId: 1 });
+
+    expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+      1,
+      'sales-target:updated',
+      expect.objectContaining({ contractId: 101, action: 'contract_created' }),
+    );
+    expect(mockNotificationsGateway.emitToUser).toHaveBeenCalledWith(
+      10,
+      'sales-target:updated',
+      expect.objectContaining({ contractId: 101, action: 'contract_created' }),
+    );
   });
 });

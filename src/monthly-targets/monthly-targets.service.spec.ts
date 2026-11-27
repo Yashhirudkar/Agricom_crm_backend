@@ -115,6 +115,66 @@ describe('MonthlyTargetsService', () => {
       expect(result.stats.remainingMT).toBe(0);
       expect(result.stats.progressPercentage).toBe(0);
     });
+
+    it('should NOT consider a target locked or set if targetMT is 0 or isLocked is false', async () => {
+      mockMonthlyTargetModel.findOne.mockResolvedValue({
+        id: 2,
+        userId: 5,
+        month: 12,
+        year: 2026,
+        targetMT: 0,
+        isLocked: true,
+      });
+      mockSalesContractModel.sequelize.query.mockResolvedValue([
+        { completedMT: '0' },
+      ]);
+
+      const zeroResult = await service.getTargetWithStats(5, 12, 2026);
+      expect(zeroResult.hasTarget).toBe(false);
+      expect(zeroResult.target).toBeNull();
+
+      mockMonthlyTargetModel.findOne.mockResolvedValue({
+        id: 3,
+        userId: 5,
+        month: 12,
+        year: 2026,
+        targetMT: 500,
+        isLocked: false,
+      });
+
+      const unlockedResult = await service.getTargetWithStats(5, 12, 2026);
+      expect(unlockedResult.hasTarget).toBe(false);
+      expect(unlockedResult.target).toBeNull();
+    });
+
+    it('should attribute Sales Contracts created from a user Enquiries and subtract Completed from Remaining', async () => {
+      mockMonthlyTargetModel.findOne.mockResolvedValue({
+        id: 6,
+        userId: 10,
+        month: 11,
+        year: 2026,
+        targetMT: 500,
+        isLocked: true,
+      });
+
+      mockSalesContractModel.sequelize.query.mockResolvedValue([
+        { completedMT: '185.50' },
+      ]);
+
+      const result = await service.getTargetWithStats(10, 11, 2026);
+
+      const [sql, options] = mockSalesContractModel.sequelize.query.mock.calls[0];
+      expect(sql).toContain('LEFT JOIN enquiries e ON e.id::text = sc.enquiry_id::text');
+      expect(sql).toContain('COALESCE(e.created_by, sc.created_by) = :userId');
+      expect(options).toEqual({
+        replacements: { userId: 10, month: 11, year: 2026 },
+        type: 'SELECT',
+      });
+      expect(result.stats.targetMT).toBe(500);
+      expect(result.stats.completedMT).toBe(185.5);
+      expect(result.stats.remainingMT).toBe(314.5);
+      expect(result.stats.progressPercentage).toBe(37);
+    });
   });
 
   describe('Target Creation & Locking', () => {

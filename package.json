@@ -47,6 +47,7 @@
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.27",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@types/compression": "^1.8.1",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "airport-data-js": "^3.1.0",
@@ -62,6 +63,7 @@
     "multer": "^2.1.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfjs-dist": "^3.11.174",
     "pg": "^8.21.0",
     "pg-hstore": "^2.3.4",
     "react-rnd": "^10.5.3",
@@ -70,7 +72,9 @@
     "rxjs": "^7.8.1",
     "sea-ports": "^0.0.9",
     "sequelize": "^6.37.8",
-    "sequelize-typescript": "^2.1.6"
+    "sequelize-typescript": "^2.1.6",
+    "sharp": "^0.35.5",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
