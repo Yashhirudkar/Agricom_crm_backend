@@ -11,6 +11,7 @@ import {
   UpdatedAt,
   ForeignKey,
   BelongsTo,
+  HasOne,
   Index,
 } from 'sequelize-typescript';
 import { Company } from '../../companies/models/company.model';
@@ -18,9 +19,13 @@ import { SalesContract } from '../../sales-contracts/models/sales-contract.model
 import { SalesContractShipment } from '../../sales-contracts/models/sales-contract-shipment.model';
 import { PurchaseContract } from '../../purchase-contracts/models/purchase-contract.model';
 import { User } from '../../users/models/user.model';
+import { ExportInvoiceStuffingGroup } from './export-invoice-stuffing-group.model';
 
 export interface ExportGoodsItem {
   id?: string | number;
+  shipmentId?: number;
+  shipmentReference?: string;
+  shipmentReferences?: string[];
   marksAndNos: string;
   containerNo: string;
   noAndKindOfPackages: string;
@@ -282,6 +287,9 @@ export class ExportInvoice extends Model<ExportInvoice> {
 
   @BelongsTo(() => User, 'updatedBy')
   declare updaterUser: User;
+
+  @HasOne(() => ExportInvoiceStuffingGroup, 'exportInvoiceId')
+  declare stuffingGroupLink: ExportInvoiceStuffingGroup;
 
   @CreatedAt
   @Column({ field: 'created_at' })

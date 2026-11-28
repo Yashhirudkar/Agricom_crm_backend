@@ -11,11 +11,13 @@ import {
   UpdatedAt,
   ForeignKey,
   BelongsTo,
+  HasOne,
 } from 'sequelize-typescript';
 import { SalesContractShipment } from './sales-contract-shipment.model';
 import { SalesContract } from './sales-contract.model';
 import { Company } from '../../companies/models/company.model';
 import { User } from '../../users/models/user.model';
+import { StuffingExecutionGroupItem } from './stuffing-execution-group-item.model';
 
 export interface ShipmentDowntime {
   price?: number;
@@ -235,6 +237,9 @@ export class ShipmentStuffing extends Model<ShipmentStuffing> {
 
   @BelongsTo(() => User, 'updatedBy')
   declare updaterUser: User;
+
+  @HasOne(() => StuffingExecutionGroupItem, 'shipmentStuffingId')
+  declare stuffingGroupItem: StuffingExecutionGroupItem;
 
   @CreatedAt
   @Column({ field: 'created_at' })

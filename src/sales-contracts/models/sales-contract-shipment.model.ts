@@ -22,6 +22,7 @@ import { Company } from '../../companies/models/company.model';
 import { BusinessTransaction } from '../../system/models/business-transaction.model';
 import { User } from '../../users/models/user.model';
 import { ShipmentStuffing } from './shipment-stuffing.model';
+import { StuffingExecutionGroupItem } from './stuffing-execution-group-item.model';
 
 @Table({
   tableName: 'sales_contract_shipments',
@@ -183,6 +184,9 @@ export class SalesContractShipment extends BusinessReferenceEntity<SalesContract
 
   @HasOne(() => ShipmentStuffing)
   declare stuffingExecution: ShipmentStuffing;
+
+  @HasOne(() => StuffingExecutionGroupItem, 'shipmentId')
+  declare stuffingGroupItem: StuffingExecutionGroupItem;
 
   @HasMany(() => FreightQuote, { foreignKey: 'shipmentId', constraints: false })
   declare freightQuotes: FreightQuote[];

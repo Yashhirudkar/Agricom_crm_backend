@@ -1053,7 +1053,7 @@ export class SalesContractService implements OnModuleInit {
         updateData.contractDate = new Date(dto.contractDate);
       }
 
-      // Synchronize printOverrides with items' quality so View mode and Print templates match
+      // Synchronize printOverrides with items' quality and marking so View mode and Print templates match
       if (dto.items && dto.items.length > 0) {
         const currentOverrides = {
           ...(contract.printOverrides || {}),
@@ -1066,6 +1066,21 @@ export class SalesContractService implements OnModuleInit {
             currentOverrides[`quality_${idx}`] = val;
             if (idx === 0) {
               currentOverrides['quality_0'] = val;
+            }
+            overridesModified = true;
+          }
+          if (it.marking !== undefined) {
+            const mVal = it.marking ? String(it.marking).trim() : '';
+            if (mVal) {
+              currentOverrides[`marking_${idx}`] = mVal;
+              if (idx === 0) {
+                currentOverrides['marking_0'] = mVal;
+              }
+            } else {
+              delete currentOverrides[`marking_${idx}`];
+              if (idx === 0) {
+                delete currentOverrides['marking_0'];
+              }
             }
             overridesModified = true;
           }

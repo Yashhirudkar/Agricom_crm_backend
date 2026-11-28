@@ -752,15 +752,145 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       expect(res.readyForShipment).toBe(true);
     });
 
-    it('rejects multi-shipment stuffing load for non-Truck/non-Rail modes such as Sea or Air', async () => {
-      for (const mode of ['sea', 'air', 'bulk']) {
-        mockShipmentModel.findAll.mockResolvedValue(buildShipments(mode));
-        await expect(
-          service.getStuffingExecutionData(101, { userId: 7 }, '101,102'),
-        ).rejects.toThrow(
-          'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
+    it('loads combined multi-shipment data for Sea, Container, Air, and Bulk modes', async () => {
+      for (const [mode, expectedCategory] of [
+        ['sea', 'sea'],
+        ['Container', 'sea'],
+        ['air', 'air'],
+        ['bulk', 'bulk'],
+      ] as const) {
+        const shipments = buildShipments(mode);
+        mockShipmentModel.findAll.mockResolvedValue(shipments);
+        mockFreightQuoteModel.findAll = jest.fn().mockResolvedValue([]);
+        mockReadinessService.evaluateBatch.mockResolvedValue(
+          new Map([
+            [101, { readyForShipment: true, isManualOverride: false }],
+            [102, { readyForShipment: true, isManualOverride: false }],
+            [103, { readyForShipment: true, isManualOverride: false }],
+          ]),
         );
+
+        const res: any = await service.getStuffingExecutionData(
+          101,
+          { userId: 7, companyId: 1 },
+          '101,102,103',
+        );
+
+        expect(res.isMultiShipment).toBe(true);
+        expect(res.multiShipmentMode).toBe(expectedCategory);
+        expect(res.autoPopulated.quantityMt).toBe(66);
+        expect(res.selectedShipments).toHaveLength(3);
       }
+    });
+
+    it('creates a StuffingExecutionGroup and links 1:1 ShipmentStuffing rows for Sea/Container multi-shipment completion', async () => {
+      const shipments = buildShipments('sea');
+      const mockGroupModel: any = {
+        findAll: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockImplementation((payload: any) =>
+          Promise.resolve({ id: 777, ...payload }),
+        ),
+      };
+      const mockGroupItemModel: any = {
+        findAll: jest.fn().mockResolvedValue([]),
+        findOrCreate: jest.fn().mockImplementation(({ defaults }: any) => {
+          const item: any = {
+            ...defaults,
+            update: jest.fn().mockResolvedValue(undefined),
+          };
+          return Promise.resolve([item, true]);
+        }),
+      };
+      const groupedService = new ShipmentService(
+        mockShipmentModel,
+        mockContractModel,
+        mockItemModel,
+        mockDocModel,
+        mockDocFileModel,
+        mockPurchaseContractService,
+        mockStockService,
+        mockReadinessService,
+        mockAuditService,
+        mockStuffingModel,
+        mockAttachmentModel,
+        mockLogisticsModel,
+        mockFreightQuoteModel,
+        mockSequelize,
+        mockGroupModel,
+        mockGroupItemModel,
+      );
+
+      jest.spyOn(groupedService, 'assertCanModifyStuffing').mockResolvedValue({
+        allowed: true,
+        isCompleted: false,
+        isOverride: false,
+        isOneTimeEdit: false,
+      });
+      mockContractModel.findByPk = jest.fn().mockResolvedValue({
+        id: 50,
+        companyId: 1,
+        contractNumber: 'SC-50',
+        originTransportMode: 'sea',
+      });
+      mockShipmentModel.findAll.mockResolvedValue(shipments);
+      mockStuffingModel.findAll = jest.fn().mockResolvedValue([]);
+      mockSequelize.transaction.mockImplementation((cb: any) =>
+        cb({ LOCK: { UPDATE: 'UPDATE' } }),
+      );
+
+      let stuffingSeq = 900;
+      const savedPayloads: any[] = [];
+      mockStuffingModel.findOrCreate = jest.fn(({ defaults }: any) => {
+        const rec: any = {
+          id: ++stuffingSeq,
+          ...defaults,
+          update: jest.fn((vals: any) => {
+            Object.assign(rec, vals);
+            savedPayloads.push(vals);
+            return Promise.resolve(rec);
+          }),
+        };
+        return Promise.resolve([rec, true]);
+      });
+
+      const result: any = await groupedService.saveStuffingExecution(
+        101,
+        {
+          shipmentIds: [101, 102, 103],
+          action: 'complete',
+          loadingDate: '2026-11-26',
+          loadingStartTime: '09:00',
+          loadingEndTime: '15:00',
+          actualLoadingWeight: 66,
+          grossWeight: 68,
+          netWeight: 66,
+          dispatchMode: 'container',
+          containers: [
+            { containerNo: 'MSKU1234567', sealNo: 'SL-1', dispatch: 'Yes' },
+          ],
+          attachments: [],
+          autoPopulated: { transportMode: 'Sea' },
+        },
+        { id: 7, userId: 7, companyId: 1 },
+      );
+
+      expect(result.isMultiShipment).toBe(true);
+      expect(result.stuffingGroupId).toBe(777);
+      expect(mockGroupModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          salesContractId: 50,
+          primaryShipmentId: 101,
+          transportCategory: 'sea',
+          stuffingStatus: 'Completed',
+          combinedActualLoadingWeight: 66,
+        }),
+        expect.any(Object),
+      );
+      expect(mockGroupItemModel.findOrCreate).toHaveBeenCalledTimes(3);
+      expect(savedPayloads).toHaveLength(3);
+      expect(
+        savedPayloads[0].autoPopulatedData.multiShipmentExecution.stuffingGroupId,
+      ).toBe(777);
     });
 
     it('completes all selected Rail Freight / Wagon shipments in one shared execution session without altering Truck/other modes', async () => {
@@ -911,6 +1041,119 @@ describe('ShipmentService - Pending and Executed Tabs', () => {
       } finally {
         warnSpy.mockRestore();
       }
+    });
+
+    it('enriches findOne with linked StuffingExecutionGroup and existing ExportInvoice metadata', async () => {
+      const mockGroupModel: any = {
+        findAll: jest.fn().mockResolvedValue([
+          {
+            get: () => ({
+              id: 88,
+              groupReference: 'SEG-SC50-101',
+              stuffingStatus: 'Completed',
+              items: [
+                {
+                  sequenceOrder: 1,
+                  shipment: {
+                    id: 101,
+                    shipmentNo: 1,
+                    shipmentReference: 'SHP-101',
+                    quantity: 22,
+                  },
+                },
+                {
+                  sequenceOrder: 2,
+                  shipment: {
+                    id: 102,
+                    shipmentNo: 2,
+                    shipmentReference: 'SHP-102',
+                    quantity: 22,
+                  },
+                },
+              ],
+            }),
+          },
+        ]),
+      };
+      const mockGroupItemModel: any = {
+        findAll: jest.fn().mockResolvedValue([
+          { stuffingGroupId: 88, shipmentId: 101 },
+        ]),
+      };
+      const mockInvGroupModel: any = {
+        findAll: jest.fn().mockResolvedValue([
+          {
+            stuffingGroupId: 88,
+            exportInvoiceId: 405,
+            exportInvoice: { id: 405, invoiceNumber: 'EXP-005-SC50' },
+          },
+        ]),
+      };
+      const shipmentModelWithSeq = {
+        ...mockShipmentModel,
+        sequelize: {
+          models: {
+            ExportInvoiceStuffingGroup: mockInvGroupModel,
+            ExportInvoice: {},
+          },
+        },
+        findByPk: jest.fn().mockResolvedValue({
+          id: 101,
+          salesContractId: 50,
+          salesContract: {
+            id: 50,
+            companyId: 1,
+            buyer: { entityName: 'Buyer' },
+          },
+          toJSON: () => ({
+            id: 101,
+            salesContractId: 50,
+            salesContract: {
+              id: 50,
+              companyId: 1,
+              buyer: { entityName: 'Buyer' },
+            },
+          }),
+        }),
+      };
+      mockReadinessService.evaluate = jest.fn().mockResolvedValue({
+        cargoReady: true,
+        freightReady: true,
+        freightRequired: false,
+        isFreightNotApplicable: true,
+        freightAllocationStatus: 'No',
+        systemReady: true,
+        manualReadyOverride: null,
+        readyForShipment: true,
+        isManualOverride: false,
+        readySource: 'System',
+        reasons: [],
+      });
+
+      const groupedService = new ShipmentService(
+        shipmentModelWithSeq as any,
+        mockContractModel,
+        mockItemModel,
+        mockDocModel,
+        mockDocFileModel,
+        mockPurchaseContractService,
+        mockStockService,
+        mockReadinessService,
+        mockAuditService,
+        mockStuffingModel,
+        mockAttachmentModel,
+        mockLogisticsModel,
+        mockFreightQuoteModel,
+        mockSequelize,
+        mockGroupModel,
+        mockGroupItemModel,
+      );
+
+      const res: any = await groupedService.findOne(101, { companyId: 1 });
+      expect(res.stuffingGroupId).toBe(88);
+      expect(res.stuffingGroupShipmentIds).toEqual([101, 102]);
+      expect(res.stuffingGroupExportInvoiceId).toBe(405);
+      expect(res.stuffingGroupExportInvoiceNumber).toBe('EXP-005-SC50');
     });
   });
 });

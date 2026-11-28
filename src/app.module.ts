@@ -4,6 +4,7 @@ import { SalesContractsModule } from './sales-contracts/sales-contracts.module';
 import { ExportInvoicesModule } from './export-invoices/export-invoices.module';
 import { ExportInvoice } from './export-invoices/models/export-invoice.model';
 import { ExportInvoiceSequence } from './export-invoices/models/export-invoice-sequence.model';
+import { ExportInvoiceStuffingGroup } from './export-invoices/models/export-invoice-stuffing-group.model';
 import { DomesticBank } from './banks/models/domestic-bank.model';
 import { NostroBank } from './banks/models/nostro-bank.model';
 import { CurrencyAccount } from './banks/models/currency-account.model';
@@ -109,6 +110,8 @@ import { SalesContractShipment } from './sales-contracts/models/sales-contract-s
 import { SalesContractDocument } from './sales-contracts/models/sales-contract-document.model';
 import { SalesContractDocumentFile } from './sales-contracts/models/sales-contract-document-file.model';
 import { ShipmentStuffing } from './sales-contracts/models/shipment-stuffing.model';
+import { StuffingExecutionGroup } from './sales-contracts/models/stuffing-execution-group.model';
+import { StuffingExecutionGroupItem } from './sales-contracts/models/stuffing-execution-group-item.model';
 import { Attachment } from './attachments/models/attachment.model';
 import { PurchaseContract } from './purchase-contracts/models/purchase-contract.model';
 import { PurchaseContractItem } from './purchase-contracts/models/purchase-contract-item.model';
@@ -310,6 +313,8 @@ import {
             SalesContractDocument,
             SalesContractDocumentFile,
             ShipmentStuffing,
+            StuffingExecutionGroup,
+            StuffingExecutionGroupItem,
             Attachment,
             PurchaseContract,
             PurchaseContractItem,
@@ -377,6 +382,7 @@ import {
             ExchangeRate,
             ExportInvoice,
             ExportInvoiceSequence,
+            ExportInvoiceStuffingGroup,
             DomesticBank,
             NostroBank,
             CurrencyAccount,

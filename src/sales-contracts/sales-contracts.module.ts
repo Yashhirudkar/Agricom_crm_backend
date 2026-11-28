@@ -17,6 +17,8 @@ import { Logistics } from '../logistics/models/logistics.model';
 import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { ShipmentReadinessService } from './services/shipment-readiness.service';
 import { ShipmentStuffing } from './models/shipment-stuffing.model';
+import { StuffingExecutionGroup } from './models/stuffing-execution-group.model';
+import { StuffingExecutionGroupItem } from './models/stuffing-execution-group-item.model';
 import { TransportDetail } from '../enquiries/models/transport-detail.model';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StockModule } from '../stock/stock.module';
@@ -34,6 +36,8 @@ import { Attachment } from '../attachments/models/attachment.model';
       Logistics,
       FreightQuote,
       ShipmentStuffing,
+      StuffingExecutionGroup,
+      StuffingExecutionGroupItem,
       Attachment,
       TransportDetail,
     ]),

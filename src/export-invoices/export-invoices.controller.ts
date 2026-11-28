@@ -47,6 +47,40 @@ export class ExportInvoicesController {
   }
 
   /**
+   * Pre-populates combined Export Invoice data from a multi-shipment StuffingExecutionGroup
+   */
+  @Get('init-group/:stuffingGroupId')
+  @RequireAnyPermission(
+    'export_invoice:create',
+    'export_invoice:view',
+    'shipments:view',
+    'shipment_stuffing_execution:view',
+  )
+  async initFromStuffingGroup(
+    @Param('stuffingGroupId', ParseIntPipe) stuffingGroupId: number,
+    @Req() req: any,
+  ) {
+    return this.service.initFromStuffingGroup(stuffingGroupId, req.user);
+  }
+
+  /**
+   * Pre-populates combined Export Invoice data from multiple selected shipmentIds
+   */
+  @Get('init-multi')
+  @RequireAnyPermission(
+    'export_invoice:create',
+    'export_invoice:view',
+    'shipments:view',
+    'shipment_stuffing_execution:view',
+  )
+  async initFromMultiShipments(
+    @Query('shipmentIds') shipmentIds: string,
+    @Req() req: any,
+  ) {
+    return this.service.initFromMultiShipments(shipmentIds, req.user);
+  }
+
+  /**
    * Previews next invoice number and sequence
    */
   @Get('next-number')

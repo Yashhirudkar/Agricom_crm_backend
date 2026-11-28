@@ -35,24 +35,40 @@ describe('multi-stuffing-execution.util', () => {
       ).toBe('rail');
     });
 
-    it('rejects Sea, Air, Bulk, Container, Courier, and unknown modes', () => {
-      for (const mode of [
-        'sea',
-        'Sea Freight',
-        'air',
-        'Air Freight',
-        'bulk',
-        'Bulk Vessel',
-        'container',
-        'FCL',
-        'courier',
-        '',
-        null,
-      ]) {
-        expect(
-          getMultiExecutionTransportCategory({ originTransportMode: mode }),
-        ).toBeNull();
-      }
+    it('supports Sea, Air, Bulk, Container, Courier, and fallback modes in the unified multi-shipment pipeline', () => {
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'sea' }),
+      ).toBe('sea');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'Sea Freight' }),
+      ).toBe('sea');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'container' }),
+      ).toBe('sea');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'FCL' }),
+      ).toBe('sea');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'air' }),
+      ).toBe('air');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'Air Freight' }),
+      ).toBe('air');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'bulk' }),
+      ).toBe('bulk');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'Bulk Vessel' }),
+      ).toBe('bulk');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: 'courier' }),
+      ).toBe('courier');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: '' }),
+      ).toBe('sea');
+      expect(
+        getMultiExecutionTransportCategory({ originTransportMode: null }),
+      ).toBe('sea');
     });
   });
 

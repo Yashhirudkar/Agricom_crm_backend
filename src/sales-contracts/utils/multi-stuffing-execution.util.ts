@@ -1,4 +1,11 @@
-export type MultiExecutionModeCategory = 'truck' | 'rail';
+export type MultiExecutionModeCategory =
+  | 'truck'
+  | 'rail'
+  | 'sea'
+  | 'air'
+  | 'bulk'
+  | 'courier'
+  | 'other';
 
 export interface MultiShipmentWeightAllocation {
   shipmentId: number;
@@ -45,8 +52,8 @@ export function parseMultiExecutionShipmentIds(
 }
 
 /**
- * Multi-shipment stuffing execution is allowed ONLY for Truck (Road Transport / Truck)
- * and Rail Freight / Wagon Sales Contracts. Explicitly excludes Sea, Air, Bulk, Container, Courier, etc.
+ * Resolves transport category for multi-shipment stuffing execution across all
+ * supported transport modes (Truck/Road, Rail/Wagon, Sea/Container, Bulk, Air, Courier, etc.).
  */
 export function getMultiExecutionTransportCategory(
   salesContract?: {
@@ -60,30 +67,45 @@ export function getMultiExecutionTransportCategory(
     .trim()
     .toLowerCase();
 
-  if (!rawMode) return null;
-  if (
-    rawMode.includes('air') ||
-    rawMode.includes('sea') ||
-    rawMode.includes('ocean') ||
-    rawMode.includes('bulk') ||
-    rawMode.includes('container') ||
-    rawMode.includes('fcl') ||
-    rawMode.includes('vessel') ||
-    rawMode.includes('ship') ||
-    rawMode.includes('courier')
-  ) {
-    return null;
-  }
+  if (!rawMode) return 'sea';
 
   if (rawMode.includes('rail') || rawMode.includes('wagon')) {
     return 'rail';
   }
 
-  if (rawMode === 'road' || rawMode === 'truck' || rawMode.includes('road') || rawMode.includes('truck')) {
+  if (
+    rawMode === 'road' ||
+    rawMode === 'truck' ||
+    rawMode.includes('road') ||
+    rawMode.includes('truck')
+  ) {
     return 'truck';
   }
 
-  return null;
+  if (rawMode.includes('air')) {
+    return 'air';
+  }
+
+  if (rawMode.includes('bulk')) {
+    return 'bulk';
+  }
+
+  if (rawMode.includes('courier')) {
+    return 'courier';
+  }
+
+  if (
+    rawMode.includes('sea') ||
+    rawMode.includes('ocean') ||
+    rawMode.includes('container') ||
+    rawMode.includes('fcl') ||
+    rawMode.includes('vessel') ||
+    rawMode.includes('ship')
+  ) {
+    return 'sea';
+  }
+
+  return 'other';
 }
 
 function roundToDecimals(value: number, decimals: number): number {

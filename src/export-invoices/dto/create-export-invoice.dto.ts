@@ -15,6 +15,24 @@ export class ExportGoodsItemDto {
   @IsOptional()
   id?: string | number;
 
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
+  shipmentId?: number;
+
+  @IsOptional()
+  @IsString()
+  shipmentReference?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  shipmentReferences?: string[];
+
   @IsString()
   @IsOptional()
   marksAndNos: string;
@@ -63,6 +81,14 @@ export class CreateExportInvoiceDto {
   @IsOptional()
   @IsNumber()
   shipmentId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  stuffingGroupId?: number;
+
+  @IsOptional()
+  @IsArray()
+  shipmentIds?: number[];
 
   @IsOptional()
   @IsNumber()

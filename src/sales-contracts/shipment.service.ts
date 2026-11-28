@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Inject,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/sequelize';
@@ -34,6 +35,8 @@ import {
   ShipmentDowntime,
   ShipmentStuffing,
 } from './models/shipment-stuffing.model';
+import { StuffingExecutionGroup } from './models/stuffing-execution-group.model';
+import { StuffingExecutionGroupItem } from './models/stuffing-execution-group-item.model';
 import { Logistics } from '../logistics/models/logistics.model';
 import { FreightQuote } from '../logistics/models/freight-quote.model';
 import { Company } from '../companies/models/company.model';
@@ -94,7 +97,181 @@ export class ShipmentService {
     private readonly freightQuoteModel: typeof FreightQuote,
     @InjectConnection()
     private readonly sequelize: SequelizeConnection,
+    @Optional()
+    @InjectModel(StuffingExecutionGroup)
+    private readonly stuffingGroupModel?: typeof StuffingExecutionGroup,
+    @Optional()
+    @InjectModel(StuffingExecutionGroupItem)
+    private readonly stuffingGroupItemModel?: typeof StuffingExecutionGroupItem,
   ) { }
+
+  private async batchFetchStuffingGroupsByShipmentIds(
+    shipmentIds: number[],
+  ): Promise<
+    Map<
+      number,
+      {
+        stuffingGroupId: number;
+        stuffingGroupReference: string | null;
+        stuffingGroupStatus: string;
+        stuffingGroupShipmentIds: number[];
+        stuffingGroupShipments: any[];
+        stuffingGroupExportInvoiceId: number | null;
+        stuffingGroupExportInvoiceNumber: string | null;
+      }
+    >
+  > {
+    const result = new Map<number, any>();
+    if (
+      !this.stuffingGroupItemModel ||
+      !this.stuffingGroupModel ||
+      typeof this.stuffingGroupItemModel.findAll !== 'function' ||
+      typeof this.stuffingGroupModel.findAll !== 'function' ||
+      shipmentIds.length === 0
+    ) {
+      return result;
+    }
+
+    try {
+      const matchedItems = await this.stuffingGroupItemModel.findAll({
+        where: { shipmentId: { [Op.in]: shipmentIds } },
+        attributes: ['stuffingGroupId', 'shipmentId'],
+      });
+      const groupIds = Array.from(
+        new Set(
+          (matchedItems || [])
+            .map((item: any) => Number(item?.stuffingGroupId))
+            .filter((id) => Number.isSafeInteger(id) && id > 0),
+        ),
+      );
+      if (groupIds.length === 0) return result;
+
+      const groups = await this.stuffingGroupModel.findAll({
+        where: { id: { [Op.in]: groupIds } },
+        include: [
+          {
+            model: StuffingExecutionGroupItem,
+            as: 'items',
+            required: false,
+            include: [
+              {
+                model: SalesContractShipment,
+                as: 'shipment',
+                attributes: [
+                  'id',
+                  'shipmentNo',
+                  'shipmentReference',
+                  'shipmentDate',
+                  'quantity',
+                  'noOfContainers',
+                  'status',
+                  'executionStatus',
+                  'salesContractId',
+                  'businessTransactionId',
+                  'cargoReadyConfirmed',
+                  'freightAllocationStatus',
+                ],
+                required: false,
+                include: [
+                  {
+                    model: BusinessTransaction,
+                    as: 'businessTransaction',
+                    attributes: ['id', 'businessReference'],
+                    required: false,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const exportInvoiceByGroupId = new Map<
+        number,
+        { exportInvoiceId: number; invoiceNumber: string | null }
+      >();
+      try {
+        const invGroupModel =
+          this.shipmentModel.sequelize?.models?.['ExportInvoiceStuffingGroup'];
+        const invModel =
+          this.shipmentModel.sequelize?.models?.['ExportInvoice'];
+        if (
+          invGroupModel &&
+          invModel &&
+          typeof invGroupModel.findAll === 'function'
+        ) {
+          const invLinks: any[] = await invGroupModel.findAll({
+            where: { stuffingGroupId: { [Op.in]: groupIds } },
+            include: [
+              {
+                model: invModel,
+                as: 'exportInvoice',
+                attributes: ['id', 'invoiceNumber', 'status'],
+                required: false,
+              },
+            ],
+            order: [['id', 'ASC']],
+          });
+          for (const link of invLinks || []) {
+            const gId = Number(link?.stuffingGroupId);
+            const invId = Number(link?.exportInvoice?.id || link?.exportInvoiceId);
+            if (gId && invId && !exportInvoiceByGroupId.has(gId)) {
+              exportInvoiceByGroupId.set(gId, {
+                exportInvoiceId: invId,
+                invoiceNumber: link?.exportInvoice?.invoiceNumber || null,
+              });
+            }
+          }
+        }
+      } catch (invErr) {
+        console.warn(
+          'Could not fetch linked Export Invoices for stuffing groups:',
+          invErr,
+        );
+      }
+
+      for (const group of groups || []) {
+        const plainGroup: any = group.get ? group.get({ plain: true }) : group;
+        const items = (plainGroup.items || [])
+          .slice()
+          .sort(
+            (a: any, b: any) =>
+              Number(a.sequenceOrder || 0) - Number(b.sequenceOrder || 0),
+          );
+        const groupShipments = items
+          .map((item: any) => {
+            if (!item?.shipment) return null;
+            return {
+              ...item.shipment,
+              businessReference:
+                item.shipment.businessTransaction?.businessReference ?? null,
+            };
+          })
+          .filter(Boolean);
+        const groupShipmentIds = groupShipments.map((s: any) => Number(s.id));
+
+        if (groupShipmentIds.length <= 1) continue;
+
+        const linkedInv = exportInvoiceByGroupId.get(Number(plainGroup.id));
+        const payload = {
+          stuffingGroupId: Number(plainGroup.id),
+          stuffingGroupReference: plainGroup.groupReference || null,
+          stuffingGroupStatus: plainGroup.stuffingStatus || 'Draft',
+          stuffingGroupShipmentIds: groupShipmentIds,
+          stuffingGroupExportInvoiceId: linkedInv?.exportInvoiceId ?? null,
+          stuffingGroupExportInvoiceNumber: linkedInv?.invoiceNumber ?? null,
+          stuffingGroupShipments: groupShipments,
+        };
+        for (const sId of groupShipmentIds) {
+          result.set(sId, payload);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not batch fetch stuffing execution groups:', err);
+    }
+
+    return result;
+  }
 
   private stripRemovedContainerFields(
     containers: Array<Record<string, unknown>> | null | undefined,
@@ -910,6 +1087,8 @@ export class ShipmentService {
     const readinessMap = await this.readinessService.evaluateBatch(rows);
 
     const shipmentIds = rows.map((s) => s.id).filter(Boolean);
+    const stuffingGroupByShipment =
+      await this.batchFetchStuffingGroupsByShipmentIds(shipmentIds);
     const pcByShipment = new Map<number, Set<string>>();
     const pcBySc = new Map<number, Set<string>>();
     const pcByBusinessTransaction = new Map<number, Set<string>>();
@@ -1271,6 +1450,28 @@ export class ShipmentService {
         };
       }
       json.purchaseContractQuantity = pcData?.pc_quantity ?? null;
+
+      const groupInfo = stuffingGroupByShipment.get(Number(json.id));
+      if (groupInfo) {
+        json.stuffingGroupId = groupInfo.stuffingGroupId;
+        json.stuffingGroupReference = groupInfo.stuffingGroupReference;
+        json.stuffingGroupStatus = groupInfo.stuffingGroupStatus;
+        json.stuffingGroupShipmentIds = groupInfo.stuffingGroupShipmentIds;
+        json.stuffingGroupExportInvoiceId =
+          groupInfo.stuffingGroupExportInvoiceId ?? null;
+        json.stuffingGroupExportInvoiceNumber =
+          groupInfo.stuffingGroupExportInvoiceNumber ?? null;
+        json.stuffingGroupShipments = groupInfo.stuffingGroupShipments.map(
+          (gs: any) => ({
+            ...gs,
+            stuffingGroupExportInvoiceId:
+              groupInfo.stuffingGroupExportInvoiceId ?? null,
+            stuffingGroupExportInvoiceNumber:
+              groupInfo.stuffingGroupExportInvoiceNumber ?? null,
+            salesContract: json.salesContract || undefined,
+          }),
+        );
+      }
 
       return json;
     });
@@ -1759,6 +1960,31 @@ export class ShipmentService {
         ? `SH-${String(json.shipmentNo).padStart(6, '0')}`
         : '-');
 
+    const groupMap = await this.batchFetchStuffingGroupsByShipmentIds([
+      Number(json.id),
+    ]);
+    const groupInfo = groupMap.get(Number(json.id));
+    if (groupInfo) {
+      json.stuffingGroupId = groupInfo.stuffingGroupId;
+      json.stuffingGroupReference = groupInfo.stuffingGroupReference;
+      json.stuffingGroupStatus = groupInfo.stuffingGroupStatus;
+      json.stuffingGroupShipmentIds = groupInfo.stuffingGroupShipmentIds;
+      json.stuffingGroupExportInvoiceId =
+        groupInfo.stuffingGroupExportInvoiceId ?? null;
+      json.stuffingGroupExportInvoiceNumber =
+        groupInfo.stuffingGroupExportInvoiceNumber ?? null;
+      json.stuffingGroupShipments = groupInfo.stuffingGroupShipments.map(
+        (gs: any) => ({
+          ...gs,
+          stuffingGroupExportInvoiceId:
+            groupInfo.stuffingGroupExportInvoiceId ?? null,
+          stuffingGroupExportInvoiceNumber:
+            groupInfo.stuffingGroupExportInvoiceNumber ?? null,
+          salesContract: json.salesContract || undefined,
+        }),
+      );
+    }
+
     return json;
   }
 
@@ -1917,6 +2143,31 @@ export class ShipmentService {
         sellerName: pcData.seller_name,
         productName: pcData.product_name,
       };
+    }
+
+    const groupMap = await this.batchFetchStuffingGroupsByShipmentIds([
+      Number(json.id),
+    ]);
+    const groupInfo = groupMap.get(Number(json.id));
+    if (groupInfo) {
+      json.stuffingGroupId = groupInfo.stuffingGroupId;
+      json.stuffingGroupReference = groupInfo.stuffingGroupReference;
+      json.stuffingGroupStatus = groupInfo.stuffingGroupStatus;
+      json.stuffingGroupShipmentIds = groupInfo.stuffingGroupShipmentIds;
+      json.stuffingGroupExportInvoiceId =
+        groupInfo.stuffingGroupExportInvoiceId ?? null;
+      json.stuffingGroupExportInvoiceNumber =
+        groupInfo.stuffingGroupExportInvoiceNumber ?? null;
+      json.stuffingGroupShipments = groupInfo.stuffingGroupShipments.map(
+        (gs: any) => ({
+          ...gs,
+          stuffingGroupExportInvoiceId:
+            groupInfo.stuffingGroupExportInvoiceId ?? null,
+          stuffingGroupExportInvoiceNumber:
+            groupInfo.stuffingGroupExportInvoiceNumber ?? null,
+          salesContract: json.salesContract || undefined,
+        }),
+      );
     }
 
     return json;
@@ -2159,6 +2410,7 @@ export class ShipmentService {
               required: false,
               include: [
                 { model: Product, as: 'product', required: false },
+                { model: BagType, as: 'bagType', required: false },
                 { model: PackingType, as: 'packingType', required: false },
                 {
                   model: BagSpecification,
@@ -3092,6 +3344,7 @@ export class ShipmentService {
               required: false,
               include: [
                 { model: Product, as: 'product', required: false },
+                { model: BagType, as: 'bagType', required: false },
                 { model: PackingType, as: 'packingType', required: false },
                 {
                   model: BagSpecification,
@@ -3158,15 +3411,12 @@ export class ShipmentService {
 
     const primaryShipment = orderedShipments[0];
     const contract = primaryShipment.salesContract || ({} as any);
-    const modeCategory = getMultiExecutionTransportCategory(contract);
-    if (!modeCategory) {
-      throw new BadRequestException(
-        'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
-      );
-    }
+    const modeCategory =
+      getMultiExecutionTransportCategory(contract) || 'sea';
 
     // 1. Purchase Contracts & allocated quantities across selected shipments
     const pcNumbers = new Set<string>();
+    const pcNumbersByShipment = new Map<number, Set<string>>();
     let purchaseContractQuantity = 0;
     const allocatedByShipment = new Map<number, number>(
       orderedShipments.map((s) => [Number(s.id), Number(s.quantity || 0)]),
@@ -3200,9 +3450,23 @@ export class ShipmentService {
           const pcs: any[] = await pcModel.findAll({
             where: { id: { [Op.in]: pcIds } },
           });
+          const pcNumberById = new Map<number, string>();
           for (const pc of pcs) {
-            if (pc?.contractNumber) pcNumbers.add(String(pc.contractNumber));
+            if (pc?.contractNumber) {
+              pcNumbers.add(String(pc.contractNumber));
+              pcNumberById.set(Number(pc.id), String(pc.contractNumber));
+            }
             purchaseContractQuantity += Number(pc?.quantity || 0);
+          }
+          for (const link of pcLinks) {
+            const sId = Number(link?.shipmentId);
+            const num = pcNumberById.get(Number(link?.purchaseContractId));
+            if (sId && num) {
+              if (!pcNumbersByShipment.has(sId)) {
+                pcNumbersByShipment.set(sId, new Set());
+              }
+              pcNumbersByShipment.get(sId)!.add(num);
+            }
           }
         } else if (primaryShipment.salesContractId) {
           const directPc: any = await pcModel.findOne({
@@ -3381,17 +3645,40 @@ export class ShipmentService {
       ? `${buyer.contacts[0].contactName || ''} (${buyer.contacts[0].contactNumber || buyer.contacts[0].email || ''})`
       : buyer.contactEmail || '—';
 
-    const selectedShipmentsSummary = orderedShipments.map((s) => ({
-      id: s.id,
-      shipmentNo: s.shipmentNo,
-      shipmentReference: s.shipmentReference || `SHP-${s.id}`,
-      shipmentDate: s.shipmentDate,
-      quantity: Number(s.quantity || 0),
-      allocatedWeight: Number(allocatedByShipment.get(Number(s.id)) || 0),
-      status: s.status,
-      executionStatus: s.executionStatus || 'Pending',
-      freightAllocationStatus: s.freightAllocationStatus || 'No',
-    }));
+    const selectedShipmentsSummary = orderedShipments.map((s) => {
+      const sPcSet = pcNumbersByShipment.get(Number(s.id));
+      return {
+        id: s.id,
+        shipmentNo: s.shipmentNo,
+        shipmentReference: s.shipmentReference || `SHP-${s.id}`,
+        businessReference: s.businessTransaction?.businessReference || null,
+        purchaseContractNo:
+          sPcSet && sPcSet.size > 0
+            ? Array.from(sPcSet).join(', ')
+            : purchaseContractNo !== 'N/A'
+              ? purchaseContractNo
+              : null,
+        shipmentDate: s.shipmentDate,
+        quantity: Number(s.quantity || 0),
+        noOfContainers: Number(s.noOfContainers || 0),
+        allocatedWeight: Number(allocatedByShipment.get(Number(s.id)) || 0),
+        status: s.status,
+        executionStatus: s.executionStatus || 'Pending',
+        freightAllocationStatus: s.freightAllocationStatus || 'No',
+      };
+    });
+
+    const businessRefs = Array.from(
+      new Set(
+        orderedShipments
+          .map((s) => s.businessTransaction?.businessReference)
+          .filter(Boolean),
+      ),
+    );
+    const totalContainers = orderedShipments.reduce(
+      (sum, s) => sum + Number(s.noOfContainers || 0),
+      0,
+    );
 
     const isTruckMode = modeCategory === 'truck';
     const freightQuoteForDisplay = isTruckMode ? null : primaryFreightQuote;
@@ -3405,7 +3692,8 @@ export class ShipmentService {
       shipmentRef: selectedShipmentsSummary
         .map((s) => s.shipmentReference)
         .join(', '),
-      businessRefNo: primaryShipment.businessTransaction?.businessReference || '—',
+      businessRefNo:
+        businessRefs.length > 0 ? businessRefs.join(', ') : '—',
       salesContractNo: contract.contractNumber || '—',
       purchaseContractNo,
       enquiryRef:
@@ -3419,6 +3707,7 @@ export class ShipmentService {
       commodityGrade:
         product.grade || product.commodityGrade || item.remarks || '—',
       quantityMt: totalQuantityMt,
+      bagType: item.bagType?.name || '—',
       packingType: item.packingType?.name || '—',
       bagSize: bagSizeKg ? `${bagSizeKg} Kg` : '—',
       totalBags,
@@ -3434,9 +3723,9 @@ export class ShipmentService {
         modeCategory === 'rail'
           ? 'Rail'
           : primaryLogistics?.transportMode ||
-          contract.originTransportMode ||
-          contract.transportMode ||
-          'Truck',
+            contract.originTransportMode ||
+            contract.transportMode ||
+            (modeCategory === 'truck' ? 'Truck' : 'Sea'),
       freightType:
         contract.shipmentType?.name || freightQuoteForDisplay?.mode || '—',
       shipmentType:
@@ -3456,7 +3745,10 @@ export class ShipmentService {
       shippingLine: freightQuoteForDisplay?.shippingLine || '',
       vessel: freightQuoteForDisplay?.vessel || '',
       voyage: freightQuoteForDisplay?.voyage || '',
-      containerType: '—',
+      containerType:
+        freightQuoteForDisplay?.containerType ||
+        freightQuoteForDisplay?.containerSize ||
+        (totalContainers > 0 ? `${totalContainers} container(s)` : '—'),
       freightForwarder:
         freightQuoteForDisplay?.seller?.entityName ||
         freightQuoteForDisplay?.carrierReferenceNo ||
@@ -3508,6 +3800,16 @@ export class ShipmentService {
         savedBatchMeta.combinedNetWeight ?? existingStuffingData.netWeight;
     }
 
+    const groupMap = await this.batchFetchStuffingGroupsByShipmentIds(multiIds);
+    const matchedGroup =
+      groupMap.get(Number(primaryShipment.id)) ||
+      (savedBatchMeta?.stuffingGroupId
+        ? {
+            stuffingGroupId: Number(savedBatchMeta.stuffingGroupId),
+            stuffingGroupReference: null,
+          }
+        : null);
+
     let readyForShipment = false;
     let isManualOverride = false;
     try {
@@ -3528,6 +3830,12 @@ export class ShipmentService {
       shipmentIds: multiIds,
       isMultiShipment: true,
       multiShipmentMode: modeCategory,
+      stuffingGroupId: matchedGroup?.stuffingGroupId ?? null,
+      stuffingGroupReference: matchedGroup?.stuffingGroupReference ?? null,
+      existingExportInvoiceId:
+        (matchedGroup as any)?.stuffingGroupExportInvoiceId ?? null,
+      existingExportInvoiceNumber:
+        (matchedGroup as any)?.stuffingGroupExportInvoiceNumber ?? null,
       selectedShipments: selectedShipmentsSummary,
       perShipmentFreights,
       shipmentStatus: primaryShipment.status,
@@ -3579,7 +3887,7 @@ export class ShipmentService {
       ? dto.attachments
       : [];
 
-    const { orderedShipments, savedRecords, salesContractId } =
+    const { orderedShipments, savedRecords, salesContractId, stuffingGroup } =
       await this.sequelize.transaction(async (transaction) => {
         const sortedIds = [...multiIds].sort((a, b) => a - b);
         const lockedShipments = await this.shipmentModel.findAll({
@@ -3619,7 +3927,13 @@ export class ShipmentService {
 
         const contractId = Number(ordered[0].salesContractId);
         const salesContract = await this.contractModel.findByPk(contractId, {
-          attributes: ['id', 'originTransportMode', 'transportMode', 'companyId'],
+          attributes: [
+            'id',
+            'contractNumber',
+            'originTransportMode',
+            'transportMode',
+            'companyId',
+          ],
           transaction,
         });
 
@@ -3631,12 +3945,8 @@ export class ShipmentService {
           throw new NotFoundException(`Shipment #${primaryShipmentId} not found`);
         }
 
-        const modeCategory = getMultiExecutionTransportCategory(salesContract);
-        if (!modeCategory) {
-          throw new BadRequestException(
-            'Multi-shipment execution is supported only for Truck and Rail Freight / Wagon shipments.',
-          );
-        }
+        const modeCategory =
+          getMultiExecutionTransportCategory(salesContract) || 'sea';
 
         if (isExecutionTransition) {
           for (const s of ordered) {
@@ -3658,6 +3968,67 @@ export class ShipmentService {
           );
         }
 
+        const containerNumbers = sanitizedContainers
+          .map((container: any) =>
+            String(container.containerNo || '')
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(Boolean);
+        if (new Set(containerNumbers).size !== containerNumbers.length) {
+          throw new BadRequestException(
+            'Container numbers must be unique within the stuffing job.',
+          );
+        }
+        if (
+          containerNumbers.length > 0 &&
+          typeof this.stuffingModel?.findAll === 'function'
+        ) {
+          for (const containerNo of [...containerNumbers].sort()) {
+            await this.sequelize.query(
+              'SELECT pg_advisory_xact_lock(hashtext(:containerNo))',
+              {
+                replacements: { containerNo },
+                transaction,
+              },
+            );
+          }
+          const otherStuffings = await this.stuffingModel.findAll({
+            where: { shipmentId: { [Op.notIn]: multiIds } },
+            attributes: ['containers'],
+            transaction,
+          });
+          const existingContainerNumbers = new Set(
+            (otherStuffings || []).flatMap((stuffing) =>
+              (stuffing.containers || [])
+                .map((container: any) =>
+                  String(container.containerNo || '')
+                    .trim()
+                    .toUpperCase(),
+                )
+                .filter(Boolean),
+            ),
+          );
+          const duplicateContainer = containerNumbers.find(
+            (containerNo: string) => existingContainerNumbers.has(containerNo),
+          );
+          if (duplicateContainer) {
+            throw new BadRequestException(
+              `Container ${duplicateContainer} is already assigned to another stuffing job.`,
+            );
+          }
+        }
+        for (const container of sanitizedContainers) {
+          for (const field of ['tareWeight', 'grossWeight', 'netWeight']) {
+            const value = Number(container[field] || 0);
+            if (!Number.isFinite(value) || value < 0) {
+              throw new BadRequestException(
+                `Container ${field} cannot be negative.`,
+              );
+            }
+          }
+        }
+
         const totalGross = dto.grossWeight ? Number(dto.grossWeight) : 0;
         const totalNet = dto.netWeight ? Number(dto.netWeight) : 0;
         const allocations = distributeMultiShipmentWeights(
@@ -3670,8 +4041,35 @@ export class ShipmentService {
           allocations.map((a) => [a.shipmentId, a]),
         );
 
+        const effectiveExecutionStatus = isComplete
+          ? 'Loading Completed'
+          : dto.executionStatus || 'Pending';
+
+        const stuffingGroup = await this.upsertStuffingExecutionGroup({
+          orderedShipments: ordered,
+          multiIds,
+          contractId,
+          salesContract,
+          primaryShipmentId,
+          modeCategory,
+          stuffingStatus: isComplete
+            ? 'Completed'
+            : dto.stuffingStatus || 'Draft',
+          executionStatus: effectiveExecutionStatus,
+          loadedQty,
+          totalGross,
+          totalNet,
+          autoPopulated: dto.autoPopulated || {},
+          completedAt: isComplete ? now : null,
+          userId: userId ?? null,
+          companyId: ordered[0].companyId || user?.companyId || null,
+          transaction,
+        });
+
         const multiMeta = {
           isMultiShipment: true,
+          stuffingGroupId: stuffingGroup?.id ?? null,
+          stuffingGroupReference: stuffingGroup?.groupReference ?? null,
           shipmentIds: multiIds,
           primaryShipmentId,
           transportCategory: modeCategory,
@@ -3680,10 +4078,6 @@ export class ShipmentService {
           combinedNetWeight: totalNet,
           shipmentBreakdown: allocations,
         };
-
-        const effectiveExecutionStatus = isComplete
-          ? 'Loading Completed'
-          : dto.executionStatus || 'Pending';
 
         // Keep Truck freight completely independent (never copy freight overrides across Truck shipments)
         const isolatedFreightOverrides =
@@ -3784,10 +4178,21 @@ export class ShipmentService {
           await s.save({ transaction });
         }
 
+        if (stuffingGroup) {
+          await this.syncStuffingExecutionGroupItems({
+            stuffingGroupId: stuffingGroup.id,
+            orderedShipments: ordered,
+            savedRecords: saved,
+            allocationById,
+            transaction,
+          });
+        }
+
         return {
           orderedShipments: ordered,
           savedRecords: saved,
           salesContractId: contractId,
+          stuffingGroup,
         };
       });
 
@@ -3816,6 +4221,7 @@ export class ShipmentService {
           oldValue: null,
           newValue: {
             stuffingId: rec?.id,
+            stuffingGroupId: stuffingGroup?.id ?? null,
             stuffingStatus: 'Completed',
             executionStatus: 'Stuffed',
             multiShipmentIds: multiIds,
@@ -3831,6 +4237,8 @@ export class ShipmentService {
     return {
       success: true,
       isMultiShipment: true,
+      stuffingGroupId: stuffingGroup?.id ?? null,
+      stuffingGroupReference: stuffingGroup?.groupReference ?? null,
       shipmentIds: multiIds,
       message: isComplete
         ? `Stuffing completed successfully for ${orderedShipments.length} shipments`
@@ -3844,6 +4252,197 @@ export class ShipmentService {
       })),
       readyForShipment: true,
     };
+  }
+
+  private async upsertStuffingExecutionGroup(params: {
+    orderedShipments: SalesContractShipment[];
+    multiIds: number[];
+    contractId: number;
+    salesContract: any;
+    primaryShipmentId: number;
+    modeCategory: string;
+    stuffingStatus: string;
+    executionStatus: string;
+    loadedQty: number;
+    totalGross: number;
+    totalNet: number;
+    autoPopulated: any;
+    completedAt: Date | null;
+    userId: number | null;
+    companyId: number | null;
+    transaction: Transaction;
+  }) {
+    if (
+      !this.stuffingGroupModel ||
+      !this.stuffingGroupItemModel ||
+      typeof this.stuffingGroupModel.create !== 'function' ||
+      typeof this.stuffingGroupItemModel.findAll !== 'function'
+    ) {
+      return null;
+    }
+
+    const {
+      multiIds,
+      contractId,
+      salesContract,
+      primaryShipmentId,
+      modeCategory,
+      stuffingStatus,
+      executionStatus,
+      loadedQty,
+      totalGross,
+      totalNet,
+      autoPopulated,
+      completedAt,
+      userId,
+      companyId,
+      transaction,
+    } = params;
+
+    const existingItems = await this.stuffingGroupItemModel.findAll({
+      where: { shipmentId: { [Op.in]: multiIds } },
+      include: [
+        {
+          model: StuffingExecutionGroup,
+          as: 'stuffingGroup',
+          required: false,
+        },
+      ],
+      transaction,
+    });
+
+    const existingGroupIds = Array.from(
+      new Set(
+        (existingItems || [])
+          .map((item: any) => Number(item?.stuffingGroupId))
+          .filter((id) => Number.isSafeInteger(id) && id > 0),
+      ),
+    );
+
+    let targetGroup: StuffingExecutionGroup | null = null;
+    if (existingGroupIds.length > 0) {
+      const candidateGroups = await this.stuffingGroupModel.findAll({
+        where: { id: { [Op.in]: existingGroupIds } },
+        include: [
+          {
+            model: StuffingExecutionGroupItem,
+            as: 'items',
+            required: false,
+          },
+        ],
+        transaction,
+      });
+
+      const targetIdSet = new Set(multiIds.map(Number));
+      for (const grp of candidateGroups || []) {
+        const grpItemShipmentIds = (grp.items || []).map((it: any) =>
+          Number(it.shipmentId),
+        );
+        const exactSameSet =
+          grpItemShipmentIds.length === targetIdSet.size &&
+          grpItemShipmentIds.every((id) => targetIdSet.has(id));
+        if (exactSameSet && existingGroupIds.length === 1) {
+          targetGroup = grp;
+        } else if (grp.stuffingStatus === 'Completed' && !exactSameSet) {
+          throw new BadRequestException(
+            'One or more selected shipments are already completed in a different Stuffing Execution Group.',
+          );
+        }
+      }
+
+      if (!targetGroup) {
+        await this.stuffingGroupItemModel.destroy({
+          where: { shipmentId: { [Op.in]: multiIds } },
+          transaction,
+        });
+        for (const grp of candidateGroups || []) {
+          const remainingCount = await this.stuffingGroupItemModel.count({
+            where: { stuffingGroupId: grp.id },
+            transaction,
+          });
+          if (remainingCount === 0 && grp.stuffingStatus !== 'Completed') {
+            await grp.destroy({ transaction });
+          }
+        }
+      }
+    }
+
+    const contractSlug = String(
+      salesContract?.contractNumber || contractId,
+    ).replace(/\s+/g, '');
+    const defaultReference = `SEG-${contractSlug}-${primaryShipmentId}`;
+    const groupPayload: any = {
+      companyId,
+      salesContractId: contractId,
+      primaryShipmentId,
+      groupReference: targetGroup?.groupReference || defaultReference,
+      transportCategory: modeCategory,
+      stuffingStatus,
+      executionStatus,
+      combinedActualLoadingWeight: loadedQty,
+      combinedGrossWeight: totalGross,
+      combinedNetWeight: totalNet,
+      autoPopulatedData: autoPopulated || {},
+      completedAt: completedAt ?? targetGroup?.completedAt ?? null,
+      updatedBy: userId,
+    };
+
+    if (targetGroup) {
+      await targetGroup.update(groupPayload, { transaction });
+      return targetGroup;
+    }
+
+    return await this.stuffingGroupModel.create(
+      {
+        ...groupPayload,
+        createdBy: userId,
+      },
+      { transaction },
+    );
+  }
+
+  private async syncStuffingExecutionGroupItems(params: {
+    stuffingGroupId: number;
+    orderedShipments: SalesContractShipment[];
+    savedRecords: ShipmentStuffing[];
+    allocationById: Map<number, any>;
+    transaction: Transaction;
+  }) {
+    if (
+      !this.stuffingGroupItemModel ||
+      typeof this.stuffingGroupItemModel.findOrCreate !== 'function'
+    ) {
+      return;
+    }
+
+    const {
+      stuffingGroupId,
+      orderedShipments,
+      savedRecords,
+      allocationById,
+      transaction,
+    } = params;
+
+    for (let i = 0; i < orderedShipments.length; i++) {
+      const shipment = orderedShipments[i];
+      const stuffingRecord = savedRecords[i];
+      const alloc = allocationById.get(Number(shipment.id));
+      const itemPayload = {
+        stuffingGroupId,
+        shipmentId: shipment.id,
+        shipmentStuffingId: stuffingRecord.id,
+        sequenceOrder: i + 1,
+        allocatedLoadingWeight: alloc?.actualLoadingWeight ?? 0,
+        allocatedGrossWeight: alloc?.grossWeight ?? 0,
+        allocatedNetWeight: alloc?.netWeight ?? 0,
+      };
+      const [groupItem] = await this.stuffingGroupItemModel.findOrCreate({
+        where: { shipmentId: shipment.id },
+        defaults: itemPayload,
+        transaction,
+      });
+      await groupItem.update(itemPayload, { transaction });
+    }
   }
 
   private logMultiExecutionContractMismatch(
